@@ -1,0 +1,2 @@
+{"ts":1793205926972,"kind":"review","id":"1bd55f","planHash":"8c9b9999","findings":[{"id":"R1","lens":"maintenance","severity":"low","cause":"change"},{"id":"R2","lens":"security","severity":"medium","cause":"preexisting"},{"id":"R3","lens":"security","severity":"low","cause":"preexisting"},{"id":"R4","lens":"conventions","severity":"low","cause":"preexisting"},{"id":"R5","lens":"conventions","severity":"low","cause":"preexisting"}]}
+{"ts":1793206010919,"kind":"chosen","id":"1bd55f","finding":"R1"}

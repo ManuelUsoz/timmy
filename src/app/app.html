@@ -1,0 +1,40 @@
+<main class="shell">
+  <section class="hero">
+    <p class="eyebrow">Electron + Angular</p>
+    <h1>Timmy</h1>
+    <p class="lede">
+      The UI is an Angular application. Windows, IPC and native APIs live in the Electron main
+      process and reach the renderer through a narrow preload bridge.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>Runtime</h2>
+
+    @if (info(); as appInfo) {
+      <dl class="versions">
+        <div><dt>App</dt><dd>{{ appInfo.name }} {{ appInfo.version }}</dd></div>
+        <div><dt>Electron</dt><dd>{{ appInfo.electron }}</dd></div>
+        <div><dt>Chromium</dt><dd>{{ appInfo.chrome }}</dd></div>
+        <div><dt>Node</dt><dd>{{ appInfo.node }}</dd></div>
+        <div><dt>Platform</dt><dd>{{ appInfo.platform }}</dd></div>
+      </dl>
+    } @else if (error(); as message) {
+      <p class="error">{{ message }}</p>
+    } @else {
+      <p class="muted">Contacting the main process…</p>
+    }
+  </section>
+
+  <section class="card">
+    <h2>Next steps</h2>
+    <ul>
+      <li>Build UI in <code>src/app</code> — Angular CLI hot-reloads it.</li>
+      <li>
+        Add IPC handlers in <code>electron/main.ts</code> and expose them through
+        <code>electron/preload.ts</code>.
+      </li>
+      <li>Run <code>npm run package</code> to produce an installer with electron-builder.</li>
+    </ul>
+  </section>
+</main>

@@ -1,0 +1,111 @@
+:host {
+  display: block;
+  min-height: 100vh;
+  color: #ece7f4;
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+}
+
+.shell {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 64px 24px;
+  display: grid;
+  gap: 20px;
+}
+
+.hero h1 {
+  margin: 8px 0 12px;
+  font-size: clamp(2.4rem, 6vw, 3.6rem);
+  letter-spacing: -0.03em;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #e7a2ff;
+}
+
+.lede {
+  margin: 0;
+  max-width: 60ch;
+  line-height: 1.65;
+  color: #b7aec5;
+}
+
+.card {
+  background: rgba(22, 17, 34, 0.62);
+  border: 1px solid rgba(231, 162, 255, 0.14);
+  border-radius: 14px;
+  padding: 20px 22px;
+  backdrop-filter: blur(22px) saturate(140%);
+}
+
+.card h2 {
+  margin: 0 0 14px;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #a99bbd;
+}
+
+.versions {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.versions div {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(231, 162, 255, 0.1);
+}
+
+.versions div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+dt {
+  color: #a99bbd;
+}
+
+dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+ul {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.8;
+  color: #cbc4d6;
+}
+
+code {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(231, 162, 255, 0.12);
+  color: #e9c9ff;
+  font-size: 0.9em;
+}
+
+.error {
+  margin: 0;
+  color: #ff9c9c;
+  line-height: 1.6;
+}
+
+.muted {
+  margin: 0;
+  color: #a99bbd;
+}

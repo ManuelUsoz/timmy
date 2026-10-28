@@ -1,0 +1,1 @@
+{"status":"done","ts":1793205897316,"ran":["cd /c/Users/miuso/workspace/nxy/timmy; for c in \"npm run typecheck\" \"npx tsc -p tsconfig.app.json --noEmit\" \"npx tsc -p tsconfig.spec.json --noEmit\" \"npx ng test --watch=false\" \"npm run build:electron\"; do echo \"=== $c\"; $c 2>&1 | tail -40; echo \"exit ${PIPESTATUS[0]}\"; done"],"red":[]}

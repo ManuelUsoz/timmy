@@ -1,0 +1,55 @@
+{
+  "name": "timmy",
+  "version": "0.1.0",
+  "description": "Desktop app built with Electron and an Angular renderer.",
+  "author": "",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "ng": "ng",
+    "dev": "concurrently -k -n renderer,electron -c cyan,magenta \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:renderer": "ng serve --port 4200",
+    "dev:electron": "wait-on http-get://localhost:4200 && npm run build:electron && cross-env ELECTRON_RENDERER_URL=http://localhost:4200 electron .",
+    "start": "npm run dev",
+    "build": "npm run build:renderer && npm run build:electron",
+    "build:renderer": "ng build",
+    "build:electron": "node scripts/build-electron.mjs",
+    "preview": "npm run build && electron .",
+    "package": "npm run build && electron-builder",
+    "typecheck": "tsc -p tsconfig.electron.json --noEmit",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "npm@11.19.1",
+  "dependencies": {
+    "@angular/common": "^22.2.0",
+    "@angular/compiler": "^22.2.0",
+    "@angular/core": "^22.2.0",
+    "@angular/forms": "^22.2.0",
+    "@angular/platform-browser": "^22.2.0",
+    "@angular/router": "^22.2.0",
+    "effect": "^4.0.7",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^22.2.5",
+    "@angular/cli": "^22.2.5",
+    "@angular/compiler-cli": "^22.2.0",
+    "@effect/vitest": "^4.0.7",
+    "@types/node": "^26.6.5",
+    "concurrently": "^10.0.6",
+    "cross-env": "^10.1.0",
+    "electron": "^45.1.0",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
+    "jsdom": "^30.0.0",
+    "prettier": "^3.8.1",
+    "typescript": "~6.0.2",
+    "vitest": "^5.0.0",
+    "wait-on": "^9.5.1"
+  }
+}

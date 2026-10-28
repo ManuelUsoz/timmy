@@ -1,0 +1,27 @@
+appId: com.timmy.app
+productName: Timmy
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist-electron/**/*
+  - dist/renderer/**/*
+  - package.json
+  # The renderer is bundled by Angular/esbuild, so no runtime node_modules are needed.
+  - '!node_modules/**/*'
+asar: true
+win:
+  icon: docs/assets/img/icon.ico
+  target:
+    - nsis
+mac:
+  icon: docs/assets/img/icon.icns
+  target:
+    - dmg
+linux:
+  icon: docs/assets/img/icon.png
+  target:
+    - AppImage
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

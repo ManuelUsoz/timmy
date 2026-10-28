@@ -1,0 +1,11 @@
+electron/main.ts	21	function	createWindow	function createWindow(): void {
+src/app/app.ts	12	class	App	export class App {
+src/app/app.ts	18	method	constructor	constructor() {
+src/app/core/desktop-api.ts	6	interface	DesktopApiShape	export interface DesktopApiShape {
+src/app/core/desktop-api.ts	17	class	DesktopApi	export class DesktopApi extends Context.Service<DesktopApi, DesktopApiShape>()(
+src/app/core/desktop-error.ts	10	class	DesktopBridgeError	export class DesktopBridgeError extends Schema.TaggedError<DesktopBridgeError>()('DesktopBridgeError', {
+src/app/core/effect-runtime.ts	14	class	EffectRuntime	export class EffectRuntime implements OnDestroy {
+src/app/core/effect-runtime.ts	21	method	ngOnDestroy	ngOnDestroy(): void {
+src/shared/app-info.ts	11	interface	AppInfo	export interface AppInfo {
+src/shared/desktop-bridge.ts	10	interface	DesktopBridge	export interface DesktopBridge {
+src/types/desktop.d.ts	4	interface	Window	interface Window {
