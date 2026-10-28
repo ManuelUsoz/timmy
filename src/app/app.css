@@ -1,13 +1,8 @@
 :host {
   display: block;
   min-height: 100vh;
-  color: #ece7f4;
-  font-family:
-    Inter,
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    sans-serif;
+  color: var(--text-primary);
+  font-family: var(--ff-sans);
 }
 
 .shell {
@@ -30,22 +25,21 @@
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #e7a2ff;
+  color: var(--link);
 }
 
 .lede {
   margin: 0;
   max-width: 60ch;
   line-height: 1.65;
-  color: #b7aec5;
+  color: var(--text-secondary);
 }
 
 .card {
-  background: rgba(22, 17, 34, 0.62);
-  border: 1px solid rgba(231, 162, 255, 0.14);
-  border-radius: 14px;
+  background: var(--layer-01);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0;
   padding: 20px 22px;
-  backdrop-filter: blur(22px) saturate(140%);
 }
 
 .card h2 {
@@ -53,7 +47,7 @@
   font-size: 0.8rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #a99bbd;
+  color: var(--text-helper);
 }
 
 .versions {
@@ -67,7 +61,7 @@
   justify-content: space-between;
   gap: 24px;
   padding-bottom: 10px;
-  border-bottom: 1px solid rgba(231, 162, 255, 0.1);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .versions div:last-child {
@@ -76,7 +70,7 @@
 }
 
 dt {
-  color: #a99bbd;
+  color: var(--text-secondary);
 }
 
 dd {
@@ -88,26 +82,26 @@ ul {
   margin: 0;
   padding-left: 20px;
   line-height: 1.8;
-  color: #cbc4d6;
+  color: var(--text-secondary);
 }
 
 code {
   padding: 1px 6px;
-  border-radius: 6px;
-  background: rgba(231, 162, 255, 0.12);
-  color: #e9c9ff;
+  border-radius: 0;
+  background: var(--layer-02);
+  color: var(--text-primary);
   font-size: 0.9em;
 }
 
 .error {
   margin: 0;
-  color: #ff9c9c;
+  color: var(--text-error);
   line-height: 1.6;
 }
 
 .muted {
   margin: 0;
-  color: #a99bbd;
+  color: var(--text-helper);
 }
 
 .top h1 {
@@ -135,7 +129,7 @@ dl.stats {
 
 .msg {
   padding: 10px 14px;
-  border-radius: 10px;
+  border-radius: 0;
   line-height: 1.6;
   white-space: pre-wrap;
 }
@@ -143,26 +137,26 @@ dl.stats {
 .msg.user {
   justify-self: end;
   max-width: 80%;
-  background: rgba(231, 162, 255, 0.16);
+  background: var(--layer-02);
 }
 
 .msg.assistant {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--layer-hover);
 }
 
 .tool {
   padding: 8px 12px;
-  border-left: 3px solid #a99bbd;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 6px;
+  border-left: 3px solid var(--support-idle);
+  background: var(--layer-02);
+  border-radius: 0;
 }
 
 .tool.completed {
-  border-left-color: #7fd6a0;
+  border-left-color: var(--support-success);
 }
 
 .tool.failed {
-  border-left-color: #ff9c9c;
+  border-left-color: var(--support-error);
 }
 
 .tool-head {
@@ -175,7 +169,7 @@ dl.stats {
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #a99bbd;
+  color: var(--text-helper);
 }
 
 pre {
@@ -184,13 +178,13 @@ pre {
   overflow: auto;
   white-space: pre-wrap;
   font-size: 0.8rem;
-  color: #cbc4d6;
+  color: var(--text-secondary);
 }
 
 .permission {
   padding: 12px 14px;
-  border: 1px solid rgba(231, 162, 255, 0.4);
-  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 0;
 }
 
 .actions {
@@ -208,22 +202,27 @@ pre {
   flex: 1;
   resize: vertical;
   padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(231, 162, 255, 0.25);
-  background: rgba(22, 17, 34, 0.7);
+  border-radius: 0;
+  border: 0;
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--field);
   color: inherit;
   font: inherit;
 }
 
 button {
   padding: 9px 18px;
-  border-radius: 10px;
+  border-radius: 0;
   border: 0;
-  background: #e7a2ff;
-  color: #1a1226;
+  background: var(--primary);
+  color: var(--text-on-color);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--primary-hover);
 }
 
 button:disabled {
@@ -233,24 +232,28 @@ button:disabled {
 
 button.ghost {
   background: transparent;
-  color: #e7a2ff;
-  border: 1px solid rgba(231, 162, 255, 0.4);
+  color: var(--link);
+  border: 1px solid var(--border-strong);
+}
+
+button.ghost:hover:not(:disabled) {
+  background: var(--layer-hover);
 }
 
 .subagent {
   padding: 8px 12px;
-  border-left: 3px solid #e7a2ff;
-  background: rgba(231, 162, 255, 0.06);
-  border-radius: 6px;
+  border-left: 3px solid var(--info);
+  background: var(--layer-02);
+  border-radius: 0;
 }
 
 .subagent.completed {
-  border-left-color: #7fd6a0;
+  border-left-color: var(--support-success);
 }
 
 .subagent.failed,
 .subagent.cancelled {
-  border-left-color: #ff9c9c;
+  border-left-color: var(--support-error);
 }
 
 .nested {
@@ -278,8 +281,8 @@ button.ghost {
 
 :host ::ng-deep .markdown pre {
   padding: 10px 12px;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.35);
+  border-radius: 0;
+  background: var(--pill-inset);
 }
 
 :host ::ng-deep .markdown pre code {
@@ -288,7 +291,7 @@ button.ghost {
 }
 
 :host ::ng-deep .markdown a {
-  color: #e7a2ff;
+  color: var(--link);
 }
 
 :host ::ng-deep .markdown table {
@@ -298,12 +301,12 @@ button.ghost {
 :host ::ng-deep .markdown th,
 :host ::ng-deep .markdown td {
   padding: 4px 10px;
-  border: 1px solid rgba(231, 162, 255, 0.2);
+  border: 1px solid var(--border-subtle);
 }
 
 :host ::ng-deep .markdown blockquote {
   margin: 8px 0;
   padding-left: 12px;
-  border-left: 3px solid rgba(231, 162, 255, 0.4);
-  color: #b7aec5;
+  border-left: 3px solid var(--border-strong);
+  color: var(--text-secondary);
 }

@@ -1,4 +1,230 @@
 @import 'tailwindcss';
+@import '@fontsource-variable/ibm-plex-sans/wght.css';
+@import '@fontsource-variable/jetbrains-mono/wght.css';
+
+/* Design system "Ascua" (IBM Carbon g100 / White). Tailwind defaults for color,
+   font, text, radius, shadow and named spacing are cleared and replaced by the
+   tokens below. Breakpoints are intentionally left at Tailwind's defaults. */
+
+:root,
+[data-theme='g100'] {
+  --background: #161616;
+  --layer-01: #262626;
+  --layer-02: #393939;
+  --layer-hover: #333333;
+  --field: #262626;
+  --border-subtle: #393939;
+  --border-strong: #6f6f6f;
+  --text-primary: #f4f4f4;
+  --text-secondary: #c6c6c6;
+  --text-helper: #a8a8a8;
+  --text-on-color: #ffffff;
+  --text-error: #ff8389;
+  --link: #78a9ff;
+  --focus: #ffffff;
+  --button-primary: #0f62fe;
+  --button-primary-hover: #0050e6;
+  --button-secondary: #6f6f6f;
+  --button-danger: #da1e28;
+  --support-success: #42be65;
+  --support-info: #4589ff;
+  --support-warning: #f1c21b;
+  --support-error: #fa4d56;
+  --support-merged: #a56eff;
+  --support-idle: #6f6f6f;
+  --overlay: #000000a6;
+  --pill: #000000;
+  --pill-inset: #0b0b0b;
+  --tag-green-bg: #044317;
+  --tag-green-text: #a7f0ba;
+  --tag-blue-bg: #002d9c;
+  --tag-blue-text: #a6c8ff;
+  --tag-red-bg: #750e13;
+  --tag-red-text: #ffb3b8;
+  --tag-purple-bg: #491d8b;
+  --tag-purple-text: #d4bbff;
+  --tag-gray-bg: #393939;
+  --tag-gray-text: #e0e0e0;
+  --shadow-overlay-value: 0 2px 6px rgba(0, 0, 0, 0.3);
+  --focus-width: 2px;
+  --ff-sans: 'IBM Plex Sans Variable', 'IBM Plex Sans', system-ui, 'Segoe UI', sans-serif;
+  --ff-mono: 'JetBrains Mono Variable', 'JetBrains Mono', 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  color-scheme: dark;
+}
+
+[data-theme='white'] {
+  color-scheme: light;
+  --background: #ffffff;
+  --layer-01: #f4f4f4;
+  --layer-02: #ffffff;
+  --layer-hover: #e8e8e8;
+  --field: #f4f4f4;
+  --border-subtle: #e0e0e0;
+  --border-strong: #8d8d8d;
+  --text-primary: #161616;
+  --text-secondary: #525252;
+  --text-helper: #6f6f6f;
+  --text-error: #da1e28;
+  --link: #0f62fe;
+  --focus: #0f62fe;
+  --button-secondary: #393939;
+  --support-success: #24a148;
+  --support-info: #0043ce;
+  --support-error: #da1e28;
+  --support-merged: #8a3ffc;
+  --support-idle: #8d8d8d;
+  --overlay: #16161680;
+  --tag-green-bg: #defbe6;
+  --tag-green-text: #044317;
+  --tag-blue-bg: #d0e2ff;
+  --tag-blue-text: #002d9c;
+  --tag-red-bg: #ffd7d9;
+  --tag-red-text: #a2191f;
+  --tag-purple-bg: #e8daff;
+  --tag-purple-text: #6929c4;
+  --tag-gray-bg: #e0e0e0;
+  --tag-gray-text: #161616;
+}
+
+/* Semantic aliases for component CSS. */
+:root,
+[data-theme] {
+  --primary: var(--button-primary);
+  --primary-hover: var(--button-primary-hover);
+  --secondary: var(--button-secondary);
+  --danger: var(--button-danger);
+  --success: var(--support-success);
+  --info: var(--support-info);
+  --warning: var(--support-warning);
+  --error: var(--support-error);
+  --merged: var(--support-merged);
+  --idle: var(--support-idle);
+}
+
+@theme inline {
+  --color-*: initial;
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-secondary: var(--secondary);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-info: var(--info);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --color-merged: var(--merged);
+  --color-idle: var(--idle);
+  --color-background: var(--background);
+  --color-layer-01: var(--layer-01);
+  --color-layer-02: var(--layer-02);
+  --color-layer-hover: var(--layer-hover);
+  --color-field: var(--field);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-helper: var(--text-helper);
+  --color-text-on-color: var(--text-on-color);
+  --color-text-error: var(--text-error);
+  --color-link: var(--link);
+  --color-focus: var(--focus);
+  --color-button-primary: var(--button-primary);
+  --color-button-primary-hover: var(--button-primary-hover);
+  --color-button-secondary: var(--button-secondary);
+  --color-button-danger: var(--button-danger);
+  --color-support-success: var(--support-success);
+  --color-support-info: var(--support-info);
+  --color-support-warning: var(--support-warning);
+  --color-support-error: var(--support-error);
+  --color-support-merged: var(--support-merged);
+  --color-support-idle: var(--support-idle);
+  --color-overlay: var(--overlay);
+  --color-pill: var(--pill);
+  --color-pill-inset: var(--pill-inset);
+  --color-tag-green-bg: var(--tag-green-bg);
+  --color-tag-green-text: var(--tag-green-text);
+  --color-tag-blue-bg: var(--tag-blue-bg);
+  --color-tag-blue-text: var(--tag-blue-text);
+  --color-tag-red-bg: var(--tag-red-bg);
+  --color-tag-red-text: var(--tag-red-text);
+  --color-tag-purple-bg: var(--tag-purple-bg);
+  --color-tag-purple-text: var(--tag-purple-text);
+  --color-tag-gray-bg: var(--tag-gray-bg);
+  --color-tag-gray-text: var(--tag-gray-text);
+
+  --font-*: initial;
+  --font-sans: var(--ff-sans);
+  --font-mono: var(--ff-mono);
+
+  --text-*: initial;
+  --text-label-01: 12px;
+  --text-label-01--line-height: 16px;
+  --text-label-01--letter-spacing: 0.32px;
+  --text-helper-text-01: 12px;
+  --text-helper-text-01--line-height: 16px;
+  --text-helper-text-01--letter-spacing: 0.32px;
+  --text-body-compact-01: 14px;
+  --text-body-compact-01--line-height: 18px;
+  --text-body-compact-01--letter-spacing: 0.16px;
+  --text-body-01: 14px;
+  --text-body-01--line-height: 20px;
+  --text-body-01--letter-spacing: 0.16px;
+  --text-body-02: 16px;
+  --text-body-02--line-height: 24px;
+  --text-body-02--letter-spacing: 0;
+  --text-code-01: 12px;
+  --text-code-01--line-height: 16px;
+  --text-code-01--letter-spacing: 0.32px;
+  --text-code-02: 14px;
+  --text-code-02--line-height: 20px;
+  --text-code-02--letter-spacing: 0.32px;
+  --text-heading-01: 14px;
+  --text-heading-01--line-height: 18px;
+  --text-heading-01--font-weight: 600;
+  --text-heading-01--letter-spacing: 0.16px;
+  --text-heading-02: 16px;
+  --text-heading-02--line-height: 22px;
+  --text-heading-02--font-weight: 600;
+  --text-heading-02--letter-spacing: 0;
+  --text-heading-03: 20px;
+  --text-heading-03--line-height: 28px;
+  --text-heading-03--letter-spacing: 0;
+  --text-heading-04: 28px;
+  --text-heading-04--line-height: 36px;
+  --text-heading-04--letter-spacing: 0;
+  --text-heading-05: 32px;
+  --text-heading-05--line-height: 40px;
+  --text-heading-05--font-weight: 300;
+  --text-heading-05--letter-spacing: 0;
+
+  /* Named spacing/sizes (p-05, gap-03, h-control-md, w-rail, ...). Tailwind's
+     numeric scale (p-4 etc.) still derives from `--spacing` and is kept. */
+  --spacing-01: 2px;
+  --spacing-02: 4px;
+  --spacing-03: 8px;
+  --spacing-04: 12px;
+  --spacing-05: 16px;
+  --spacing-06: 24px;
+  --spacing-07: 32px;
+  --spacing-08: 40px;
+  --spacing-09: 48px;
+  --spacing-control-sm: 32px;
+  --spacing-control-md: 40px;
+  --spacing-control-lg: 48px;
+  --spacing-row: 32px;
+  --spacing-rail: 64px;
+  --spacing-side: 224px;
+
+  --radius-*: initial;
+  --radius-none: 0;
+  --radius-tag: 24px;
+  --radius-full: 50%;
+  --radius-pill: 20px;
+  --radius-panel: 16px;
+  --radius-sheet: 28px;
+
+  --shadow-*: initial;
+  --shadow-overlay: var(--shadow-overlay-value);
+}
 
 *,
 *::before,
@@ -11,19 +237,26 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  /* Transparent so the native window material (Windows Mica / macOS vibrancy)
-     is visible behind the app. The gradient tints it and also acts as the
-     background on platforms without a system material. */
-  background-color: transparent;
 }
 
 body {
-  background:
-    radial-gradient(circle at 12% 0%, rgba(88, 28, 135, 0.55) 0%, rgba(11, 13, 18, 0) 46%),
-    radial-gradient(circle at 88% 8%, rgba(192, 38, 211, 0.16) 0%, rgba(11, 13, 18, 0) 42%),
-    rgba(11, 13, 18, 0.86);
-  background-attachment: fixed;
+  background-color: var(--background);
+  color: var(--text-primary);
+  font-family: var(--ff-sans);
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.16px;
   -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
+::selection {
+  background: var(--primary);
+  color: var(--text-on-color);
 }
 
 /* Tailwind's preflight strips heading weight and list markers. The app renders
