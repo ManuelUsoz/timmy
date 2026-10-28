@@ -70,3 +70,11 @@
 {"ts":1793210307610,"tool":"Write","allow":true,"reason":"under-threshold","contextTokens":68043,"threshold":100000}
 {"ts":1793210478307,"tool":"Edit","allow":true,"reason":"under-threshold","contextTokens":78696,"threshold":100000}
 {"ts":1793210537463,"tool":"Write","allow":true,"reason":"under-threshold","contextTokens":79646,"threshold":100000}
+{"ts":1793210728859,"tool":"Write","allow":true,"reason":"under-threshold","contextTokens":93983,"threshold":100000}
+{"ts":1793210742977,"tool":"Write","allow":true,"reason":"under-threshold","contextTokens":94542,"threshold":100000}
+{"ts":1793210743367,"tool":"Write","allow":true,"reason":"under-threshold","contextTokens":94542,"threshold":100000}
+{"ts":1793210750240,"tool":"Edit","allow":true,"reason":"under-threshold","contextTokens":94542,"threshold":100000}
+{"ts":1793210764357,"tool":"Edit","allow":true,"reason":"under-threshold","contextTokens":99396,"threshold":100000}
+{"ts":1793210764589,"tool":"Write","allow":true,"reason":"under-threshold","contextTokens":99396,"threshold":100000}
+{"ts":1793210814627,"kind":"read","tool":"Bash","allow":false,"reason":"over-threshold","contextTokens":106107,"threshold":100000}
+{"ts":1793210832303,"kind":"read","tool":"Glob","allow":false,"reason":"over-threshold","contextTokens":107282,"threshold":100000}
