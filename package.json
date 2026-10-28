@@ -42,6 +42,7 @@
     "@angular/cli": "^22.2.5",
     "@angular/compiler-cli": "^22.2.0",
     "@effect/vitest": "^4.0.7",
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^26.6.5",
     "concurrently": "^10.0.6",
     "cross-env": "^10.1.0",
@@ -50,6 +51,7 @@
     "esbuild": "^0.28.2",
     "jsdom": "^30.0.0",
     "prettier": "^3.8.1",
+    "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
     "vitest": "^5.0.0",
     "wait-on": "^9.5.1"
