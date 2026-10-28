@@ -11,5 +11,6 @@ export const layerAppInfoHandlers = AppInfoRpcs.toLayer({
       chrome: process.versions.chrome,
       node: process.versions.node,
       platform: process.platform,
+      cwd: process.cwd(),
     })),
 });

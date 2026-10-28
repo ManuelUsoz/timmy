@@ -9,6 +9,8 @@ export const AppInfo = Schema.Struct({
   chrome: Schema.String,
   node: Schema.String,
   platform: Schema.String,
+  /** Working directory of the main process; the chat session runs here. */
+  cwd: Schema.String,
 }).annotate({ identifier: 'AppInfo' });
 export type AppInfo = typeof AppInfo.Type;
 

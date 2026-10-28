@@ -1,40 +1,138 @@
 <main class="shell">
-  <section class="hero">
-    <p class="eyebrow">Electron + Angular</p>
+  <header class="top">
     <h1>Timmy</h1>
-    <p class="lede">
-      The UI is an Angular application. Windows, IPC and native APIs live in the Electron main
-      process and reach the renderer through a narrow preload bridge.
+    <p class="muted">
+      Claude · {{ model }}
+      @if (info(); as appInfo) {
+        · <code>{{ appInfo.cwd }}</code>
+      }
     </p>
-  </section>
+  </header>
 
-  <section class="card">
-    <h2>Runtime</h2>
+  @if (error(); as message) {
+    <p class="error">{{ message }}</p>
+  }
 
-    @if (info(); as appInfo) {
-      <dl class="versions">
-        <div><dt>App</dt><dd>{{ appInfo.name }} {{ appInfo.version }}</dd></div>
-        <div><dt>Electron</dt><dd>{{ appInfo.electron }}</dd></div>
-        <div><dt>Chromium</dt><dd>{{ appInfo.chrome }}</dd></div>
-        <div><dt>Node</dt><dd>{{ appInfo.node }}</dd></div>
-        <div><dt>Platform</dt><dd>{{ appInfo.platform }}</dd></div>
-      </dl>
-    } @else if (error(); as message) {
-      <p class="error">{{ message }}</p>
+  <section class="card"><dl class="stats">
+    <div>
+      <dt>Context</dt>
+      <dd>
+        @if (chat().context; as context) {
+          {{ context.usedTokens }} / {{ context.maxTokens }} ({{ contextPercent() }}%)
+        } @else {
+          –
+        }
+      </dd>
+    </div>
+    @if (chat().usage; as usage) {
+      <div><dt>Input</dt><dd>{{ usage.inputTokens }}</dd></div>
+      <div><dt>Output</dt><dd>{{ usage.outputTokens }}</dd></div>
+      <div><dt>Cache read</dt><dd>{{ usage.cacheReadTokens ?? 0 }}</dd></div>
+      <div><dt>Cache write</dt><dd>{{ usage.cacheWriteTokens ?? 0 }}</dd></div>
+      <div><dt>Cost</dt><dd>${{ (usage.costUsd ?? 0).toFixed(4) }}</dd></div>
     } @else {
-      <p class="muted">Contacting the main process…</p>
+      <div><dt>Usage</dt><dd>–</dd></div>
+    }
+  </dl></section>
+
+  <section class="card log">
+    <ng-container *ngTemplateOutlet="items; context: { $implicit: undefined }" />
+    @if (chat().items.length === 0) {
+      <p class="muted">Say something to start a session.</p>
+    }
+
+    @if (chat().permission; as request) {
+      <div class="permission">
+        <p>
+          Allow <strong>{{ request.toolCall.name }}</strong>? <span class="muted">{{ request.toolCall.title }}</span>
+        </p>
+        <div class="actions">
+          @for (option of request.options; track option.id) {
+            <button type="button" (click)="answerPermission(request, option)">{{ option.label }}</button>
+          }
+          <button type="button" class="ghost" (click)="answerPermission(request, undefined)">Cancel</button>
+        </div>
+      </div>
+    }
+
+    @if (chat().running && !chat().permission) {
+      <p class="muted">Working…</p>
+    }
+    @if (chat().failure; as failure) {
+      <p class="error">{{ failure }}</p>
     }
   </section>
 
-  <section class="card">
-    <h2>Next steps</h2>
-    <ul>
-      <li>Build UI in <code>src/app</code> — Angular CLI hot-reloads it.</li>
-      <li>
-        Add IPC handlers in <code>electron/main.ts</code> and expose them through
-        <code>electron/preload.ts</code>.
-      </li>
-      <li>Run <code>npm run package</code> to produce an installer with electron-builder.</li>
-    </ul>
-  </section>
+  <form class="composer" (submit)="$event.preventDefault(); send()">
+    <textarea
+      #box
+      rows="2"
+      placeholder="Message Claude"
+      [value]="draft()"
+      (input)="draft.set(box.value)"
+      (keydown.enter)="$event.preventDefault(); send()"
+    ></textarea>
+    @if (chat().running) {
+      <button type="button" class="ghost" (click)="stop()">Stop</button>
+    } @else {
+      <button type="submit" [disabled]="draft().trim() === '' || info() === null">Send</button>
+    }
+  </form>
+
+  <ng-template #items let-owner>
+    @for (item of tree().get(owner) ?? []; track $index) {
+      @switch (item.kind) {
+        @case ('User') {
+          <div class="msg user">{{ item.text }}</div>
+        }
+        @case ('Assistant') {
+          <div class="msg assistant">
+            @if (item.thinking !== '') {
+              <details>
+                <summary>Thinking</summary>
+                <pre>{{ item.thinking }}</pre>
+              </details>
+            }
+            @if (item.text !== '') {
+              <div class="markdown" [innerHTML]="item.text | markdown"></div>
+            }
+          </div>
+        }
+        @case ('Agent') {
+          @if (agent(item.agentId); as sub) {
+            <div class="subagent" [class]="'subagent ' + sub.status.toLowerCase()">
+              <div class="tool-head">
+                <span class="badge">{{ sub.status }}</span>
+                <strong>{{ sub.info.name }}</strong>
+                @if (sub.info.task; as task) {
+                  <span class="muted">{{ task }}</span>
+                }
+              </div>
+              @if (sub.usage; as u) {
+                <p class="muted small">{{ u.inputTokens }} in · {{ u.outputTokens }} out · {{ u.cacheReadTokens ?? 0 }} cache read</p>
+              }
+              <div class="nested">
+                <ng-container *ngTemplateOutlet="items; context: { $implicit: item.agentId }" />
+              </div>
+            </div>
+          }
+        }
+        @case ('Tool') {
+          <div class="tool" [class]="'tool ' + item.call.status.toLowerCase()">
+            <div class="tool-head">
+              <span class="badge">{{ item.call.status }}</span>
+              <strong>{{ item.call.name }}</strong>
+              <span class="muted">{{ item.call.title }}</span>
+            </div>
+            @if (item.call.output; as output) {
+              <details>
+                <summary>Output</summary>
+                <pre>{{ output }}</pre>
+              </details>
+            }
+          </div>
+        }
+      }
+    }
+  </ng-template>
 </main>

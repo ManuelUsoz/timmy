@@ -11,6 +11,7 @@ const appInfo: AppInfo = {
   chrome: '156.0.0.0',
   node: '24.0.0',
   platform: 'win32',
+  cwd: '/work',
 };
 
 const serialization = Effect.gen(function* () {

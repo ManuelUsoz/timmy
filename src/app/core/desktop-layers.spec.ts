@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@effect/vitest';
-import { Effect } from 'effect';
+import { Effect, Layer } from 'effect';
 import { AppInfoRpcs, type AppInfo } from '../../shared/app-info/app-info.rpc';
 import { DesktopApi } from './desktop-api';
-import { makeDesktopTestLayer } from './desktop-layers';
+import { layerChatUnused, makeDesktopTestLayer } from './desktop-layers';
 import { acquireDesktopPort } from './desktop-port';
 
 const appInfo: AppInfo = {
@@ -12,6 +12,7 @@ const appInfo: AppInfo = {
   chrome: '156.0.0.0',
   node: '24.0.0',
   platform: 'win32',
+  cwd: '/work',
 };
 
 const handlers = AppInfoRpcs.toLayer({ 'AppInfo.get': () => Effect.succeed(appInfo) });
@@ -22,7 +23,7 @@ describe('DesktopApi', () => {
       const desktop = yield* DesktopApi;
       const info = yield* desktop['AppInfo.get']();
       expect(info).toEqual(appInfo);
-    }).pipe(Effect.provide(makeDesktopTestLayer(handlers))),
+    }).pipe(Effect.provide(makeDesktopTestLayer(Layer.merge(handlers, layerChatUnused)))),
   );
 
   it.effect('fails with NotInElectron when the bridge is absent', () =>
