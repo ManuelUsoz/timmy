@@ -1,0 +1,80 @@
+<div class="history__bar">
+  <label class="history__search">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+      <circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="1.7" />
+      <path d="M16 16l4 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" />
+    </svg>
+    <input
+      #q
+      type="search"
+      class="history__input"
+      placeholder="Search sessions"
+      aria-label="Search sessions"
+      [value]="query()"
+      (input)="onQuery($event)"
+    />
+  </label>
+  <ui-switcher
+    size="sm"
+    [options]="views()"
+    [ngModel]="view()"
+    (ngModelChange)="viewChange.emit($event)"
+  />
+</div>
+
+@if (filters().length) {
+  <div class="history__filters">
+    @for (f of filters(); track f.id) {
+      <ui-chip removable [removeLabel]="'Remove ' + f.label" (removed)="filterRemove.emit(f.id)">{{
+        f.label
+      }}</ui-chip>
+    }
+  </div>
+}
+
+@if (empty()) {
+  <div class="history__empty" role="status">
+    <p>No sessions match.</p>
+    <button uiButton kind="ghost" size="sm" type="button" (click)="q.value = ''; clearSearch.emit()">
+      Clear search
+    </button>
+  </div>
+} @else {
+  <div class="history__list" role="group" aria-label="Sessions">
+    @for (g of groups(); track g.label) {
+      <as-list-group-label [label]="g.label" [count]="g.items.length" />
+      @for (item of g.items; track item.id) {
+        <div role="listbox" [attr.aria-label]="item.title" style="display: contents">
+          <as-list-row
+            [label]="item.title"
+            [meta]="item.sub"
+            [selected]="item.id === selectedId()"
+            (activate)="select.emit(item.id)"
+          >
+            <span trailing class="history__trail">
+              @if (item.status) {
+                <ui-tag tone="purple">{{ item.status }}</ui-tag>
+              }
+              <span class="history__time">{{ item.time }}</span>
+            </span>
+          </as-list-row>
+        </div>
+        @if (item.id === selectedId()) {
+          <div class="history__open">
+            @if (item.last) {
+              <p class="history__last">{{ item.last }}</p>
+            }
+            <div class="history__actions">
+              <button uiButton kind="primary" size="sm" type="button" (click)="resume.emit(item.id)">
+                Resume
+              </button>
+              <button uiButton kind="ghost" size="sm" type="button" (click)="transcript.emit(item.id)">
+                View transcript
+              </button>
+            </div>
+          </div>
+        }
+      }
+    }
+  </div>
+}

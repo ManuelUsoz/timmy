@@ -1,0 +1,21 @@
+<div
+  class="as-switch"
+  [class.as-switch--sm]="size() === 'sm'"
+  [class.as-switch--full]="full()"
+  role="tablist"
+>
+  @for (opt of options(); track opt.value; let i = $index) {
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="isSelected(i)"
+      [tabindex]="tabIndexFor(i)"
+      [disabled]="disabled()"
+      (click)="select(i)"
+      (keydown)="onKey($event, i)"
+      (blur)="touched()"
+    >
+      {{ opt.label }}
+    </button>
+  }
+</div>

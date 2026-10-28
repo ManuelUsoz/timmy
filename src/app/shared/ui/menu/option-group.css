@@ -1,0 +1,14 @@
+:host {
+  display: flex;
+  flex-direction: column;
+}
+:host(:not(:first-child)) {
+  border-top: 1px solid var(--border-strong);
+}
+.header {
+  padding: 8px 16px 4px;
+  font: 400 12px/16px var(--ff-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}

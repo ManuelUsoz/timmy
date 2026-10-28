@@ -1,0 +1,58 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  max-height: calc(var(--control-md) * 6);
+  overflow: auto;
+  background: var(--layer-02);
+  box-shadow: var(--shadow-overlay);
+  outline: none;
+}
+:host(:focus-visible) {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+:host(.float) {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+}
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--control-md);
+  padding: 0 16px;
+  color: var(--text-secondary);
+  font: 400 14px/18px var(--ff-sans);
+  letter-spacing: 0.16px;
+}
+.spinner {
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.create {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--control-md);
+  padding: 0 16px;
+  color: var(--link);
+  font: 400 14px/18px var(--ff-sans);
+  letter-spacing: 0.16px;
+  cursor: pointer;
+}
+.create:hover,
+.create[data-active] {
+  background: var(--layer-hover-02);
+}
+.create[data-active] {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}

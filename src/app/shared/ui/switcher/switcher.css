@@ -1,0 +1,52 @@
+:host {
+  display: inline-flex;
+}
+:host(.full) {
+  display: flex;
+  align-self: stretch;
+}
+.as-switch {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: var(--spacing-01);
+  background: var(--layer-01);
+  border-radius: var(--radius-tag);
+}
+.as-switch button {
+  height: 28px;
+  padding: 0 var(--spacing-04);
+  border: 0;
+  border-radius: var(--radius-tag);
+  background: transparent;
+  color: var(--text-secondary);
+  font: 400 14px/18px var(--font-sans);
+  letter-spacing: 0.16px;
+  cursor: pointer;
+}
+.as-switch button[aria-selected='true'] {
+  background: var(--layer-02);
+  color: var(--text-primary);
+}
+.as-switch button:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+.as-switch button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.as-switch--sm button {
+  height: 24px;
+  padding: 0 var(--spacing-03);
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.32px;
+}
+.as-switch--full {
+  display: flex;
+  align-self: stretch;
+  flex: 1;
+}
+.as-switch--full button {
+  flex: 1;
+}

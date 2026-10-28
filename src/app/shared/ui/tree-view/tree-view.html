@@ -1,0 +1,50 @@
+<ul
+  class="as-treeview"
+  [class.as-treeview--sm]="size() === 'sm'"
+  role="tree"
+  [attr.aria-multiselectable]="mode() === 'checkable' ? 'true' : null"
+  [attr.aria-disabled]="disabled() ? 'true' : null"
+  (keydown)="onKey($event)"
+  (focusout)="touched()"
+>
+  @for (row of rows(); track row.node.id) {
+    <li
+      class="as-treeitem"
+      role="treeitem"
+      [attr.data-id]="row.node.id"
+      [attr.data-active]="activeId() === row.node.id ? '' : null"
+      [attr.data-disabled]="disabled() || row.node.disabled ? '' : null"
+      [attr.aria-level]="row.depth + 1"
+      [attr.aria-setsize]="row.setSize"
+      [attr.aria-posinset]="row.posInSet"
+      [attr.aria-expanded]="row.expandable ? expanded().has(row.node.id) : null"
+      [attr.aria-selected]="ariaSelected(row.node)"
+      [attr.aria-checked]="ariaChecked(row.node)"
+      [attr.aria-disabled]="row.node.disabled ? 'true' : null"
+      [attr.tabindex]="activeId() === row.node.id ? 0 : -1"
+      [style.--depth]="row.depth"
+      (click)="onRowClick(row.node)"
+    >
+      <span
+        class="as-treeitem__chev"
+        [class.as-treeitem__chev--none]="!row.expandable"
+        aria-hidden="true"
+        (click)="onChevron($event, row)"
+      >
+        @if (row.expandable) {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+        }
+      </span>
+      @if (mode() === 'checkable') {
+        <span class="as-check" [attr.data-state]="checkState(row.node)" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M5 12l5 5 9-10" />
+          </svg>
+        </span>
+      }
+      <span class="as-treeitem__label">{{ row.node.label }}</span>
+    </li>
+  }
+</ul>

@@ -1,0 +1,62 @@
+:host {
+  display: inline-block;
+}
+.as-check-row {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-03);
+  cursor: pointer;
+  color: var(--text-primary);
+  font: 400 14px/18px var(--font-sans);
+  letter-spacing: 0.16px;
+}
+.as-check-row[data-disabled] {
+  cursor: default;
+  /* no --text-disabled token here; reduced opacity conveys disabled */
+  opacity: 0.5;
+}
+.as-check-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.as-check {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--background);
+}
+.as-check svg {
+  display: none;
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.4;
+}
+.as-check[data-state='checked'],
+.as-check[data-state='mixed'] {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+}
+.as-check[data-state='checked'] svg {
+  display: block;
+}
+.as-check[data-state='mixed']::after {
+  content: '';
+  width: 8px;
+  height: 2px;
+  background: var(--background);
+}
+.as-check-input:focus-visible + .as-check {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 1px;
+}

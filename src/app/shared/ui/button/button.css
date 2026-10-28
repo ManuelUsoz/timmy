@@ -1,0 +1,102 @@
+:host {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+  height: var(--control-md);
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  font: 400 14px/18px var(--ff-sans);
+  letter-spacing: 0.16px;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color 0.11s ease,
+    border-color 0.11s ease;
+}
+:host ::ng-deep svg {
+  flex: none;
+}
+:host(:focus-visible) {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+:host(.as-btn--primary) {
+  background: var(--button-primary);
+  color: var(--text-on-color);
+}
+:host(.as-btn--primary:hover:not(:disabled):not([aria-disabled='true'])) {
+  background: var(--button-primary-hover);
+}
+:host(.as-btn--primary:active:not(:disabled):not([aria-disabled='true'])) {
+  background: color-mix(in srgb, var(--button-primary-hover), black 12%);
+}
+:host(.as-btn--secondary:hover:not(:disabled):not([aria-disabled='true'])) {
+  background: color-mix(in srgb, var(--button-secondary), black 12%);
+}
+:host(.as-btn--secondary:active:not(:disabled):not([aria-disabled='true'])) {
+  background: color-mix(in srgb, var(--button-secondary), black 24%);
+}
+:host(.as-btn--danger:hover:not(:disabled):not([aria-disabled='true'])) {
+  background: color-mix(in srgb, var(--button-danger), black 12%);
+}
+:host(.as-btn--danger:active:not(:disabled):not([aria-disabled='true'])) {
+  background: color-mix(in srgb, var(--button-danger), black 24%);
+}
+:host(.as-btn--secondary) {
+  background: var(--button-secondary);
+  color: var(--text-on-color);
+}
+:host(.as-btn--tertiary) {
+  background: transparent;
+  color: var(--link);
+  border-color: var(--link);
+}
+:host(.as-btn--tertiary:hover:not(:disabled):not([aria-disabled='true'])) {
+  background: var(--layer-hover);
+}
+:host(.as-btn--ghost) {
+  background: transparent;
+  color: var(--link);
+}
+:host(.as-btn--ghost:hover:not(:disabled):not([aria-disabled='true'])) {
+  background: var(--layer-hover);
+}
+:host(.as-btn--danger) {
+  background: var(--button-danger);
+  color: var(--text-on-color);
+}
+:host(.as-btn--sm) {
+  height: var(--control-sm);
+  padding: 0 12px;
+}
+:host(.as-btn--lg) {
+  height: var(--control-lg);
+  padding: 0 16px;
+}
+:host(.as-btn--block) {
+  display: flex;
+  width: 100%;
+}
+:host(.as-btn--icon) {
+  width: var(--control-md);
+  padding: 0;
+}
+:host(.as-btn--icon.as-btn--sm) {
+  width: var(--control-sm);
+}
+:host(.as-btn--icon.as-btn--lg) {
+  width: var(--control-lg);
+}
+:host(.as-btn--neutral) {
+  color: var(--text-secondary);
+}
+:host(:disabled),
+:host([aria-disabled='true']) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

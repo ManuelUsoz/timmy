@@ -1,0 +1,40 @@
+<as-list-row lead [label]="title()" [meta]="sub()" [asks]="asks()">
+  <ui-avatar leading [name]="title()" size="md" [tone]="tone()" />
+  <span trailing class="session__trail">
+    <ui-state [tone]="tone()">{{ status() }}</ui-state>
+    @if (elapsed()) {
+      <span class="session__elapsed">{{ elapsed() }}</span>
+    }
+  </span>
+</as-list-row>
+
+@if (tools().length) {
+  <ui-tree-view class="session__tools" size="sm" [nodes]="tools()" />
+}
+
+@if (permission(); as p) {
+  <section class="session__perm" aria-label="Permission request">
+    <p class="session__perm-title">Allow {{ p.toolCall.name }}?</p>
+    <pre class="session__cmd">{{ p.toolCall.title }}</pre>
+    <div class="session__actions">
+      @if (option(['AllowOnce'])) {
+        <button uiButton kind="primary" size="sm" type="button" data-action="allow" (click)="choose(['AllowOnce'])">
+          Allow
+        </button>
+      }
+      @if (option(['AllowAlways'])) {
+        <button uiButton kind="tertiary" size="sm" type="button" data-action="always" (click)="choose(['AllowAlways'])">
+          Always
+        </button>
+      }
+      @if (option(['RejectOnce', 'RejectAlways'])) {
+        <button uiButton kind="ghost" size="sm" type="button" data-action="deny" (click)="choose(['RejectOnce', 'RejectAlways'])">
+          Deny
+        </button>
+      }
+      <button uiButton kind="ghost" size="sm" type="button" data-action="interrupt" (click)="interrupt.emit()">
+        Interrupt
+      </button>
+    </div>
+  </section>
+}

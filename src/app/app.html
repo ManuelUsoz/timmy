@@ -1,6 +1,7 @@
 <main class="shell">
   <header class="top">
     <h1>Timmy</h1>
+    <ui-pill [tone]="pill().tone" [label]="pill().label" [pulse]="chat().running">Claude</ui-pill>
     <p class="muted">
       Claude · {{ model }}
       @if (info(); as appInfo) {
@@ -42,17 +43,13 @@
     }
 
     @if (chat().permission; as request) {
-      <div class="permission">
-        <p>
-          Allow <strong>{{ request.toolCall.name }}</strong>? <span class="muted">{{ request.toolCall.title }}</span>
-        </p>
-        <div class="actions">
-          @for (option of request.options; track option.id) {
-            <button type="button" (click)="answerPermission(request, option)">{{ option.label }}</button>
-          }
-          <button type="button" class="ghost" (click)="answerPermission(request, undefined)">Cancel</button>
-        </div>
-      </div>
+      <ui-session
+        title="Permission request"
+        status="asks"
+        [permission]="request"
+        (answer)="answerPermission($event)"
+        (interrupt)="stop()"
+      />
     }
 
     @if (chat().running && !chat().permission) {
@@ -136,3 +133,234 @@
     }
   </ng-template>
 </main>
+
+<div class="gallery">
+  <h1>Components</h1>
+
+  <section>
+    <h2>Button</h2>
+    @for (size of sizes; track size) {
+      <h3>size {{ size }}</h3>
+      <div class="row">
+        @for (kind of kinds; track kind) {
+          <button uiButton [kind]="kind" [size]="size" type="button">{{ kind }}</button>
+        }
+      </div>
+    }
+    <h3>icon only</h3>
+    <div class="row">
+      @for (kind of kinds; track kind) {
+        <button uiButton [kind]="kind" iconOnly aria-label="Add" type="button">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M8.5 2h-1v5.5H2v1h5.5V14h1V8.5H14v-1H8.5z" />
+          </svg>
+        </button>
+      }
+    </div>
+    <h3>block</h3>
+    <div class="block-demo"><button uiButton block type="button">Block button</button></div>
+    <h3>neutral</h3>
+    <div class="row">
+      @for (kind of kinds; track kind) {
+        <button uiButton [kind]="kind" neutral type="button">{{ kind }}</button>
+      }
+    </div>
+    <h3>disabled</h3>
+    <div class="row">
+      @for (kind of kinds; track kind) {
+        <button uiButton [kind]="kind" disabled type="button">{{ kind }}</button>
+      }
+    </div>
+    <h3>anchor</h3>
+    <div class="row"><a uiButton href="#" kind="secondary">Anchor button</a></div>
+  </section>
+
+  <section>
+    <h2>Select</h2>
+    <div class="case">
+      <ui-select label="Single" helper="Pick one model" [options]="modelOptions" [formControl]="gSingle" />
+      <pre>{{ gSingle.value | json }}</pre>
+    </div>
+    <div class="case">
+      <ui-select label="Multiple (count)" multiple display="count" [options]="modelOptions" [formControl]="gMultiCount" />
+      <pre>{{ gMultiCount.value | json }}</pre>
+    </div>
+    <div class="case">
+      <ui-select label="Multiple (chips)" multiple display="chips" [options]="modelOptions" [formControl]="gMultiChips" />
+      <pre>{{ gMultiChips.value | json }}</pre>
+    </div>
+    <div class="case">
+      <ui-select label="Grouped" placeholder="Choose" [options]="modelGroups" [formControl]="gGrouped" />
+      <pre>{{ gGrouped.value | json }}</pre>
+    </div>
+    <div class="case">
+      <ui-select label="Size sm" size="sm" [options]="modelOptions" [formControl]="gSm" />
+      <pre>{{ gSm.value | json }}</pre>
+    </div>
+    <div class="case">
+      <ui-select label="Size md" size="md" [options]="modelOptions" [formControl]="gMd" />
+      <pre>{{ gMd.value | json }}</pre>
+    </div>
+    <div class="case">
+      <ui-select label="Size lg" size="lg" [options]="modelOptions" [formControl]="gLg" />
+      <pre>{{ gLg.value | json }}</pre>
+    </div>
+    <div class="case">
+      <ui-select label="Error" error="A model is required" [options]="modelOptions" [formControl]="gError" />
+      <pre>{{ gError.value | json }}</pre>
+    </div>
+    <div class="case">
+      <ui-select label="Disabled" [options]="modelOptions" [formControl]="gDisabled" />
+      <pre>{{ gDisabled.value | json }}</pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>Chip</h2>
+    <h3>tones</h3>
+    <div class="row">
+      @for (t of chipTones; track t) {
+        <ui-chip [tone]="t">{{ t }}</ui-chip>
+      }
+    </div>
+    <h3>size md</h3>
+    <div class="row">
+      @for (t of chipTones; track t) {
+        <ui-chip [tone]="t" size="md">{{ t }}</ui-chip>
+      }
+    </div>
+    <h3>selectable</h3>
+    <div class="row">
+      <ui-chip selectable #c1>Selectable ({{ c1.selected() }})</ui-chip>
+      <ui-chip selectable [selected]="true" tone="blue">Preselected</ui-chip>
+    </div>
+    <h3>removable</h3>
+    <div class="row">
+      @for (item of removable(); track item) {
+        <ui-chip removable (removed)="removeChip(item)">{{ item }}</ui-chip>
+      }
+    </div>
+    <h3>disabled</h3>
+    <div class="row">
+      <ui-chip disabled>Disabled</ui-chip>
+      <ui-chip disabled selectable removable>Disabled selectable</ui-chip>
+    </div>
+  </section>
+
+  <section>
+    <h2>Tag</h2>
+    <div class="row">
+      @for (t of tagTones; track t) {
+        <ui-tag [tone]="t">{{ t }}</ui-tag>
+      }
+    </div>
+  </section>
+
+  <section>
+    <h2>State</h2>
+    <div class="row">
+      @for (t of stateTones; track t) {
+        <ui-state [tone]="t">{{ t }}</ui-state>
+      }
+    </div>
+  </section>
+
+  <section>
+    <h2>Checkbox</h2>
+    <div class="row">
+      <ui-checkbox>Unchecked</ui-checkbox>
+      <ui-checkbox [formControl]="gAccepted">Bound: {{ gAccepted.value | json }}</ui-checkbox>
+      <ui-checkbox indeterminate>Mixed</ui-checkbox>
+      <ui-checkbox disabled>Disabled</ui-checkbox>
+    </div>
+  </section>
+
+  <section>
+    <h2>Avatar</h2>
+    <h3>initials from name, tones</h3>
+    <div class="row">
+      @for (t of stateTones; track t) {
+        <ui-avatar name="Ada Lovelace" [tone]="t" />
+      }
+    </div>
+    <h3>initials override, sizes</h3>
+    <div class="row">
+      <ui-avatar initials="XY" />
+      <ui-avatar initials="XY" size="md" />
+    </div>
+    <h3>with logo</h3>
+    <div class="row">
+      <ui-avatar name="Timmy" tone="info"><ui-logo [size]="16" mono /></ui-avatar>
+      <ui-avatar name="Timmy" tone="success" size="md"><ui-logo [size]="24" mono /></ui-avatar>
+    </div>
+  </section>
+
+  <section>
+    <h2>Logo</h2>
+    <h3>geometric 16 / 24 / 28</h3>
+    <div class="row">
+      <ui-logo [size]="16" />
+      <ui-logo [size]="24" />
+      <ui-logo [size]="28" tone="info" />
+    </div>
+    <h3>flat 32 / 64</h3>
+    <div class="row">
+      <ui-logo [size]="32" />
+      <ui-logo [size]="64" tone="success" />
+    </div>
+    <h3>mono</h3>
+    <div class="ground">
+      <ui-logo [size]="16" mono />
+      <ui-logo [size]="28" mono />
+      <ui-logo [size]="64" mono />
+    </div>
+  </section>
+
+  <section>
+    <h2>Menu</h2>
+    <div class="row menus">
+      <div>
+        <h3>single</h3>
+        <ui-menu class="menu-demo" ariaLabel="Models" (selectionChange)="menuSelected.set($event)">
+          <ui-option value="opus" [selected]="menuSelected() === 'opus'">Claude Opus</ui-option>
+          <ui-option value="sonnet" [selected]="menuSelected() === 'sonnet'">Claude Sonnet</ui-option>
+          <ui-option value="legacy" disabled>Legacy</ui-option>
+        </ui-menu>
+      </div>
+      <div>
+        <h3>multiple</h3>
+        <ui-menu class="menu-demo" multiple (selectionChange)="toggleMulti($event)">
+          <ui-option value="opus" [selected]="menuMulti().includes('opus')">Claude Opus</ui-option>
+          <ui-option value="sonnet" [selected]="menuMulti().includes('sonnet')">Claude Sonnet</ui-option>
+          <ui-option value="haiku" [selected]="menuMulti().includes('haiku')">Claude Haiku</ui-option>
+        </ui-menu>
+      </div>
+      <div>
+        <h3>grouped, meta</h3>
+        <ui-menu class="menu-demo">
+          <ui-option-group label="Anthropic">
+            <ui-option value="opus" meta="200k">Claude Opus</ui-option>
+            <ui-option value="sonnet" meta="200k">Claude Sonnet</ui-option>
+          </ui-option-group>
+          <ui-option-group label="Local">
+            <ui-option value="llama" meta="8k">Llama</ui-option>
+          </ui-option-group>
+        </ui-menu>
+      </div>
+      <div>
+        <h3>create</h3>
+        <ui-menu class="menu-demo" createLabel="Create new">
+          <ui-option value="a">Existing item</ui-option>
+        </ui-menu>
+      </div>
+      <div>
+        <h3>loading</h3>
+        <ui-menu class="menu-demo" loading />
+      </div>
+      <div>
+        <h3>empty</h3>
+        <ui-menu class="menu-demo" />
+      </div>
+    </div>
+  </section>
+</div>

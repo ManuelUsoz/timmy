@@ -1,0 +1,103 @@
+:host {
+  display: block;
+}
+.as-treeview {
+  --row-h: 32px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: var(--text-primary);
+  font: 400 14px/18px var(--font-sans);
+  letter-spacing: 0.16px;
+}
+.as-treeview--sm {
+  --row-h: 24px;
+}
+.as-treeitem {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-03);
+  height: var(--row-h);
+  box-sizing: border-box;
+  padding-right: var(--spacing-03);
+  padding-left: calc(var(--spacing-03) + var(--depth, 0) * 16px);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+.as-treeitem:hover {
+  background: var(--layer-hover);
+}
+.as-treeitem[aria-selected='true'] {
+  background: var(--layer-selected);
+}
+.as-treeitem[data-disabled] {
+  cursor: default;
+  opacity: 0.5;
+}
+.as-treeitem:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: calc(var(--focus-width) * -1);
+}
+.as-treeitem__chev {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--text-secondary);
+}
+.as-treeitem__chev svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 110ms ease;
+}
+.as-treeitem[aria-expanded='true'] > .as-treeitem__chev svg {
+  transform: rotate(90deg);
+}
+.as-treeitem__chev--none {
+  visibility: hidden;
+}
+.as-treeitem__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.as-treeitem__icon,
+.as-treeitem__meta {
+  flex: none;
+  color: var(--text-secondary);
+}
+.as-check {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--background);
+}
+.as-check svg {
+  display: none;
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.4;
+}
+.as-check[data-state='checked'],
+.as-check[data-state='mixed'] {
+  background: var(--text-primary);
+  border-color: var(--text-primary);
+}
+.as-check[data-state='checked'] svg {
+  display: block;
+}
+.as-check[data-state='mixed']::after {
+  content: '';
+  width: 8px;
+  height: 2px;
+  background: var(--background);
+}

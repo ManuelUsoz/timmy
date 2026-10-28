@@ -1,0 +1,18 @@
+<label class="as-check-row" [attr.data-disabled]="disabled() ? '' : null">
+  <input
+    class="as-check-input"
+    type="checkbox"
+    [checked]="value()"
+    [indeterminate]="indeterminate()"
+    [disabled]="disabled()"
+    [attr.aria-checked]="state() === 'mixed' ? 'mixed' : value()"
+    (change)="toggle($event)"
+    (blur)="touched()"
+  />
+  <span class="as-check" [attr.data-state]="state()" [attr.data-disabled]="disabled() ? '' : null">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+      <path d="M5 12l5 5 9-10" />
+    </svg>
+  </span>
+  <span class="as-check-label"><ng-content /></span>
+</label>

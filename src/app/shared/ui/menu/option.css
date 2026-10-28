@@ -1,0 +1,75 @@
+:host {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--control-md);
+  box-sizing: border-box;
+  padding: 0 16px;
+  color: var(--text-primary);
+  font: 400 14px/18px var(--ff-sans);
+  letter-spacing: 0.16px;
+  cursor: pointer;
+}
+:host([data-size='sm']) {
+  min-height: var(--control-sm);
+}
+:host(:hover),
+:host([data-active]) {
+  background: var(--layer-hover-02);
+}
+:host([data-active]) {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+:host([aria-selected='true']:not(.multi)) {
+  background: var(--layer-selected-02);
+  font-weight: 600;
+}
+:host([aria-selected='true']:not(.multi):hover),
+:host([aria-selected='true']:not(.multi)[data-active]) {
+  background: var(--layer-hover-02);
+}
+:host([aria-disabled='true']) {
+  /* --text-disabled does not exist; dim instead. */
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: transparent;
+}
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.label ::ng-deep mark,
+.label ::ng-deep .match {
+  background: transparent;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+}
+.meta {
+  flex: none;
+  margin-left: auto;
+  color: var(--text-secondary);
+  font: 400 12px/16px var(--ff-mono);
+  letter-spacing: 0.32px;
+}
+.check {
+  flex: none;
+  margin-left: auto;
+}
+.mark {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid var(--text-primary);
+  color: var(--background);
+}
+:host([aria-selected='true'].multi) .mark {
+  background: var(--text-primary);
+}

@@ -1,0 +1,20 @@
+<div class="as-field" [class.as-field--error]="!!error()">
+  @if (label()) {
+    <label class="as-field__label" [attr.for]="id">{{ label() }}</label>
+  }
+  <input
+    class="as-field__input"
+    [id]="id"
+    [type]="type()"
+    [placeholder]="placeholder()"
+    [value]="value()"
+    [disabled]="disabled()"
+    [attr.aria-invalid]="error() ? 'true' : null"
+    [attr.aria-describedby]="message() ? descId : null"
+    (input)="onInput($event)"
+    (blur)="touched()"
+  />
+  @if (message()) {
+    <span class="as-field__help" [id]="descId">{{ message() }}</span>
+  }
+</div>

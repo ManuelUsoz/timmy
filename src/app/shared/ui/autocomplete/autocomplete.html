@@ -1,0 +1,153 @@
+<div class="as-field" [class.as-field--error]="!!error()">
+  @if (label()) {
+    <label class="as-field__label" [for]="inputId">{{ label() }}</label>
+  }
+  <div class="as-combo__box">
+    <div
+      class="as-combo"
+      [class.as-combo--multi]="multiple()"
+      [class.as-combo--search]="variant() === 'search'"
+      [class.as-combo--error]="!!error()"
+    >
+      @if (variant() === 'search') {
+        <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="M10.5 10.5L14 14" /></svg>
+      }
+      <div class="as-combo__tokens">
+        @if (multiple()) {
+          @for (opt of selected(); track opt.value) {
+            <span class="as-chip">
+              <span class="as-chip__label">{{ opt.label }}</span>
+              <button
+                type="button"
+                class="as-chip__x"
+                tabindex="-1"
+                [attr.aria-label]="'Remove ' + opt.label"
+                [disabled]="disabled()"
+                (pointerdown)="$event.preventDefault()"
+                (click)="removeChip(opt)"
+              >
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+              </button>
+            </span>
+          }
+        }
+        <input
+          class="as-combo__input"
+          type="text"
+          role="combobox"
+          autocomplete="off"
+          aria-autocomplete="list"
+          [id]="inputId"
+          [value]="inputText()"
+          [placeholder]="placeholder()"
+          [disabled]="disabled()"
+          [attr.aria-expanded]="open()"
+          [attr.aria-controls]="listId"
+          [attr.aria-activedescendant]="activeId()"
+          [attr.aria-invalid]="error() ? 'true' : null"
+          [attr.aria-describedby]="error() || helper() ? helpId : null"
+          (input)="onInput($event)"
+          (keydown)="onKeydown($event)"
+          (blur)="onBlur()"
+        />
+      </div>
+      @if (hasValue() && !disabled()) {
+        <button
+          type="button"
+          class="as-combo__btn"
+          tabindex="-1"
+          aria-label="Clear"
+          (pointerdown)="$event.preventDefault()"
+          (click)="clear()"
+        >
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+        </button>
+      }
+      @if (variant() !== 'search') {
+        <button
+          type="button"
+          class="as-combo__btn"
+          tabindex="-1"
+          aria-label="Toggle options"
+          [disabled]="disabled()"
+          (pointerdown)="$event.preventDefault()"
+          (click)="toggle()"
+        >
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3.5 6l4.5 4.5L12.5 6" /></svg>
+        </button>
+      }
+    </div>
+    @if (open()) {
+      <ul
+        class="as-menu as-menu--float"
+        role="listbox"
+        [id]="listId"
+        [attr.aria-multiselectable]="multiple() ? 'true' : null"
+        [attr.aria-label]="label() || placeholder() || 'Options'"
+        [attr.aria-busy]="loading() ? 'true' : null"
+        (pointerdown)="$event.preventDefault()"
+      >
+        @if (loading()) {
+          <li class="as-menu__status" role="presentation">
+            <span class="as-spinner" aria-hidden="true"></span>
+            Loading…
+          </li>
+        } @else if (!count() && !createRow()) {
+          <li class="as-empty" role="presentation">
+            <span class="as-empty__title">No results{{ query().trim() ? ' for "' + query().trim() + '"' : '' }}</span>
+            <span>Try a different term{{ creatable() ? ' or type a new value' : '' }}.</span>
+          </li>
+        }
+        @if (!loading()) {
+          @for (g of groups(); track g.labelId) {
+            <li class="as-menu__section" role="presentation">
+              @if (g.label !== null) {
+                <div class="as-menu__group" role="presentation" [id]="g.labelId">{{ g.label }}</div>
+              }
+              <ul class="as-menu__items" [attr.role]="g.label !== null ? 'group' : 'presentation'" [attr.aria-labelledby]="g.label !== null ? g.labelId : null">
+                @for (item of g.items; track item.id) {
+                  <li
+                    class="as-option"
+                    role="option"
+                    [id]="item.id"
+                    [attr.aria-selected]="isSelected(item.opt)"
+                    [attr.data-active]="activeIndex() === item.index ? '' : null"
+                    (click)="pick(item)"
+                    (mousemove)="activeIndex.set(item.index)"
+                  >
+                    @if (multiple()) {
+                      <span class="as-check" [attr.data-state]="isSelected(item.opt) ? 'checked' : 'unchecked'">
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" /></svg>
+                      </span>
+                    }
+                    <span class="as-option__label">{{ item.before }}@if (item.match) {<mark class="as-match">{{ item.match }}</mark>}{{ item.after }}</span>
+                    @if (!multiple() && isSelected(item.opt)) {
+                      <svg class="as-option__check" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" /></svg>
+                    }
+                  </li>
+                }
+              </ul>
+            </li>
+          }
+          @if (createRow(); as c) {
+            <li
+              class="as-option as-option--create"
+              role="option"
+              [id]="c.id"
+              aria-selected="false"
+              [attr.data-active]="activeIndex() === c.index ? '' : null"
+              (click)="pick(c)"
+              (mousemove)="activeIndex.set(c.index)"
+            >
+              <span class="as-option__label">Create "{{ c.opt.label }}"</span>
+            </li>
+          }
+        }
+      </ul>
+    }
+    <div class="as-sr" role="status" aria-live="polite">{{ announcement() }}</div>
+  </div>
+  @if (error() || helper()) {
+    <span class="as-field__help" [id]="helpId">{{ error() || helper() }}</span>
+  }
+</div>

@@ -1,0 +1,88 @@
+:host {
+  --bg: var(--tag-gray-bg);
+  --fg: var(--tag-gray-text);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-02);
+  height: 24px;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0 var(--spacing-03);
+  border: 1px solid transparent;
+  border-radius: var(--radius-tag);
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 12px/16px var(--font-sans);
+  letter-spacing: 0.32px;
+  white-space: nowrap;
+  transition:
+    border-color 0.11s ease,
+    background-color 0.11s ease;
+}
+.as-chip__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:host(.as-chip--blue) { --bg: var(--tag-blue-bg); --fg: var(--tag-blue-text); }
+:host(.as-chip--green) { --bg: var(--tag-green-bg); --fg: var(--tag-green-text); }
+:host(.as-chip--red) { --bg: var(--tag-red-bg); --fg: var(--tag-red-text); }
+:host(.as-chip--purple) { --bg: var(--tag-purple-bg); --fg: var(--tag-purple-text); }
+:host(.as-chip--outline) {
+  background: transparent;
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+:host(.as-chip--mono) .as-chip__label {
+  font-family: var(--font-mono);
+}
+/* --control-sm may be absent: 32px fallback */
+:host(.as-chip--md) {
+  height: var(--control-sm, 32px);
+  padding: 0 var(--spacing-04);
+  font-size: 14px;
+  line-height: 18px;
+  letter-spacing: 0.16px;
+}
+:host(.as-chip--selectable) {
+  cursor: pointer;
+}
+:host(.as-chip--selectable:hover) {
+  border-color: currentColor;
+}
+/* Pressed inverts so selection is never colour alone */
+:host([aria-pressed='true']) {
+  background: var(--text-primary);
+  color: var(--background);
+  border-color: transparent;
+}
+:host(:focus-visible),
+.as-chip__x:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 1px;
+}
+.as-chip__x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-right: -4px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.as-chip__x:hover {
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+.as-chip__x svg {
+  width: 12px;
+  height: 12px;
+}
+:host(.as-chip--disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

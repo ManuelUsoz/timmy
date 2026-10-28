@@ -1,0 +1,99 @@
+<div class="as-field as-select" [class.as-select--chips]="multiple() && display() === 'chips'" [class.as-field--error]="!!error()" [attr.data-size]="size()">
+  @if (label()) {
+    <span class="as-field__label" [id]="labelId">{{ label() }}</span>
+  }
+  <div class="as-select__box">
+    <button
+      #trigger
+      type="button"
+      class="as-select__trigger"
+      aria-haspopup="listbox"
+      [disabled]="disabled()"
+      [attr.aria-expanded]="open()"
+      [attr.aria-controls]="listId"
+      [attr.aria-activedescendant]="activeId()"
+      [attr.aria-labelledby]="label() ? labelId : null"
+      [attr.aria-keyshortcuts]="multiple() && selected().length ? 'Backspace Delete' : null"
+      [attr.aria-invalid]="error() ? 'true' : null"
+      [attr.aria-describedby]="error() || helper() ? helpId : null"
+      (click)="toggle()"
+      (keydown)="onTriggerKeydown($event)"
+      (blur)="onBlur()"
+    >
+      @if (multiple() && display() === 'chips' && selected().length) {
+        <span class="as-select__chips">
+          @for (opt of selected(); track opt.value) {
+            <span class="as-chip">
+              <span class="as-chip__label">{{ opt.label }}</span>
+              <span class="as-chip__x" aria-hidden="true" (click)="removeChip(opt, $event)">
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+              </span>
+            </span>
+          }
+        </span>
+      } @else {
+        @if (multiple() && selected().length) {
+          <span class="as-select__count" (click)="clearAll($event)" title="Clear">
+            {{ selected().length }}
+            <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+          </span>
+        }
+        <span class="as-select__value" [attr.data-placeholder]="selected().length ? null : ''">
+          @if (!selected().length) {
+            {{ placeholder() }}
+          } @else if (multiple()) {
+            {{ label() || 'Items' }} selected
+          } @else {
+            {{ selected()[0].label }}
+          }
+        </span>
+      }
+      <svg class="as-select__chev" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3.5 6l4.5 4.5L12.5 6" /></svg>
+    </button>
+    @if (open()) {
+      <ul
+        class="as-menu as-menu--float"
+        role="listbox"
+        [id]="listId"
+        [attr.aria-multiselectable]="multiple() ? 'true' : null"
+        [attr.aria-labelledby]="label() ? labelId : null"
+      >
+        @for (g of groups(); track g.labelId) {
+          <li class="as-menu__section" role="presentation">
+          @if (g.label !== null) {
+            <div class="as-menu__group" role="presentation" [id]="g.labelId">{{ g.label }}</div>
+          }
+          <ul class="as-menu__items" [attr.role]="g.label !== null ? 'group' : 'presentation'" [attr.aria-labelledby]="g.label !== null ? g.labelId : null">
+          @for (item of g.items; track item.id) {
+            <li
+              class="as-option"
+              role="option"
+              [id]="item.id"
+              [attr.aria-selected]="isSelected(item.opt)"
+              [attr.aria-disabled]="item.opt.disabled ? 'true' : null"
+              [attr.data-active]="activeIndex() === item.index ? '' : null"
+              (click)="select(item.opt)"
+              (mousemove)="!item.opt.disabled && activeIndex.set(item.index)"
+              (pointerdown)="$event.preventDefault()"
+            >
+              @if (multiple()) {
+                <span class="as-check" [attr.data-state]="isSelected(item.opt) ? 'checked' : 'unchecked'">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" /></svg>
+                </span>
+              }
+              <span class="as-option__label">{{ item.opt.label }}</span>
+              @if (!multiple() && isSelected(item.opt)) {
+                <svg class="as-option__check" viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" /></svg>
+              }
+            </li>
+          }
+          </ul>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+  @if (error() || helper()) {
+    <span class="as-field__help" [id]="helpId">{{ error() || helper() }}</span>
+  }
+</div>

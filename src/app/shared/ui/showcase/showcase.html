@@ -1,0 +1,352 @@
+<h1>UI showcase</h1>
+
+<section>
+  <h2>Switcher</h2>
+  <div class="row">
+    <ui-switcher [options]="switchTwo" [formControl]="switchDefault" />
+    <ui-switcher [options]="switchThree" [formControl]="switchThreeCtl" />
+    <ui-switcher [options]="switchThree" [formControl]="switchSm" size="sm" />
+  </div>
+  <ui-switcher [options]="switchThree" [formControl]="switchFull" full />
+</section>
+
+<section>
+  <h2>TextInput</h2>
+  <div class="row">
+    <ui-text-input
+      label="Name"
+      placeholder="Ada Lovelace"
+      helper="Your full name"
+      [formControl]="textDefault"
+    />
+    <ui-text-input
+      label="Email"
+      error="Enter an email like name@example.com"
+      [formControl]="textError"
+    />
+    <ui-text-input label="Disabled" [formControl]="textDisabled" />
+  </div>
+</section>
+
+<section>
+  <h2>Autocomplete</h2>
+  <div class="row">
+    <ui-autocomplete label="Branch" placeholder="Search" [options]="acFlat" [formControl]="acSingle" />
+    <ui-autocomplete
+      label="Targets"
+      placeholder="Add"
+      multiple
+      creatable
+      [options]="acOptions"
+      [formControl]="acMulti"
+    />
+    <ui-autocomplete variant="search" placeholder="Search history" [options]="acFlat" [formControl]="acSearch" />
+    <ui-autocomplete label="Loading" placeholder="Search" loading [options]="[]" [formControl]="acLoading" />
+  </div>
+</section>
+
+<section>
+  <h2>Button</h2>
+  @for (size of sizes; track size) {
+    <h3>size {{ size }}</h3>
+    <div class="row">
+      @for (kind of kinds; track kind) {
+        <button uiButton [kind]="kind" [size]="size" type="button">{{ kind }}</button>
+      }
+    </div>
+  }
+
+  <h3>icon only</h3>
+  <div class="row">
+    @for (kind of kinds; track kind) {
+      <button uiButton [kind]="kind" iconOnly aria-label="Add" type="button">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M8.5 2h-1v5.5H2v1h5.5V14h1V8.5H14v-1H8.5z" />
+        </svg>
+      </button>
+    }
+  </div>
+
+  <h3>block</h3>
+  <div class="block-demo">
+    <button uiButton block type="button">Block button</button>
+  </div>
+
+  <h3>neutral</h3>
+  <div class="row">
+    @for (kind of kinds; track kind) {
+      <button uiButton [kind]="kind" neutral type="button">{{ kind }}</button>
+    }
+  </div>
+
+  <h3>disabled</h3>
+  <div class="row">
+    @for (kind of kinds; track kind) {
+      <button uiButton [kind]="kind" disabled type="button">{{ kind }}</button>
+    }
+  </div>
+
+  <h3>anchor</h3>
+  <div class="row">
+    <a uiButton href="#" kind="secondary">Anchor button</a>
+  </div>
+</section>
+
+<section>
+  <h2>Select</h2>
+
+  <div class="case">
+    <ui-select label="Single" helper="Pick one model" [options]="options" [formControl]="single" />
+    <pre>{{ single.value | json }}</pre>
+  </div>
+
+  <div class="case">
+    <ui-select label="Multiple (count)" multiple display="count" [options]="options" [formControl]="multiCount" />
+    <pre>{{ multiCount.value | json }}</pre>
+  </div>
+
+  <div class="case">
+    <ui-select label="Multiple (chips)" multiple display="chips" [options]="options" [formControl]="multiChips" />
+    <pre>{{ multiChips.value | json }}</pre>
+  </div>
+
+  <div class="case">
+    <ui-select label="Grouped" placeholder="Choose" [options]="groups" [formControl]="grouped" />
+    <pre>{{ grouped.value | json }}</pre>
+  </div>
+
+  <div class="case">
+    <ui-select label="Size sm" size="sm" [options]="options" [formControl]="sm" />
+    <pre>{{ sm.value | json }}</pre>
+  </div>
+  <div class="case">
+    <ui-select label="Size md" size="md" [options]="options" [formControl]="md" />
+    <pre>{{ md.value | json }}</pre>
+  </div>
+  <div class="case">
+    <ui-select label="Size lg" size="lg" [options]="options" [formControl]="lg" />
+    <pre>{{ lg.value | json }}</pre>
+  </div>
+
+  <div class="case">
+    <ui-select label="Error" error="A model is required" [options]="options" [formControl]="withError" />
+    <pre>{{ withError.value | json }}</pre>
+  </div>
+
+  <div class="case">
+    <ui-select label="Disabled" [options]="options" [formControl]="disabledCtl" />
+    <pre>{{ disabledCtl.value | json }}</pre>
+    <button uiButton kind="tertiary" size="sm" type="button" (click)="toggleDisabled()">Toggle disabled</button>
+  </div>
+</section>
+
+<section>
+  <h2>Chip</h2>
+  <h3>tones</h3>
+  <div class="row">
+    @for (t of chipTones; track t) {
+      <ui-chip [tone]="t">{{ t }}</ui-chip>
+    }
+  </div>
+  <h3>size md</h3>
+  <div class="row">
+    @for (t of chipTones; track t) {
+      <ui-chip [tone]="t" size="md">{{ t }}</ui-chip>
+    }
+  </div>
+  <h3>selectable</h3>
+  <div class="row">
+    <ui-chip selectable #c1>Selectable ({{ c1.selected() }})</ui-chip>
+    <ui-chip selectable [selected]="true" tone="blue">Preselected</ui-chip>
+  </div>
+  <h3>removable</h3>
+  <div class="row">
+    @for (item of removable(); track item) {
+      <ui-chip removable (removed)="remove(item)">{{ item }}</ui-chip>
+    }
+  </div>
+  <h3>disabled</h3>
+  <div class="row">
+    <ui-chip disabled>Disabled</ui-chip>
+    <ui-chip disabled selectable removable>Disabled selectable</ui-chip>
+  </div>
+</section>
+
+<section>
+  <h2>Tag</h2>
+  <div class="row">
+    @for (t of tagTones; track t) {
+      <ui-tag [tone]="t">{{ t }}</ui-tag>
+    }
+  </div>
+</section>
+
+<section>
+  <h2>State</h2>
+  <div class="row">
+    @for (t of stateTones; track t) {
+      <ui-state [tone]="t">{{ t }}</ui-state>
+    }
+  </div>
+</section>
+
+<section>
+  <h2>Checkbox</h2>
+  <div class="row">
+    <ui-checkbox>Unchecked</ui-checkbox>
+    <ui-checkbox [formControl]="accepted">Bound: {{ accepted.value | json }}</ui-checkbox>
+    <ui-checkbox indeterminate>Mixed</ui-checkbox>
+    <ui-checkbox disabled>Disabled</ui-checkbox>
+  </div>
+</section>
+
+<section>
+  <h2>Avatar</h2>
+  <h3>initials from name, tones</h3>
+  <div class="row">
+    @for (t of stateTones; track t) {
+      <ui-avatar name="Ada Lovelace" [tone]="t" />
+    }
+  </div>
+  <h3>initials override, sizes</h3>
+  <div class="row">
+    <ui-avatar initials="XY" />
+    <ui-avatar initials="XY" size="md" />
+  </div>
+  <h3>with logo</h3>
+  <div class="row">
+    <ui-avatar name="Timmy" tone="info"><ui-logo [size]="16" mono /></ui-avatar>
+    <ui-avatar name="Timmy" tone="success" size="md"><ui-logo [size]="24" mono /></ui-avatar>
+  </div>
+</section>
+
+<section>
+  <h2>Logo</h2>
+  <h3>geometric 16 / 24 / 28</h3>
+  <div class="row">
+    <ui-logo [size]="16" />
+    <ui-logo [size]="24" />
+    <ui-logo [size]="28" tone="info" />
+  </div>
+  <h3>flat 32 / 64</h3>
+  <div class="row">
+    <ui-logo [size]="32" />
+    <ui-logo [size]="64" tone="success" />
+  </div>
+  <h3>mono on button-primary</h3>
+  <div class="ground">
+    <ui-logo [size]="16" mono />
+    <ui-logo [size]="28" mono />
+    <ui-logo [size]="64" mono />
+  </div>
+</section>
+
+<section>
+  <h2>Menu</h2>
+  <h3>single</h3>
+  <ui-menu class="menu-demo" ariaLabel="Models" (selectionChange)="menuSelected.set($event)">
+    <ui-option value="opus" [selected]="menuSelected() === 'opus'">Claude Opus</ui-option>
+    <ui-option value="sonnet" [selected]="menuSelected() === 'sonnet'">Claude Sonnet</ui-option>
+    <ui-option value="legacy" disabled>Legacy</ui-option>
+  </ui-menu>
+  <h3>multiple</h3>
+  <ui-menu class="menu-demo" multiple (selectionChange)="toggleMulti($event)">
+    <ui-option value="opus" [selected]="menuMulti().includes('opus')">Claude Opus</ui-option>
+    <ui-option value="sonnet" [selected]="menuMulti().includes('sonnet')">Claude Sonnet</ui-option>
+    <ui-option value="haiku" [selected]="menuMulti().includes('haiku')">Claude Haiku</ui-option>
+  </ui-menu>
+  <h3>grouped, meta</h3>
+  <ui-menu class="menu-demo">
+    <ui-option-group label="Anthropic">
+      <ui-option value="opus" meta="200k">Claude Opus</ui-option>
+      <ui-option value="sonnet" meta="200k">Claude Sonnet</ui-option>
+    </ui-option-group>
+    <ui-option-group label="Local">
+      <ui-option value="llama" meta="8k">Llama</ui-option>
+    </ui-option-group>
+  </ui-menu>
+  <h3>create</h3>
+  <ui-menu class="menu-demo" createLabel="Create new">
+    <ui-option value="a">Existing item</ui-option>
+  </ui-menu>
+  <h3>loading</h3>
+  <ui-menu class="menu-demo" loading />
+  <h3>empty</h3>
+  <ui-menu class="menu-demo" />
+</section>
+
+<section>
+  <h2>TreeView</h2>
+  <div class="row">
+    <ui-tree-view [nodes]="treeNodes" [formControl]="treeSingle" />
+    <ui-tree-view [nodes]="treeNodes" mode="checkable" size="sm" [formControl]="treeChecked" />
+  </div>
+</section>
+
+<section>
+  <h2>ListRow</h2>
+  <div class="row">
+    <div role="listbox" aria-label="Rows">
+      <as-list-group-label label="Sessions" [count]="4" />
+      <as-list-row label="Plain row" meta="main" />
+      <as-list-row lead label="Lead row" meta="feature/chat">
+        <ui-avatar leading name="Ada Lovelace" size="md" />
+        <ui-tag trailing tone="green">live</ui-tag>
+      </as-list-row>
+      <as-list-row
+        label="Selected, opens"
+        [selected]="rowSelected() === 'b'"
+        (activate)="rowSelected.set('b')"
+      />
+      <as-list-row label="Needs input" asks />
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Pill</h2>
+  <div class="row">
+    <ui-pill tone="running" label="Live" pulse>Fix menu focus<span pillMeta>2m</span></ui-pill>
+    <ui-pill tone="waiting" label="Asks">
+      <ui-pill-stack pillLead>
+        <ui-avatar name="Ada Lovelace" />
+        <ui-avatar name="Grace Hopper" />
+      </ui-pill-stack>
+      Allow Bash?
+    </ui-pill>
+    <ui-pill tone="neutral" label="Idle">No session</ui-pill>
+  </div>
+  <h3>tones</h3>
+  <div class="row">
+    @for (t of pillTones; track t) {
+      <ui-pill [tone]="t" [label]="t">Pill</ui-pill>
+    }
+  </div>
+</section>
+
+<section>
+  <h2>History</h2>
+  <div class="row">
+    <ui-history
+      [groups]="historyGroups"
+      [selectedId]="historySelected()"
+      [filters]="historyFilters"
+      (select)="historySelected.set($event)"
+    />
+    <ui-history [groups]="historyEmpty" query="zzz" />
+  </div>
+</section>
+
+<section>
+  <h2>Session</h2>
+  <div class="row">
+    <ui-session title="Fix menu focus" sub="fix/menu · Claude" status="live" elapsed="2m" [tools]="sessionTools" />
+    <ui-session
+      title="Run build"
+      sub="main · Claude"
+      status="asks"
+      elapsed="5m"
+      [permission]="samplePermission"
+    />
+  </div>
+</section>

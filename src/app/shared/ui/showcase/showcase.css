@@ -1,0 +1,80 @@
+:host {
+  display: block;
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 32px;
+  background: var(--background);
+  color: var(--text-primary);
+}
+
+section {
+  margin-bottom: 48px;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 16px;
+  font-weight: 400;
+}
+
+h1 {
+  font-size: 28px;
+  line-height: 36px;
+}
+
+h2 {
+  font-size: 20px;
+  line-height: 28px;
+}
+
+h3 {
+  margin: 24px 0 8px;
+  font-size: 12px;
+  line-height: 16px;
+  font-family: var(--ff-mono);
+  color: var(--text-secondary);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.case {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.case ui-select {
+  width: 320px;
+  flex: none;
+}
+
+pre {
+  margin: 0;
+  font-family: var(--ff-mono);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-secondary);
+}
+
+.ground {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: var(--button-primary, #0f62fe);
+}
+
+.menu-demo {
+  width: 280px;
+}
+
+.block-demo {
+  max-width: 320px;
+}

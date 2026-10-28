@@ -1,0 +1,13 @@
+<span class="as-row__lead"><ng-content select="[leading]" /></span>
+<span class="as-row__body">
+  <span class="as-row__title">{{ label() }}</span>
+  @if (meta()) {
+    <span class="as-row__sub">{{ meta() }}</span>
+  }
+</span>
+<span class="as-row__meta">
+  @if (asks()) {
+    <span class="as-row__asks">ASKS</span>
+  }
+  <ng-content select="[trailing]" />
+</span>
