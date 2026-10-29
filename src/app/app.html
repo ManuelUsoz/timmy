@@ -1,3 +1,7 @@
+<div class="layout">
+@if (info(); as appInfo) {
+  <app-sessions-sidebar [cwd]="appInfo.cwd" (opened)="showTranscript($event)" (closed)="clearChat()" />
+}
 <main class="shell">
   <header class="top">
     <h1>Timmy</h1>
@@ -129,6 +133,7 @@
     }
   </ng-template>
 </main>
+</div>
 
 <div class="gallery">
   <h1>Components</h1>

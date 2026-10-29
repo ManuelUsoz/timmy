@@ -28,6 +28,9 @@ import { EffectRuntime } from './core/effect-runtime';
 import { ComposerInputComponent } from './features/chat/composer-input';
 import { MarkdownPipe } from './features/chat/markdown.pipe';
 import type { CommandsState } from './features/chat/slash-commands';
+import { SessionsSidebarComponent } from './features/sessions/sessions-sidebar';
+import { chatStateFromHistory } from './features/sessions/history-state';
+import type { TranscriptRef } from '../shared/sessions/sessions.model';
 import { addUserMessage, groupByOwner, initialChatState, reduceChat, type ChatState } from './features/chat/chat-state';
 
 /** Display names live in the renderer; the adapter only knows model ids. */
@@ -57,6 +60,7 @@ const MODEL_LABELS: Readonly<Record<string, string>> = {
     OptionGroupComponent,
     PillComponent,
     SessionComponent,
+    SessionsSidebarComponent,
   ],
   selector: 'app-root',
   templateUrl: './app.html',
@@ -65,6 +69,8 @@ const MODEL_LABELS: Readonly<Record<string, string>> = {
 export class App {
   private readonly runtime = inject(EffectRuntime);
   private sessionId: SessionId | undefined;
+  /** Stored session the next `startSession` continues; set while a past transcript is shown. */
+  private resumeFrom: SessionId | undefined;
 
   protected readonly info = signal<AppInfo | null>(null);
   protected readonly error = signal<string | null>(null);
@@ -191,6 +197,8 @@ export class App {
     const sessionId = this.sessionId;
     if (sessionId === undefined) return;
     this.sessionId = undefined;
+    // The session stays the same across option changes: the next message resumes it.
+    this.resumeFrom = sessionId;
     void this.runtime.run(
       Effect.gen(function* () {
         const desktop = yield* DesktopApi;
@@ -209,6 +217,7 @@ export class App {
 
     const apply = (event: ChatEvent) => Effect.sync(() => this.chat.update((state) => reduceChat(state, event)));
     const known = this.sessionId;
+    const resume = this.resumeFrom;
     const model = this.modelControl.value;
     const permissionMode = this.permissionControl.value;
     const effort = this.effortControl.value;
@@ -224,6 +233,7 @@ export class App {
         (yield* desktop['Chat.startSession']({
           provider: 'Claude',
           cwd,
+          ...(resume !== undefined ? { resume } : {}),
           ...(model !== null ? { model } : {}),
           effort,
           permissionMode,
@@ -239,6 +249,28 @@ export class App {
         onSuccess: () => undefined,
       }),
     );
+  }
+
+  /** Shows a stored transcript. The next message continues that session; a subagent transcript is read-only. */
+  protected showTranscript(ref: TranscriptRef): void {
+    this.resetSession();
+    this.resumeFrom = ref.subagent === undefined ? ref.sessionId : undefined;
+    const program = Effect.gen(function* () {
+      const desktop = yield* DesktopApi;
+      return yield* desktop['Sessions.history']({ ref });
+    });
+    void this.runtime.run(program).then(
+      Exit.match({
+        onFailure: (cause) => this.chat.set({ ...initialChatState, failure: Cause.pretty(cause) }),
+        onSuccess: (history) => this.chat.set(chatStateFromHistory(history)),
+      }),
+    );
+  }
+
+  protected clearChat(): void {
+    this.resetSession();
+    this.resumeFrom = undefined;
+    this.chat.set(initialChatState);
   }
 
   protected answerPermission(response: PermissionResponse): void {

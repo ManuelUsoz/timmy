@@ -1,12 +1,16 @@
 import type { Options, PermissionResult, Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { describe, expect, it } from '@effect/vitest';
 import { beforeEach, vi } from 'vitest';
-import { Effect, Stream } from 'effect';
+import { randomUUID } from 'node:crypto';
+import { Effect, Stream, type Scope } from 'effect';
 import { ChatEvent } from '../../src/shared/chat/event.model';
-import { OptionId, PermissionRequestId, QuestionId } from '../../src/shared/chat/ids.model';
+import { OptionId, PermissionRequestId, QuestionId, SessionId } from '../../src/shared/chat/ids.model';
 import { SessionOptions } from '../../src/shared/chat/session.model';
+import { ProviderSessionId } from '../../src/shared/sessions/sessions.model';
+import { layerSessionRepo, SessionRepo } from '../sessions/session-repo';
 import { makeClaudeAgentSdkAdapter } from './claude-agent-sdk-adapter';
 import { ALLOW_ONCE, REJECT_ONCE } from './claude-interaction';
+import { SdkAdapter } from './sdk-adapter';
 
 const mocks = vi.hoisted(() => ({ query: vi.fn(), execFile: vi.fn() }));
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({ query: mocks.query }));
@@ -57,17 +61,29 @@ const scriptSdk = (script: (options: Options) => AsyncGenerator<SDKMessage>, run
   });
 };
 
+/** `it.effect` with an in-memory `SessionRepo`, which the adapter needs for its stored sessions. */
+const itRepo = <E>(name: string, body: () => Effect.Effect<void, E, SessionRepo | Scope.Scope>) =>
+  it.effect(name, () => body().pipe(Effect.provide(layerSessionRepo(':memory:'))));
+
+/** Opens a session under a fresh Timmy id, which is what the tests then address it by. */
+const openSession = (adapter: SdkAdapter, sessionOptions: SessionOptions) =>
+  Effect.gen(function* () {
+    const sessionId = SessionId.make(randomUUID());
+    yield* adapter.startSession(sessionOptions, { sessionId });
+    return sessionId;
+  });
+
 const ready = Effect.gen(function* () {
   const adapter = yield* makeClaudeAgentSdkAdapter();
   yield* adapter.startup;
-  const sessionId = yield* adapter.startSession(options);
+  const sessionId = yield* openSession(adapter, options);
   return { adapter, sessionId };
 });
 
 const tags = (events: ReadonlyArray<ChatEvent>) => events.map((e) => e._tag);
 
 describe('ClaudeAgentSdkAdapter', () => {
-  it.effect('refuses to start when Claude Code is not logged in', () =>
+  itRepo('refuses to start when Claude Code is not logged in', () =>
     Effect.gen(function* () {
       setLoggedIn(false);
       const adapter = yield* makeClaudeAgentSdkAdapter();
@@ -75,24 +91,7 @@ describe('ClaudeAgentSdkAdapter', () => {
       expect(error.reason).toBe('AuthMissing');
     }));
 
-  it.effect('streams a turn, then resumes the session on the next one', () =>
-    Effect.gen(function* () {
-      const runs: FakeRun[] = [];
-      scriptSdk(async function* () {
-        yield init;
-        yield success;
-      }, runs);
-      const { adapter, sessionId } = yield* ready;
-      const first = yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi', files: ['a.ts'] }));
-      yield* Stream.runCollect(adapter.send({ sessionId, text: 'again', files: [] }));
-      expect(tags(first)).toEqual(['TurnStarted', 'SessionStarted', 'AgentSpawned', 'UsageUpdated', 'TurnFinished']);
-      expect(runs[0]?.prompt).toBe('hi\n\n@a.ts');
-      expect(runs[0]?.options).toMatchObject({ sessionId, includePartialMessages: true, cwd: '/work', permissionMode: 'default' });
-      expect(runs[1]?.options).toMatchObject({ resume: sessionId });
-      expect(runs[1]?.options?.sessionId).toBeUndefined();
-    }));
-
-  it.effect('maps the Auto permission mode to the SDK auto mode', () =>
+  itRepo('streams a turn, then resumes the session on the next one', () =>
     Effect.gen(function* () {
       const runs: FakeRun[] = [];
       scriptSdk(async function* () {
@@ -101,12 +100,59 @@ describe('ClaudeAgentSdkAdapter', () => {
       }, runs);
       const adapter = yield* makeClaudeAgentSdkAdapter();
       yield* adapter.startup;
-      const sessionId = yield* adapter.startSession({ ...options, permissionMode: 'Auto' });
+      const sessionId = SessionId.make(randomUUID());
+      const providerSessionId = yield* adapter.startSession(options, { sessionId });
+      expect(providerSessionId).not.toBe(sessionId);
+      const first = yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi', files: ['a.ts'] }));
+      yield* Stream.runCollect(adapter.send({ sessionId, text: 'again', files: [] }));
+      expect(tags(first)).toEqual(['TurnStarted', 'SessionStarted', 'AgentSpawned', 'UsageUpdated', 'TurnFinished']);
+      expect(runs[0]?.prompt).toBe('hi\n\n@a.ts');
+      expect(runs[0]?.options).toMatchObject({
+        sessionId: providerSessionId,
+        includePartialMessages: true,
+        cwd: '/work',
+        permissionMode: 'default',
+      });
+      expect(runs[0]?.options?.sessionStore).toBeDefined();
+      expect(runs[1]?.options).toMatchObject({ resume: providerSessionId });
+      expect(runs[1]?.options?.sessionId).toBeUndefined();
+    }));
+
+  itRepo('continues a stored session under the SDK id it was stored with', () =>
+    Effect.gen(function* () {
+      const runs: FakeRun[] = [];
+      scriptSdk(async function* () {
+        yield init;
+        yield success;
+      }, runs);
+      const adapter = yield* makeClaudeAgentSdkAdapter();
+      yield* adapter.startup;
+      const sessionId = SessionId.make(randomUUID());
+      const stored = ProviderSessionId.make('stored-claude-id');
+      const providerSessionId = yield* adapter.startSession(
+        { ...options, resume: sessionId },
+        { sessionId, resumeProviderSessionId: stored },
+      );
+      yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi', files: [] }));
+      expect(providerSessionId).toBe(stored);
+      expect(runs[0]?.options).toMatchObject({ resume: stored });
+    }));
+
+  itRepo('maps the Auto permission mode to the SDK auto mode', () =>
+    Effect.gen(function* () {
+      const runs: FakeRun[] = [];
+      scriptSdk(async function* () {
+        yield init;
+        yield success;
+      }, runs);
+      const adapter = yield* makeClaudeAgentSdkAdapter();
+      yield* adapter.startup;
+      const sessionId = yield* openSession(adapter, { ...options, permissionMode: 'Auto' });
       yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi', files: [] }));
       expect(runs[0]?.options).toMatchObject({ permissionMode: 'auto' });
     }));
 
-  it.effect('lists the static models with their efforts', () =>
+  itRepo('lists the static models with their efforts', () =>
     Effect.gen(function* () {
       const adapter = yield* makeClaudeAgentSdkAdapter();
       const models = yield* adapter.models;
@@ -118,7 +164,7 @@ describe('ClaudeAgentSdkAdapter', () => {
       ]);
     }));
 
-  it.effect('lists commands from a probe query that loads user and project settings, then closes it', () =>
+  itRepo('lists commands from a probe query that loads user and project settings, then closes it', () =>
     Effect.gen(function* () {
       const runs: FakeRun[] = [];
       const close = vi.fn();
@@ -144,14 +190,14 @@ describe('ClaudeAgentSdkAdapter', () => {
       expect(close).toHaveBeenCalledTimes(1);
     }));
 
-  it.effect('fails listCommands before the adapter is started', () =>
+  itRepo('fails listCommands before the adapter is started', () =>
     Effect.gen(function* () {
       const adapter = yield* makeClaudeAgentSdkAdapter();
       const error = yield* adapter.listCommands({ cwd: '/work' }).pipe(Effect.flip);
       expect(error.reason).toBe('AdapterNotReady');
     }));
 
-  it.effect('maps effort to the SDK option and omits it for Default', () =>
+  itRepo('maps effort to the SDK option and omits it for Default', () =>
     Effect.gen(function* () {
       const runs: FakeRun[] = [];
       scriptSdk(async function* () {
@@ -160,15 +206,15 @@ describe('ClaudeAgentSdkAdapter', () => {
       }, runs);
       const adapter = yield* makeClaudeAgentSdkAdapter();
       yield* adapter.startup;
-      const high = yield* adapter.startSession({ ...options, effort: 'XHigh' });
-      const plain = yield* adapter.startSession({ ...options, effort: 'Default' });
+      const high = yield* openSession(adapter, { ...options, effort: 'XHigh' });
+      const plain = yield* openSession(adapter, { ...options, effort: 'Default' });
       yield* Stream.runCollect(adapter.send({ sessionId: high, text: 'hi', files: [] }));
       yield* Stream.runCollect(adapter.send({ sessionId: plain, text: 'hi', files: [] }));
       expect(runs[0]?.options).toMatchObject({ effort: 'xhigh' });
       expect(runs[1]?.options?.effort).toBeUndefined();
     }));
 
-  it.effect('parks canUseTool on a permission request until the user answers', () =>
+  itRepo('parks canUseTool on a permission request until the user answers', () =>
     Effect.gen(function* () {
       const decisions: PermissionResult[] = [];
       scriptSdk(async function* (queryOptions) {
@@ -202,7 +248,7 @@ describe('ClaudeAgentSdkAdapter', () => {
       expect(decisions).toEqual([{ behavior: 'allow', updatedInput: { file_path: 'a.ts', old_string: 'a', new_string: 'b' } }]);
     }));
 
-  it.effect('denies the tool when the user rejects the permission', () =>
+  itRepo('denies the tool when the user rejects the permission', () =>
     Effect.gen(function* () {
       const decisions: PermissionResult[] = [];
       scriptSdk(async function* (queryOptions) {
@@ -225,7 +271,7 @@ describe('ClaudeAgentSdkAdapter', () => {
       expect(decisions[0]?.behavior).toBe('deny');
     }));
 
-  it.effect('turns AskUserQuestion into a question and returns the chosen labels as answers', () =>
+  itRepo('turns AskUserQuestion into a question and returns the chosen labels as answers', () =>
     Effect.gen(function* () {
       const decisions: PermissionResult[] = [];
       scriptSdk(async function* (queryOptions) {
@@ -274,7 +320,7 @@ describe('ClaudeAgentSdkAdapter', () => {
       expect(decisions[0]).toMatchObject({ behavior: 'allow', updatedInput: { answers: { 'Which libs?': 'A, B, C' } } });
     }));
 
-  it.effect('interrupt cancels a turn parked on a permission request', () =>
+  itRepo('interrupt cancels a turn parked on a permission request', () =>
     Effect.gen(function* () {
       scriptSdk(async function* (queryOptions) {
         yield init;
@@ -291,7 +337,7 @@ describe('ClaudeAgentSdkAdapter', () => {
       expect(finished?._tag === 'TurnFinished' && finished.outcome).toBe('Cancelled');
     }));
 
-  it.effect('reports a crashed CLI as a failed turn instead of throwing', () =>
+  itRepo('reports a crashed CLI as a failed turn instead of throwing', () =>
     Effect.gen(function* () {
       scriptSdk(async function* () {
         yield init;
@@ -304,7 +350,7 @@ describe('ClaudeAgentSdkAdapter', () => {
       expect(finished?._tag === 'TurnFinished' && finished.detail).toContain('spawn failed');
     }));
 
-  it.effect('fails resolvePermission for an unknown request', () =>
+  itRepo('fails resolvePermission for an unknown request', () =>
     Effect.gen(function* () {
       const { adapter, sessionId } = yield* ready;
       const error = yield* adapter

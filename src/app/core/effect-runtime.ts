@@ -15,9 +15,12 @@ import { layerDesktop } from './desktop-layers';
 export class EffectRuntime implements OnDestroy {
   private readonly runtime = ManagedRuntime.make(layerDesktop);
 
-  /** Layer build failures (e.g. no desktop bridge) appear in the error channel. */
-  run<A, E>(effect: Effect.Effect<A, E, DesktopApi>): Promise<Exit.Exit<A, E | DesktopBridgeError>> {
-    return this.runtime.runPromiseExit(effect);
+  /** Layer build failures (e.g. no desktop bridge) appear in the error channel. Aborting the signal interrupts the effect. */
+  run<A, E>(
+    effect: Effect.Effect<A, E, DesktopApi>,
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<Exit.Exit<A, E | DesktopBridgeError>> {
+    return this.runtime.runPromiseExit(effect, options);
   }
 
   ngOnDestroy(): void {

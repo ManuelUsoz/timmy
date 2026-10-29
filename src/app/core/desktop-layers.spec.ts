@@ -2,7 +2,7 @@ import { describe, expect, it } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
 import { AppInfoRpcs, type AppInfo } from '../../shared/app-info/app-info.rpc';
 import { DesktopApi } from './desktop-api';
-import { layerChatUnused, makeDesktopTestLayer } from './desktop-layers';
+import { layerChatUnused, layerSessionsUnused, makeDesktopTestLayer } from './desktop-layers';
 import { acquireDesktopPort } from './desktop-port';
 
 const appInfo: AppInfo = {
@@ -23,7 +23,9 @@ describe('DesktopApi', () => {
       const desktop = yield* DesktopApi;
       const info = yield* desktop['AppInfo.get']();
       expect(info).toEqual(appInfo);
-    }).pipe(Effect.provide(makeDesktopTestLayer(Layer.merge(handlers, layerChatUnused)))),
+    }).pipe(
+      Effect.provide(makeDesktopTestLayer(Layer.mergeAll(handlers, layerChatUnused, layerSessionsUnused))),
+    ),
   );
 
   it.effect('fails with NotInElectron when the bridge is absent', () =>

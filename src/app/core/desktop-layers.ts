@@ -1,7 +1,8 @@
-import { Effect, Layer } from 'effect';
+import { Effect, Layer, Stream } from 'effect';
 import { RpcClient, RpcTest, type Rpc, type RpcGroup } from 'effect/rpc';
 import { ChatRpcs } from '../../shared/chat/chat.rpc';
 import { DesktopRpcs } from '../../shared/rpc/desktop-rpcs';
+import { SessionsRpcs } from '../../shared/sessions/sessions.rpc';
 import { layerClientProtocol } from '../../shared/rpc/message-port-protocol';
 import { DesktopApi } from './desktop-api';
 import type { DesktopBridgeError } from './desktop-error';
@@ -39,4 +40,16 @@ export const layerChatUnused = ChatRpcs.toLayer({
   'Chat.answerQuestion': unused,
   'Chat.interrupt': unused,
   'Chat.closeSession': unused,
+});
+
+const sessionsUnused = () => Effect.die('Sessions handler not under test');
+
+/** Sessions handlers that die when called, so a test of another domain can still build `DesktopRpcs`. */
+export const layerSessionsUnused = SessionsRpcs.toLayer({
+  'Sessions.list': sessionsUnused,
+  'Sessions.history': sessionsUnused,
+  'Sessions.listSubagents': sessionsUnused,
+  'Sessions.rename': sessionsUnused,
+  'Sessions.delete': sessionsUnused,
+  'Sessions.changes': () => Stream.empty,
 });

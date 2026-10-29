@@ -5,7 +5,14 @@
   font-family: var(--ff-sans);
 }
 
+.layout {
+  display: flex;
+  align-items: flex-start;
+}
+
 .shell {
+  flex: 1;
+  min-width: 0;
   max-width: 880px;
   margin: 0 auto;
   padding: 64px 24px;

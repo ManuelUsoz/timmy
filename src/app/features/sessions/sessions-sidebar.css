@@ -1,0 +1,91 @@
+:host {
+  display: block;
+  width: 280px;
+  flex: none;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--layer-01);
+  overflow-y: auto;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.sessions {
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+h2 {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-helper);
+}
+
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+li {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--border-subtle);
+}
+
+li.active {
+  border-color: var(--link);
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+.title {
+  all: unset;
+  cursor: pointer;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagent {
+  all: unset;
+  cursor: pointer;
+  padding-left: 12px;
+  font-size: 0.8rem;
+  color: var(--link);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.muted {
+  color: var(--text-helper);
+}
+
+.small {
+  font-size: 0.75rem;
+}
+
+.error {
+  color: var(--text-error, #da1e28);
+  white-space: pre-wrap;
+  font-size: 0.8rem;
+}

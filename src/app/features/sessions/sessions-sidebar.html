@@ -1,0 +1,47 @@
+<aside class="sessions">
+  <header>
+    <h2>Sessions</h2>
+    <button type="button" class="ghost" (click)="refresh()">Refresh</button>
+  </header>
+
+  @if (failure(); as detail) {
+    <p class="error">{{ detail }}</p>
+  }
+
+  @let state = list();
+  @if (state.status === 'loading') {
+    <p class="muted">Loading…</p>
+  } @else if (state.status === 'failed') {
+    <p class="error">{{ state.detail }}</p>
+  } @else {
+    @if (state.items.length === 0) {
+      <p class="muted">No stored sessions.</p>
+    }
+    <ul>
+      @for (session of state.items; track session.sessionId) {
+        <li [class.active]="selected()?.sessionId === session.sessionId">
+          @if (editing()?.sessionId === session.sessionId) {
+            <input
+              #title
+              [value]="session.title"
+              (keydown.enter)="rename(session, title.value)"
+              (keydown.escape)="editing.set(undefined)"
+            />
+          } @else {
+            <button type="button" class="title" (click)="open(session)">{{ session.title }}</button>
+          }
+          <span class="muted small">{{ session.updatedAt | date: 'short' }}</span>
+          <span class="actions">
+            <button type="button" class="ghost" (click)="editing.set(session)">Rename</button>
+            <button type="button" class="ghost" (click)="remove(session)">Delete</button>
+          </span>
+          @if (selected()?.sessionId === session.sessionId) {
+            @for (agent of subagents(); track agent) {
+              <button type="button" class="subagent" (click)="openSubagent(session, agent)">↳ {{ agent }}</button>
+            }
+          }
+        </li>
+      }
+    </ul>
+  }
+</aside>

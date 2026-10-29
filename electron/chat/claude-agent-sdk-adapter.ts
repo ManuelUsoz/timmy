@@ -1,7 +1,14 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import type { CanUseTool, Options, PermissionResult, Query, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
-import { Cause, Deferred, Effect, Ref, Stream, Queue } from 'effect';
+import type {
+  CanUseTool,
+  Options,
+  PermissionResult,
+  Query,
+  SDKUserMessage,
+  SessionStore,
+} from '@anthropic-ai/claude-agent-sdk';
+import { Cause, Deferred, Effect, Option, Ref, Stream, Queue } from 'effect';
 import { ChatError } from '../../src/shared/chat/chat-error.model';
 import { ChatEvent } from '../../src/shared/chat/event.model';
 import { PermissionRequestId, QuestionRequestId, SessionId, TurnId } from '../../src/shared/chat/ids.model';
@@ -10,6 +17,11 @@ import { AdapterCapabilities, Effort, ModelInfo } from '../../src/shared/chat/pr
 import { QuestionResponse } from '../../src/shared/chat/question.model';
 import { PermissionMode, SessionOptions, UserMessage } from '../../src/shared/chat/session.model';
 import { ToolCall } from '../../src/shared/chat/tool-call.model';
+import { ProviderSessionId } from '../../src/shared/sessions/sessions.model';
+import { SessionRepo } from '../sessions/session-repo';
+import { claudeHistory } from './claude-history-mapper';
+import { makeClaudeSessionStore } from './claude-session-store';
+import { makeSessionOps } from './session-ops';
 import {
   describeToolCall,
   initialMapperState,
@@ -105,12 +117,19 @@ const idlePrompt: AsyncIterable<SDKUserMessage> = {
 const show = (value: unknown): string => JSON.stringify(value);
 
 /** The query options minus the callback and abort controller, which do not serialize. */
-const loggableOptions = ({ canUseTool: _canUseTool, abortController: _abortController, ...rest }: Options) => rest;
+const loggableOptions = ({
+  canUseTool: _canUseTool,
+  abortController: _abortController,
+  sessionStore: _sessionStore,
+  ...rest
+}: Options) => rest;
 
 type PendingMap<Id extends string, A> = ReadonlyMap<Id, Deferred.Deferred<A>>;
 
 interface SessionRuntime {
   readonly options: SessionOptions;
+  /** The id the SDK knows this session by; ours is the key of `sessions`. */
+  readonly providerSessionId: ProviderSessionId;
   /** The SDK knows this session already, so later turns resume it instead of creating it. */
   readonly started: Ref.Ref<boolean>;
   readonly mapper: Ref.Ref<MapperState>;
@@ -121,11 +140,12 @@ interface SessionRuntime {
   readonly questions: Ref.Ref<PendingMap<QuestionRequestId, QuestionResponse>>;
 }
 
-const makeRuntime = (options: SessionOptions) =>
+const makeRuntime = (options: SessionOptions, providerSessionId: ProviderSessionId, started: boolean) =>
   Effect.gen(function* () {
     return {
       options,
-      started: yield* Ref.make(options.resume !== undefined),
+      providerSessionId,
+      started: yield* Ref.make(started),
       mapper: yield* Ref.make(initialMapperState),
       abort: yield* Ref.make<AbortController | undefined>(undefined),
       interrupted: yield* Ref.make(false),
@@ -139,6 +159,9 @@ const notFound = (sessionId: SessionId) =>
 
 export const makeClaudeAgentSdkAdapter = (adapterOptions: ClaudeAdapterOptions = {}) =>
   Effect.gen(function* () {
+    const repo = yield* SessionRepo;
+    const sessionOps = yield* makeSessionOps('Claude');
+    const sessionStore: SessionStore = yield* makeClaudeSessionStore;
     const sdkRef = yield* Ref.make<SdkQuery | undefined>(undefined);
     const sessions = yield* Ref.make<ReadonlyMap<SessionId, SessionRuntime>>(new Map());
     const executableOption: Pick<Options, 'pathToClaudeCodeExecutable'> =
@@ -249,7 +272,6 @@ export const makeClaudeAgentSdkAdapter = (adapterOptions: ClaudeAdapterOptions =
     };
 
     const queryOptions = (
-      sessionId: SessionId,
       runtime: SessionRuntime,
       started: boolean,
       abortController: AbortController,
@@ -263,7 +285,8 @@ export const makeClaudeAgentSdkAdapter = (adapterOptions: ClaudeAdapterOptions =
         : { effort: SDK_EFFORTS[runtime.options.effort] }),
       ...(runtime.options.systemPrompt === undefined ? {} : { systemPrompt: runtime.options.systemPrompt }),
       ...executableOption,
-      ...(started ? { resume: sessionId } : { sessionId }),
+      ...(started ? { resume: runtime.providerSessionId } : { sessionId: runtime.providerSessionId }),
+      sessionStore,
       includePartialMessages: true,
       abortController,
       canUseTool,
@@ -286,7 +309,7 @@ export const makeClaudeAgentSdkAdapter = (adapterOptions: ClaudeAdapterOptions =
             message.files.length === 0
               ? message.text
               : `${message.text}\n\n${message.files.map((file) => `@${file}`).join(' ')}`;
-          const options = queryOptions(sessionId, runtime, started, abortController, makeCanUseTool(sessionId, runtime, queue));
+          const options = queryOptions(runtime, started, abortController, makeCanUseTool(sessionId, runtime, queue));
           yield* Effect.logInfo(`[claude] -> query ${show({ prompt, options: loggableOptions(options) })}`);
           const claudeQuery = sdkQuery({ prompt, options });
 
@@ -401,11 +424,17 @@ export const makeClaudeAgentSdkAdapter = (adapterOptions: ClaudeAdapterOptions =
         );
         yield* Ref.set(sdkRef, undefined);
       }),
-      startSession: Effect.fn('ClaudeAdapter.startSession')(function* (options) {
-        const sessionId = SessionId.make(options.resume ?? randomUUID());
-        const runtime = yield* makeRuntime(options);
-        yield* Ref.update(sessions, (m) => new Map(m).set(sessionId, runtime));
-        return sessionId;
+      startSession: Effect.fn('ClaudeAdapter.startSession')(function* (options, ids) {
+        const providerSessionId = ids.resumeProviderSessionId ?? ProviderSessionId.make(randomUUID());
+        // The SDK can only resume what the mirror stored; a session that never got a turn starts fresh.
+        const stored = yield* repo.get(ids.sessionId);
+        const hasTranscript =
+          ids.resumeProviderSessionId !== undefined && Option.isSome(stored)
+            ? Option.isSome(yield* repo.load({ projectId: stored.value.projectId, sessionId: ids.sessionId }))
+            : false;
+        const runtime = yield* makeRuntime(options, providerSessionId, hasTranscript);
+        yield* Ref.update(sessions, (m) => new Map(m).set(ids.sessionId, runtime));
+        return providerSessionId;
       }),
       send: (message) =>
         Stream.unwrap(
@@ -450,6 +479,11 @@ export const makeClaudeAgentSdkAdapter = (adapterOptions: ClaudeAdapterOptions =
           return next;
         });
       }),
+      ...sessionOps,
+      load: (ref) =>
+        repo.load(ref).pipe(
+          Effect.map(Option.match({ onNone: () => [], onSome: claudeHistory })),
+        ),
     };
     return adapter;
   });
