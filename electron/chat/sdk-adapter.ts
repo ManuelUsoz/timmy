@@ -1,5 +1,6 @@
 import { Context, Effect, Stream } from 'effect';
 import { ChatError } from '../../src/shared/chat/chat-error.model';
+import { SlashCommand } from '../../src/shared/chat/command.model';
 import { ChatEvent } from '../../src/shared/chat/event.model';
 import { SessionId } from '../../src/shared/chat/ids.model';
 import { PermissionResponse } from '../../src/shared/chat/permission.model';
@@ -20,6 +21,8 @@ export interface SdkAdapter {
   readonly shutdown: Effect.Effect<void>;
   /** Models this provider offers. */
   readonly models: Effect.Effect<ReadonlyArray<ModelInfo>, ChatError>;
+  /** Slash commands available in `cwd`, including the user's and the project's own. No session is needed. */
+  readonly listCommands: (options: { readonly cwd: string }) => Effect.Effect<ReadonlyArray<SlashCommand>, ChatError>;
   readonly startSession: (options: SessionOptions) => Effect.Effect<SessionId, ChatError>;
   /** Streams the events of one turn; ends after `TurnFinished`. */
   readonly send: (message: UserMessage) => Stream.Stream<ChatEvent, ChatError>;

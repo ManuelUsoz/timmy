@@ -33,6 +33,8 @@ const makeFakeAdapter = (provider: ProviderId, calls: Calls): SdkAdapter => {
     startup: Ref.update(calls.startups, (n) => n + 1),
     shutdown: Ref.update(calls.shutdowns, (n) => n + 1),
     models: Effect.succeed([{ id: `${provider}-model`, efforts: ['Default'] }]),
+    listCommands: ({ cwd }) =>
+      Effect.succeed([{ name: `${provider}-cmd`, description: cwd, argumentHint: '' }]),
     startSession: () => Effect.succeed(sessionId),
     send: (message) =>
  Stream.fromIterable<ChatEvent>([ { _tag: 'TurnStarted', sessionId: message.sessionId, turnId: TurnId.make('t1') }, { _tag: 'TurnFinished', sessionId: message.sessionId, turnId: TurnId.make('t1'), outcome: 'Completed', usage: { inputTokens: 1, outputTokens: 2 }, }, ]),
@@ -77,6 +79,16 @@ describe('ChatRpc', () => {
         return yield* chat.models;
       }).pipe(Effect.provide(layer));
       expect(models).toEqual([{ id: 'Claude-model', efforts: ['Default'] }]);
+    }));
+
+  it.effect('lists the commands of the active adapter for a cwd, without an open session', () =>
+    Effect.gen(function* () {
+      const { layer } = yield* makeHarness;
+      const commands = yield* Effect.gen(function* () {
+        const chat = yield* ChatRpc;
+        return yield* chat.commands('/work');
+      }).pipe(Effect.provide(layer));
+      expect(commands).toEqual([{ name: 'Claude-cmd', description: '/work', argumentHint: '' }]);
     }));
 
   it.effect('streams the adapter turn for an open session', () =>

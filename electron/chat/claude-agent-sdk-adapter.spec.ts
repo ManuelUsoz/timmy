@@ -118,6 +118,39 @@ describe('ClaudeAgentSdkAdapter', () => {
       ]);
     }));
 
+  it.effect('lists commands from a probe query that loads user and project settings, then closes it', () =>
+    Effect.gen(function* () {
+      const runs: FakeRun[] = [];
+      const close = vi.fn();
+      mocks.query.mockImplementation(({ prompt, options: queryOptions }: { prompt: string; options?: Options }) => {
+        runs.push({ options: queryOptions, prompt });
+        return {
+          supportedCommands: () =>
+            Promise.resolve([
+              { name: 'compact', description: 'Compact', argumentHint: '[focus]', builtin: true },
+              { name: 'deploy', description: 'Project command', argumentHint: '' },
+            ]),
+          close,
+        } as unknown as Query;
+      });
+      const adapter = yield* makeClaudeAgentSdkAdapter();
+      yield* adapter.startup;
+      const commands = yield* adapter.listCommands({ cwd: '/work' });
+      expect(commands).toEqual([
+        { name: 'compact', description: 'Compact', argumentHint: '[focus]' },
+        { name: 'deploy', description: 'Project command', argumentHint: '' },
+      ]);
+      expect(runs[0]?.options).toMatchObject({ cwd: '/work', settingSources: ['user', 'project', 'local'] });
+      expect(close).toHaveBeenCalledTimes(1);
+    }));
+
+  it.effect('fails listCommands before the adapter is started', () =>
+    Effect.gen(function* () {
+      const adapter = yield* makeClaudeAgentSdkAdapter();
+      const error = yield* adapter.listCommands({ cwd: '/work' }).pipe(Effect.flip);
+      expect(error.reason).toBe('AdapterNotReady');
+    }));
+
   it.effect('maps effort to the SDK option and omits it for Default', () =>
     Effect.gen(function* () {
       const runs: FakeRun[] = [];

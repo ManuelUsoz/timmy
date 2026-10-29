@@ -64,14 +64,7 @@
   </section>
 
   <form class="composer" (submit)="$event.preventDefault(); send()">
-    <textarea
-      #box
-      rows="2"
-      placeholder="Message Claude"
-      [value]="draft()"
-      (input)="draft.set(box.value)"
-      (keydown.enter)="$event.preventDefault(); send()"
-    ></textarea>
+    <app-composer-input [(draft)]="draft" [commands]="commands()" (submitted)="send()" />
     @if (chat().running) {
       <button type="button" class="ghost" (click)="stop()">Stop</button>
     } @else {

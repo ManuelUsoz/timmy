@@ -25,7 +25,9 @@ import type { AgentId, SessionId } from '../shared/chat/ids.model';
 import type { PermissionResponse } from '../shared/chat/permission.model';
 import { DesktopApi } from './core/desktop-api';
 import { EffectRuntime } from './core/effect-runtime';
+import { ComposerInputComponent } from './features/chat/composer-input';
 import { MarkdownPipe } from './features/chat/markdown.pipe';
+import type { CommandsState } from './features/chat/slash-commands';
 import { addUserMessage, groupByOwner, initialChatState, reduceChat, type ChatState } from './features/chat/chat-state';
 
 /** Display names live in the renderer; the adapter only knows model ids. */
@@ -39,6 +41,7 @@ const MODEL_LABELS: Readonly<Record<string, string>> = {
   imports: [
     NgTemplateOutlet,
     MarkdownPipe,
+    ComposerInputComponent,
     JsonPipe,
     ReactiveFormsModule,
     ButtonComponent,
@@ -67,6 +70,7 @@ export class App {
   protected readonly error = signal<string | null>(null);
   protected readonly chat = signal<ChatState>(initialChatState);
   protected readonly draft = signal('');
+  protected readonly commands = signal<CommandsState>({ status: 'loading' });
 
   protected readonly kinds = ['primary', 'secondary', 'tertiary', 'ghost', 'danger'] as const;
   protected readonly sizes = ['sm', 'md', 'lg'] as const;
@@ -129,7 +133,10 @@ export class App {
     void this.runtime.run(program).then(
       Exit.match({
         onFailure: (cause) => this.error.set(Cause.pretty(cause)),
-        onSuccess: (appInfo) => this.info.set(appInfo),
+        onSuccess: (appInfo) => {
+          this.info.set(appInfo);
+          this.loadCommands(appInfo.cwd);
+        },
       }),
     );
 
@@ -163,6 +170,20 @@ export class App {
         else control.enable({ emitEvent: false });
       }
     });
+  }
+
+  private loadCommands(cwd: string): void {
+    this.commands.set({ status: 'loading' });
+    const program = Effect.gen(function* () {
+      const desktop = yield* DesktopApi;
+      return yield* desktop['Chat.commands']({ cwd });
+    });
+    void this.runtime.run(program).then(
+      Exit.match({
+        onFailure: (cause) => this.commands.set({ status: 'failed', detail: Cause.pretty(cause) }),
+        onSuccess: (items) => this.commands.set({ status: 'ready', items }),
+      }),
+    );
   }
 
   private resetSession(): void {

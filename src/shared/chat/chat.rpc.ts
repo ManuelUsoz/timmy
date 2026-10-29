@@ -1,6 +1,7 @@
 import { Schema } from 'effect';
 import { Rpc, RpcGroup } from 'effect/rpc';
 import { ChatError } from './chat-error.model';
+import { SlashCommand } from './command.model';
 import { ChatEvent } from './event.model';
 import { SessionId } from './ids.model';
 import { PermissionResponse } from './permission.model';
@@ -29,6 +30,13 @@ export const ChatRpcs = RpcGroup.make(
 
   /** Models offered by the adapter that is active now. */
   Rpc.make('Chat.models', { success: Schema.Array(ModelInfo), error: ChatError }),
+
+  /** Slash commands of the adapter that is active now, as seen from `cwd` (user and project commands included). */
+  Rpc.make('Chat.commands', {
+    payload: { cwd: Schema.String },
+    success: Schema.Array(SlashCommand),
+    error: ChatError,
+  }),
 
   Rpc.make('Chat.startSession', {
     payload: SessionOptions,

@@ -1,5 +1,6 @@
 import { Context, Effect, Layer, Ref, Semaphore, Stream } from 'effect';
 import { ChatError } from '../../src/shared/chat/chat-error.model';
+import { SlashCommand } from '../../src/shared/chat/command.model';
 import { ChatEvent } from '../../src/shared/chat/event.model';
 import { SessionId } from '../../src/shared/chat/ids.model';
 import { PermissionResponse } from '../../src/shared/chat/permission.model';
@@ -13,6 +14,7 @@ export interface ChatRpcShape {
   readonly startup: Effect.Effect<void, ChatError>;
   readonly capabilities: Effect.Effect<AdapterCapabilities>;
   readonly models: Effect.Effect<ReadonlyArray<ModelInfo>, ChatError>;
+  readonly commands: (cwd: string) => Effect.Effect<ReadonlyArray<SlashCommand>, ChatError>;
   readonly changeAdapter: (provider: ProviderId) => Effect.Effect<AdapterCapabilities, ChatError>;
   readonly startSession: (options: SessionOptions) => Effect.Effect<SessionId, ChatError>;
   readonly send: (message: UserMessage) => Stream.Stream<ChatEvent, ChatError>;
@@ -114,6 +116,7 @@ export const layerChatRpc = Layer.effect(
       startup: ready.pipe(Effect.asVoid),
       capabilities: Ref.get(state).pipe(Effect.map((s) => s.active.adapter.capabilities)),
       models: ready.pipe(Effect.flatMap((adapter) => adapter.models)),
+      commands: (cwd) => ready.pipe(Effect.flatMap((adapter) => adapter.listCommands({ cwd }))),
       changeAdapter: (provider) => swapLock.withPermit(changeAdapter(provider)),
       startSession: (options) => swapLock.withPermit(startSession(options)),
       send: (message) =>

@@ -1,0 +1,47 @@
+@if (open()) {
+  <div class="menu" id="slash-menu">
+    @let state = commands();
+    @if (state.status === 'loading') {
+      <p class="status" role="status">Loading commands…</p>
+    } @else if (state.status === 'failed') {
+      <p class="status status--error" role="alert">{{ state.detail }}</p>
+    } @else if (matches().length === 0) {
+      <p class="status" role="status">No commands match</p>
+    } @else {
+      <ul role="listbox" aria-label="Commands">
+        @for (command of matches(); track command.name; let i = $index) {
+          <li
+            role="option"
+            class="option"
+            [id]="'slash-option-' + i"
+            [attr.aria-selected]="i === highlighted()"
+            [attr.data-active]="i === highlighted() ? '' : null"
+            (mousedown)="$event.preventDefault(); pick(command)"
+          >
+            <span class="name">/{{ command.name }}</span>
+            @if (command.argumentHint) {
+              <span class="hint">{{ command.argumentHint }}</span>
+            }
+            <span class="description">{{ command.description }}</span>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+}
+<textarea
+  #box
+  rows="2"
+  placeholder="Message Claude"
+  role="combobox"
+  aria-autocomplete="list"
+  aria-haspopup="listbox"
+  [attr.aria-controls]="open() ? 'slash-menu' : null"
+  [attr.aria-expanded]="open()"
+  [attr.aria-activedescendant]="selectable() ? 'slash-option-' + highlighted() : null"
+  [value]="draft()"
+  (input)="onInput()"
+  (keydown)="onKeydown($event)"
+  (keyup)="syncCaret()"
+  (click)="syncCaret()"
+></textarea>

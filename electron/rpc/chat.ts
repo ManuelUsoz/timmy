@@ -8,6 +8,7 @@ export const layerChatHandlers = ChatRpcs.toLayer(
     return {
       'Chat.capabilities': () => chat.capabilities,
       'Chat.models': () => chat.models,
+      'Chat.commands': ({ cwd }) => chat.commands(cwd),
       'Chat.changeAdapter': ({ provider }) => chat.changeAdapter(provider),
       'Chat.startSession': (options) => chat.startSession(options),
       'Chat.send': (message) => chat.send(message),

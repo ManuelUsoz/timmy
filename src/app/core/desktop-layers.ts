@@ -31,6 +31,7 @@ const unused = () => Effect.die('Chat handler not under test');
 export const layerChatUnused = ChatRpcs.toLayer({
   'Chat.capabilities': unused,
   'Chat.models': unused,
+  'Chat.commands': unused,
   'Chat.changeAdapter': unused,
   'Chat.startSession': unused,
   'Chat.send': unused,

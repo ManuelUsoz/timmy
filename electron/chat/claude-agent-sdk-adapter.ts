@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import type { CanUseTool, Options, PermissionResult, Query } from '@anthropic-ai/claude-agent-sdk';
+import type { CanUseTool, Options, PermissionResult, Query, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { Cause, Deferred, Effect, Ref, Stream, Queue } from 'effect';
 import { ChatError } from '../../src/shared/chat/chat-error.model';
 import { ChatEvent } from '../../src/shared/chat/event.model';
@@ -97,6 +97,11 @@ const CLAUDE_MODELS: ReadonlyArray<ModelInfo> = ['claude-opus-5-5', 'claude-sonn
   (id): ModelInfo => ({ id, efforts: CLAUDE_EFFORTS }),
 );
 
+/** A streaming prompt that never yields, so a probe query initializes without starting a turn. */
+const idlePrompt: AsyncIterable<SDKUserMessage> = {
+  [Symbol.asyncIterator]: () => ({ next: () => new Promise<IteratorResult<SDKUserMessage>>(() => undefined) }),
+};
+
 const show = (value: unknown): string => JSON.stringify(value);
 
 /** The query options minus the callback and abort controller, which do not serialize. */
@@ -136,6 +141,10 @@ export const makeClaudeAgentSdkAdapter = (adapterOptions: ClaudeAdapterOptions =
   Effect.gen(function* () {
     const sdkRef = yield* Ref.make<SdkQuery | undefined>(undefined);
     const sessions = yield* Ref.make<ReadonlyMap<SessionId, SessionRuntime>>(new Map());
+    const executableOption: Pick<Options, 'pathToClaudeCodeExecutable'> =
+      adapterOptions.pathToClaudeCodeExecutable === undefined
+        ? {}
+        : { pathToClaudeCodeExecutable: adapterOptions.pathToClaudeCodeExecutable };
 
     const requireRuntime = Effect.fn('ClaudeAdapter.requireRuntime')(function* (sessionId: SessionId) {
       const runtime = (yield* Ref.get(sessions)).get(sessionId);
@@ -253,9 +262,7 @@ export const makeClaudeAgentSdkAdapter = (adapterOptions: ClaudeAdapterOptions =
         ? {}
         : { effort: SDK_EFFORTS[runtime.options.effort] }),
       ...(runtime.options.systemPrompt === undefined ? {} : { systemPrompt: runtime.options.systemPrompt }),
-      ...(adapterOptions.pathToClaudeCodeExecutable === undefined
-        ? {}
-        : { pathToClaudeCodeExecutable: adapterOptions.pathToClaudeCodeExecutable }),
+      ...executableOption,
       ...(started ? { resume: sessionId } : { sessionId }),
       includePartialMessages: true,
       abortController,
@@ -356,6 +363,31 @@ export const makeClaudeAgentSdkAdapter = (adapterOptions: ClaudeAdapterOptions =
         yield* Ref.set(sdkRef, yield* loadSdkQuery);
       }),
       models: Effect.succeed(CLAUDE_MODELS),
+      listCommands: Effect.fn('ClaudeAdapter.listCommands')(function* ({ cwd }) {
+        const sdkQuery = yield* requireSdk;
+        // Commands live on a Query, which a session only has while a turn runs. This probe never
+        // sends a prompt: it initializes the CLI with the user's and project's settings, reads
+        // the list and closes. Turn queries keep their own options.
+        const probe = yield* Effect.acquireRelease(
+          Effect.sync(() =>
+            sdkQuery({
+              prompt: idlePrompt,
+              options: {
+                cwd,
+                settingSources: ['user', 'project', 'local'],
+                ...executableOption,
+              },
+            }),
+          ),
+          (query) => Effect.sync(() => query.close()),
+        );
+        // A CLI that never answers is a defect, not something the caller can act on.
+        const commands = yield* Effect.tryPromise({ try: () => probe.supportedCommands(), catch: (cause) => cause }).pipe(
+          Effect.timeout('15 seconds'),
+          Effect.orDie,
+        );
+        return commands.map(({ name, description, argumentHint }) => ({ name, description, argumentHint }));
+      }, Effect.scoped),
       shutdown: Effect.gen(function* () {
         const all = yield* Ref.getAndSet(sessions, new Map());
         yield* Effect.forEach(

@@ -187,18 +187,6 @@ pre {
   align-items: flex-end;
 }
 
-.composer textarea {
-  flex: 1;
-  resize: vertical;
-  padding: 10px 12px;
-  border-radius: 0;
-  border: 0;
-  border-bottom: 1px solid var(--border-strong);
-  background: var(--field);
-  color: inherit;
-  font: inherit;
-}
-
 button {
   padding: 9px 18px;
   border-radius: 0;
