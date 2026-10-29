@@ -4,7 +4,7 @@ import { ChatError } from './chat-error.model';
 import { ChatEvent } from './event.model';
 import { SessionId } from './ids.model';
 import { PermissionResponse } from './permission.model';
-import { AdapterCapabilities, ProviderId } from './provider.model';
+import { AdapterCapabilities, ModelInfo, ProviderId } from './provider.model';
 import { QuestionResponse } from './question.model';
 import { SessionOptions, UserMessage } from './session.model';
 
@@ -26,6 +26,9 @@ export const ChatRpcs = RpcGroup.make(
     success: AdapterCapabilities,
     error: ChatError,
   }),
+
+  /** Models offered by the adapter that is active now. */
+  Rpc.make('Chat.models', { success: Schema.Array(ModelInfo), error: ChatError }),
 
   Rpc.make('Chat.startSession', {
     payload: SessionOptions,

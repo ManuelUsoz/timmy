@@ -30,6 +30,7 @@ const unused = () => Effect.die('Chat handler not under test');
 /** Chat handlers that die when called, so a test of another domain can still build `DesktopRpcs`. */
 export const layerChatUnused = ChatRpcs.toLayer({
   'Chat.capabilities': unused,
+  'Chat.models': unused,
   'Chat.changeAdapter': unused,
   'Chat.startSession': unused,
   'Chat.send': unused,

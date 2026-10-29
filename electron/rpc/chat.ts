@@ -7,6 +7,7 @@ export const layerChatHandlers = ChatRpcs.toLayer(
     const chat = yield* ChatRpc;
     return {
       'Chat.capabilities': () => chat.capabilities,
+      'Chat.models': () => chat.models,
       'Chat.changeAdapter': ({ provider }) => chat.changeAdapter(provider),
       'Chat.startSession': (options) => chat.startSession(options),
       'Chat.send': (message) => chat.send(message),

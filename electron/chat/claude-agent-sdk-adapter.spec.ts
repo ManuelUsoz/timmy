@@ -42,7 +42,7 @@ const toolOptions = (toolUseID: string) => ({
   requestId: toolUseID,
 });
 
-const options: SessionOptions = { provider: 'Claude', cwd: '/work', permissionMode: 'Ask' };
+const options: SessionOptions = { provider: 'Claude', cwd: '/work', permissionMode: 'Default' };
 
 interface FakeRun {
   readonly options: Options | undefined;
@@ -90,6 +90,49 @@ describe('ClaudeAgentSdkAdapter', () => {
       expect(runs[0]?.options).toMatchObject({ sessionId, includePartialMessages: true, cwd: '/work', permissionMode: 'default' });
       expect(runs[1]?.options).toMatchObject({ resume: sessionId });
       expect(runs[1]?.options?.sessionId).toBeUndefined();
+    }));
+
+  it.effect('maps the Auto permission mode to the SDK auto mode', () =>
+    Effect.gen(function* () {
+      const runs: FakeRun[] = [];
+      scriptSdk(async function* () {
+        yield init;
+        yield success;
+      }, runs);
+      const adapter = yield* makeClaudeAgentSdkAdapter();
+      yield* adapter.startup;
+      const sessionId = yield* adapter.startSession({ ...options, permissionMode: 'Auto' });
+      yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi', files: [] }));
+      expect(runs[0]?.options).toMatchObject({ permissionMode: 'auto' });
+    }));
+
+  it.effect('lists the static models with their efforts', () =>
+    Effect.gen(function* () {
+      const adapter = yield* makeClaudeAgentSdkAdapter();
+      const models = yield* adapter.models;
+      const efforts = ['Default', 'Low', 'Medium', 'High', 'XHigh'];
+      expect(models).toEqual([
+        { id: 'claude-opus-5-5', efforts },
+        { id: 'claude-sonnet-5-5', efforts },
+        { id: 'claude-haiku-5-5', efforts },
+      ]);
+    }));
+
+  it.effect('maps effort to the SDK option and omits it for Default', () =>
+    Effect.gen(function* () {
+      const runs: FakeRun[] = [];
+      scriptSdk(async function* () {
+        yield init;
+        yield success;
+      }, runs);
+      const adapter = yield* makeClaudeAgentSdkAdapter();
+      yield* adapter.startup;
+      const high = yield* adapter.startSession({ ...options, effort: 'XHigh' });
+      const plain = yield* adapter.startSession({ ...options, effort: 'Default' });
+      yield* Stream.runCollect(adapter.send({ sessionId: high, text: 'hi', files: [] }));
+      yield* Stream.runCollect(adapter.send({ sessionId: plain, text: 'hi', files: [] }));
+      expect(runs[0]?.options).toMatchObject({ effort: 'xhigh' });
+      expect(runs[1]?.options?.effort).toBeUndefined();
     }));
 
   it.effect('parks canUseTool on a permission request until the user answers', () =>

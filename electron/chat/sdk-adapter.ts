@@ -3,7 +3,7 @@ import { ChatError } from '../../src/shared/chat/chat-error.model';
 import { ChatEvent } from '../../src/shared/chat/event.model';
 import { SessionId } from '../../src/shared/chat/ids.model';
 import { PermissionResponse } from '../../src/shared/chat/permission.model';
-import { AdapterCapabilities, ProviderId } from '../../src/shared/chat/provider.model';
+import { AdapterCapabilities, ModelInfo, ProviderId } from '../../src/shared/chat/provider.model';
 import { QuestionResponse } from '../../src/shared/chat/question.model';
 import { SessionOptions, UserMessage } from '../../src/shared/chat/session.model';
 
@@ -18,6 +18,8 @@ export interface SdkAdapter {
   readonly startup: Effect.Effect<void, ChatError>;
   /** Releases what `startup` acquired. Called when the adapter is swapped out. */
   readonly shutdown: Effect.Effect<void>;
+  /** Models this provider offers. */
+  readonly models: Effect.Effect<ReadonlyArray<ModelInfo>, ChatError>;
   readonly startSession: (options: SessionOptions) => Effect.Effect<SessionId, ChatError>;
   /** Streams the events of one turn; ends after `TurnFinished`. */
   readonly send: (message: UserMessage) => Stream.Stream<ChatEvent, ChatError>;

@@ -2,7 +2,8 @@ import { JsonPipe, NgTemplateOutlet } from '@angular/common';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { ButtonComponent } from './shared/ui/button/button';
 import { SelectComponent } from './shared/ui/select/select';
-import type { SelectGroup, SelectOption } from './shared/ui/select/select.types';
+import type { PermissionMode } from '../shared/chat/session.model';
+import type { SelectOption } from './shared/ui/select/select.types';
 import { ChipComponent } from './shared/ui/chip/chip';
 import { TagComponent } from './shared/ui/tag/tag';
 import { StateComponent } from './shared/ui/state/state';
@@ -14,7 +15,9 @@ import { OptionComponent } from './shared/ui/menu/option';
 import { OptionGroupComponent } from './shared/ui/menu/option-group';
 import { PillComponent, type PillTone } from './shared/ui/pill/pill';
 import { SessionComponent } from './shared/ui/session/session';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import type { Effort, ModelInfo } from '../shared/chat/provider.model';
 import { Cause, Effect, Exit, Stream } from 'effect';
 import type { AppInfo } from '../shared/app-info/app-info.rpc';
 import type { ChatEvent } from '../shared/chat/event.model';
@@ -25,7 +28,12 @@ import { EffectRuntime } from './core/effect-runtime';
 import { MarkdownPipe } from './features/chat/markdown.pipe';
 import { addUserMessage, groupByOwner, initialChatState, reduceChat, type ChatState } from './features/chat/chat-state';
 
-const CHAT_MODEL = 'claude-haiku-5-5';
+/** Display names live in the renderer; the adapter only knows model ids. */
+const MODEL_LABELS: Readonly<Record<string, string>> = {
+  'claude-opus-5-5': 'Claude Opus 5.5',
+  'claude-sonnet-5-5': 'Claude Sonnet 5.5',
+  'claude-haiku-5-5': 'Claude Haiku 5.5',
+};
 
 @Component({
   imports: [
@@ -55,7 +63,6 @@ export class App {
   private readonly runtime = inject(EffectRuntime);
   private sessionId: SessionId | undefined;
 
-  protected readonly model = CHAT_MODEL;
   protected readonly info = signal<AppInfo | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly chat = signal<ChatState>(initialChatState);
@@ -66,37 +73,26 @@ export class App {
   protected readonly chipTones = ['blue', 'green', 'red', 'purple', 'outline', 'mono'] as const;
   protected readonly tagTones = ['green', 'blue', 'red', 'purple', 'gray'] as const;
   protected readonly stateTones = ['success', 'info', 'warning', 'error', 'merged', 'idle'] as const;
-  protected readonly modelOptions: SelectOption<string>[] = [
-    { value: 'opus', label: 'Claude Opus' },
-    { value: 'sonnet', label: 'Claude Sonnet' },
-    { value: 'haiku', label: 'Claude Haiku' },
-    { value: 'legacy', label: 'Legacy model', disabled: true },
+  private readonly models = signal<ReadonlyArray<ModelInfo>>([]);
+  private readonly selectedModel = signal<string | null>(null);
+  protected readonly modelOptions = computed((): SelectOption<string>[] =>
+    this.models().map((m) => ({ value: m.id, label: MODEL_LABELS[m.id] ?? m.id })),
+  );
+  protected readonly modelControl = new FormControl<string | null>(null);
+  protected readonly effortOptions = computed((): SelectOption<Effort>[] =>
+    (this.models().find((m) => m.id === this.selectedModel())?.efforts ?? ['Default']).map((value) => ({
+      value,
+      label: value === 'XHigh' ? 'Extra high' : value,
+    })),
+  );
+  protected readonly effortControl = new FormControl<Effort>('Default', { nonNullable: true });
+  protected readonly permissionOptions: SelectOption<PermissionMode>[] = [
+    { value: 'Auto', label: 'Auto mode' },
+    { value: 'AutoAccept', label: 'Auto accept' },
+    { value: 'Default', label: 'Default' },
+    { value: 'Plan', label: 'Plan' },
   ];
-  protected readonly modelGroups: SelectGroup<string>[] = [
-    {
-      label: 'Anthropic',
-      options: [
-        { value: 'opus', label: 'Claude Opus' },
-        { value: 'sonnet', label: 'Claude Sonnet' },
-      ],
-    },
-    {
-      label: 'Local',
-      options: [
-        { value: 'llama', label: 'Llama' },
-        { value: 'qwen', label: 'Qwen', disabled: true },
-      ],
-    },
-  ];
-  protected readonly gSingle = new FormControl<string | null>('sonnet');
-  protected readonly gMultiCount = new FormControl<string[]>(['opus', 'haiku']);
-  protected readonly gMultiChips = new FormControl<string[]>(['opus', 'sonnet']);
-  protected readonly gGrouped = new FormControl<string | null>(null);
-  protected readonly gSm = new FormControl<string | null>(null);
-  protected readonly gMd = new FormControl<string | null>(null);
-  protected readonly gLg = new FormControl<string | null>(null);
-  protected readonly gError = new FormControl<string | null>(null);
-  protected readonly gDisabled = new FormControl<string | null>({ value: 'haiku', disabled: true });
+  protected readonly permissionControl = new FormControl<PermissionMode>('Default', { nonNullable: true });
   protected readonly gAccepted = new FormControl<boolean>(true);
   protected readonly removable = signal(['alpha', 'beta', 'gamma']);
   protected readonly menuSelected = signal<unknown>('sonnet');
@@ -136,6 +132,50 @@ export class App {
         onSuccess: (appInfo) => this.info.set(appInfo),
       }),
     );
+
+    const modelsProgram = Effect.gen(function* () {
+      const desktop = yield* DesktopApi;
+      return yield* desktop['Chat.models']();
+    });
+
+    void this.runtime.run(modelsProgram).then(
+      Exit.match({
+        onFailure: (cause) => this.error.set(Cause.pretty(cause)),
+        onSuccess: (models) => this.models.set(models),
+      }),
+    );
+
+    this.modelControl.valueChanges.pipe(takeUntilDestroyed()).subscribe((id) => {
+      this.selectedModel.set(id);
+      const efforts = this.models().find((m) => m.id === id)?.efforts ?? ['Default'];
+      if (!efforts.includes(this.effortControl.value)) this.effortControl.setValue('Default', { emitEvent: false });
+      this.resetSession();
+    });
+    this.effortControl.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.resetSession());
+    this.permissionControl.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.resetSession());
+
+    // A session cannot change options mid-turn: lock the selectors while one runs.
+    // emitEvent: false keeps enable/disable from firing valueChanges (which would reset the session).
+    effect(() => {
+      const locked = this.chat().running;
+      for (const control of [this.modelControl, this.effortControl, this.permissionControl]) {
+        if (locked) control.disable({ emitEvent: false });
+        else control.enable({ emitEvent: false });
+      }
+    });
+  }
+
+  private resetSession(): void {
+    if (this.chat().running) return;
+    const sessionId = this.sessionId;
+    if (sessionId === undefined) return;
+    this.sessionId = undefined;
+    void this.runtime.run(
+      Effect.gen(function* () {
+        const desktop = yield* DesktopApi;
+        yield* desktop['Chat.closeSession']({ sessionId });
+      }),
+    );
   }
 
   protected send(): void {
@@ -148,6 +188,9 @@ export class App {
 
     const apply = (event: ChatEvent) => Effect.sync(() => this.chat.update((state) => reduceChat(state, event)));
     const known = this.sessionId;
+    const model = this.modelControl.value;
+    const permissionMode = this.permissionControl.value;
+    const effort = this.effortControl.value;
     const remember = (id: SessionId) =>
       Effect.sync(() => {
         this.sessionId = id;
@@ -157,7 +200,13 @@ export class App {
       const desktop = yield* DesktopApi;
       const sessionId =
         known ??
-        (yield* desktop['Chat.startSession']({ provider: 'Claude', cwd, model: CHAT_MODEL, permissionMode: 'Ask' }));
+        (yield* desktop['Chat.startSession']({
+          provider: 'Claude',
+          cwd,
+          ...(model !== null ? { model } : {}),
+          effort,
+          permissionMode,
+        }));
       yield* remember(sessionId);
       yield* Stream.runForEach(desktop['Chat.send']({ sessionId, text, files: [] }), apply);
     });

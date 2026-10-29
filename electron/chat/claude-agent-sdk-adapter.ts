@@ -6,7 +6,7 @@ import { ChatError } from '../../src/shared/chat/chat-error.model';
 import { ChatEvent } from '../../src/shared/chat/event.model';
 import { PermissionRequestId, QuestionRequestId, SessionId, TurnId } from '../../src/shared/chat/ids.model';
 import { PermissionResponse } from '../../src/shared/chat/permission.model';
-import { AdapterCapabilities } from '../../src/shared/chat/provider.model';
+import { AdapterCapabilities, Effort, ModelInfo } from '../../src/shared/chat/provider.model';
 import { QuestionResponse } from '../../src/shared/chat/question.model';
 import { PermissionMode, SessionOptions, UserMessage } from '../../src/shared/chat/session.model';
 import { ToolCall } from '../../src/shared/chat/tool-call.model';
@@ -79,11 +79,23 @@ const loadSdkQuery: Effect.Effect<SdkQuery> = Effect.tryPromise({
 );
 
 const SDK_PERMISSION_MODES: Readonly<Record<PermissionMode, NonNullable<Options['permissionMode']>>> = {
-  Ask: 'default',
-  AcceptEdits: 'acceptEdits',
+  Default: 'default',
+  AutoAccept: 'acceptEdits',
   Plan: 'plan',
-  BypassAll: 'bypassPermissions',
+  Auto: 'auto',
 };
+
+const SDK_EFFORTS: Readonly<Record<Exclude<Effort, 'Default'>, NonNullable<Options['effort']>>> = {
+  Low: 'low',
+  Medium: 'medium',
+  High: 'high',
+  XHigh: 'xhigh',
+};
+
+const CLAUDE_EFFORTS: ReadonlyArray<Effort> = ['Default', 'Low', 'Medium', 'High', 'XHigh'];
+const CLAUDE_MODELS: ReadonlyArray<ModelInfo> = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'].map(
+  (id): ModelInfo => ({ id, efforts: CLAUDE_EFFORTS }),
+);
 
 const show = (value: unknown): string => JSON.stringify(value);
 
@@ -236,8 +248,10 @@ export const makeClaudeAgentSdkAdapter = (adapterOptions: ClaudeAdapterOptions =
     ): Options => ({
       cwd: runtime.options.cwd,
       permissionMode: SDK_PERMISSION_MODES[runtime.options.permissionMode],
-      ...(runtime.options.permissionMode === 'BypassAll' ? { allowDangerouslySkipPermissions: true } : {}),
       ...(runtime.options.model === undefined ? {} : { model: runtime.options.model }),
+      ...(runtime.options.effort === undefined || runtime.options.effort === 'Default'
+        ? {}
+        : { effort: SDK_EFFORTS[runtime.options.effort] }),
       ...(runtime.options.systemPrompt === undefined ? {} : { systemPrompt: runtime.options.systemPrompt }),
       ...(adapterOptions.pathToClaudeCodeExecutable === undefined
         ? {}
@@ -341,6 +355,7 @@ export const makeClaudeAgentSdkAdapter = (adapterOptions: ClaudeAdapterOptions =
         }
         yield* Ref.set(sdkRef, yield* loadSdkQuery);
       }),
+      models: Effect.succeed(CLAUDE_MODELS),
       shutdown: Effect.gen(function* () {
         const all = yield* Ref.getAndSet(sessions, new Map());
         yield* Effect.forEach(

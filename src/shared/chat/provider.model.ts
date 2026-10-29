@@ -5,6 +5,17 @@ export const ProviderId = Schema.Literals(['Claude', 'OpenAI', 'OpenCode', 'Grok
 });
 export type ProviderId = typeof ProviderId.Type;
 
+export const Effort = Schema.Literals(['Default', 'Low', 'Medium', 'High', 'XHigh']).annotate({
+  identifier: 'Effort',
+});
+export type Effort = typeof Effort.Type;
+
+export const ModelInfo = Schema.Struct({
+  id: Schema.String,
+  efforts: Schema.Array(Effort),
+}).annotate({ identifier: 'ModelInfo' });
+export type ModelInfo = typeof ModelInfo.Type;
+
 /** What the active adapter can do, so the UI hides what the provider lacks. */
 export const AdapterCapabilities = Schema.Struct({
   provider: ProviderId,

@@ -3,7 +3,7 @@ import { ChatError } from '../../src/shared/chat/chat-error.model';
 import { ChatEvent } from '../../src/shared/chat/event.model';
 import { SessionId } from '../../src/shared/chat/ids.model';
 import { PermissionResponse } from '../../src/shared/chat/permission.model';
-import { AdapterCapabilities, ProviderId } from '../../src/shared/chat/provider.model';
+import { AdapterCapabilities, ModelInfo, ProviderId } from '../../src/shared/chat/provider.model';
 import { QuestionResponse } from '../../src/shared/chat/question.model';
 import { SessionOptions, UserMessage } from '../../src/shared/chat/session.model';
 import { SdkAdapter, SdkAdapterRegistry } from './sdk-adapter';
@@ -12,6 +12,7 @@ export interface ChatRpcShape {
   /** Starts the active adapter. Idempotent; every other call also triggers it lazily. */
   readonly startup: Effect.Effect<void, ChatError>;
   readonly capabilities: Effect.Effect<AdapterCapabilities>;
+  readonly models: Effect.Effect<ReadonlyArray<ModelInfo>, ChatError>;
   readonly changeAdapter: (provider: ProviderId) => Effect.Effect<AdapterCapabilities, ChatError>;
   readonly startSession: (options: SessionOptions) => Effect.Effect<SessionId, ChatError>;
   readonly send: (message: UserMessage) => Stream.Stream<ChatEvent, ChatError>;
@@ -112,6 +113,7 @@ export const layerChatRpc = Layer.effect(
     return ChatRpc.of({
       startup: ready.pipe(Effect.asVoid),
       capabilities: Ref.get(state).pipe(Effect.map((s) => s.active.adapter.capabilities)),
+      models: ready.pipe(Effect.flatMap((adapter) => adapter.models)),
       changeAdapter: (provider) => swapLock.withPermit(changeAdapter(provider)),
       startSession: (options) => swapLock.withPermit(startSession(options)),
       send: (message) =>

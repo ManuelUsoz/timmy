@@ -8,7 +8,7 @@ import { SessionOptions } from '../../src/shared/chat/session.model';
 import { ChatRpc, layerChatRpc } from './chat-rpc';
 import { SdkAdapter, SdkAdapterRegistry } from './sdk-adapter';
 
-const options = (provider: ProviderId): SessionOptions => ({ provider, cwd: '/work', permissionMode: 'Ask' });
+const options = (provider: ProviderId): SessionOptions => ({ provider, cwd: '/work', permissionMode: 'Default' });
 
 interface Calls {
   readonly startups: Ref.Ref<number>;
@@ -32,6 +32,7 @@ const makeFakeAdapter = (provider: ProviderId, calls: Calls): SdkAdapter => {
     },
     startup: Ref.update(calls.startups, (n) => n + 1),
     shutdown: Ref.update(calls.shutdowns, (n) => n + 1),
+    models: Effect.succeed([{ id: `${provider}-model`, efforts: ['Default'] }]),
     startSession: () => Effect.succeed(sessionId),
     send: (message) =>
  Stream.fromIterable<ChatEvent>([ { _tag: 'TurnStarted', sessionId: message.sessionId, turnId: TurnId.make('t1') }, { _tag: 'TurnFinished', sessionId: message.sessionId, turnId: TurnId.make('t1'), outcome: 'Completed', usage: { inputTokens: 1, outputTokens: 2 }, }, ]),
@@ -66,6 +67,16 @@ describe('ChatRpc', () => {
         yield* chat.startSession(options('Claude'));
       }).pipe(Effect.provide(layer));
       expect(yield* Ref.get(calls.startups)).toBe(1);
+    }));
+
+  it.effect('lists the models of the active adapter', () =>
+    Effect.gen(function* () {
+      const { layer } = yield* makeHarness;
+      const models = yield* Effect.gen(function* () {
+        const chat = yield* ChatRpc;
+        return yield* chat.models;
+      }).pipe(Effect.provide(layer));
+      expect(models).toEqual([{ id: 'Claude-model', efforts: ['Default'] }]);
     }));
 
   it.effect('streams the adapter turn for an open session', () =>

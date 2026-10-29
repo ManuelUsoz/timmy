@@ -3,11 +3,14 @@
     <h1>Timmy</h1>
     <ui-pill [tone]="pill().tone" [label]="pill().label" [pulse]="chat().running">Claude</ui-pill>
     <p class="muted">
-      Claude · {{ model }}
+      Claude · {{ modelControl.value ?? 'default model' }}
       @if (info(); as appInfo) {
         · <code>{{ appInfo.cwd }}</code>
       }
     </p>
+    <ui-select label="Model" size="sm" placeholder="Default model" [options]="modelOptions()" [formControl]="modelControl" />
+    <ui-select label="Effort" size="sm" [options]="effortOptions()" [formControl]="effortControl" />
+    <ui-select label="Permission" size="sm" [options]="permissionOptions" [formControl]="permissionControl" />
   </header>
 
   @if (error(); as message) {
@@ -173,46 +176,6 @@
     </div>
     <h3>anchor</h3>
     <div class="row"><a uiButton href="#" kind="secondary">Anchor button</a></div>
-  </section>
-
-  <section>
-    <h2>Select</h2>
-    <div class="case">
-      <ui-select label="Single" helper="Pick one model" [options]="modelOptions" [formControl]="gSingle" />
-      <pre>{{ gSingle.value | json }}</pre>
-    </div>
-    <div class="case">
-      <ui-select label="Multiple (count)" multiple display="count" [options]="modelOptions" [formControl]="gMultiCount" />
-      <pre>{{ gMultiCount.value | json }}</pre>
-    </div>
-    <div class="case">
-      <ui-select label="Multiple (chips)" multiple display="chips" [options]="modelOptions" [formControl]="gMultiChips" />
-      <pre>{{ gMultiChips.value | json }}</pre>
-    </div>
-    <div class="case">
-      <ui-select label="Grouped" placeholder="Choose" [options]="modelGroups" [formControl]="gGrouped" />
-      <pre>{{ gGrouped.value | json }}</pre>
-    </div>
-    <div class="case">
-      <ui-select label="Size sm" size="sm" [options]="modelOptions" [formControl]="gSm" />
-      <pre>{{ gSm.value | json }}</pre>
-    </div>
-    <div class="case">
-      <ui-select label="Size md" size="md" [options]="modelOptions" [formControl]="gMd" />
-      <pre>{{ gMd.value | json }}</pre>
-    </div>
-    <div class="case">
-      <ui-select label="Size lg" size="lg" [options]="modelOptions" [formControl]="gLg" />
-      <pre>{{ gLg.value | json }}</pre>
-    </div>
-    <div class="case">
-      <ui-select label="Error" error="A model is required" [options]="modelOptions" [formControl]="gError" />
-      <pre>{{ gError.value | json }}</pre>
-    </div>
-    <div class="case">
-      <ui-select label="Disabled" [options]="modelOptions" [formControl]="gDisabled" />
-      <pre>{{ gDisabled.value | json }}</pre>
-    </div>
   </section>
 
   <section>
