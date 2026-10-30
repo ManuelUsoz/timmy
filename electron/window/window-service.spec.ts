@@ -45,6 +45,22 @@ describe('WindowService', () => {
     }),
   );
 
+  it.effect('keeps the mode when the host had no window to apply the plan to', () =>
+    Effect.gen(function* () {
+      const host = Layer.succeed(WindowHost, {
+        workArea: Effect.succeed(workArea),
+        apply: () => Effect.succeed(false),
+        close: Effect.void,
+      });
+      const mode = yield* Effect.gen(function* () {
+        const windows = yield* WindowService;
+        yield* windows.request('Panel');
+        return yield* windows.current;
+      }).pipe(Effect.provide(layerWindowService.pipe(Layer.provide(host))));
+      expect(mode).toBe('Pill');
+    }),
+  );
+
   it.effect('applies the plan of the requested mode and reports it as current', () =>
     Effect.gen(function* () {
       const applied = yield* Ref.make<ReadonlyArray<WindowPlan>>([]);

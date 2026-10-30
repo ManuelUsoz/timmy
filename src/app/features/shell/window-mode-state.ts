@@ -24,7 +24,9 @@ export class WindowModeState {
   }
 
   close(): void {
-    void this.call((desktop) => desktop['Window.close']());
+    void this.call((desktop) => desktop['Window.close']()).then((exit) =>
+      Exit.match(exit, { onFailure: (cause) => this.error.set(Cause.pretty(cause)), onSuccess: () => undefined }),
+    );
   }
 
   private call<A, E>(f: (desktop: DesktopApiShape) => Effect.Effect<A, E>) {
@@ -34,6 +36,9 @@ export class WindowModeState {
   private readonly settle = (exit: Exit.Exit<WindowMode, unknown>): void =>
     Exit.match(exit, {
       onFailure: (cause) => this.error.set(Cause.pretty(cause)),
-      onSuccess: (mode) => this.mode.set(mode),
+      onSuccess: (mode) => {
+        this.error.set(null);
+        this.mode.set(mode);
+      },
     });
 }
