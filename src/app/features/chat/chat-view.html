@@ -1,0 +1,136 @@
+<div class="layout">
+@if (info(); as appInfo) {
+  <app-sessions-sidebar [cwd]="appInfo.cwd" (opened)="showTranscript($event)" (closed)="clearChat()" />
+}
+<main class="shell">
+  <header class="top">
+    <h1>Timmy</h1>
+    <ui-pill [tone]="pill().tone" [label]="pill().label" [pulse]="chat().running">Claude</ui-pill>
+    <p class="muted">
+      Claude · {{ modelControl.value ?? 'default model' }}
+      @if (info(); as appInfo) {
+        · <code>{{ appInfo.cwd }}</code>
+      }
+    </p>
+    <ui-select label="Model" size="sm" placeholder="Default model" [options]="modelOptions()" [formControl]="modelControl" />
+    <ui-select label="Effort" size="sm" [options]="effortOptions()" [formControl]="effortControl" />
+    <ui-select label="Permission" size="sm" [options]="permissionOptions" [formControl]="permissionControl" />
+  </header>
+
+  @if (error(); as message) {
+    <p class="error">{{ message }}</p>
+  }
+
+  <section class="card"><dl class="stats">
+    <div>
+      <dt>Context</dt>
+      <dd>
+        @if (chat().context; as context) {
+          {{ context.usedTokens }} / {{ context.maxTokens }} ({{ contextPercent() }}%)
+        } @else {
+          –
+        }
+      </dd>
+    </div>
+    @if (chat().usage; as usage) {
+      <div><dt>Input</dt><dd>{{ usage.inputTokens }}</dd></div>
+      <div><dt>Output</dt><dd>{{ usage.outputTokens }}</dd></div>
+      <div><dt>Cache read</dt><dd>{{ usage.cacheReadTokens ?? 0 }}</dd></div>
+      <div><dt>Cache write</dt><dd>{{ usage.cacheWriteTokens ?? 0 }}</dd></div>
+      <div><dt>Cost</dt><dd>${{ (usage.costUsd ?? 0).toFixed(4) }}</dd></div>
+    } @else {
+      <div><dt>Usage</dt><dd>–</dd></div>
+    }
+  </dl></section>
+
+  <section class="card log">
+    <ng-container *ngTemplateOutlet="items; context: { $implicit: undefined }" />
+    @if (chat().items.length === 0) {
+      <p class="muted">Say something to start a session.</p>
+    }
+
+    @if (chat().permission; as request) {
+      <ui-session
+        title="Permission request"
+        status="asks"
+        [permission]="request"
+        (answer)="answerPermission($event)"
+        (interrupt)="stop()"
+      />
+    }
+
+    @if (chat().running && !chat().permission) {
+      <p class="muted">Working…</p>
+    }
+    @if (chat().failure; as failure) {
+      <p class="error">{{ failure }}</p>
+    }
+  </section>
+
+  <form class="composer" (submit)="$event.preventDefault(); send()">
+    <app-composer-input [(draft)]="draft" [commands]="commands()" (submitted)="send()" />
+    @if (chat().running) {
+      <button type="button" class="ghost" (click)="stop()">Stop</button>
+    } @else {
+      <button type="submit" [disabled]="draft().trim() === '' || info() === null">Send</button>
+    }
+  </form>
+
+  <ng-template #items let-owner>
+    @for (item of tree().get(owner) ?? []; track $index) {
+      @switch (item.kind) {
+        @case ('User') {
+          <div class="msg user">{{ item.text }}</div>
+        }
+        @case ('Assistant') {
+          <div class="msg assistant">
+            @if (item.thinking !== '') {
+              <details>
+                <summary>Thinking</summary>
+                <pre>{{ item.thinking }}</pre>
+              </details>
+            }
+            @if (item.text !== '') {
+              <div class="markdown" [innerHTML]="item.text | markdown"></div>
+            }
+          </div>
+        }
+        @case ('Agent') {
+          @if (agent(item.agentId); as sub) {
+            <div class="subagent" [class]="'subagent ' + sub.status.toLowerCase()">
+              <div class="tool-head">
+                <span class="badge">{{ sub.status }}</span>
+                <strong>{{ sub.info.name }}</strong>
+                @if (sub.info.task; as task) {
+                  <span class="muted">{{ task }}</span>
+                }
+              </div>
+              @if (sub.usage; as u) {
+                <p class="muted small">{{ u.inputTokens }} in · {{ u.outputTokens }} out · {{ u.cacheReadTokens ?? 0 }} cache read</p>
+              }
+              <div class="nested">
+                <ng-container *ngTemplateOutlet="items; context: { $implicit: item.agentId }" />
+              </div>
+            </div>
+          }
+        }
+        @case ('Tool') {
+          <div class="tool" [class]="'tool ' + item.call.status.toLowerCase()">
+            <div class="tool-head">
+              <span class="badge">{{ item.call.status }}</span>
+              <strong>{{ item.call.name }}</strong>
+              <span class="muted">{{ item.call.title }}</span>
+            </div>
+            @if (item.call.output; as output) {
+              <details>
+                <summary>Output</summary>
+                <pre>{{ output }}</pre>
+              </details>
+            }
+          </div>
+        }
+      }
+    }
+  </ng-template>
+</main>
+</div>
