@@ -17,10 +17,15 @@ const layerChatServices = layerChatRpc.pipe(
 
 const layerSessionHandlers = layerSessionsHandlers.pipe(Layer.provide(layerSessionsService));
 
+const layerWindowHandlersLive = layerWindowHandlers.pipe(Layer.provide(layerWindowService));
+
 /**
  * Handlers for every domain in `DesktopRpcs`. Merge new domain handler layers here.
  * Needs a `SessionRepo` and a `WindowHost`; the runtime provides the real ones.
  */
-export const layerDesktopHandlers = Layer.mergeAll(layerAppInfoHandlers, layerChatHandlers, layerSessionHandlers, layerWindowHandlers.pipe(Layer.provide(layerWindowService))).pipe(
-  Layer.provide(layerChatServices),
-);
+export const layerDesktopHandlers = Layer.mergeAll(
+  layerAppInfoHandlers,
+  layerChatHandlers,
+  layerSessionHandlers,
+  layerWindowHandlersLive,
+).pipe(Layer.provide(layerChatServices));

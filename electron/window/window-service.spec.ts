@@ -12,7 +12,7 @@ const closedPlan = { bounds: { x: -1, y: -1, width: 0, height: 0 } } as unknown 
 const makeHostTestLayer = (applied: Ref.Ref<ReadonlyArray<WindowPlan>>) =>
   Layer.succeed(WindowHost, {
     workArea: Effect.succeed(workArea),
-    apply: (plan) => Ref.update(applied, (all) => [...all, plan]),
+    apply: (plan) => Ref.update(applied, (all) => [...all, plan]).pipe(Effect.as(true)),
     close: Ref.update(applied, (all) => [...all, closedPlan]),
   });
 

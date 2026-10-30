@@ -5,7 +5,8 @@ import { planFor, startupMode, type Rect, type WindowMode, type WindowPlan } fro
 export interface WindowHostShape {
   /** Work area of the display the window is on (the primary display before the window exists). */
   readonly workArea: Effect.Effect<Rect>;
-  readonly apply: (plan: WindowPlan) => Effect.Effect<void>;
+  /** Resolves false when there is no window to apply the plan to. */
+  readonly apply: (plan: WindowPlan) => Effect.Effect<boolean>;
   /** Quits the app. */
   readonly close: Effect.Effect<void>;
 }
@@ -32,7 +33,7 @@ export const layerWindowService: Layer.Layer<WindowService, never, WindowHost> =
       request: Effect.fn('WindowService.request')(function* (target: WindowMode) {
         if ((yield* Ref.get(mode)) === target) return target;
         const workArea = yield* host.workArea;
-        yield* host.apply(planFor(target, workArea));
+        if (!(yield* host.apply(planFor(target, workArea)))) return yield* Ref.get(mode);
         yield* Ref.set(mode, target);
         return target;
       }),

@@ -18,7 +18,7 @@ export const layerElectronWindowHost: Layer.Layer<WindowHost> = Layer.succeed(Wi
   apply: (plan) =>
     Effect.sync(() => {
       const win = appWindow();
-      if (!win) return;
+      if (!win) return false;
       animator.cancel();
       const settle = () => win.setResizable(plan.resizable);
       win.setAlwaysOnTop(plan.alwaysOnTop);
@@ -27,8 +27,18 @@ export const layerElectronWindowHost: Layer.Layer<WindowHost> = Layer.succeed(Wi
       if (systemPreferences.getAnimationSettings().prefersReducedMotion) {
         win.setBounds(plan.bounds);
         settle();
-        return;
+        return true;
       }
-      animator.animate(win.getBounds(), plan.bounds, (bounds) => win.setBounds(bounds), settle);
+      animator.animate(
+        win.getBounds(),
+        plan.bounds,
+        (bounds) => {
+          if (!win.isDestroyed()) win.setBounds(bounds);
+        },
+        () => {
+          if (!win.isDestroyed()) settle();
+        },
+      );
+      return true;
     }),
 });
