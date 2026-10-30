@@ -20,8 +20,16 @@ export const formatElapsed = (ms: number): string => {
 
 const SUMMARY_MAX = 60;
 
+const findLastItem = <T>(items: ReadonlyArray<T>, match: (item: T) => boolean): T | undefined => {
+  for (let i = items.length - 1; i >= 0; i--) if (match(items[i]!)) return items[i];
+  return undefined;
+};
+
+const NO_EXTRAS = { meta: '', action: '', pulse: false, subagents: null } as const;
+
 const runningSubagents = (chat: ChatState): number | null => {
-  const count = [...chat.agents.values()].filter((agent) => agent.status === 'Running').length;
+  let count = 0;
+  for (const agent of chat.agents.values()) if (agent.status === 'Running') count++;
   return count === 0 ? null : count;
 };
 
@@ -32,7 +40,7 @@ const runningSubagents = (chat: ChatState): number | null => {
 const doneSummary = (chat: ChatState): string | undefined => {
   const last = chat.items.at(-1);
   if (last === undefined || last.kind === 'User' || chat.failure !== undefined) return undefined;
-  const answer = [...chat.items].reverse().find((item) => item.kind === 'Assistant' && item.text.trim() !== '');
+  const answer = findLastItem(chat.items, (item) => item.kind === 'Assistant' && item.text.trim() !== '');
   if (answer?.kind !== 'Assistant') return 'Turn complete';
   const line = answer.text.trim().split('\n')[0] ?? '';
   return line.length > SUMMARY_MAX ? `${line.slice(0, SUMMARY_MAX - 1)}…` : line;
@@ -41,14 +49,14 @@ const doneSummary = (chat: ChatState): string | undefined => {
 /** What the Pill shows for the current Session: Idle, Live (activity, elapsed time, subagent count), Asks or Done (summary). */
 export const pillView = (chat: ChatState, elapsedMs: number): PillView => {
   if (chat.permission) {
-    return { tone: 'waiting', label: 'Asks', text: `${chat.permission.toolCall.name} ${chat.permission.toolCall.title}`, meta: '', action: 'Review', pulse: false, subagents: null };
+    return { ...NO_EXTRAS, tone: 'waiting', label: 'Asks', text: `${chat.permission.toolCall.name} ${chat.permission.toolCall.title}`, action: 'Review' };
   }
   if (chat.running) {
-    const active = [...chat.items].reverse().find((item) => item.kind === 'Tool' && item.call.status === 'Running');
+    const active = findLastItem(chat.items, (item) => item.kind === 'Tool' && item.call.status === 'Running');
     const text = active?.kind === 'Tool' ? `${active.call.name} ${active.call.title}` : 'Working…';
     return { tone: 'running', label: 'Live', text, meta: formatElapsed(elapsedMs), action: '', pulse: true, subagents: runningSubagents(chat) };
   }
   const summary = doneSummary(chat);
-  if (summary !== undefined) return { tone: 'done', label: 'Done', text: summary, meta: '', action: '', pulse: false, subagents: null };
-  return { tone: 'neutral', label: 'Idle', text: 'Nothing running', meta: '', action: '', pulse: false, subagents: null };
+  if (summary !== undefined) return { ...NO_EXTRAS, tone: 'done', label: 'Done', text: summary };
+  return { ...NO_EXTRAS, tone: 'neutral', label: 'Idle', text: 'Nothing running' };
 };

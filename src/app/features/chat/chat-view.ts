@@ -1,6 +1,5 @@
-import { Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
-import type { SessionId } from '../../../shared/chat/ids.model';
 import { ChipStripComponent } from '../../shared/ui/chip-strip/chip-strip';
 import { MessageComponent } from '../../shared/ui/message/message';
 import { TreeViewComponent } from '../../shared/ui/tree-view/tree-view';
@@ -32,6 +31,7 @@ import { MarkdownPipe } from './markdown.pipe';
   selector: 'app-chat-view',
   templateUrl: './chat-view.html',
   styleUrl: './chat-view.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ChatViewComponent {
   private readonly controller = inject(ChatController);
@@ -60,5 +60,5 @@ export class ChatViewComponent {
   protected clearChat = () => this.controller.clearChat();
   protected answer = (request: PermissionRequest, decision: 'Allow' | 'Deny') =>
     this.controller.answerPermission(permissionAnswer(request, decision));
-  protected openSession = (id: string) => this.controller.openSession(id as SessionId);
+  protected openSession = (id: string) => this.controller.openSession(id);
 }

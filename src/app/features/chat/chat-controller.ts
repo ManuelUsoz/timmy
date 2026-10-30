@@ -68,6 +68,8 @@ export class ChatController {
   readonly selectedSessionId = signal<SessionId | undefined>(undefined);
   readonly sessionChips = computed(() => sessionChips(this.sessions(), this.selectedSessionId()));
 
+  /** Only flips on a real transition, so effects reading it do not re-run on every streamed delta. */
+  private readonly running = computed(() => this.chat().running);
   private readonly turnStartedAt = signal(0);
   private readonly now = signal(Date.now());
   readonly pill = computed(() => pillView(this.chat(), this.now() - this.turnStartedAt()));
@@ -98,7 +100,7 @@ export class ChatController {
 
     // Elapsed time on the Pill: tick once a second while a Turn runs.
     effect((onCleanup) => {
-      if (!this.chat().running) return;
+      if (!this.running()) return;
       this.now.set(Date.now());
       const timer = setInterval(() => this.now.set(Date.now()), 1000);
       onCleanup(() => clearInterval(timer));
@@ -107,7 +109,7 @@ export class ChatController {
     // A session cannot change options mid-turn: lock the selectors while one runs.
     // emitEvent: false keeps enable/disable from firing valueChanges (which would reset the session).
     effect(() => {
-      const locked = this.chat().running;
+      const locked = this.running();
       for (const control of [this.modelControl, this.effortControl, this.permissionControl]) {
         if (locked) control.disable({ emitEvent: false });
         else control.enable({ emitEvent: false });
@@ -218,9 +220,9 @@ export class ChatController {
   }
 
   /** A Session chip was picked: show its main transcript. */
-  openSession(sessionId: SessionId): void {
-    const projectId = this.sessions().find((s) => s.sessionId === sessionId)?.projectId;
-    if (projectId !== undefined) this.showTranscript({ projectId, sessionId });
+  openSession(id: string): void {
+    const session = this.sessions().find((s) => s.sessionId === id);
+    if (session !== undefined) this.showTranscript({ projectId: session.projectId, sessionId: session.sessionId });
   }
 
   clearChat(): void {

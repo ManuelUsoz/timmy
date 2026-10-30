@@ -1,5 +1,6 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { Cause, Effect, Exit } from 'effect';
+import type { DesktopApiShape } from '../../core/desktop-api';
 import { offeredModes, startupMode, type WindowMode } from '../../../shared/window/window.model';
 import { DesktopApi } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
@@ -13,34 +14,21 @@ export class WindowModeState {
   readonly error = signal<string | null>(null);
 
   constructor() {
-    void this.runtime
-      .run(Effect.gen(function* () {
-          const desktop = yield* DesktopApi;
-          return yield* desktop['Window.current']();
-        }))
-      .then(this.settle);
+    void this.call((desktop) => desktop['Window.current']()).then(this.settle);
   }
 
-  offered(): ReadonlyArray<WindowMode> {
-    return offeredModes(this.mode());
-  }
+  readonly offered = computed(() => offeredModes(this.mode()));
 
   request(mode: WindowMode): void {
-    void this.runtime
-      .run(Effect.gen(function* () {
-          const desktop = yield* DesktopApi;
-          return yield* desktop['Window.request']({ mode });
-        }))
-      .then(this.settle);
+    void this.call((desktop) => desktop['Window.request']({ mode })).then(this.settle);
   }
 
   close(): void {
-    void this.runtime.run(
-      Effect.gen(function* () {
-        const desktop = yield* DesktopApi;
-        return yield* desktop['Window.close']();
-      }),
-    );
+    void this.call((desktop) => desktop['Window.close']());
+  }
+
+  private call<A, E>(f: (desktop: DesktopApiShape) => Effect.Effect<A, E>) {
+    return this.runtime.run(Effect.flatMap(DesktopApi, f));
   }
 
   private readonly settle = (exit: Exit.Exit<WindowMode, unknown>): void =>
