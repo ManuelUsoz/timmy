@@ -1,137 +1,81 @@
+/* Panel / Expanded chat, after the "3 · Chat" design: strip, title, transcript, ask row, composer. */
 :host {
-  display: block;
-  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-03);
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  padding: var(--spacing-04);
+  background: var(--pill);
   color: var(--text-primary);
   font-family: var(--ff-sans);
 }
 
-.layout {
-  display: flex;
-  align-items: flex-start;
+:host > * {
+  flex: none;
 }
 
-.shell {
-  flex: 1;
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-03);
+  padding: var(--spacing-02) var(--spacing-02) 0;
+}
+
+.title-name {
   min-width: 0;
-  max-width: 880px;
-  margin: 0 auto;
-  padding: 64px 24px;
-  display: grid;
-  gap: 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--text-heading-01);
+  letter-spacing: 0.16px;
 }
 
-.hero h1 {
-  margin: 8px 0 12px;
-  font-size: clamp(2.4rem, 6vw, 3.6rem);
-  letter-spacing: -0.03em;
-}
-
-.eyebrow {
-  margin: 0;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--link);
-}
-
-.lede {
-  margin: 0;
-  max-width: 60ch;
-  line-height: 1.65;
-  color: var(--text-secondary);
-}
-
-.card {
-  background: var(--layer-01);
-  border: 1px solid var(--border-subtle);
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  margin-left: auto;
+  padding: 0;
+  border: 0;
   border-radius: 0;
-  padding: 20px 22px;
-}
-
-.card h2 {
-  margin: 0 0 14px;
-  font-size: 0.8rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  background: transparent;
   color: var(--text-helper);
+  cursor: pointer;
 }
 
-.versions {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-}
-
-.versions div {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.versions div:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-
-dt {
-  color: var(--text-secondary);
-}
-
-dd {
-  margin: 0;
-  font-variant-numeric: tabular-nums;
-}
-
-ul {
-  margin: 0;
-  padding-left: 20px;
-  line-height: 1.8;
-  color: var(--text-secondary);
-}
-
-code {
-  padding: 1px 6px;
-  border-radius: 0;
-  background: var(--layer-02);
+.icon-button:hover {
+  background: var(--layer-hover);
   color: var(--text-primary);
-  font-size: 0.9em;
+}
+
+.icon-button:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
+.log {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--spacing-04);
+  min-height: 0;
+  padding: var(--spacing-04);
+  overflow: auto;
+  background: var(--pill-inset);
 }
 
 .error {
   margin: 0;
   color: var(--text-error);
-  line-height: 1.6;
 }
 
 .muted {
   margin: 0;
-  color: var(--text-helper);
-}
-
-.top h1 {
-  margin: 0;
-  font-size: 1.8rem;
-}
-
-dl.stats {
-  margin: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 28px;
-}
-
-.stats div {
-  display: flex;
-  gap: 8px;
-}
-
-.log {
-  display: grid;
-  gap: 12px;
-  min-height: 240px;
+  color: var(--text-secondary);
 }
 
 pre {
@@ -143,40 +87,55 @@ pre {
   color: var(--text-secondary);
 }
 
+/* Tools hang under the reply text, aligned with it (avatar 32px + gap). */
+.activity {
+  display: block;
+  margin-left: var(--spacing-07);
+}
+
 .composer {
   display: flex;
-  gap: 10px;
-  align-items: flex-end;
+  flex-direction: column;
+  background: var(--field);
+  border-bottom: 1px solid var(--border-strong);
 }
 
-button {
-  padding: 9px 18px;
-  border-radius: 0;
-  border: 0;
-  background: var(--primary);
-  color: var(--text-on-color);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
+.composer-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-02);
+  padding: 0 var(--spacing-03) var(--spacing-03);
 }
 
-button:hover:not(:disabled) {
-  background: var(--primary-hover);
+.composer-bar ui-select {
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
-button:disabled {
-  opacity: 0.4;
-  cursor: default;
+/* The selects keep an accessible name through their label, but only the value is drawn. */
+.composer-bar ui-select ::ng-deep .as-field__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
-button.ghost {
-  background: transparent;
-  color: var(--link);
-  border: 1px solid var(--border-strong);
+.context {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font: var(--text-label-01);
 }
 
-button.ghost:hover:not(:disabled) {
-  background: var(--layer-hover);
+.composer-bar button[type='submit'],
+.composer-bar button[aria-label='Stop'] {
+  flex: none;
+}
+
+.composer-bar .context + button,
+.composer-bar ui-select:last-of-type + button {
+  margin-left: auto;
 }
 
 :host ::ng-deep .markdown > :first-child {
@@ -190,7 +149,7 @@ button.ghost:hover:not(:disabled) {
 :host ::ng-deep .markdown pre {
   padding: 10px 12px;
   border-radius: 0;
-  background: var(--pill-inset);
+  background: var(--layer-01);
 }
 
 :host ::ng-deep .markdown pre code {
@@ -217,42 +176,4 @@ button.ghost:hover:not(:disabled) {
   padding-left: 12px;
   border-left: 3px solid var(--border-strong);
   color: var(--text-secondary);
-}
-
-
-/* Inside the Panel (about 440px) the chat drops the sidebar and tightens up. */
-:host {
-  container-type: inline-size;
-}
-
-@container (max-width: 640px) {
-  app-sessions-sidebar {
-    display: none;
-  }
-
-  .shell {
-    padding: var(--spacing-04);
-    gap: var(--spacing-03);
-  }
-
-  .card {
-    padding: var(--spacing-03) var(--spacing-04);
-  }
-
-  .top {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--spacing-03);
-  }
-
-  .top h1,
-  .top .muted {
-    display: none;
-  }
-}
-
-.activity {
-  display: block;
-  margin-left: var(--spacing-07, 40px);
 }

@@ -36,6 +36,11 @@
   user-select: none;
 }
 
+.panel-icon {
+  flex: none;
+  color: var(--text-primary);
+}
+
 .panel-title {
   flex: 1;
   color: var(--text-primary);

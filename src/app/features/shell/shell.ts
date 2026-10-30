@@ -2,6 +2,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { ChatViewComponent } from '../chat/chat-view';
 import { ChatController } from '../chat/chat-controller';
+import { AvatarComponent } from '../../shared/ui/avatar/avatar';
 import { MenuComponent } from '../../shared/ui/menu/menu';
 import { OptionComponent } from '../../shared/ui/menu/option';
 import { PillComponent } from '../../shared/ui/pill/pill';
@@ -13,7 +14,7 @@ const MODE_LABEL: Readonly<Record<WindowMode, string>> = { Pill: 'Pill', Panel: 
 /** Picks the content for the current Window mode. Nothing here changes the mode on its own: only the switcher and double-clicks do. */
 @Component({
   selector: 'app-shell',
-  imports: [NgTemplateOutlet, ChatViewComponent, PillComponent, MenuComponent, OptionComponent],
+  imports: [NgTemplateOutlet, ChatViewComponent, PillComponent, AvatarComponent, MenuComponent, OptionComponent],
   templateUrl: './shell.html',
   styleUrl: './shell.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

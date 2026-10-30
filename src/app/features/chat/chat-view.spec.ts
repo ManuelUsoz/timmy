@@ -13,10 +13,22 @@ describe('ChatViewComponent', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('renders the Timmy title', async () => {
+  it('shows the session title with the Claude Code tag', async () => {
     const fixture = TestBed.createComponent(ChatViewComponent);
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Timmy');
+    expect(compiled.querySelector('.title-name')?.textContent).toContain('New session');
+    expect(compiled.querySelector('ui-tag')?.textContent).toContain('Claude Code');
+  });
+
+  it('puts model, effort and permission in the composer, not above the transcript', async () => {
+    const fixture = TestBed.createComponent(ChatViewComponent);
+    await fixture.whenStable();
+    const compiled = fixture.nativeElement as HTMLElement;
+    const inComposer = Array.from(compiled.querySelectorAll('.composer ui-select')).map((s) =>
+      s.querySelector('.as-field__label')?.textContent?.trim(),
+    );
+    expect(inComposer).toEqual(['Model', 'Effort', 'Permission']);
+    expect(compiled.querySelectorAll('ui-select')).toHaveLength(3);
   });
 });

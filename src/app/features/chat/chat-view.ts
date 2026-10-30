@@ -1,13 +1,13 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import type { SessionId } from '../../../shared/chat/ids.model';
 import { ChipStripComponent } from '../../shared/ui/chip-strip/chip-strip';
 import { MessageComponent } from '../../shared/ui/message/message';
 import { TreeViewComponent } from '../../shared/ui/tree-view/tree-view';
 import { SelectComponent } from '../../shared/ui/select/select';
-import { PillComponent } from '../../shared/ui/pill/pill';
+import { ButtonComponent } from '../../shared/ui/button/button';
+import { TagComponent } from '../../shared/ui/tag/tag';
 import { AskRowComponent } from '../../shared/ui/ask-row/ask-row';
-import { SessionsSidebarComponent } from '../sessions/sessions-sidebar';
 import { ChatController } from './chat-controller';
 import { ComposerInputComponent } from './composer-input';
 import { permissionAnswer } from './permission-answer';
@@ -23,9 +23,9 @@ import { MarkdownPipe } from './markdown.pipe';
     ComposerInputComponent,
     ReactiveFormsModule,
     SelectComponent,
-    PillComponent,
+    ButtonComponent,
+    TagComponent,
     AskRowComponent,
-    SessionsSidebarComponent,
   ],
   selector: 'app-chat-view',
   templateUrl: './chat-view.html',
@@ -47,13 +47,15 @@ export class ChatViewComponent {
   protected readonly blocks = this.controller.blocks;
   protected readonly sessionChips = this.controller.sessionChips;
   protected readonly selectedSessionId = this.controller.selectedSessionId;
-  protected readonly pill = this.controller.pill;
   protected readonly contextPercent = this.controller.contextPercent;
+  protected readonly project = computed(() => this.info()?.cwd.split(/[\\/]/).filter(Boolean).at(-1) ?? 'project');
+  protected readonly title = computed(
+    () => this.sessionChips().find((chip) => chip.id === this.selectedSessionId())?.label ?? 'New session',
+  );
 
   protected send = () => this.controller.send();
   protected stop = () => this.controller.stop();
   protected clearChat = () => this.controller.clearChat();
-  protected showTranscript = (ref: Parameters<ChatController['showTranscript']>[0]) => this.controller.showTranscript(ref);
   protected answer = (request: PermissionRequest, decision: 'Allow' | 'Deny') =>
     this.controller.answerPermission(permissionAnswer(request, decision));
   protected openSession = (id: string) => this.controller.openSession(id as SessionId);
