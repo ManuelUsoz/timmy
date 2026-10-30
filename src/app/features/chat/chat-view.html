@@ -13,7 +13,7 @@
 }
 
 <div class="title">
-  <span class="title-name">{{ title() }}</span>
+  <span class="title-name" [attr.title]="title()">{{ title() }}</span>
   <ui-tag tone="purple">Claude Code</ui-tag>
   <button type="button" class="icon-button new-chat" aria-label="New chat" (click)="clearChat()">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
@@ -66,9 +66,13 @@
 <form class="composer" (submit)="$event.preventDefault(); send()">
   <app-composer-input [(draft)]="draft" [commands]="commands()" (submitted)="send()" />
   <div class="composer-bar">
-    <ui-select label="Model" size="sm" placeholder="Default model" [options]="modelOptions()" [formControl]="modelControl" />
-    <ui-select label="Effort" size="sm" [options]="effortOptions()" [formControl]="effortControl" />
-    <ui-select label="Permission" size="sm" [options]="permissionOptions" [formControl]="permissionControl" />
+    <button type="button" uiButton kind="ghost" size="sm" iconOnly class="provider" aria-label="Provider: Claude Code" title="Claude Code">
+      <ui-provider-icon provider="claude" />
+    </button>
+    <ui-select label="Model" size="sm" placement="above" placeholder="Default model" [options]="modelOptions()" [formControl]="modelControl" />
+    <ui-select label="Effort" size="sm" placement="above" [options]="effortOptions()" [formControl]="effortControl" />
+    <ui-select label="Permission" size="sm" placement="above" [options]="permissionOptions" [formControl]="permissionControl" />
+    <span class="spacer"></span>
     @if (contextPercent() !== undefined) {
       <span class="context" title="Context window used">{{ contextPercent() }}%</span>
     }

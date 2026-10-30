@@ -5,11 +5,15 @@ import { layerWindowService, WindowHost, WindowService } from './window-service'
 
 const workArea = { x: 0, y: 0, width: 1920, height: 1040 };
 
+/** Marker the host double records when asked to close, so the tests can see it happened. */
+const closedPlan = { bounds: { x: -1, y: -1, width: 0, height: 0 } } as unknown as WindowPlan;
+
 /** Test double for the Electron boundary: records every plan applied. */
 const makeHostTestLayer = (applied: Ref.Ref<ReadonlyArray<WindowPlan>>) =>
   Layer.succeed(WindowHost, {
     workArea: Effect.succeed(workArea),
     apply: (plan) => Ref.update(applied, (all) => [...all, plan]),
+    close: Ref.update(applied, (all) => [...all, closedPlan]),
   });
 
 const provide = <A, E>(effect: Effect.Effect<A, E, WindowService>, applied: Ref.Ref<ReadonlyArray<WindowPlan>>) =>
@@ -22,6 +26,22 @@ describe('WindowService', () => {
       const mode = yield* provide(WindowService.use((s) => s.current), applied);
       expect(mode).toBe('Pill');
       expect(yield* Ref.get(applied)).toEqual([]);
+    }),
+  );
+
+  it.effect('close asks the host to quit and leaves the mode alone', () =>
+    Effect.gen(function* () {
+      const applied = yield* Ref.make<ReadonlyArray<WindowPlan>>([]);
+      const mode = yield* provide(
+        Effect.gen(function* () {
+          const windows = yield* WindowService;
+          yield* windows.close;
+          return yield* windows.current;
+        }),
+        applied,
+      );
+      expect(mode).toBe('Pill');
+      expect(yield* Ref.get(applied)).toEqual([closedPlan]);
     }),
   );
 

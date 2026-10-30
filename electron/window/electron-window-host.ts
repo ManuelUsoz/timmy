@@ -1,4 +1,4 @@
-import { BrowserWindow, screen } from 'electron';
+import { app, BrowserWindow, screen } from 'electron';
 import { Effect, Layer } from 'effect';
 import { WindowHost } from './window-service';
 
@@ -10,6 +10,7 @@ export const layerElectronWindowHost: Layer.Layer<WindowHost> = Layer.succeed(Wi
     const win = appWindow();
     return (win ? screen.getDisplayMatching(win.getBounds()) : screen.getPrimaryDisplay()).workArea;
   }),
+  close: Effect.sync(() => app.quit()),
   apply: (plan) =>
     Effect.sync(() => {
       const win = appWindow();

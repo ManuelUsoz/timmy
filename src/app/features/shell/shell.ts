@@ -25,6 +25,10 @@ export class ShellComponent {
   protected readonly switcherOpen = signal(false);
   protected readonly label = (mode: WindowMode): string => MODE_LABEL[mode];
 
+  protected close(): void {
+    this.windowMode.close();
+  }
+
   protected request(mode: WindowMode): void {
     this.switcherOpen.set(false);
     this.windowMode.request(mode);

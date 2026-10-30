@@ -23,8 +23,11 @@
   padding: var(--spacing-02) var(--spacing-02) 0;
 }
 
+/* The name gives way first, so the provider tag (and the branch, when there is one) always fit. */
 .title-name {
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -122,8 +125,28 @@ pre {
   white-space: nowrap;
 }
 
+/* Selects take the width of their value, as in the design. */
+.composer-bar ui-select ::ng-deep .as-field {
+  width: auto;
+  max-width: none;
+  flex: none;
+}
+
+.composer-bar ui-select ::ng-deep .as-select__trigger {
+  width: auto;
+  gap: var(--spacing-02);
+  padding: 0 var(--spacing-03);
+}
+
+.provider {
+  color: var(--text-primary);
+}
+
+.spacer {
+  flex: 1;
+}
+
 .context {
-  margin-left: auto;
   color: var(--text-secondary);
   font: var(--text-label-01);
 }
@@ -131,11 +154,6 @@ pre {
 .composer-bar button[type='submit'],
 .composer-bar button[aria-label='Stop'] {
   flex: none;
-}
-
-.composer-bar .context + button,
-.composer-bar ui-select:last-of-type + button {
-  margin-left: auto;
 }
 
 :host ::ng-deep .markdown > :first-child {

@@ -39,6 +39,13 @@
     border-color 0.11s ease,
     background-color 0.11s ease;
 }
+/* Long session names are cut so a strip of chips keeps fitting the Panel. */
+.name {
+  min-width: 0;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .as-chip--outline {
   background: transparent;
   border-color: var(--border-strong);

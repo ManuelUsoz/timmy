@@ -8,6 +8,7 @@ export const layerWindowHandlers = WindowRpcs.toLayer(
     return {
       'Window.current': () => windows.current,
       'Window.request': ({ mode }) => windows.request(mode),
+      'Window.close': () => windows.close,
     };
   }),
 );

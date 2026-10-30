@@ -34,6 +34,15 @@ export class WindowModeState {
       .then(this.settle);
   }
 
+  close(): void {
+    void this.runtime.run(
+      Effect.gen(function* () {
+        const desktop = yield* DesktopApi;
+        return yield* desktop['Window.close']();
+      }),
+    );
+  }
+
   private readonly settle = (exit: Exit.Exit<WindowMode, unknown>): void =>
     Exit.match(exit, {
       onFailure: (cause) => this.error.set(Cause.pretty(cause)),

@@ -121,7 +121,11 @@
   -webkit-app-region: drag;
 }
 
-.expanded .switcher {
-  margin-right: var(--spacing-04);
+.expanded .switcher,
+.expanded .close-button {
   -webkit-app-region: no-drag;
+}
+
+.expanded .close-button {
+  margin-right: var(--spacing-04);
 }

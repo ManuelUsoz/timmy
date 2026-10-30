@@ -7,6 +7,7 @@ import { TreeViewComponent } from '../../shared/ui/tree-view/tree-view';
 import { SelectComponent } from '../../shared/ui/select/select';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { TagComponent } from '../../shared/ui/tag/tag';
+import { ProviderIconComponent } from '../../shared/ui/provider-icon/provider-icon';
 import { AskRowComponent } from '../../shared/ui/ask-row/ask-row';
 import { ChatController } from './chat-controller';
 import { ComposerInputComponent } from './composer-input';
@@ -25,6 +26,7 @@ import { MarkdownPipe } from './markdown.pipe';
     SelectComponent,
     ButtonComponent,
     TagComponent,
+    ProviderIconComponent,
     AskRowComponent,
   ],
   selector: 'app-chat-view',

@@ -14,4 +14,7 @@ export const WindowRpcs = RpcGroup.make(
     payload: { mode: WindowMode },
     success: WindowMode,
   }),
+
+  /** Quits the app. The frameless window has no title bar, so the renderer offers this itself. */
+  Rpc.make('Window.close'),
 );

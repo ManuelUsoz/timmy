@@ -51,6 +51,8 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, .3);
 }
 .as-menu--float { position: absolute; top: 100%; left: 0; right: 0; z-index: 10; }
+/* Opens upward and is at least as wide as the trigger, growing with its options (triggers can be value-sized). */
+.as-menu--above { top: auto; bottom: 100%; right: auto; width: max-content; min-width: 100%; }
 .as-option {
   display: flex; align-items: center; gap: 8px; min-height: var(--control-md); box-sizing: border-box;
   padding: 0 16px; color: var(--text-primary); font: 400 14px/18px var(--ff-sans); letter-spacing: .16px;

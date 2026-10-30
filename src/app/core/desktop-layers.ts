@@ -61,4 +61,5 @@ const windowUnused = () => Effect.die('Window handler not under test');
 export const layerWindowUnused = WindowRpcs.toLayer({
   'Window.current': windowUnused,
   'Window.request': windowUnused,
+  'Window.close': windowUnused,
 });

@@ -16,6 +16,7 @@ import { ShellComponent } from './shell';
 /** Real client against fake handlers: the window is just a Ref, like main's service behind its host. */
 const setup = async () => {
   const answers: PermissionResponse[] = [];
+  const closes: number[] = [];
   const unused = () => Effect.die('not under test');
   const layerChat = ChatRpcs.toLayer({
     'Chat.capabilities': unused,
@@ -38,6 +39,7 @@ const setup = async () => {
     WindowRpcs.toLayer({
       'Window.current': () => Ref.get(mode),
       'Window.request': ({ mode: target }) => Ref.set(mode, target).pipe(Effect.as(target)),
+      'Window.close': () => Effect.sync(() => void closes.push(1)),
     }),
     layerChat,
     layerSessionsUnused,
@@ -57,7 +59,7 @@ const setup = async () => {
   };
   fixture.detectChanges();
   await settle();
-  return { el, settle, fixture, answers };
+  return { el, settle, fixture, answers, closes };
 };
 
 describe('ShellComponent', () => {
@@ -84,6 +86,20 @@ describe('ShellComponent', () => {
     (el.querySelector('ui-option') as HTMLElement).click();
     await settle();
     expect(el.querySelector('app-chat-view')).not.toBeNull();
+  });
+
+  it.each(['Pill', 'Panel'])('quits from the Close button in %s without changing the mode', async (from) => {
+    const { el, settle, closes } = await setup();
+    if (from === 'Panel') {
+      el.querySelector('ui-pill')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      await settle();
+    }
+    const close = el.querySelector<HTMLButtonElement>('button[aria-label="Close Timmy"]')!;
+    close.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    close.click();
+    await settle();
+    expect(closes).toHaveLength(1);
+    expect((el.querySelector('app-chat-view') !== null)).toBe(from === 'Panel');
   });
 
   it('returns to the Pill on double-click of the Panel header, and ignores Escape', async () => {

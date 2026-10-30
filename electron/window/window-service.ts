@@ -6,6 +6,8 @@ export interface WindowHostShape {
   /** Work area of the display the window is on (the primary display before the window exists). */
   readonly workArea: Effect.Effect<Rect>;
   readonly apply: (plan: WindowPlan) => Effect.Effect<void>;
+  /** Quits the app. */
+  readonly close: Effect.Effect<void>;
 }
 
 export class WindowHost extends Context.Service<WindowHost, WindowHostShape>()('timmy/WindowHost') {}
@@ -13,6 +15,7 @@ export class WindowHost extends Context.Service<WindowHost, WindowHostShape>()('
 export interface WindowServiceShape {
   readonly current: Effect.Effect<WindowMode>;
   readonly request: (mode: WindowMode) => Effect.Effect<WindowMode>;
+  readonly close: Effect.Effect<void>;
 }
 
 /** Owns the current Window mode and drives the host to it. */
@@ -25,6 +28,7 @@ export const layerWindowService: Layer.Layer<WindowService, never, WindowHost> =
     const mode = yield* Ref.make<WindowMode>(startupMode);
     return {
       current: Ref.get(mode),
+      close: host.close,
       request: Effect.fn('WindowService.request')(function* (target: WindowMode) {
         if ((yield* Ref.get(mode)) === target) return target;
         const workArea = yield* host.workArea;

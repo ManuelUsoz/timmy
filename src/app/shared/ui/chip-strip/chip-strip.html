@@ -7,6 +7,7 @@
     class="as-chip"
     [class.as-chip--outline]="item.outline || item.status === 'asks'"
     [class.as-chip--asks]="item.status === 'asks'"
+    [attr.title]="item.label"
     [attr.aria-pressed]="selectedId() === item.id"
     (click)="selected.emit(item.id)"
   >
@@ -19,7 +20,7 @@
     @if (item.status === 'asks' || (item.status === 'live' && !item.branch)) {
       <i class="dot" [class.dot--info]="item.status === 'asks'" aria-hidden="true"></i>
     }
-    {{ item.label }}
+    <span class="name">{{ item.label }}</span>{{ ' ' }}
     @switch (item.status) {
       @case ('live') {
         @if (item.branch) {

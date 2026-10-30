@@ -55,4 +55,9 @@
       </ui-menu>
     }
   </div>
+  <button type="button" class="switcher-button close-button" aria-label="Close Timmy" (click)="close()" (dblclick)="$event.stopPropagation()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  </button>
 </ng-template>
