@@ -32,6 +32,8 @@ export class ChatController {
   private sessionId: SessionId | undefined;
   /** Stored session the next `startSession` continues; set while a past transcript is shown. */
   private resumeFrom: SessionId | undefined;
+  /** Bumped per transcript load so a slower, older response cannot overwrite a newer pick. */
+  private transcriptLoad = 0;
 
   readonly info = signal<AppInfo | null>(null);
   readonly error = signal<string | null>(null);
@@ -209,13 +211,15 @@ export class ChatController {
 
   /** Shows a stored transcript. The next message continues that session; a subagent transcript is read-only. */
   showTranscript(ref: TranscriptRef): void {
+    if (this.chat().running) return;
+    const load = ++this.transcriptLoad;
     this.resetSession();
     this.selectedSessionId.set(ref.sessionId);
     this.resumeFrom = ref.subagent === undefined ? ref.sessionId : undefined;
     void this.call(
       (desktop) => desktop['Sessions.history']({ ref }),
-      (history) => this.chat.set(chatStateFromHistory(history)),
-      (cause) => this.chat.set({ ...initialChatState, failure: Cause.pretty(cause) }),
+      (history) => load === this.transcriptLoad && this.chat.set(chatStateFromHistory(history)),
+      (cause) => load === this.transcriptLoad && this.chat.set({ ...initialChatState, failure: Cause.pretty(cause) }),
     );
   }
 
@@ -226,6 +230,7 @@ export class ChatController {
   }
 
   clearChat(): void {
+    this.transcriptLoad++;
     this.resetSession();
     this.selectedSessionId.set(undefined);
     this.resumeFrom = undefined;

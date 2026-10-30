@@ -39,7 +39,7 @@ const runningSubagents = (chat: ChatState): number | null => {
  */
 const doneSummary = (chat: ChatState): string | undefined => {
   const last = chat.items.at(-1);
-  if (last === undefined || last.kind === 'User' || chat.failure !== undefined) return undefined;
+  if (last?.kind !== 'Assistant' || chat.failure !== undefined) return undefined;
   const answer = findLastItem(chat.items, (item) => item.kind === 'Assistant' && item.text.trim() !== '');
   if (answer?.kind !== 'Assistant') return 'Turn complete';
   const line = answer.text.trim().split('\n')[0] ?? '';

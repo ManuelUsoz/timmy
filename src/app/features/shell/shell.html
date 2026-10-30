@@ -33,6 +33,9 @@
 }
 
 <ng-template #switcher>
+  @if (windowMode.error(); as error) {
+    <span class="mode-error" role="alert" [title]="error">!</span>
+  }
   <div class="switcher">
     <button
       type="button"

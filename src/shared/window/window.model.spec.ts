@@ -41,7 +41,7 @@ describe('window modes', () => {
       bounds: { x: 510, y: 170, width: 900, height: 700 },
       alwaysOnTop: false,
       skipTaskbar: false,
-      resizable: false,
+      resizable: true,
     });
     expect(planFor('Expanded', { x: 1920, y: 40, width: 1280, height: 720 }).bounds).toEqual({
       x: 1920 + 190,

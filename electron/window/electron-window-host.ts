@@ -1,10 +1,8 @@
-import { app, BrowserWindow, screen, systemPreferences } from 'electron';
+import { app, screen, systemPreferences } from 'electron';
 import { Effect, Layer } from 'effect';
+import { appWindow, rememberPlan } from './app-window';
 import { makeBoundsAnimator } from './bounds-animator';
 import { WindowHost } from './window-service';
-
-/** The first window is the app window; there is only one (ADR 0004). */
-const appWindow = (): BrowserWindow | undefined => BrowserWindow.getAllWindows()[0];
 
 const animator = makeBoundsAnimator();
 
@@ -17,8 +15,9 @@ export const layerElectronWindowHost: Layer.Layer<WindowHost> = Layer.succeed(Wi
   /** Starts the transition and returns; a later `apply` cancels it, so the window always ends at the latest plan. */
   apply: (plan) =>
     Effect.sync(() => {
+      rememberPlan(plan);
       const win = appWindow();
-      if (!win) return false;
+      if (!win) return true; // the next window opens on this plan
       animator.cancel();
       const settle = () => win.setResizable(plan.resizable);
       win.setAlwaysOnTop(plan.alwaysOnTop);
