@@ -1,8 +1,10 @@
+import { isDevMode } from '@angular/core';
 import { bootstrapApplication } from '@angular/platform-browser';
 import { appConfig } from './app/app.config';
 import { App } from './app/app';
 
-if (new URLSearchParams(location.search).has('showcase')) {
+// The component showcase is a dev-only route: it is never reachable in a packaged build.
+if (isDevMode() && new URLSearchParams(location.search).has('showcase')) {
   import('./app/shared/ui/showcase/showcase')
     .then(({ ShowcaseComponent }) => {
       const root = document.querySelector('app-root');
