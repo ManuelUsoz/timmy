@@ -60,7 +60,7 @@ describe('ShellComponent', () => {
     (el.querySelector('button[aria-label="Change window mode"]') as HTMLButtonElement).click();
     await settle();
     const options = Array.from(el.querySelectorAll('ui-option')).map((o) => o.textContent?.trim());
-    expect(options).toEqual(['Panel']);
+    expect(options).toEqual(['Panel', 'Expanded']);
     (el.querySelector('ui-option') as HTMLElement).click();
     await settle();
     expect(el.querySelector('app-chat-view')).not.toBeNull();
@@ -76,5 +76,36 @@ describe('ShellComponent', () => {
     el.querySelector('.panel-header')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
     await settle();
     expect(el.querySelector('app-chat-view')).toBeNull();
+  });
+
+  const openSwitcher = async (ctx: Awaited<ReturnType<typeof setup>>) => {
+    (ctx.el.querySelector('button[aria-label="Change window mode"]') as HTMLButtonElement).click();
+    await ctx.settle();
+    return Array.from(ctx.el.querySelectorAll('ui-option')).map((o) => o.textContent?.trim());
+  };
+  const choose = async (ctx: Awaited<ReturnType<typeof setup>>, label: string) => {
+    const option = Array.from(ctx.el.querySelectorAll('ui-option')).find((o) => o.textContent?.trim() === label);
+    (option as HTMLElement).click();
+    await ctx.settle();
+  };
+
+  it('offers the other two modes from every mode', async () => {
+    const ctx = await setup();
+    expect(await openSwitcher(ctx)).toEqual(['Panel', 'Expanded']);
+    await choose(ctx, 'Panel');
+    expect(await openSwitcher(ctx)).toEqual(['Pill', 'Expanded']);
+    await choose(ctx, 'Expanded');
+    expect(ctx.el.querySelector('.panel.expanded app-chat-view')).not.toBeNull();
+    expect(await openSwitcher(ctx)).toEqual(['Pill', 'Panel']);
+  });
+
+  it('returns from Expanded to the Pill on double-click of the header', async () => {
+    const ctx = await setup();
+    await openSwitcher(ctx);
+    await choose(ctx, 'Expanded');
+    ctx.el.querySelector('.panel-header')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    await ctx.settle();
+    expect(ctx.el.querySelector('app-chat-view')).toBeNull();
+    expect(ctx.el.querySelector('ui-pill')).not.toBeNull();
   });
 });

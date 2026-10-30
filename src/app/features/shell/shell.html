@@ -13,9 +13,10 @@
     <ng-container *ngTemplateOutlet="switcher" />
   </div>
 } @else {
-  <section class="panel" aria-label="Timmy panel">
+  <section class="panel" [class.expanded]="windowMode.mode() === 'Expanded'" aria-label="Timmy panel">
     <header class="panel-header" (dblclick)="request('Pill')">
       <span class="panel-title">Chat</span>
+      <span class="drag-fill" aria-hidden="true"></span>
       <ng-container *ngTemplateOutlet="switcher" />
     </header>
     <app-chat-view class="panel-body" />
