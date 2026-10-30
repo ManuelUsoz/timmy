@@ -1,5 +1,5 @@
 @if (windowMode.mode() === 'Pill') {
-  <div class="pill-bar">
+  <div class="pill-bar" animate.enter="mode-in" animate.leave="mode-out">
     <ui-pill
       square
       [tone]="pill().tone"
@@ -21,7 +21,7 @@
     <ng-container *ngTemplateOutlet="switcher" />
   </div>
 } @else {
-  <section class="panel" [class.expanded]="windowMode.mode() === 'Expanded'" aria-label="Timmy panel">
+  <section class="panel" animate.enter="mode-in" animate.leave="mode-out" [class.expanded]="windowMode.mode() === 'Expanded'" aria-label="Timmy panel">
     <header class="panel-header" (dblclick)="request('Pill')">
       <svg class="panel-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>
       <span class="panel-title">Chat</span>
