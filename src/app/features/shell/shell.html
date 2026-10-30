@@ -5,10 +5,12 @@
       [tone]="pill().tone"
       [label]="pill().label"
       [pulse]="pill().pulse"
+      (click)="pill().action && request('Panel')"
       (dblclick)="request('Panel')"
     >
       {{ pill().text }}
       <span pillMeta>{{ pill().meta }}</span>
+      <span pillAction>{{ pill().action }}</span>
     </ui-pill>
     <ng-container *ngTemplateOutlet="switcher" />
   </div>

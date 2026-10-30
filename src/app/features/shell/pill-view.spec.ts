@@ -24,7 +24,13 @@ describe('pillView', () => {
 
   it('is Live with the running tool and elapsed time during a Turn', () => {
     const state = { ...initialChatState, running: true, items: [tool('Completed', 'Read', 'a.ts'), tool('Running', 'Edit', 'b.ts')] };
-    expect(pillView(state, 12_000)).toEqual({ tone: 'running', label: 'Live', text: 'Edit b.ts', meta: '0:12', pulse: true });
+    expect(pillView(state, 12_000)).toEqual({ tone: 'running', label: 'Live', text: 'Edit b.ts', meta: '0:12', action: '', pulse: true });
+  });
+
+  it('is Asks with the request and a Review action while a permission is pending', () => {
+    const call = (tool('Running', 'Bash', 'git push') as { call: ToolCall }).call;
+    const state = { ...initialChatState, running: true, permission: { toolCall: call } as never };
+    expect(pillView(state, 0)).toMatchObject({ tone: 'waiting', label: 'Asks', text: 'Bash git push', action: 'Review' });
   });
 
   it('falls back to Working… when no tool is running', () => {

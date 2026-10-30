@@ -1,0 +1,21 @@
+<div class="ask-row__body">
+  <div class="ask-row__title">{{ title() }}</div>
+  @if (sub()) {
+    <div class="ask-row__sub">{{ sub() }}</div>
+  }
+</div>
+<div class="ask-row__actions">
+  <button type="button" uiButton kind="ghost" size="sm" [attr.aria-label]="'Deny: ' + title()" (click)="deny.emit()">
+    Deny
+  </button>
+  <button
+    type="button"
+    uiButton
+    kind="primary"
+    size="sm"
+    [attr.aria-label]="'Allow: ' + title()"
+    (click)="allow.emit()"
+  >
+    Allow
+  </button>
+</div>

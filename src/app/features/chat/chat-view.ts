@@ -4,10 +4,12 @@ import { ReactiveFormsModule } from '@angular/forms';
 import type { AgentId } from '../../../shared/chat/ids.model';
 import { SelectComponent } from '../../shared/ui/select/select';
 import { PillComponent } from '../../shared/ui/pill/pill';
-import { SessionComponent } from '../../shared/ui/session/session';
+import { AskRowComponent } from '../../shared/ui/ask-row/ask-row';
 import { SessionsSidebarComponent } from '../sessions/sessions-sidebar';
 import { ChatController } from './chat-controller';
 import { ComposerInputComponent } from './composer-input';
+import { permissionAnswer } from './permission-answer';
+import type { PermissionRequest } from '../../../shared/chat/permission.model';
 import { MarkdownPipe } from './markdown.pipe';
 
 @Component({
@@ -18,7 +20,7 @@ import { MarkdownPipe } from './markdown.pipe';
     ReactiveFormsModule,
     SelectComponent,
     PillComponent,
-    SessionComponent,
+    AskRowComponent,
     SessionsSidebarComponent,
   ],
   selector: 'app-chat-view',
@@ -46,6 +48,7 @@ export class ChatViewComponent {
   protected stop = () => this.controller.stop();
   protected clearChat = () => this.controller.clearChat();
   protected showTranscript = (ref: Parameters<ChatController['showTranscript']>[0]) => this.controller.showTranscript(ref);
-  protected answerPermission = (r: Parameters<ChatController['answerPermission']>[0]) => this.controller.answerPermission(r);
+  protected answer = (request: PermissionRequest, decision: 'Allow' | 'Deny') =>
+    this.controller.answerPermission(permissionAnswer(request, decision));
   protected agent = (id: AgentId) => this.controller.agent(id);
 }

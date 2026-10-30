@@ -49,16 +49,6 @@
       <p class="muted">Say something to start a session.</p>
     }
 
-    @if (chat().permission; as request) {
-      <ui-session
-        title="Permission request"
-        status="asks"
-        [permission]="request"
-        (answer)="answerPermission($event)"
-        (interrupt)="stop()"
-      />
-    }
-
     @if (chat().running && !chat().permission) {
       <p class="muted">Working…</p>
     }
@@ -66,6 +56,14 @@
       <p class="error">{{ failure }}</p>
     }
   </section>
+
+  @if (chat().permission; as request) {
+    <ui-ask-row
+      [title]="request.toolCall.name + ' ' + request.toolCall.title"
+      (allow)="answer(request, 'Allow')"
+      (deny)="answer(request, 'Deny')"
+    />
+  }
 
   <form class="composer" (submit)="$event.preventDefault(); send()">
     <app-composer-input [(draft)]="draft" [commands]="commands()" (submitted)="send()" />
