@@ -31,8 +31,17 @@
       }
       <span class="spacer"></span>
       @if (list.status === 'ready' && list.items.length > 0) {
-        <!-- Starting a session from here arrives in a later ticket. -->
-        <button uiButton kind="ghost" iconOnly size="sm" type="button" [attr.aria-label]="i18n.t('sessions.new')" [attr.title]="i18n.t('sessions.new')">
+        <button
+          uiButton
+          kind="ghost"
+          iconOnly
+          size="sm"
+          type="button"
+          [disabled]="creating()"
+          [attr.aria-label]="i18n.t('sessions.new')"
+          [attr.title]="i18n.t('sessions.new')"
+          (click)="newSession.emit()"
+        >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
         </button>
       }
@@ -50,8 +59,7 @@
           <div class="empty">
             <p class="empty-title">{{ i18n.t('sessions.emptyTitle') }}</p>
             <small>{{ i18n.t('sessions.emptyDetail') }}</small>
-            <!-- Starting a session arrives in a later ticket: the button is here, without an action. -->
-            <button uiButton kind="tertiary" size="sm" type="button">
+            <button uiButton kind="tertiary" size="sm" type="button" [disabled]="creating()" (click)="newSession.emit()">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
               {{ i18n.t('sessions.new') }}
             </button>
@@ -59,18 +67,53 @@
         } @else {
           <div role="listbox" [attr.aria-label]="i18n.t('sessions.title')">
             @for (session of list.items; track session.sessionId) {
-              @let sessionState = state.stateOf(session.sessionId);
-              <as-list-row
-                lead
-                [label]="title(session)"
-                [meta]="ago(session)"
-                [selected]="session.sessionId === openSessionId()"
-                [attr.aria-current]="session.sessionId === openSessionId() ? 'true' : null"
-                (activate)="sessionOpened.emit(session)"
-              >
-                <svg leading class="chat" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v8H7l-3 2.5V11H2z" /></svg>
-                <ui-state trailing [tone]="tone(sessionState)">{{ stateLabel(sessionState) }}</ui-state>
-              </as-list-row>
+              @if (renaming() === session.sessionId) {
+                <form class="edit" (submit)="$event.preventDefault(); saveRename(session)" (keydown.escape)="cancelRename()">
+                  <input
+                    #renameField
+                    class="edit-field"
+                    type="text"
+                    [attr.aria-label]="i18n.t('sessions.renameField')"
+                    [value]="draft()"
+                    [disabled]="pending()"
+                    (input)="draft.set(renameField.value)"
+                  />
+                  <button uiButton kind="primary" size="sm" type="submit" [disabled]="pending()">{{ i18n.t('sessions.renameSave') }}</button>
+                  <button uiButton kind="ghost" size="sm" type="button" (click)="cancelRename()">{{ i18n.t('sessions.cancel') }}</button>
+                </form>
+              } @else if (confirming() === session.sessionId) {
+                <div class="confirm" role="group" (keydown.escape)="cancelDelete()">
+                  <p>{{ i18n.t('sessions.confirmDelete', { title: title(session) }) }}</p>
+                  <div class="confirm-actions">
+                    <button uiButton kind="danger" size="sm" type="button" [disabled]="pending()" (click)="confirmDelete(session)">{{ i18n.t('sessions.deleteConfirm') }}</button>
+                    <button uiButton kind="ghost" size="sm" type="button" (click)="cancelDelete()">{{ i18n.t('sessions.cancel') }}</button>
+                  </div>
+                </div>
+              } @else {
+                @let sessionState = state.stateOf(session.sessionId);
+                <as-list-row
+                  lead
+                  [label]="title(session)"
+                  [meta]="ago(session)"
+                  [selected]="session.sessionId === openSessionId()"
+                  [attr.aria-current]="session.sessionId === openSessionId() ? 'true' : null"
+                  (activate)="sessionOpened.emit(session)"
+                >
+                  <svg leading class="chat" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v8H7l-3 2.5V11H2z" /></svg>
+                  <!-- The buttons are the row's own: pressing one must not also open the session. -->
+                  <span trailing class="trail" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()">
+                    <ui-state [tone]="tone(sessionState)">{{ stateLabel(sessionState) }}</ui-state>
+                    <span class="actions">
+                      <button uiButton kind="ghost" iconOnly size="sm" type="button" [attr.aria-label]="i18n.t('sessions.rename', { title: title(session) })" [attr.title]="i18n.t('sessions.rename', { title: title(session) })" (click)="startRename(session)">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 3.5l2 2M3 13l.5-2.5 7-7 2 2-7 7z" /></svg>
+                      </button>
+                      <button uiButton kind="ghost" iconOnly size="sm" type="button" [attr.aria-label]="i18n.t('sessions.delete', { title: title(session) })" [attr.title]="i18n.t('sessions.delete', { title: title(session) })" (click)="startDelete(session)">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.5 8.5h6l.5-8.5M7 7v4M9 7v4" /></svg>
+                      </button>
+                    </span>
+                  </span>
+                </as-list-row>
+              }
             }
           </div>
         }

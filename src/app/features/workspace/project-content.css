@@ -100,3 +100,71 @@ h2 {
   font: var(--text-helper-text-01);
   color: var(--text-helper);
 }
+
+.trail {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-02);
+}
+
+/* The row actions show on hover and on keyboard focus; the state stays, so a row does not shift. */
+.actions {
+  display: none;
+  align-items: center;
+}
+
+as-list-row:hover .actions,
+as-list-row:focus-within .actions {
+  display: inline-flex;
+}
+
+.edit,
+.confirm {
+  display: flex;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: var(--spacing-03) var(--spacing-04);
+  background: var(--layer-01);
+}
+
+.edit {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-03);
+}
+
+.edit-field {
+  flex: 1 1 100%;
+  min-width: 0;
+  height: var(--control-sm);
+  box-sizing: border-box;
+  padding: 0 var(--spacing-03);
+  border: 0;
+  border-bottom: 1px solid var(--border-strong);
+  border-radius: 0;
+  background: var(--field);
+  color: var(--text-primary);
+  font: var(--text-body-compact-01);
+}
+
+.edit-field:focus {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
+.confirm {
+  flex-direction: column;
+  gap: var(--spacing-03);
+  border-inline-start: 3px solid var(--support-error);
+}
+
+.confirm p {
+  margin: 0;
+  font: var(--text-body-compact-01);
+  overflow-wrap: anywhere;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: var(--spacing-03);
+}
