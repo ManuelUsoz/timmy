@@ -77,15 +77,12 @@ describe('ShellComponent', () => {
     expect(el.querySelector('app-chat-view')).not.toBeNull();
   });
 
-  it('offers only the other mode from the switcher and switches with it', async () => {
+  it('opens the Panel from the switcher button in the Pill', async () => {
     const { el, settle } = await setup();
     (el.querySelector('button[aria-label="Change window mode"]') as HTMLButtonElement).click();
     await settle();
-    const options = Array.from(el.querySelectorAll('ui-option')).map((o) => o.textContent?.trim());
-    expect(options).toEqual(['Panel', 'Expanded']);
-    (el.querySelector('ui-option') as HTMLElement).click();
-    await settle();
     expect(el.querySelector('app-chat-view')).not.toBeNull();
+    expect(el.querySelector('ui-option')).toBeNull();
   });
 
   it.each(['Pill', 'Panel'])('quits from the Close button in %s without changing the mode', async (from) => {
@@ -114,8 +111,9 @@ describe('ShellComponent', () => {
     expect(el.querySelector('app-chat-view')).toBeNull();
   });
 
+  const SWITCHER = '.panel-header button[aria-label="Change window mode"]';
   const openSwitcher = async (ctx: Awaited<ReturnType<typeof setup>>) => {
-    (ctx.el.querySelector('button[aria-label="Change window mode"]') as HTMLButtonElement).click();
+    ctx.el.querySelector<HTMLButtonElement>(SWITCHER)!.click();
     await ctx.settle();
     return Array.from(ctx.el.querySelectorAll('ui-option')).map((o) => o.textContent?.trim());
   };
@@ -124,11 +122,14 @@ describe('ShellComponent', () => {
     (option as HTMLElement).click();
     await ctx.settle();
   };
+  const openPanel = async (ctx: Awaited<ReturnType<typeof setup>>) => {
+    ctx.el.querySelector<HTMLButtonElement>('button[aria-label="Change window mode"]')!.click();
+    await ctx.settle();
+  };
 
-  it('offers the other two modes from every mode', async () => {
+  it('offers the other two modes from the Panel and Expanded', async () => {
     const ctx = await setup();
-    expect(await openSwitcher(ctx)).toEqual(['Panel', 'Expanded']);
-    await choose(ctx, 'Panel');
+    await openPanel(ctx);
     expect(await openSwitcher(ctx)).toEqual(['Pill', 'Expanded']);
     await choose(ctx, 'Expanded');
     expect(ctx.el.querySelector('.panel.expanded app-chat-view')).not.toBeNull();
@@ -137,6 +138,7 @@ describe('ShellComponent', () => {
 
   it('returns from Expanded to the Pill on double-click of the header', async () => {
     const ctx = await setup();
+    await openPanel(ctx);
     await openSwitcher(ctx);
     await choose(ctx, 'Expanded');
     ctx.el.querySelector('.panel-header')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));

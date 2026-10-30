@@ -23,6 +23,12 @@ export class ShellComponent {
   protected readonly pill = inject(ChatController).pill;
   protected readonly switcherOpen = signal(false);
 
+  /** The Pill window is one row tall and would clip the menu, so there the button goes straight to the Panel. */
+  protected toggleSwitcher(): void {
+    if (this.windowMode.mode() === 'Pill') this.request('Panel');
+    else this.switcherOpen.set(!this.switcherOpen());
+  }
+
   protected close(): void {
     this.windowMode.close();
   }
