@@ -25,6 +25,7 @@ import { PillComponent } from '../pill/pill';
 import { PillStackComponent } from '../pill/pill-stack';
 import { HistoryComponent, HistoryFilter, HistoryGroup } from '../history/history';
 import { SessionComponent } from '../session/session';
+import { AskRowComponent } from '../ask-row/ask-row';
 import type { PermissionRequest } from '../../../../shared/chat/permission.model';
 import type { AgentId, OptionId, PermissionRequestId, ToolCallId } from '../../../../shared/chat/ids.model';
 
@@ -54,6 +55,7 @@ import type { AgentId, OptionId, PermissionRequestId, ToolCallId } from '../../.
     PillStackComponent,
     HistoryComponent,
     SessionComponent,
+    AskRowComponent,
   ],
   templateUrl: './showcase.html',
   styleUrl: './showcase.css',
