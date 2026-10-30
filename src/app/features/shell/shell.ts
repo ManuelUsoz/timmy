@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { Schema } from 'effect';
 import { ChatViewComponent } from '../chat/chat-view';
 import { ChatController } from '../chat/chat-controller';
+import { WorkspaceComponent } from '../workspace/workspace';
 import { AvatarComponent } from '../../shared/ui/avatar/avatar';
 import { MenuComponent } from '../../shared/ui/menu/menu';
 import { OptionComponent } from '../../shared/ui/menu/option';
@@ -13,7 +14,7 @@ import { WindowModeState } from './window-mode-state';
 /** Picks the content for the current Window mode. Nothing here changes the mode on its own: only the switcher and double-clicks do. */
 @Component({
   selector: 'app-shell',
-  imports: [NgTemplateOutlet, ChatViewComponent, PillComponent, AvatarComponent, MenuComponent, OptionComponent],
+  imports: [NgTemplateOutlet, ChatViewComponent, WorkspaceComponent, PillComponent, AvatarComponent, MenuComponent, OptionComponent],
   templateUrl: './shell.html',
   styleUrl: './shell.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -140,17 +140,16 @@ export const scenarios = [
   },
   {
     name: 'expanded',
-    intent: 'Expanded is a larger centered window with the same chat.',
+    intent: 'Expanded is the resizable Workspace window, with the rail and the Projects screen.',
     async run(t) {
       await t.openPanel();
-      await t.send('hello');
-      await t.text('Here is what I found.');
       await t.switchMode('Expanded');
-      await t.check('window is 900x700', async () => {
+      await t.check('window opens at 1280x800 or 90 % of the work area', async () => {
         const b = await t.bounds();
-        if (Math.abs(b.width - 900) > 8 || Math.abs(b.height - 700) > 8) throw new Error(`got ${b.width}x${b.height}`);
+        if (b.width < 800 || b.width > 1280 + 8 || b.height > 800 + 8) throw new Error(`got ${b.width}x${b.height}`);
       });
-      await t.shot('chat', 'Wide panel, conversation preserved, layout uses the extra space sensibly.');
+      await t.check('workspace is showing in Spanish', () => t.text('Proyectos'));
+      await t.shot('workspace', 'Rail on the left with Chat, Proyectos, Historial, Ajustes; Projects column and placeholders; system controls top right.');
     },
   },
 ];

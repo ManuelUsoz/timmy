@@ -24,24 +24,47 @@ export interface WindowPlan {
   readonly alwaysOnTop: boolean;
   readonly skipTaskbar: boolean;
   readonly resizable: boolean;
+  /** Whether the system maximize control is offered. Only Expanded; maximized is a state of Expanded, not a mode. */
+  readonly maximizable: boolean;
+  /** Narrowest the user may resize to. 0 means no minimum. */
+  readonly minWidth: number;
+  /** Whether the system draws minimize, maximize/restore and close over the window (ADR 0005). */
+  readonly titleBarOverlay: boolean;
 }
+
+/** What the window reports about itself; `normalBounds` are the bounds it has when not maximized. */
+export interface WindowGeometry {
+  readonly bounds: Rect;
+  readonly normalBounds: Rect;
+  readonly maximized: boolean;
+}
+
+/** Where a transition out of the current mode starts: the restored bounds, even while maximized. */
+export const restoredBounds = (geometry: WindowGeometry): Rect =>
+  geometry.maximized ? geometry.normalBounds : geometry.bounds;
 
 const MARGIN = 16;
 const PILL_SIZE = { width: 440, height: 40 } as const;
 const PANEL_SIZE = { width: 440, height: 560 } as const;
 
-const EXPANDED_SIZE = { width: 900, height: 700 } as const;
+const EXPANDED_SIZE = { width: 1280, height: 800 } as const;
+const EXPANDED_MIN_WIDTH = 800;
+const EXPANDED_WORK_AREA_SHARE = 0.9;
+
+/** The ideal size, capped at 90 % of the work area but never under the minimum, and never over the work area itself. */
+const expandedExtent = (ideal: number, available: number, floor: number): number =>
+  Math.min(available, Math.max(floor, Math.min(ideal, Math.floor(available * EXPANDED_WORK_AREA_SHARE))));
 
 const cornerSize = (mode: 'Pill' | 'Panel') => (mode === 'Pill' ? PILL_SIZE : PANEL_SIZE);
 
 /**
  * Pill and Panel hug the bottom-right corner of the work area, so a switch keeps the corner fixed.
- * Expanded is a normal window centered in the work area (never larger than it); size and position are not remembered.
+ * Expanded is a resizable, maximizable window centered in the work area (ADR 0005); size and position are not remembered.
  */
 export const planFor = (mode: WindowMode, workArea: Rect): WindowPlan => {
   if (mode === 'Expanded') {
-    const width = Math.min(EXPANDED_SIZE.width, workArea.width);
-    const height = Math.min(EXPANDED_SIZE.height, workArea.height);
+    const width = expandedExtent(EXPANDED_SIZE.width, workArea.width, EXPANDED_MIN_WIDTH);
+    const height = expandedExtent(EXPANDED_SIZE.height, workArea.height, 0);
     return {
       mode,
       bounds: {
@@ -53,6 +76,9 @@ export const planFor = (mode: WindowMode, workArea: Rect): WindowPlan => {
       alwaysOnTop: false,
       skipTaskbar: false,
       resizable: true,
+      maximizable: true,
+      minWidth: EXPANDED_MIN_WIDTH,
+      titleBarOverlay: true,
     };
   }
   const size = cornerSize(mode);
@@ -66,5 +92,8 @@ export const planFor = (mode: WindowMode, workArea: Rect): WindowPlan => {
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: false,
+    maximizable: false,
+    minWidth: 0,
+    titleBarOverlay: false,
   };
 };

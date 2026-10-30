@@ -8,6 +8,7 @@ import { layerSessionsService } from '../sessions/sessions-service';
 import { layerAppInfoHandlers } from './app-info';
 import { layerChatHandlers } from './chat';
 import { layerSessionsHandlers } from './sessions';
+import { layerSettingsHandlers } from './settings';
 import { layerWindowHandlers } from './window';
 import { layerWindowService } from '../window/window-service';
 
@@ -25,11 +26,12 @@ const layerWindowHandlersLive = layerWindowHandlers.pipe(Layer.provide(layerWind
 
 /**
  * Handlers for every domain in `DesktopRpcs`. Merge new domain handler layers here.
- * Needs a `SessionRepo` and a `WindowHost`; the runtime provides the real ones.
+ * Needs a `SessionRepo`, a `SettingsStore` and a `WindowHost`; the runtime provides the real ones.
  */
 export const layerDesktopHandlers = Layer.mergeAll(
   layerAppInfoHandlers,
   layerChatHandlers,
   layerSessionHandlers,
   layerWindowHandlersLive,
+  layerSettingsHandlers,
 ).pipe(Layer.provide(layerChatServices));

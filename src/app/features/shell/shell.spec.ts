@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Effect, Layer, Ref } from 'effect';
 import { AppInfoRpcs } from '../../../shared/app-info/app-info.rpc';
+import { SettingsRpcs } from '../../../shared/settings/settings.rpc';
 import { WindowRpcs } from '../../../shared/window/window.rpc';
 import type { WindowMode } from '../../../shared/window/window.model';
 import { ChatRpcs } from '../../../shared/chat/chat.rpc';
@@ -11,6 +12,7 @@ import { ChatController } from '../chat/chat-controller';
 import { addUserMessage, initialChatState } from '../chat/chat-state';
 import { layerSessionsUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
+import { provideWorkspaceRouter } from '../workspace/workspace.routes';
 import { ShellComponent } from './shell';
 
 /** Real client against fake handlers: the window is just a Ref, like main's service behind its host. */
@@ -43,11 +45,15 @@ const setup = async () => {
     }),
     layerChat,
     layerSessionsUnused,
+    SettingsRpcs.toLayer({
+      'Settings.get': () => Effect.succeed({ language: 'es' as const }),
+      'Settings.setLanguage': ({ language }) => Effect.succeed({ language }),
+    }),
   );
   const layer = makeDesktopTestLayer(handlers);
   await TestBed.configureTestingModule({
     imports: [ShellComponent],
-    providers: [{ provide: EffectRuntime, useValue: { run: (e: Effect.Effect<unknown, unknown, never>) => Effect.runPromiseExit(Effect.provide(e as never, layer)) } }],
+    providers: [provideWorkspaceRouter(), { provide: EffectRuntime, useValue: { run: (e: Effect.Effect<unknown, unknown, never>) => Effect.runPromiseExit(Effect.provide(e as never, layer)) } }],
   }).compileComponents();
   const fixture = TestBed.createComponent(ShellComponent);
   const el = fixture.nativeElement as HTMLElement;
@@ -117,6 +123,11 @@ describe('ShellComponent', () => {
     await ctx.settle();
     return Array.from(ctx.el.querySelectorAll('ui-option')).map((o) => o.textContent?.trim());
   };
+  const openExpandedSwitcher = async (ctx: Awaited<ReturnType<typeof setup>>) => {
+    ctx.el.querySelector<HTMLButtonElement>('.titlebar button[aria-label="Change window mode"]')!.click();
+    await ctx.settle();
+    return Array.from(ctx.el.querySelectorAll('ui-option')).map((o) => o.textContent?.trim());
+  };
   const choose = async (ctx: Awaited<ReturnType<typeof setup>>, label: string) => {
     const option = Array.from(ctx.el.querySelectorAll('ui-option')).find((o) => o.textContent?.trim() === label);
     (option as HTMLElement).click();
@@ -132,19 +143,30 @@ describe('ShellComponent', () => {
     await openPanel(ctx);
     expect(await openSwitcher(ctx)).toEqual(['Pill', 'Expanded']);
     await choose(ctx, 'Expanded');
-    expect(ctx.el.querySelector('.panel.expanded app-chat-view')).not.toBeNull();
-    expect(await openSwitcher(ctx)).toEqual(['Pill', 'Panel']);
+    expect(ctx.el.querySelector('app-workspace')).not.toBeNull();
+    expect(ctx.el.querySelector('app-chat-view')).toBeNull();
+    expect(await openExpandedSwitcher(ctx)).toEqual(['Pill', 'Panel']);
   });
 
-  it('returns from Expanded to the Pill on double-click of the header', async () => {
+  it('has no window buttons of its own in Expanded: the system draws them', async () => {
     const ctx = await setup();
     await openPanel(ctx);
     await openSwitcher(ctx);
     await choose(ctx, 'Expanded');
-    ctx.el.querySelector('.panel-header')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-    await ctx.settle();
-    expect(ctx.el.querySelector('app-chat-view')).toBeNull();
-    expect(ctx.el.querySelector('ui-pill')).not.toBeNull();
+    expect(ctx.el.querySelector('button[aria-label="Close Timmy"]')).toBeNull();
+    expect(ctx.el.querySelector('.titlebar')).not.toBeNull();
+  });
+
+  it('returns from Expanded to the Panel from the title bar switcher, and the Panel keeps its own header', async () => {
+    const ctx = await setup();
+    await openPanel(ctx);
+    await openSwitcher(ctx);
+    await choose(ctx, 'Expanded');
+    await openExpandedSwitcher(ctx);
+    await choose(ctx, 'Panel');
+    expect(ctx.el.querySelector('app-workspace')).toBeNull();
+    expect(ctx.el.querySelector('app-chat-view')).not.toBeNull();
+    expect(ctx.el.querySelector('button[aria-label="Close Timmy"]')).not.toBeNull();
   });
 
   describe('Asks', () => {

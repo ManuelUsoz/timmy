@@ -96,39 +96,57 @@
   bottom: auto;
 }
 
-.drag-fill {
+/*
+ * Expanded has the system's own window controls drawn over its title bar (ADR 0005), so the title bar
+ * only spans the area the controls leave free (the env() values) and its empty stretch is the drag
+ * region, which the system also maximizes on double-click. Controls inside must opt out of dragging.
+ */
+.workspace-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--background);
+}
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: var(--spacing-03);
+  width: env(titlebar-area-width, 100%);
+  height: env(titlebar-area-height, 40px);
+  padding-inline-start: var(--spacing-05);
+  color: var(--text-helper);
+  user-select: none;
+}
+
+.titlebar-title {
+  color: var(--text-primary);
+  font: var(--text-heading-01);
+}
+
+.workspace-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.panel-header .drag-fill {
   display: none;
 }
 
-/*
- * Expanded is frameless, so its header is the drag region. Chromium never fires dblclick inside a
- * drag region, so only the empty stretch drags; the title and the padding around it stay clickable
- * and keep the double-click that collapses to the Pill. Controls inside must opt out of dragging.
- */
-.expanded .panel-header {
-  gap: 0;
-  padding: 0;
-}
-
-.expanded .panel-title {
-  flex: none;
-  padding: var(--spacing-03) var(--spacing-05);
-}
-
-.expanded .drag-fill {
-  display: block;
+.titlebar .drag-fill {
   flex: 1;
   align-self: stretch;
   -webkit-app-region: drag;
 }
 
-.expanded .switcher,
-.expanded .close-button {
+.titlebar .switcher {
   -webkit-app-region: no-drag;
 }
 
-.expanded .close-button {
-  margin-right: var(--spacing-04);
+.titlebar .switcher-menu {
+  top: 100%;
+  bottom: auto;
 }
 
 /* Mode change: the outgoing content fades out on top while the incoming fades in, matching the 200 ms window transition. */

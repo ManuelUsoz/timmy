@@ -4,6 +4,7 @@ import { registerIpc } from './ipc';
 import { plannedWindow, setAppWindow } from './window/app-window';
 import { planFor, startupMode } from '../src/shared/window/window.model';
 import { MainRuntime } from './rpc/runtime';
+import { titleBarOverlayFor } from './window/title-bar-overlay';
 
 /**
  * In development the Angular dev server is used so we get HMR and source maps.
@@ -31,7 +32,11 @@ function createWindow(): void {
   const start = plannedWindow() ?? planFor(startupMode, screen.getPrimaryDisplay().workArea);
   mainWindow = new BrowserWindow({
     ...start.bounds,
-    frame: false,
+    // Frameless look, but with the system's own controls drawn over the title bar in Expanded (ADR 0005).
+    titleBarStyle: 'hidden',
+    titleBarOverlay: titleBarOverlayFor(start.titleBarOverlay),
+    maximizable: start.maximizable,
+    minWidth: start.minWidth,
     resizable: start.resizable,
     alwaysOnTop: start.alwaysOnTop,
     skipTaskbar: start.skipTaskbar,
