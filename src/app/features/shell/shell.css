@@ -89,3 +89,34 @@
   top: 100%;
   bottom: auto;
 }
+
+.drag-fill {
+  display: none;
+}
+
+/*
+ * Expanded is frameless, so its header is the drag region. Chromium never fires dblclick inside a
+ * drag region, so only the empty stretch drags; the title and the padding around it stay clickable
+ * and keep the double-click that collapses to the Pill. Controls inside must opt out of dragging.
+ */
+.expanded .panel-header {
+  gap: 0;
+  padding: 0;
+}
+
+.expanded .panel-title {
+  flex: none;
+  padding: var(--spacing-03) var(--spacing-05);
+}
+
+.expanded .drag-fill {
+  display: block;
+  flex: 1;
+  align-self: stretch;
+  -webkit-app-region: drag;
+}
+
+.expanded .switcher {
+  margin-right: var(--spacing-04);
+  -webkit-app-region: no-drag;
+}

@@ -8,7 +8,7 @@ import { PillComponent } from '../../shared/ui/pill/pill';
 import type { WindowMode } from '../../../shared/window/window.model';
 import { WindowModeState } from './window-mode-state';
 
-const MODE_LABEL: Readonly<Record<WindowMode, string>> = { Pill: 'Pill', Panel: 'Panel' };
+const MODE_LABEL: Readonly<Record<WindowMode, string>> = { Pill: 'Pill', Panel: 'Panel', Expanded: 'Expanded' };
 
 /** Picks the content for the current Window mode. Nothing here changes the mode on its own: only the switcher and double-clicks do. */
 @Component({

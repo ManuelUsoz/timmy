@@ -9,8 +9,9 @@ describe('window modes', () => {
   });
 
   it('offers the modes the user is not in', () => {
-    expect(offeredModes('Pill')).toEqual(['Panel']);
-    expect(offeredModes('Panel')).toEqual(['Pill']);
+    expect(offeredModes('Pill')).toEqual(['Panel', 'Expanded']);
+    expect(offeredModes('Panel')).toEqual(['Pill', 'Expanded']);
+    expect(offeredModes('Expanded')).toEqual(['Pill', 'Panel']);
   });
 
   it('anchors Pill and Panel at the bottom-right of the work area', () => {
@@ -32,5 +33,26 @@ describe('window modes', () => {
     for (const mode of ['Pill', 'Panel'] as const) {
       expect(planFor(mode, workArea)).toMatchObject({ alwaysOnTop: true, skipTaskbar: true, resizable: false });
     }
+  });
+
+  it('centers Expanded at 900x700 in the work area, as a normal taskbar window', () => {
+    expect(planFor('Expanded', workArea)).toEqual({
+      mode: 'Expanded',
+      bounds: { x: 510, y: 170, width: 900, height: 700 },
+      alwaysOnTop: false,
+      skipTaskbar: false,
+      resizable: false,
+    });
+    expect(planFor('Expanded', { x: 1920, y: 40, width: 1280, height: 720 }).bounds).toEqual({
+      x: 1920 + 190,
+      y: 40 + 10,
+      width: 900,
+      height: 700,
+    });
+  });
+
+  it('shrinks Expanded to fit a small work area', () => {
+    const { bounds } = planFor('Expanded', { x: 0, y: 0, width: 800, height: 600 });
+    expect(bounds).toEqual({ x: 0, y: 0, width: 800, height: 600 });
   });
 });

@@ -50,4 +50,21 @@ describe('WindowService', () => {
       expect(yield* Ref.get(applied)).toEqual([]);
     }),
   );
+
+  it.effect('leaving Expanded returns to the corner flags of the Pill', () =>
+    Effect.gen(function* () {
+      const applied = yield* Ref.make<ReadonlyArray<WindowPlan>>([]);
+      yield* provide(
+        Effect.gen(function* () {
+          const windows = yield* WindowService;
+          yield* windows.request('Expanded');
+          yield* windows.request('Pill');
+        }),
+        applied,
+      );
+      const plans = yield* Ref.get(applied);
+      expect(plans[0]).toMatchObject({ mode: 'Expanded', alwaysOnTop: false, skipTaskbar: false });
+      expect(plans[1]).toMatchObject({ mode: 'Pill', alwaysOnTop: true, skipTaskbar: true });
+    }),
+  );
 });
