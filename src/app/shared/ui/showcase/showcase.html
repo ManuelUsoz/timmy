@@ -167,6 +167,8 @@
   </div>
   <h3>disabled</h3>
   <div class="row">
+    <ui-chip status="running" tone="blue">Running</ui-chip>
+    <ui-chip status="done" tone="green">Done</ui-chip>
     <ui-chip disabled>Disabled</ui-chip>
     <ui-chip disabled selectable removable>Disabled selectable</ui-chip>
   </div>
@@ -315,6 +317,30 @@
       Allow Bash?
     </ui-pill>
     <ui-pill tone="neutral" label="Idle">No session</ui-pill>
+  </div>
+  <h3>variants</h3>
+  <div class="row" style="flex-direction: column; align-items: stretch; width: 440px">
+    <ui-pill square tone="neutral" label="Idle">Nothing running</ui-pill>
+    <ui-pill square tone="running" label="Live" [subagents]="2">
+      <ui-pill-stack pillLead><ui-avatar name="Ada Lovelace" /></ui-pill-stack>
+      reply-bubble · Edit hook-server.ts<span pillMeta>3:12</span>
+    </ui-pill>
+    <ui-pill square tone="running" label="4 live" [subagents]="5" [worktrees]="2">
+      <ui-pill-stack pillLead>
+        <ui-avatar name="Ada Lovelace" />
+        <ui-avatar name="Grace Hopper" />
+        <ui-avatar name="Alan Turing" />
+      </ui-pill-stack>
+      3 projects
+    </ui-pill>
+    <ui-pill square tone="waiting" label="Asks">
+      <ui-pill-stack pillLead><ui-avatar name="Ada Lovelace" /></ui-pill-stack>
+      api-gateway · git push<span pillCounts>+3 live</span><span pillAction>Review</span>
+    </ui-pill>
+    <ui-pill square tone="running" label="Done">
+      <ui-pill-stack pillLead><ui-avatar name="Ada Lovelace" /></ui-pill-stack>
+      docs-sweep · 4 files<span pillMeta>+40 −3</span>
+    </ui-pill>
   </div>
   <h3>tones</h3>
   <div class="row">
