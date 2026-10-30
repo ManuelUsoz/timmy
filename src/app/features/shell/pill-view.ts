@@ -6,6 +6,8 @@ export interface PillView {
   readonly label: string;
   readonly text: string;
   readonly meta: string;
+  /** Call to action shown on the Pill (Asks: Review). */
+  readonly action: string;
   readonly pulse: boolean;
 }
 
@@ -17,12 +19,12 @@ export const formatElapsed = (ms: number): string => {
 /** What the Pill shows for the current Session: Idle, Live (activity and elapsed time) or Asks. */
 export const pillView = (chat: ChatState, elapsedMs: number): PillView => {
   if (chat.permission) {
-    return { tone: 'waiting', label: 'Asks', text: `${chat.permission.toolCall.name} ${chat.permission.toolCall.title}`, meta: '', pulse: false };
+    return { tone: 'waiting', label: 'Asks', text: `${chat.permission.toolCall.name} ${chat.permission.toolCall.title}`, meta: '', action: 'Review', pulse: false };
   }
   if (chat.running) {
     const active = [...chat.items].reverse().find((item) => item.kind === 'Tool' && item.call.status === 'Running');
     const text = active?.kind === 'Tool' ? `${active.call.name} ${active.call.title}` : 'Working…';
-    return { tone: 'running', label: 'Live', text, meta: formatElapsed(elapsedMs), pulse: true };
+    return { tone: 'running', label: 'Live', text, meta: formatElapsed(elapsedMs), action: '', pulse: true };
   }
-  return { tone: 'neutral', label: 'Idle', text: 'Nothing running', meta: '', pulse: false };
+  return { tone: 'neutral', label: 'Idle', text: 'Nothing running', meta: '', action: '', pulse: false };
 };
