@@ -4,6 +4,7 @@ import { SessionId } from '../../../shared/chat/ids.model';
 import type { Project } from '../../../shared/projects/projects.model';
 import { ProjectId, type SessionSummary } from '../../../shared/sessions/sessions.model';
 import { I18n } from '../../core/i18n';
+import { ToastService } from '../../core/toast';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { ChatController } from '../chat/chat-controller';
 import { ChatViewComponent } from '../chat/chat-view';
@@ -34,14 +35,13 @@ export class ProjectsScreen {
   protected readonly state = inject(ProjectsState);
   private readonly chat = inject(ChatController);
   private readonly router = inject(Router);
+  private readonly toasts = inject(ToastService);
 
   /** Path parameters of the route, bound to inputs. */
   readonly projectId = input<string>();
   readonly sessionId = input<string>();
 
   protected readonly dialogOpen = signal(false);
-  /** The route asks for a session while another one has a Turn running, which cannot be switched away from. */
-  protected readonly sessionBusy = signal(false);
 
   protected readonly routeSessionId = computed(() => {
     const id = this.sessionId();
@@ -82,10 +82,10 @@ export class ProjectsScreen {
         const session = sessions.items.find((candidate) => candidate.sessionId === id);
         if (session === undefined) {
           void this.router.navigate(['/projects', selected], { replaceUrl: true });
-        } else if (this.chat.selectedSessionId() === id) {
-          this.sessionBusy.set(false);
-        } else {
-          this.sessionBusy.set(!this.chat.openStoredSession(session));
+        } else if (this.chat.selectedSessionId() !== id && !this.chat.openStoredSession(session)) {
+          // Another session has a Turn running, which cannot be switched away from: say so and stay on the project.
+          this.toasts.warning('sessions.busy');
+          void this.router.navigate(['/projects', selected], { replaceUrl: true });
         }
       });
     });

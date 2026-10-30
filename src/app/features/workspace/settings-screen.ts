@@ -21,9 +21,6 @@ import type { SwitcherOption } from '../../shared/ui/switcher/switcher.types';
         </div>
         <ui-switcher [options]="options" [ngModel]="i18n.language()" (ngModelChange)="pick($event)" />
       </div>
-      @if (i18n.error()) {
-        <p class="error" role="alert">{{ i18n.t('settings.saveFailed') }}</p>
-      }
     </section>
   `,
   styles: `
@@ -61,10 +58,6 @@ import type { SwitcherOption } from '../../shared/ui/switcher/switcher.types';
     .help {
       color: var(--text-helper);
       font: var(--text-helper-text-01);
-    }
-    .error {
-      margin: 0;
-      color: var(--text-error);
     }
   `,
 })

@@ -43,7 +43,7 @@
         <p class="note" role="status">{{ i18n.t('sessions.loading') }}</p>
       }
       @case ('failed') {
-        <p class="note error" role="alert" [title]="list.detail">{{ i18n.t('sessions.loadFailed') }}</p>
+        <p class="note" [title]="list.detail">{{ i18n.t('sessions.unavailable') }}</p>
       }
       @case ('ready') {
         @if (list.items.length === 0) {

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { ChipComponent } from '../chip/chip';
 import { TagComponent } from '../tag/tag';
 import { StateComponent } from '../state/state';
+import { NotificationComponent } from '../notification/notification';
 import { CheckboxComponent } from '../checkbox/checkbox';
 import { AvatarComponent } from '../avatar/avatar';
 import { LogoComponent } from '../logo/logo';
@@ -41,6 +42,7 @@ import type { AgentId, OptionId, PermissionRequestId, ToolCallId } from '../../.
     ChipComponent,
     TagComponent,
     StateComponent,
+    NotificationComponent,
     CheckboxComponent,
     AvatarComponent,
     LogoComponent,
@@ -240,6 +242,12 @@ export class ShowcaseComponent {
 
   protected readonly chipTones =['blue', 'green', 'red', 'purple', 'outline', 'mono'] as const;
   protected readonly tagTones = ['green', 'blue', 'red', 'purple', 'gray'] as const;
+  protected readonly notificationTones = [
+    { tone: 'success', title: 'Success', body: 'Project created. Open it from the list.' },
+    { tone: 'info', title: 'Info', body: 'The list refreshes when you return to the window.' },
+    { tone: 'warning', title: 'Warning', body: 'A turn is running in another session. Wait for it to finish.' },
+    { tone: 'error', title: 'Error', body: 'The sessions could not be loaded. Try again in a moment.' },
+  ] as const;
   protected readonly stateTones = ['success', 'info', 'warning', 'error', 'merged', 'idle'] as const;
   protected readonly removable = signal(['alpha', 'beta', 'gamma']);
   protected readonly accepted = new FormControl<boolean>(true);

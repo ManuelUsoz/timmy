@@ -1,0 +1,42 @@
+/* Floats over the content, under the title bar: it takes no space, so nothing behind it moves. */
+:host {
+  position: absolute;
+  top: var(--spacing-04);
+  right: var(--spacing-04);
+  z-index: 30;
+  width: min(360px, calc(100% - 2 * var(--spacing-04)));
+  pointer-events: none;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-03);
+}
+
+.toast {
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .toast-in {
+    animation: toast-fade-in 150ms ease-out;
+  }
+
+  .toast-out {
+    animation: toast-fade-out 100ms ease-in forwards;
+  }
+}
+
+@keyframes toast-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--spacing-03)));
+  }
+}
+
+@keyframes toast-fade-out {
+  to {
+    opacity: 0;
+  }
+}

@@ -193,6 +193,15 @@
 </section>
 
 <section>
+  <h2>Notification</h2>
+  <div class="notifications">
+    @for (n of notificationTones; track n.tone) {
+      <ui-notification [tone]="n.tone" [title]="n.title">{{ n.body }}</ui-notification>
+    }
+  </div>
+</section>
+
+<section>
   <h2>Checkbox</h2>
   <div class="row">
     <ui-checkbox>Unchecked</ui-checkbox>

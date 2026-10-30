@@ -1,0 +1,50 @@
+:host {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  gap: var(--spacing-03);
+  align-items: start;
+  box-sizing: border-box;
+  padding: var(--spacing-04) var(--spacing-05);
+  background: var(--layer-01);
+  border: 1px solid var(--tone, var(--border-subtle));
+  color: var(--text-primary);
+  font: 400 14px/20px var(--font-sans);
+}
+.as-note__ico {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border-radius: var(--radius-full);
+  background: var(--tone);
+}
+.as-note__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.as-note__title {
+  font-weight: 600;
+}
+.as-note__body {
+  color: var(--text-secondary);
+}
+.as-note__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.as-note__close:hover {
+  background: var(--layer-hover);
+  color: var(--text-primary);
+}
+.as-note__close:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
