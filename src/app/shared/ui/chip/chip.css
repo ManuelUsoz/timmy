@@ -86,3 +86,19 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+.as-chip__spinner {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
+  border-top-color: currentColor;
+  border-radius: var(--radius-full);
+  animation: as-chip-spin 0.8s linear infinite;
+}
+.as-chip__check { flex: none; }
+:host(.as-chip--done) { --bg: var(--tag-green-bg); --fg: var(--tag-green-text); }
+@keyframes as-chip-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .as-chip__spinner { animation-duration: 2.4s; }
+}

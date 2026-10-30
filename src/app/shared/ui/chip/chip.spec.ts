@@ -79,3 +79,38 @@ describe('ChipComponent', () => {
     expect(fixture.componentInstance.selected).toBe(false);
   });
 });
+
+describe('ChipComponent status', () => {
+  @Component({
+    imports: [ChipComponent],
+    template: `<ui-chip [status]="status">Build</ui-chip>`,
+  })
+  class StatusHost {
+    status: 'running' | 'done' | undefined = undefined;
+  }
+
+  async function render(status?: 'running' | 'done') {
+    await TestBed.configureTestingModule({ imports: [StatusHost] }).compileComponents();
+    const fixture = TestBed.createComponent(StatusHost);
+    fixture.componentInstance.status = status;
+    await fixture.whenStable();
+    return fixture.nativeElement.querySelector('ui-chip') as HTMLElement;
+  }
+
+  it('shows nothing extra without a status', async () => {
+    const el = await render();
+    expect(el.querySelector('[role="status"], [role="img"]')).toBeNull();
+  });
+
+  it('announces a running spinner', async () => {
+    const el = await render('running');
+    expect(el.querySelector('[role="status"]')?.getAttribute('aria-label')).toBe('Running');
+    expect(el.classList).toContain('as-chip--running');
+  });
+
+  it('shows a labelled check when done', async () => {
+    const el = await render('done');
+    expect(el.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('Done');
+    expect(el.classList).toContain('as-chip--done');
+  });
+});
