@@ -2,6 +2,7 @@
   display: block;
   height: 100vh;
   overflow: hidden;
+  position: relative;
   color: var(--text-primary);
   font-family: var(--ff-sans);
 }
@@ -119,4 +120,37 @@
 .expanded .switcher {
   margin-right: var(--spacing-04);
   -webkit-app-region: no-drag;
+}
+
+/* Mode change: the outgoing content fades out on top while the incoming fades in, matching the 200 ms window transition. */
+.mode-in {
+  animation: mode-fade-in 200ms ease-out;
+}
+
+.mode-out {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: mode-fade-out 200ms ease-out forwards;
+}
+
+/* The Pill hugs the bottom-right corner, which Pill and Panel keep fixed; leave it there while it fades. */
+.pill-bar.mode-out {
+  top: auto;
+  height: 40px;
+}
+
+@keyframes mode-fade-in {
+  from { opacity: 0; }
+}
+
+@keyframes mode-fade-out {
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mode-in,
+  .mode-out {
+    animation: none;
+  }
 }
