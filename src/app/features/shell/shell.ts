@@ -1,14 +1,14 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { Schema } from 'effect';
 import { ChatViewComponent } from '../chat/chat-view';
 import { ChatController } from '../chat/chat-controller';
 import { AvatarComponent } from '../../shared/ui/avatar/avatar';
 import { MenuComponent } from '../../shared/ui/menu/menu';
 import { OptionComponent } from '../../shared/ui/menu/option';
 import { PillComponent } from '../../shared/ui/pill/pill';
-import type { WindowMode } from '../../../shared/window/window.model';
+import { WindowMode } from '../../../shared/window/window.model';
 import { WindowModeState } from './window-mode-state';
-
 
 /** Picks the content for the current Window mode. Nothing here changes the mode on its own: only the switcher and double-clicks do. */
 @Component({
@@ -26,7 +26,15 @@ export class ShellComponent {
   /** The Pill window is one row tall and would clip the menu, so there the button goes straight to the Panel. */
   protected toggleSwitcher(): void {
     if (this.windowMode.mode() === 'Pill') this.request('Panel');
-    else this.switcherOpen.set(!this.switcherOpen());
+    else this.switcherOpen.update((open) => !open);
+  }
+
+  protected openPanelFromPill(): void {
+    if (this.pill().action !== '') this.request('Panel');
+  }
+
+  protected pick(value: unknown): void {
+    if (Schema.is(WindowMode)(value)) this.request(value);
   }
 
   protected close(): void {

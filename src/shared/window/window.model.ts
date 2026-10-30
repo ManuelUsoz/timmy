@@ -6,11 +6,9 @@ export type WindowMode = typeof WindowMode.Type;
 
 export const startupMode: WindowMode = 'Pill';
 
-const allModes: ReadonlyArray<WindowMode> = ['Pill', 'Panel', 'Expanded'];
-
 /** The modes the user can move to from `current`: every mode but the current one. */
 export const offeredModes = (current: WindowMode): ReadonlyArray<WindowMode> =>
-  allModes.filter((mode) => mode !== current);
+  WindowMode.literals.filter((mode) => mode !== current);
 
 export interface Rect {
   readonly x: number;

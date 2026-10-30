@@ -6,7 +6,7 @@
       [label]="pill().label"
       [pulse]="pill().pulse"
       [subagents]="pill().subagents"
-      (click)="pill().action && request('Panel')"
+      (click)="openPanelFromPill()"
       (dblclick)="request('Panel')"
     >
       <ui-avatar pillLead [tone]="pill().tone === 'running' || pill().tone === 'waiting' ? 'merged' : 'idle'">
@@ -48,7 +48,7 @@
       </svg>
     </button>
     @if (switcherOpen()) {
-      <ui-menu class="switcher-menu" ariaLabel="Window modes" (selectionChange)="request($any($event))">
+      <ui-menu class="switcher-menu" ariaLabel="Window modes" (selectionChange)="pick($event)">
         @for (mode of windowMode.offered(); track mode) {
           <ui-option [value]="mode">{{ mode }}</ui-option>
         }

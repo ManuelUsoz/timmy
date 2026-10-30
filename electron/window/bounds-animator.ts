@@ -8,7 +8,7 @@ export interface AnimatorClock {
   readonly schedule: (tick: () => void, ms: number) => () => void;
 }
 
-export const systemClock: AnimatorClock = {
+const systemClock: AnimatorClock = {
   now: () => performance.now(),
   schedule: (tick, ms) => {
     const handle = setTimeout(tick, ms);
