@@ -4,11 +4,11 @@ import { AppInfoRpcs } from '../../../shared/app-info/app-info.rpc';
 import { WindowRpcs } from '../../../shared/window/window.rpc';
 import type { WindowMode } from '../../../shared/window/window.model';
 import { ChatRpcs } from '../../../shared/chat/chat.rpc';
-import { AgentId, OptionId, PermissionRequestId, ToolCallId } from '../../../shared/chat/ids.model';
+import { AgentId, MessageId, OptionId, PermissionRequestId, ToolCallId } from '../../../shared/chat/ids.model';
 import type { PermissionResponse } from '../../../shared/chat/permission.model';
 import type { ToolCall } from '../../../shared/chat/tool-call.model';
 import { ChatController } from '../chat/chat-controller';
-import { initialChatState } from '../chat/chat-state';
+import { addUserMessage, initialChatState } from '../chat/chat-state';
 import { layerSessionsUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { ShellComponent } from './shell';
@@ -188,5 +188,30 @@ describe('ShellComponent', () => {
       await settle();
       expect(el.querySelector('ui-ask-row')).toBeNull();
     });
+  });
+
+  it('shows Done with a summary, then Idle on the next Turn', async () => {
+    const { el, settle, fixture } = await setup();
+    const chat = TestBed.inject(ChatController);
+    const assistant = { kind: 'Assistant', agentId: AgentId.make('r'), messageId: MessageId.make('m'), text: 'All green.', thinking: '' } as const;
+    chat.chat.set({ ...initialChatState, items: [assistant] });
+    fixture.detectChanges();
+    await settle();
+    expect(el.querySelector('ui-pill button')?.textContent).toContain('Done');
+    expect(el.querySelector('ui-pill button')?.textContent).toContain('All green.');
+    chat.chat.set(addUserMessage(chat.chat(), 'again'));
+    fixture.detectChanges();
+    await settle();
+    expect(el.querySelector('ui-pill button')?.textContent).toContain('Idle');
+  });
+
+  it('shows the running subagent count in the Pill', async () => {
+    const { el, settle, fixture } = await setup();
+    const chat = TestBed.inject(ChatController);
+    const id = AgentId.make('a');
+    chat.chat.set({ ...initialChatState, running: true, agents: new Map([[id, { info: { id, parentId: AgentId.make('r'), name: 'a' }, status: 'Running', usage: undefined }]]) });
+    fixture.detectChanges();
+    await settle();
+    expect(el.querySelector('ui-pill [data-count="subagents"]')?.textContent).toContain('1');
   });
 });
