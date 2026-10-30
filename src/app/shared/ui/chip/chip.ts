@@ -8,11 +8,19 @@ import {
 } from '@angular/core';
 
 export type ChipTone = 'blue' | 'green' | 'red' | 'purple' | 'outline' | 'mono';
+export type ChipStatus = 'running' | 'done';
 export type ChipSize = 'default' | 'md';
 
 @Component({
   selector: 'ui-chip',
   template: `
+    @if (status() === 'running') {
+      <span class="as-chip__spinner" role="status" aria-label="Running"></span>
+    } @else if (status() === 'done') {
+      <svg class="as-chip__check" viewBox="0 0 24 24" width="12" height="12" fill="none" role="img" aria-label="Done">
+        <path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    }
     <span class="as-chip__label"><ng-content /></span>
     @if (removable()) {
       <button
@@ -37,6 +45,8 @@ export type ChipSize = 'default' | 'md';
     '[class.as-chip--purple]': "tone() === 'purple'",
     '[class.as-chip--outline]': "tone() === 'outline'",
     '[class.as-chip--mono]': "tone() === 'mono'",
+    '[class.as-chip--running]': "status() === 'running'",
+    '[class.as-chip--done]': "status() === 'done'",
     '[class.as-chip--md]': "size() === 'md'",
     '[class.as-chip--selectable]': 'selectable()',
     '[class.as-chip--disabled]': 'disabled()',
@@ -52,6 +62,8 @@ export type ChipSize = 'default' | 'md';
 export class ChipComponent {
   readonly tone = input<ChipTone>();
   readonly size = input<ChipSize>('default');
+  /** Adds a spinner (running) or a check (done) before the label. */
+  readonly status = input<ChipStatus>();
   readonly selectable = input(false, { transform: booleanAttribute });
   readonly selected = model(false);
   readonly removable = input(false, { transform: booleanAttribute });

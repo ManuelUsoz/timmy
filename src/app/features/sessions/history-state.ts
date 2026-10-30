@@ -33,4 +33,5 @@ const toItem = (item: HistoryItem, index: number): ChatItem => {
 export const chatStateFromHistory = (history: ReadonlyArray<HistoryItem>): ChatState => ({
   ...initialChatState,
   items: history.map(toItem),
+  stored: true,
 });

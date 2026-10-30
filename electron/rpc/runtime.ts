@@ -5,6 +5,7 @@ import { RpcServer } from 'effect/rpc';
 import { DesktopRpcs } from '../../src/shared/rpc/desktop-rpcs';
 import { layerSessionRepo } from '../sessions/session-repo';
 import { layerDesktopHandlers } from './index';
+import { layerElectronWindowHost } from '../window/electron-window-host';
 import { layerIpcServer } from './ipc-server';
 
 /** Sessions live in one database file in the app's data directory. */
@@ -15,7 +16,7 @@ const layerSessionRepoFile = Layer.unwrap(
 /** The RPC server for the app's lifetime; windows attach through `RpcPortHandoff`. */
 const layerRpcServer = RpcServer.layer(DesktopRpcs).pipe(
   Layer.provideMerge(layerIpcServer),
-  Layer.provide(layerDesktopHandlers.pipe(Layer.provide(layerSessionRepoFile))),
+  Layer.provide(layerDesktopHandlers.pipe(Layer.provide(layerSessionRepoFile), Layer.provide(layerElectronWindowHost))),
 );
 
 /** App-lifetime runtime running the RPC server. Disposed on `before-quit`. */

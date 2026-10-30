@@ -53,6 +53,7 @@
     @if (open()) {
       <ul
         class="as-menu as-menu--float"
+        [class.as-menu--above]="placement() === 'above'"
         role="listbox"
         [id]="listId"
         [attr.aria-multiselectable]="multiple() ? 'true' : null"

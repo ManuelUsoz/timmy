@@ -1,0 +1,89 @@
+@if (error(); as message) {
+  <p class="error">{{ message }}</p>
+}
+
+@if (sessionChips().length > 0) {
+  <ui-chip-strip
+    [label]="project()"
+    [groupLabel]="'Sessions in ' + project()"
+    [items]="sessionChips()"
+    [selectedId]="selectedSessionId() ?? null"
+    (selected)="openSession($event)"
+  />
+}
+
+<div class="title">
+  <span class="title-name" [attr.title]="title()">{{ title() }}</span>
+  <ui-tag tone="purple">Claude Code</ui-tag>
+  <button type="button" class="icon-button new-chat" aria-label="New chat" (click)="clearChat()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+  </button>
+</div>
+
+<section class="log" aria-label="Conversation">
+  @for (block of blocks(); track $index) {
+    @switch (block.kind) {
+      @case ('User') {
+        <ui-message [role]="'user'">{{ block.text }}</ui-message>
+      }
+      @case ('Assistant') {
+        <ui-message [role]="'agent'">
+          @if (block.thinking !== '') {
+            <details>
+              <summary>Thinking</summary>
+              <pre>{{ block.thinking }}</pre>
+            </details>
+          }
+          @if (block.text !== '') {
+            <div class="markdown" [innerHTML]="block.text | markdown"></div>
+          }
+        </ui-message>
+      }
+      @case ('Activity') {
+        <ui-tree-view class="activity" variant="activity" size="sm" [nodes]="block.nodes" />
+      }
+    }
+  }
+  @if (chat().items.length === 0) {
+    <p class="muted">Say something to start a session.</p>
+  }
+  @if (chat().running && !chat().permission) {
+    <p class="muted">Working…</p>
+  }
+  @if (chat().failure; as failure) {
+    <p class="error">{{ failure }}</p>
+  }
+</section>
+
+@if (chat().permission; as request) {
+  <ui-ask-row
+    [title]="request.toolCall.name + ' ' + request.toolCall.title"
+    (allow)="answer(request, 'Allow')"
+    (deny)="answer(request, 'Deny')"
+  />
+}
+
+<form class="composer" (submit)="$event.preventDefault(); send()">
+  <app-composer-input [(draft)]="draft" [commands]="commands()" (submitted)="send()" />
+  <div class="composer-bar">
+    <button type="button" uiButton kind="ghost" size="sm" iconOnly class="provider" aria-label="Provider: Claude Code" title="Claude Code">
+      <ui-provider-icon provider="claude" />
+    </button>
+    <ui-select label="Model" size="sm" placement="above" placeholder="Default model" [options]="modelOptions()" [formControl]="modelControl" />
+    <ui-select label="Effort" size="sm" placement="above" [options]="effortOptions()" [formControl]="effortControl" />
+    <ui-select label="Permission" size="sm" placement="above" [options]="permissionOptions" [formControl]="permissionControl" />
+    <span class="spacer"></span>
+    @if (contextPercent() !== undefined) {
+      <span class="context" title="Context window used">{{ contextPercent() }}%</span>
+    }
+    @if (chat().running) {
+      <button uiButton kind="ghost" size="sm" iconOnly type="button" aria-label="Stop" (click)="stop()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" /></svg>
+      </button>
+    } @else {
+      <button uiButton kind="primary" size="sm" iconOnly type="submit" aria-label="Send" [disabled]="draft().trim() === '' || info() === null">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
+      </button>
+    }
+  </div>
+</form>

@@ -51,6 +51,8 @@ export class SelectComponent implements ControlValueAccessor {
   readonly helper = input('');
   readonly placeholder = input('Select');
   readonly error = input('');
+  /** Which side of the trigger the list opens on; use `above` when the select sits at the bottom of its window. */
+  readonly placement = input<'below' | 'above'>('below');
 
   protected readonly value = signal<unknown>(null);
   protected readonly open = signal(false);

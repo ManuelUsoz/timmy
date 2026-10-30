@@ -167,6 +167,8 @@
   </div>
   <h3>disabled</h3>
   <div class="row">
+    <ui-chip status="running" tone="blue">Running</ui-chip>
+    <ui-chip status="done" tone="green">Done</ui-chip>
     <ui-chip disabled>Disabled</ui-chip>
     <ui-chip disabled selectable removable>Disabled selectable</ui-chip>
   </div>
@@ -281,6 +283,29 @@
     <ui-tree-view [nodes]="treeNodes" [formControl]="treeSingle" />
     <ui-tree-view [nodes]="treeNodes" mode="checkable" size="sm" [formControl]="treeChecked" />
   </div>
+  <h3>Activity</h3>
+  <div class="row">
+    <ui-tree-view variant="activity" size="sm" [nodes]="activityNodes" />
+  </div>
+</section>
+
+<section>
+  <h2>Message</h2>
+  <div class="row" style="flex-direction: column; align-items: stretch; max-width: 440px">
+    <ui-message role="user">Make Stop and Notification announce the session.</ui-message>
+    <ui-message role="agent">
+      <div>I'll route both hooks through the existing pipe and keep the endpoint fail-open.</div>
+      <ui-tree-view variant="activity" size="sm" [nodes]="activityNodes" />
+    </ui-message>
+  </div>
+</section>
+
+<section>
+  <h2>ChipStrip</h2>
+  <div class="row" style="flex-direction: column; align-items: stretch">
+    <ui-chip-strip label="ascua" groupLabel="Sessions in ascua" [items]="stripItems" [selectedId]="stripSelected()" (selected)="stripSelected.set($event)" />
+    <ui-chip-strip groupLabel="Other sessions" [items]="stripOthers" [selectedId]="stripSelected()" (selected)="stripSelected.set($event)" />
+  </div>
 </section>
 
 <section>
@@ -316,6 +341,30 @@
     </ui-pill>
     <ui-pill tone="neutral" label="Idle">No session</ui-pill>
   </div>
+  <h3>variants</h3>
+  <div class="row" style="flex-direction: column; align-items: stretch; width: 440px">
+    <ui-pill square tone="neutral" label="Idle">Nothing running</ui-pill>
+    <ui-pill square tone="running" label="Live" [subagents]="2">
+      <ui-pill-stack pillLead><ui-avatar name="Ada Lovelace" /></ui-pill-stack>
+      reply-bubble · Edit hook-server.ts<span pillMeta>3:12</span>
+    </ui-pill>
+    <ui-pill square tone="running" label="4 live" [subagents]="5" [worktrees]="2">
+      <ui-pill-stack pillLead>
+        <ui-avatar name="Ada Lovelace" />
+        <ui-avatar name="Grace Hopper" />
+        <ui-avatar name="Alan Turing" />
+      </ui-pill-stack>
+      3 projects
+    </ui-pill>
+    <ui-pill square tone="waiting" label="Asks">
+      <ui-pill-stack pillLead><ui-avatar name="Ada Lovelace" /></ui-pill-stack>
+      api-gateway · git push<span pillCounts>+3 live</span><span pillAction>Review</span>
+    </ui-pill>
+    <ui-pill square tone="running" label="Done">
+      <ui-pill-stack pillLead><ui-avatar name="Ada Lovelace" /></ui-pill-stack>
+      docs-sweep · 4 files<span pillMeta>+40 −3</span>
+    </ui-pill>
+  </div>
   <h3>tones</h3>
   <div class="row">
     @for (t of pillTones; track t) {
@@ -348,5 +397,12 @@
       elapsed="5m"
       [permission]="samplePermission"
     />
+  </div>
+</section>
+
+<section>
+  <h2>Ask row</h2>
+  <div class="row">
+    <ui-ask-row title="api-gateway asks" sub="git push origin fix/rate-limit" />
   </div>
 </section>

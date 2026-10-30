@@ -13,13 +13,14 @@ const OPTS: SelectOption<string>[] = [
 
 @Component({
   imports: [SelectComponent, ReactiveFormsModule],
-  template: `<ui-select [formControl]="ctrl" [options]="opts" [multiple]="multiple" [display]="display" label="Pick" />`,
+  template: `<ui-select [formControl]="ctrl" [options]="opts" [multiple]="multiple" [display]="display" [placement]="placement" label="Pick" />`,
 })
 class Host {
   ctrl = new FormControl<unknown>(null);
   opts = OPTS;
   multiple = false;
   display: 'count' | 'chips' = 'count';
+  placement: 'below' | 'above' = 'below';
 }
 
 describe('SelectComponent', () => {
@@ -58,6 +59,16 @@ describe('SelectComponent', () => {
     await click(options()[2]);
     expect(fixture.componentInstance.ctrl.value).toBe('c');
     expect(options().length).toBe(0);
+  });
+
+  it('opens below by default and above on request', async () => {
+    await setup();
+    await click(trigger());
+    expect(el.querySelector('[role=listbox]')?.classList).not.toContain('as-menu--above');
+    TestBed.resetTestingModule();
+    await setup({ placement: 'above' });
+    await click(trigger());
+    expect(el.querySelector('[role=listbox]')?.classList).toContain('as-menu--above');
   });
 
   it('exposes aria attributes', async () => {

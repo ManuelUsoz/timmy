@@ -35,6 +35,8 @@ export interface ChatState {
   readonly running: boolean;
   /** Set when the last turn did not complete. */
   readonly failure: string | undefined;
+  /** True while showing a stored transcript; cleared when a new message is sent. */
+  readonly stored: boolean;
 }
 
 export const initialChatState: ChatState = {
@@ -45,12 +47,14 @@ export const initialChatState: ChatState = {
   context: undefined,
   running: false,
   failure: undefined,
+  stored: false,
 };
 
 export const addUserMessage = (state: ChatState, text: string): ChatState => ({
   ...state,
   items: [...state.items, { kind: 'User', text }],
   failure: undefined,
+  stored: false,
 });
 
 const updateAgent = (state: ChatState, agentId: AgentId, update: (agent: AgentView) => AgentView): ChatState => {
@@ -70,7 +74,9 @@ export const groupByOwner = (state: ChatState): ReadonlyMap<AgentId | undefined,
   const groups = new Map<AgentId | undefined, ChatItem[]>();
   for (const item of state.items) {
     const owner = ownerOf(state, item);
-    groups.set(owner, [...(groups.get(owner) ?? []), item]);
+    const group = groups.get(owner);
+    if (group === undefined) groups.set(owner, [item]);
+    else group.push(item);
   }
   return groups;
 };
@@ -79,7 +85,7 @@ export const groupByOwner = (state: ChatState): ReadonlyMap<AgentId | undefined,
 export const reduceChat = (state: ChatState, event: ChatEvent): ChatState => {
   switch (event._tag) {
     case 'TurnStarted':
-      return { ...state, running: true, failure: undefined };
+      return { ...state, running: true, failure: undefined, stored: false };
     case 'MessageDelta': {
       const index = state.items.findIndex((i) => i.kind === 'Assistant' && i.messageId === event.messageId);
       const field = event.channel === 'Text' ? 'text' : 'thinking';

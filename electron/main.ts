@@ -1,6 +1,8 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, screen, shell } from 'electron';
 import path from 'node:path';
 import { registerIpc } from './ipc';
+import { plannedWindow, setAppWindow } from './window/app-window';
+import { planFor, startupMode } from '../src/shared/window/window.model';
 import { MainRuntime } from './rpc/runtime';
 
 /**
@@ -17,14 +19,22 @@ const FALLBACK_BACKGROUND = '#0b0d12';
 /** Transparent page background so the OS material (Mica / vibrancy) can show through. */
 const TRANSPARENT_BACKGROUND = '#00000000';
 
+/** The e2e harness gives each run its own data directory so it never touches the user's sessions. */
+const e2eUserData = process.env['TIMMY_E2E'] === '1' ? process.env['TIMMY_USER_DATA'] : undefined;
+if (e2eUserData) app.setPath('userData', e2eUserData);
+
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {
+  // Timmy starts as the Pill at the bottom-right of the primary display (ADR 0004); a window recreated
+  // after being closed (macOS) reopens in the mode the service last applied.
+  const start = plannedWindow() ?? planFor(startupMode, screen.getPrimaryDisplay().workArea);
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 800,
-    minHeight: 600,
+    ...start.bounds,
+    frame: false,
+    resizable: start.resizable,
+    alwaysOnTop: start.alwaysOnTop,
+    skipTaskbar: start.skipTaskbar,
     show: false, // avoid the white flash, show once the renderer is ready
     title: 'Timmy',
     // The icon is only needed while running from source; packaged apps use the
@@ -46,6 +56,7 @@ function createWindow(): void {
     },
   });
 
+  setAppWindow(mainWindow);
   mainWindow.once('ready-to-show', () => mainWindow?.show());
   mainWindow.on('closed', () => {
     mainWindow = null;

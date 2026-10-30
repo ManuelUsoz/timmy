@@ -1,0 +1,66 @@
+@if (windowMode.mode() === 'Pill') {
+  <div class="pill-bar" animate.enter="mode-in" animate.leave="mode-out">
+    <ui-pill
+      square
+      [tone]="pill().tone"
+      [label]="pill().label"
+      [pulse]="pill().pulse"
+      [subagents]="pill().subagents"
+      (click)="openPanelFromPill()"
+      (dblclick)="request('Panel')"
+    >
+      <ui-avatar pillLead [tone]="pill().tone === 'running' || pill().tone === 'waiting' ? 'merged' : 'idle'">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3c1 3 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 1-9z" />
+        </svg>
+      </ui-avatar>
+      {{ pill().text }}
+      <span pillMeta>{{ pill().meta }}</span>
+      <span pillAction>{{ pill().action }}</span>
+    </ui-pill>
+    <ng-container *ngTemplateOutlet="switcher" />
+  </div>
+} @else {
+  <section class="panel" animate.enter="mode-in" animate.leave="mode-out" [class.expanded]="windowMode.mode() === 'Expanded'" aria-label="Timmy panel">
+    <header class="panel-header" (dblclick)="request('Pill')">
+      <svg class="panel-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>
+      <span class="panel-title">Chat</span>
+      <span class="drag-fill" aria-hidden="true"></span>
+      <ng-container *ngTemplateOutlet="switcher" />
+    </header>
+    <app-chat-view class="panel-body" />
+  </section>
+}
+
+<ng-template #switcher>
+  @if (windowMode.error(); as error) {
+    <span class="mode-error" role="alert" [title]="error">!</span>
+  }
+  <div class="switcher">
+    <button
+      type="button"
+      class="switcher-button"
+      aria-label="Change window mode"
+      aria-haspopup="listbox"
+      [attr.aria-expanded]="switcherOpen()"
+      (click)="toggleSwitcher()"
+      (dblclick)="$event.stopPropagation()"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 9V4h5M20 15v5h-5M4 4l6 6M20 20l-6-6" />
+      </svg>
+    </button>
+    @if (switcherOpen()) {
+      <ui-menu class="switcher-menu" ariaLabel="Window modes" (selectionChange)="pick($event)">
+        @for (mode of windowMode.offered(); track mode) {
+          <ui-option [value]="mode">{{ mode }}</ui-option>
+        }
+      </ui-menu>
+    }
+  </div>
+  <button type="button" class="switcher-button close-button" aria-label="Close Timmy" (click)="close()" (dblclick)="$event.stopPropagation()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  </button>
+</ng-template>

@@ -6,12 +6,11 @@
 
 textarea {
   flex: 1;
-  resize: vertical;
-  padding: 10px 12px;
+  resize: none;
+  padding: var(--spacing-04) var(--spacing-04) var(--spacing-03);
   border-radius: 0;
   border: 0;
-  border-bottom: 1px solid var(--border-strong);
-  background: var(--field);
+  background: transparent;
   color: inherit;
   font: inherit;
 }

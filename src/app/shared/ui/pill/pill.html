@@ -1,4 +1,27 @@
-<span class="as-pill__lead"><ng-content select="[pillLead]" /></span>
-<span class="as-pill__state">{{ label() }}</span>
-<span class="as-pill__text"><ng-content /></span>
-<span class="as-pill__meta"><ng-content select="[pillMeta]" /></span>
+<button type="button" class="as-pill__btn" [attr.aria-labelledby]="labelledBy">
+  <span class="as-pill__lead" aria-hidden="true"><ng-content select="[pillLead]" /></span>
+  <span class="as-pill__state" [id]="stateId"><i class="as-dot" aria-hidden="true"></i>{{ label() }}</span>
+  <span class="as-pill__text" [id]="textId"><ng-content /></span>
+  <span class="as-pill__counts" [id]="countsId">
+    @if (subagents() !== null) {
+      <span class="as-pill__count" data-count="subagents" [attr.title]="subagents() + ' subagents'">
+        <i class="as-dot as-dot--sm as-pill__subagent" aria-hidden="true"></i>
+        <span aria-hidden="true">{{ subagents() }}</span>
+        <span class="as-pill__sr">{{ subagents() }} subagents</span>
+      </span>
+    }
+    @if (worktrees() !== null) {
+      <span class="as-pill__count" data-count="worktrees" [attr.title]="worktrees() + ' worktrees'">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="6" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="8" r="2" />
+          <path d="M6 8v8M18 10c0 4-6 3-12 6" />
+        </svg>
+        <span aria-hidden="true">{{ worktrees() }}</span>
+        <span class="as-pill__sr">{{ worktrees() }} worktrees</span>
+      </span>
+    }
+    <ng-content select="[pillCounts]" />
+  </span>
+  <span class="as-pill__meta" [id]="metaId"><ng-content select="[pillMeta]" /></span>
+  <span class="as-pill__action" [id]="actionId"><ng-content select="[pillAction]" /></span>
+</button>

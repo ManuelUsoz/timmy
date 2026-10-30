@@ -1,0 +1,197 @@
+/* Panel / Expanded chat, after the "3 · Chat" design: strip, title, transcript, ask row, composer. */
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-03);
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  padding: var(--spacing-04);
+  background: var(--pill);
+  color: var(--text-primary);
+  font-family: var(--ff-sans);
+}
+
+:host > * {
+  flex: none;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-03);
+  padding: var(--spacing-02) var(--spacing-02) 0;
+}
+
+/* The name gives way first, so the provider tag (and the branch, when there is one) always fit. */
+.title-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--text-heading-01);
+  letter-spacing: 0.16px;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-helper);
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: var(--layer-hover);
+  color: var(--text-primary);
+}
+
+.icon-button:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
+.log {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: var(--spacing-04);
+  min-height: 0;
+  padding: var(--spacing-04);
+  overflow: auto;
+  background: var(--pill-inset);
+}
+
+.error {
+  margin: 0;
+  color: var(--text-error);
+}
+
+.muted {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+pre {
+  margin: 6px 0 0;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* Tools hang under the reply text, aligned with it (avatar 32px + gap). */
+.activity {
+  display: block;
+  margin-left: var(--spacing-07);
+}
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  background: var(--field);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.composer-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-02);
+  padding: 0 var(--spacing-03) var(--spacing-03);
+}
+
+.composer-bar ui-select {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* The selects keep an accessible name through their label, but only the value is drawn. */
+.composer-bar ui-select ::ng-deep .as-field__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Selects take the width of their value, as in the design. */
+.composer-bar ui-select ::ng-deep .as-field {
+  width: auto;
+  max-width: none;
+  flex: none;
+}
+
+.composer-bar ui-select ::ng-deep .as-select__trigger {
+  width: auto;
+  gap: var(--spacing-02);
+  padding: 0 var(--spacing-03);
+}
+
+.provider {
+  color: var(--text-primary);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.context {
+  color: var(--text-secondary);
+  font: var(--text-label-01);
+}
+
+.composer-bar button[type='submit'],
+.composer-bar button[aria-label='Stop'] {
+  flex: none;
+}
+
+:host ::ng-deep .markdown > :first-child {
+  margin-top: 0;
+}
+
+:host ::ng-deep .markdown > :last-child {
+  margin-bottom: 0;
+}
+
+:host ::ng-deep .markdown pre {
+  padding: 10px 12px;
+  border-radius: 0;
+  background: var(--layer-01);
+}
+
+:host ::ng-deep .markdown pre code {
+  padding: 0;
+  background: none;
+}
+
+:host ::ng-deep .markdown a {
+  color: var(--link);
+}
+
+:host ::ng-deep .markdown table {
+  border-collapse: collapse;
+}
+
+:host ::ng-deep .markdown th,
+:host ::ng-deep .markdown td {
+  padding: 4px 10px;
+  border: 1px solid var(--border-subtle);
+}
+
+:host ::ng-deep .markdown blockquote {
+  margin: 8px 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--border-strong);
+  color: var(--text-secondary);
+}
