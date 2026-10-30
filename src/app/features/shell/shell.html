@@ -1,0 +1,48 @@
+@if (windowMode.mode() === 'Pill') {
+  <div class="pill-bar">
+    <ui-pill
+      square
+      [tone]="pill().tone"
+      [label]="pill().label"
+      [pulse]="pill().pulse"
+      (dblclick)="request('Panel')"
+    >
+      {{ pill().text }}
+      <span pillMeta>{{ pill().meta }}</span>
+    </ui-pill>
+    <ng-container *ngTemplateOutlet="switcher" />
+  </div>
+} @else {
+  <section class="panel" aria-label="Timmy panel">
+    <header class="panel-header" (dblclick)="request('Pill')">
+      <span class="panel-title">Chat</span>
+      <ng-container *ngTemplateOutlet="switcher" />
+    </header>
+    <app-chat-view class="panel-body" />
+  </section>
+}
+
+<ng-template #switcher>
+  <div class="switcher">
+    <button
+      type="button"
+      class="switcher-button"
+      aria-label="Change window mode"
+      aria-haspopup="listbox"
+      [attr.aria-expanded]="switcherOpen()"
+      (click)="switcherOpen.set(!switcherOpen())"
+      (dblclick)="$event.stopPropagation()"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 9V4h5M20 15v5h-5M4 4l6 6M20 20l-6-6" />
+      </svg>
+    </button>
+    @if (switcherOpen()) {
+      <ui-menu class="switcher-menu" ariaLabel="Window modes" (selectionChange)="request($any($event))">
+        @for (mode of windowMode.offered(); track mode) {
+          <ui-option [value]="mode">{{ label(mode) }}</ui-option>
+        }
+      </ui-menu>
+    }
+  </div>
+</ng-template>

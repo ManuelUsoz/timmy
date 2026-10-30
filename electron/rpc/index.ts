@@ -7,6 +7,8 @@ import { layerSessionsService } from '../sessions/sessions-service';
 import { layerAppInfoHandlers } from './app-info';
 import { layerChatHandlers } from './chat';
 import { layerSessionsHandlers } from './sessions';
+import { layerWindowHandlers } from './window';
+import { layerWindowService } from '../window/window-service';
 
 /** The services chat and sessions share. Built once, so both see the same open sessions. */
 const layerChatServices = layerChatRpc.pipe(
@@ -17,8 +19,8 @@ const layerSessionHandlers = layerSessionsHandlers.pipe(Layer.provide(layerSessi
 
 /**
  * Handlers for every domain in `DesktopRpcs`. Merge new domain handler layers here.
- * Needs a `SessionRepo`; the runtime provides the on-disk one.
+ * Needs a `SessionRepo` and a `WindowHost`; the runtime provides the real ones.
  */
-export const layerDesktopHandlers = Layer.mergeAll(layerAppInfoHandlers, layerChatHandlers, layerSessionHandlers).pipe(
+export const layerDesktopHandlers = Layer.mergeAll(layerAppInfoHandlers, layerChatHandlers, layerSessionHandlers, layerWindowHandlers.pipe(Layer.provide(layerWindowService))).pipe(
   Layer.provide(layerChatServices),
 );

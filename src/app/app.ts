@@ -1,10 +1,10 @@
 import { Component } from '@angular/core';
-import { ChatViewComponent } from './features/chat/chat-view';
+import { ShellComponent } from './features/shell/shell';
 
 @Component({
-  imports: [ChatViewComponent],
+  imports: [ShellComponent],
   selector: 'app-root',
-  template: '<app-chat-view />',
+  template: '<app-shell />',
   styles: ':host { display: block; }',
 })
 export class App {}

@@ -1,6 +1,7 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, screen, shell } from 'electron';
 import path from 'node:path';
 import { registerIpc } from './ipc';
+import { planFor, startupMode } from '../src/shared/window/window.model';
 import { MainRuntime } from './rpc/runtime';
 
 /**
@@ -20,11 +21,14 @@ const TRANSPARENT_BACKGROUND = '#00000000';
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {
+  // Timmy always starts as the Pill at the bottom-right of the primary display (ADR 0004).
+  const start = planFor(startupMode, screen.getPrimaryDisplay().workArea);
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 800,
-    minHeight: 600,
+    ...start.bounds,
+    frame: false,
+    resizable: start.resizable,
+    alwaysOnTop: start.alwaysOnTop,
+    skipTaskbar: start.skipTaskbar,
     show: false, // avoid the white flash, show once the renderer is ready
     title: 'Timmy',
     // The icon is only needed while running from source; packaged apps use the

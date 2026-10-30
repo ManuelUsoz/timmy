@@ -295,3 +295,35 @@ button.ghost:hover:not(:disabled) {
   color: var(--text-secondary);
 }
 
+
+/* Inside the Panel (about 440px) the chat drops the sidebar and tightens up. */
+:host {
+  container-type: inline-size;
+}
+
+@container (max-width: 640px) {
+  app-sessions-sidebar {
+    display: none;
+  }
+
+  .shell {
+    padding: var(--spacing-04);
+    gap: var(--spacing-03);
+  }
+
+  .card {
+    padding: var(--spacing-03) var(--spacing-04);
+  }
+
+  .top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-03);
+  }
+
+  .top h1,
+  .top .muted {
+    display: none;
+  }
+}
