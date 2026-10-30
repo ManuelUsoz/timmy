@@ -1,6 +1,7 @@
 import { app, BrowserWindow, screen, shell } from 'electron';
 import path from 'node:path';
 import { registerIpc } from './ipc';
+import { plannedWindow, setAppWindow } from './window/app-window';
 import { planFor, startupMode } from '../src/shared/window/window.model';
 import { MainRuntime } from './rpc/runtime';
 
@@ -25,8 +26,9 @@ if (e2eUserData) app.setPath('userData', e2eUserData);
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {
-  // Timmy always starts as the Pill at the bottom-right of the primary display (ADR 0004).
-  const start = planFor(startupMode, screen.getPrimaryDisplay().workArea);
+  // Timmy starts as the Pill at the bottom-right of the primary display (ADR 0004); a window recreated
+  // after being closed (macOS) reopens in the mode the service last applied.
+  const start = plannedWindow() ?? planFor(startupMode, screen.getPrimaryDisplay().workArea);
   mainWindow = new BrowserWindow({
     ...start.bounds,
     frame: false,
@@ -54,6 +56,7 @@ function createWindow(): void {
     },
   });
 
+  setAppWindow(mainWindow);
   mainWindow.once('ready-to-show', () => mainWindow?.show());
   mainWindow.on('closed', () => {
     mainWindow = null;

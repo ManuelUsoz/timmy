@@ -12,7 +12,7 @@ const closedPlan = { bounds: { x: -1, y: -1, width: 0, height: 0 } } as unknown 
 const makeHostTestLayer = (applied: Ref.Ref<ReadonlyArray<WindowPlan>>) =>
   Layer.succeed(WindowHost, {
     workArea: Effect.succeed(workArea),
-    apply: (plan) => Ref.update(applied, (all) => [...all, plan]),
+    apply: (plan) => Ref.update(applied, (all) => [...all, plan]).pipe(Effect.as(true)),
     close: Ref.update(applied, (all) => [...all, closedPlan]),
   });
 
@@ -42,6 +42,22 @@ describe('WindowService', () => {
       );
       expect(mode).toBe('Pill');
       expect(yield* Ref.get(applied)).toEqual([closedPlan]);
+    }),
+  );
+
+  it.effect('keeps the mode when the host had no window to apply the plan to', () =>
+    Effect.gen(function* () {
+      const host = Layer.succeed(WindowHost, {
+        workArea: Effect.succeed(workArea),
+        apply: () => Effect.succeed(false),
+        close: Effect.void,
+      });
+      const mode = yield* Effect.gen(function* () {
+        const windows = yield* WindowService;
+        yield* windows.request('Panel');
+        return yield* windows.current;
+      }).pipe(Effect.provide(layerWindowService.pipe(Layer.provide(host))));
+      expect(mode).toBe('Pill');
     }),
   );
 

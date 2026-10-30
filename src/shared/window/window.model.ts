@@ -52,7 +52,7 @@ export const planFor = (mode: WindowMode, workArea: Rect): WindowPlan => {
       },
       alwaysOnTop: false,
       skipTaskbar: false,
-      resizable: false,
+      resizable: true,
     };
   }
   const size = cornerSize(mode);

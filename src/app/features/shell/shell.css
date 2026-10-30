@@ -163,3 +163,10 @@
     animation: none;
   }
 }
+
+.mode-error {
+  color: var(--color-danger, #f87171);
+  font-weight: 600;
+  padding-inline: 4px;
+  cursor: help;
+}

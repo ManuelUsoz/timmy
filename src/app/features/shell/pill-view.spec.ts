@@ -76,6 +76,14 @@ describe('pillView', () => {
     expect(pillView({ ...sent, running: true }, 0).label).toBe('Live');
   });
 
+  it('is Idle for a stored transcript, not Done', () => {
+    expect(pillView({ ...initialChatState, items: [assistant('Old answer.')], stored: true }, 0).label).toBe('Idle');
+  });
+
+  it('is Idle when the Turn ended on a tool', () => {
+    expect(pillView({ ...initialChatState, items: [assistant('Looking.'), tool('Completed', 'Read', 'a.ts')] }, 0).label).toBe('Idle');
+  });
+
   it('is not Done after a failed Turn', () => {
     const state = { ...initialChatState, items: [assistant('partial')], failure: 'Failed' };
     expect(pillView(state, 0).label).toBe('Idle');
