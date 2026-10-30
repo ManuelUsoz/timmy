@@ -1,0 +1,18 @@
+<nav class="rail" [attr.aria-label]="i18n.t('rail.label')">
+  <a class="rail-button" routerLink="/chat" routerLinkActive="on" ariaCurrentWhenActive="page" [attr.aria-label]="i18n.t('rail.chat')" [title]="i18n.t('rail.chat')">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v8H7l-3 2.5V11H2z" /></svg>
+  </a>
+  <a class="rail-button" routerLink="/projects" routerLinkActive="on" ariaCurrentWhenActive="page" [attr.aria-label]="i18n.t('rail.projects')" [title]="i18n.t('rail.projects')">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" /></svg>
+  </a>
+  <a class="rail-button" routerLink="/history" routerLinkActive="on" ariaCurrentWhenActive="page" [attr.aria-label]="i18n.t('rail.history')" [title]="i18n.t('rail.history')">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" /><path d="M8 4.5V8l2.5 1.5" /></svg>
+  </a>
+  <span class="spacer"></span>
+  <a class="rail-button" routerLink="/settings" routerLinkActive="on" ariaCurrentWhenActive="page" [attr.aria-label]="i18n.t('rail.settings')" [title]="i18n.t('rail.settings')">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5h6M11 5h3M2 11h3M8 11h6" /><circle cx="9.5" cy="5" r="1.5" /><circle cx="6.5" cy="11" r="1.5" /></svg>
+  </a>
+</nav>
+<main class="screen">
+  <router-outlet />
+</main>

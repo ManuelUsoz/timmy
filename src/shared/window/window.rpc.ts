@@ -15,6 +15,15 @@ export const WindowRpcs = RpcGroup.make(
     success: WindowMode,
   }),
 
-  /** Quits the app. The frameless window has no title bar, so the renderer offers this itself. */
+  /** Quits the app. The window is frameless in every mode (ADR 0005), so the renderer draws its own controls. */
   Rpc.make('Window.close'),
+
+  /** Minimizes the window to the taskbar. */
+  Rpc.make('Window.minimize'),
+
+  /** Maximizes the window, or restores it when it is maximized. Only Expanded is maximizable. */
+  Rpc.make('Window.toggleMaximize'),
+
+  /** Pushes whether the window is maximized: the current value first, then every change. */
+  Rpc.make('Window.maximized', { success: Schema.Boolean, stream: true }),
 );

@@ -1,0 +1,111 @@
+/* Literals on purpose: --spacing-side lives in @theme inline and is not emitted as a var (224px). */
+:host {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  position: relative;
+}
+
+.projects {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 224px;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--layer-01);
+}
+
+.projects.collapsed {
+  width: var(--control-lg);
+  align-items: center;
+}
+
+.content {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 280px;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--background);
+}
+
+/* Below lg the content floats over the session, next to the Projects column. */
+.content.overlay {
+  position: absolute;
+  inset-block: 0;
+  z-index: 5;
+  box-shadow: var(--shadow-overlay);
+}
+
+.projects.collapsed ~ .content.overlay {
+  inset-inline-start: var(--control-lg);
+}
+
+.projects:not(.collapsed) ~ .content.overlay {
+  inset-inline-start: 224px;
+}
+
+.session {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-03);
+  min-height: var(--control-lg);
+  padding-inline: var(--spacing-03);
+}
+
+.projects:not(.collapsed) .column-header {
+  padding-inline: var(--spacing-05) var(--spacing-03);
+}
+
+h2 {
+  margin: 0;
+  font: var(--text-heading-02);
+}
+
+.placeholder {
+  margin: 0;
+  padding: var(--spacing-05);
+  color: var(--text-helper);
+}
+
+.icon-button,
+.content-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--text-helper);
+  cursor: pointer;
+}
+
+.icon-button {
+  width: var(--control-sm);
+  height: var(--control-sm);
+  padding: 0;
+}
+
+.content-toggle {
+  align-self: flex-start;
+  height: var(--control-sm);
+  margin: var(--spacing-03);
+  padding-inline: var(--spacing-04);
+  background: var(--layer-01);
+  color: var(--text-primary);
+  font: var(--text-body-compact-01);
+}
+
+.icon-button:hover,
+.content-toggle:hover {
+  background: var(--layer-hover);
+  color: var(--text-primary);
+}

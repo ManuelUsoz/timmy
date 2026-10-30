@@ -1,0 +1,13 @@
+# Expanded is a resizable, maximizable frameless window with its own controls
+
+Amends ADR-0004. Expanded now shows the Workspace (rail, projects, project content, chat) and is no longer "a frameless, centered, normal window of a fixed size". It is still frameless, like every Window mode, but it is resizable and maximizable, starts at 1280×800 clamped to 90 % of the work area, and has a minimum size of 800 px wide. Maximized is a state of Expanded, not a fourth Window mode. The Workspace title bar draws minimize, maximize/restore and close itself, in the app's Carbon-style tokens; the system draws no window controls in any mode. Pill and Panel keep their own controls (the Panel's switcher and close button; the Pill has none). The Workspace adapts to Tailwind's default breakpoints: three columns from `xl`, the Projects list collapses to the rail between `lg` and `xl`, and project content becomes an overlay below `lg`. A manual collapse by the user wins over the automatic one.
+
+We tried the native title bar overlay first (`titleBarStyle: 'hidden'` with `titleBarOverlay`, so the system would draw the controls). It does not fit one window that changes mode: the overlay belongs to the window, not to a mode, and the zero-height overlay we set in Pill and Panel did not hide it, so the native buttons showed over the Panel's header. We rejected a fourth "Workspace" mode (Maximized is just a size, and a mode would force the animation and request flow of ADR-0004 to handle it), and separate windows per mode for the reasons in ADR-0004.
+
+## Consequences
+
+- We lose what the system gives a native title bar: Windows 11 Snap Layouts on the maximize button and the system's own maximize behavior and window menu. We reimplement the pieces we need: double-click on the title bar toggles maximize, and the maximized state is read from the window and pushed to the renderer (`Window.maximized`) so the maximize/restore icon follows it, however the window was maximized (our button, the double-click, or the system).
+- The window controls are `Window.minimize`, `Window.toggleMaximize` and `Window.close` on the Window RPC; the renderer never touches the window itself.
+- The fixed Expanded bounds and the "normal window, not resizable" flags in main are replaced; switching modes remembers neither size nor maximized state yet, and Expanded always opens at its initial size.
+- Only Expanded gets a drag region and controls; the 200 ms bounds animation of ADR-0004 still applies when entering and leaving Expanded, and a maximized Expanded animates back to Panel or Pill from its restored bounds.
+- Expanded is the only place that uses the Angular router (hash location, because the renderer loads from `file://`).

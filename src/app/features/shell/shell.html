@@ -20,8 +20,37 @@
     </ui-pill>
     <ng-container *ngTemplateOutlet="switcher" />
   </div>
+} @else if (windowMode.mode() === 'Expanded') {
+  <section class="workspace-frame" animate.enter="mode-in" animate.leave="mode-out" aria-label="Timmy workspace">
+    <header class="titlebar" (dblclick)="toggleMaximize()">
+      <svg class="panel-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>
+      <span class="titlebar-title">Timmy</span>
+      <span class="drag-fill" aria-hidden="true"></span>
+      <ng-container *ngTemplateOutlet="switcher" />
+      <div class="window-controls" (dblclick)="$event.stopPropagation()">
+        <button type="button" class="window-control" [attr.aria-label]="i18n.t('window.minimize')" [title]="i18n.t('window.minimize')" (click)="windowMode.minimize()">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M3 8.5h10" /></svg>
+        </button>
+        @if (windowMode.maximized()) {
+          <button type="button" class="window-control" data-state="maximized" [attr.aria-label]="i18n.t('window.restore')" [title]="i18n.t('window.restore')" (click)="toggleMaximize()">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M5.5 5.5V3.5h7v7h-2M3.5 5.5h7v7h-7z" /></svg>
+        </button>
+        } @else {
+          <button type="button" class="window-control" data-state="normal" [attr.aria-label]="i18n.t('window.maximize')" [title]="i18n.t('window.maximize')" (click)="toggleMaximize()">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M3.5 3.5h9v9h-9z" /></svg>
+        </button>
+        }
+        <button type="button" class="window-control window-control--close" [attr.aria-label]="i18n.t('window.close')" [title]="i18n.t('window.close')" (click)="close()">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" /></svg>
+        </button>
+      </div>
+    </header>
+    @defer (on immediate) {
+      <app-workspace class="workspace-body" />
+    }
+  </section>
 } @else {
-  <section class="panel" animate.enter="mode-in" animate.leave="mode-out" [class.expanded]="windowMode.mode() === 'Expanded'" aria-label="Timmy panel">
+  <section class="panel" animate.enter="mode-in" animate.leave="mode-out" aria-label="Timmy panel">
     <header class="panel-header" (dblclick)="request('Pill')">
       <svg class="panel-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>
       <span class="panel-title">Chat</span>
@@ -58,9 +87,11 @@
       </ui-menu>
     }
   </div>
+  @if (windowMode.mode() !== 'Expanded') {
   <button type="button" class="switcher-button close-button" aria-label="Close Timmy" (click)="close()" (dblclick)="$event.stopPropagation()">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
       <path d="M6 6l12 12M18 6L6 18" />
     </svg>
   </button>
+  }
 </ng-template>
