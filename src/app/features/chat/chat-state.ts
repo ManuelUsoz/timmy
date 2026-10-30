@@ -70,7 +70,9 @@ export const groupByOwner = (state: ChatState): ReadonlyMap<AgentId | undefined,
   const groups = new Map<AgentId | undefined, ChatItem[]>();
   for (const item of state.items) {
     const owner = ownerOf(state, item);
-    groups.set(owner, [...(groups.get(owner) ?? []), item]);
+    const group = groups.get(owner);
+    if (group === undefined) groups.set(owner, [item]);
+    else group.push(item);
   }
   return groups;
 };

@@ -8,9 +8,9 @@ import type { Effort, ModelInfo } from '../../../shared/chat/provider.model';
 import { Cause, Effect, Exit, Stream } from 'effect';
 import type { AppInfo } from '../../../shared/app-info/app-info.rpc';
 import type { ChatEvent } from '../../../shared/chat/event.model';
-import type { AgentId, SessionId } from '../../../shared/chat/ids.model';
+import type { SessionId } from '../../../shared/chat/ids.model';
 import type { PermissionResponse } from '../../../shared/chat/permission.model';
-import { DesktopApi } from '../../core/desktop-api';
+import { DesktopApi, type DesktopApiShape } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
 import type { CommandsState } from './slash-commands';
 import { chatStateFromHistory } from '../sessions/history-state';
@@ -46,7 +46,7 @@ export class ChatController {
   );
   readonly modelControl = new FormControl<string | null>(null);
   readonly effortOptions = computed((): SelectOption<Effort>[] =>
-    (this.models().find((m) => m.id === this.selectedModel())?.efforts ?? ['Default']).map((value) => ({
+    this.effortsOf(this.selectedModel()).map((value) => ({
       value,
       label: value === 'XHigh' ? 'Extra high' : value,
     })),
@@ -78,38 +78,19 @@ export class ChatController {
   });
 
   constructor() {
-    const program = Effect.gen(function* () {
-      const desktop = yield* DesktopApi;
-      return yield* desktop['AppInfo.get']();
-    });
-
-    void this.runtime.run(program).then(
-      Exit.match({
-        onFailure: (cause) => this.error.set(Cause.pretty(cause)),
-        onSuccess: (appInfo) => {
-          this.info.set(appInfo);
-          this.loadCommands(appInfo.cwd);
-          this.watchSessions(appInfo.cwd);
-        },
-      }),
+    void this.call(
+      (desktop) => desktop['AppInfo.get'](),
+      (appInfo) => {
+        this.info.set(appInfo);
+        this.loadCommands(appInfo.cwd);
+        this.watchSessions(appInfo.cwd);
+      },
     );
-
-    const modelsProgram = Effect.gen(function* () {
-      const desktop = yield* DesktopApi;
-      return yield* desktop['Chat.models']();
-    });
-
-    void this.runtime.run(modelsProgram).then(
-      Exit.match({
-        onFailure: (cause) => this.error.set(Cause.pretty(cause)),
-        onSuccess: (models) => this.models.set(models),
-      }),
-    );
+    void this.call((desktop) => desktop['Chat.models'](), (models) => this.models.set(models));
 
     this.modelControl.valueChanges.pipe(takeUntilDestroyed()).subscribe((id) => {
       this.selectedModel.set(id);
-      const efforts = this.models().find((m) => m.id === id)?.efforts ?? ['Default'];
-      if (!efforts.includes(this.effortControl.value)) this.effortControl.setValue('Default', { emitEvent: false });
+      if (!this.effortsOf(id).includes(this.effortControl.value)) this.effortControl.setValue('Default', { emitEvent: false });
       this.resetSession();
     });
     this.effortControl.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.resetSession());
@@ -134,19 +115,22 @@ export class ChatController {
     });
   }
 
+  private effortsOf(modelId: string | null): ReadonlyArray<Effort> {
+    return this.models().find((m) => m.id === modelId)?.efforts ?? ['Default'];
+  }
+
+  /** Runs one RPC at the edge; failures land in `error` unless the caller handles them. */
+  private call<A, E>(
+    f: (desktop: DesktopApiShape) => Effect.Effect<A, E>,
+    onSuccess: (value: A) => void,
+    onFailure: (cause: Cause.Cause<unknown>) => void = (cause) => this.error.set(Cause.pretty(cause)),
+  ): Promise<void> {
+    return this.runtime.run(Effect.flatMap(DesktopApi, f)).then(Exit.match({ onFailure, onSuccess }));
+  }
+
   /** Loads the project's Sessions and reloads whenever main pushes a change. */
   private watchSessions(cwd: string): void {
-    const load = Effect.gen(function* () {
-      const desktop = yield* DesktopApi;
-      return yield* desktop['Sessions.list']({ cwd });
-    });
-    const refresh = () =>
-      this.runtime.run(load).then(
-        Exit.match({
-          onFailure: (cause) => this.error.set(Cause.pretty(cause)),
-          onSuccess: (items) => this.sessions.set(items),
-        }),
-      );
+    const refresh = () => this.call((desktop) => desktop['Sessions.list']({ cwd }), (items) => this.sessions.set(items));
     void refresh();
     const changes = Effect.gen(function* () {
       const desktop = yield* DesktopApi;
@@ -157,15 +141,10 @@ export class ChatController {
 
   private loadCommands(cwd: string): void {
     this.commands.set({ status: 'loading' });
-    const program = Effect.gen(function* () {
-      const desktop = yield* DesktopApi;
-      return yield* desktop['Chat.commands']({ cwd });
-    });
-    void this.runtime.run(program).then(
-      Exit.match({
-        onFailure: (cause) => this.commands.set({ status: 'failed', detail: Cause.pretty(cause) }),
-        onSuccess: (items) => this.commands.set({ status: 'ready', items }),
-      }),
+    void this.call(
+      (desktop) => desktop['Chat.commands']({ cwd }),
+      (items) => this.commands.set({ status: 'ready', items }),
+      (cause) => this.commands.set({ status: 'failed', detail: Cause.pretty(cause) }),
     );
   }
 
@@ -176,12 +155,7 @@ export class ChatController {
     this.sessionId = undefined;
     // The session stays the same across option changes: the next message resumes it.
     this.resumeFrom = sessionId;
-    void this.runtime.run(
-      Effect.gen(function* () {
-        const desktop = yield* DesktopApi;
-        yield* desktop['Chat.closeSession']({ sessionId });
-      }),
-    );
+    void this.call((desktop) => desktop['Chat.closeSession']({ sessionId }), () => undefined);
   }
 
   send(): void {
@@ -236,15 +210,10 @@ export class ChatController {
     this.resetSession();
     this.selectedSessionId.set(ref.sessionId);
     this.resumeFrom = ref.subagent === undefined ? ref.sessionId : undefined;
-    const program = Effect.gen(function* () {
-      const desktop = yield* DesktopApi;
-      return yield* desktop['Sessions.history']({ ref });
-    });
-    void this.runtime.run(program).then(
-      Exit.match({
-        onFailure: (cause) => this.chat.set({ ...initialChatState, failure: Cause.pretty(cause) }),
-        onSuccess: (history) => this.chat.set(chatStateFromHistory(history)),
-      }),
+    void this.call(
+      (desktop) => desktop['Sessions.history']({ ref }),
+      (history) => this.chat.set(chatStateFromHistory(history)),
+      (cause) => this.chat.set({ ...initialChatState, failure: Cause.pretty(cause) }),
     );
   }
 
@@ -264,23 +233,12 @@ export class ChatController {
   answerPermission(response: PermissionResponse): void {
     const sessionId = this.sessionId;
     if (sessionId === undefined) return;
-    void this.runtime.run(
-      Effect.gen(function* () {
-        const desktop = yield* DesktopApi;
-        yield* desktop['Chat.resolvePermission']({ sessionId, response });
-      }),
-    );
+    void this.call((desktop) => desktop['Chat.resolvePermission']({ sessionId, response }), () => undefined);
   }
-
 
   stop(): void {
     const sessionId = this.sessionId;
     if (sessionId === undefined) return;
-    void this.runtime.run(
-      Effect.gen(function* () {
-        const desktop = yield* DesktopApi;
-        yield* desktop['Chat.interrupt']({ sessionId });
-      }),
-    );
+    void this.call((desktop) => desktop['Chat.interrupt']({ sessionId }), () => undefined);
   }
 }

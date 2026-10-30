@@ -50,7 +50,7 @@
     @if (switcherOpen()) {
       <ui-menu class="switcher-menu" ariaLabel="Window modes" (selectionChange)="request($any($event))">
         @for (mode of windowMode.offered(); track mode) {
-          <ui-option [value]="mode">{{ label(mode) }}</ui-option>
+          <ui-option [value]="mode">{{ mode }}</ui-option>
         }
       </ui-menu>
     }
