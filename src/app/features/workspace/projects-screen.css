@@ -117,13 +117,6 @@ h2 {
   color: var(--text-secondary);
 }
 
-.failure {
-  margin: 0;
-  padding: var(--spacing-03) var(--spacing-05);
-  font: var(--text-helper-text-01);
-  color: var(--text-error);
-}
-
 .icon-button,
 .content-toggle {
   display: inline-flex;

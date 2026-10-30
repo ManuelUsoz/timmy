@@ -5,6 +5,7 @@ import type { Project } from '../../../shared/projects/projects.model';
 import type { ProjectId, SessionSummary } from '../../../shared/sessions/sessions.model';
 import { DesktopApi, type DesktopApiShape } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
+import { ToastService } from '../../core/toast';
 import { ChatController } from '../chat/chat-controller';
 import { filterProjects, sortProjects } from './project-search';
 import { sessionStateOf, stateTone, type SessionState } from './session-state';
@@ -34,13 +35,14 @@ export interface LiveBadge {
 export class ProjectsState {
   private readonly runtime = inject(EffectRuntime);
   private readonly chat = inject(ChatController);
+  private readonly toasts = inject(ToastService);
 
   readonly projects = signal<Loadable<Project>>({ status: 'loading' });
   readonly query = signal('');
   readonly selectedId = signal<ProjectId | undefined>(undefined);
   readonly folder = signal<FolderState>('Checking');
-  /** Why the folder of the selected project could not be checked, if it could not. */
-  readonly folderFailure = signal<string | null>(null);
+  /** Whether the last check of the folder failed, so a failure is told once and not on every window focus. */
+  private folderCheckFailed = false;
   readonly sessions = signal<Loadable<SessionSummary>>({ status: 'loading' });
 
   /** Bumped per selection, so a slower answer about a project that is no longer selected is dropped. */
@@ -100,7 +102,11 @@ export class ProjectsState {
     if (this.projects().status === 'failed') this.projects.set({ status: 'loading' });
     return this.runtime.run(Effect.flatMap(DesktopApi, (desktop) => desktop['Projects.list']())).then(
       Exit.match({
-        onFailure: (cause) => this.projects.set({ status: 'failed', detail: Cause.pretty(cause) }),
+        onFailure: (cause) => {
+          const detail = Cause.pretty(cause);
+          this.projects.set({ status: 'failed', detail });
+          this.toasts.error('projects.loadFailed', { detail });
+        },
         onSuccess: (items) => this.projects.set({ status: 'ready', items }),
       }),
     );
@@ -114,7 +120,7 @@ export class ProjectsState {
     this.selection++;
     this.selectedId.set(projectId);
     this.folder.set('Checking');
-    this.folderFailure.set(null);
+    this.folderCheckFailed = false;
     this.sessions.set({ status: 'loading' });
     this.loadSessions(true);
     this.recheckFolder();
@@ -143,12 +149,13 @@ export class ProjectsState {
       Exit.match({
         onFailure: (cause) => {
           if (selection !== this.selection) return;
-          this.folderFailure.set(Cause.pretty(cause));
+          if (!this.folderCheckFailed) this.toasts.error('projects.checkFailed', { detail: Cause.pretty(cause) });
+          this.folderCheckFailed = true;
           if (this.folder() === 'Checking') this.folder.set('Present');
         },
         onSuccess: (status) => {
           if (selection !== this.selection) return;
-          this.folderFailure.set(null);
+          this.folderCheckFailed = false;
           this.folder.set(status);
         },
       }),
@@ -164,7 +171,12 @@ export class ProjectsState {
     this.call(
       (desktop) => desktop['Sessions.list']({ cwd: project.cwd }),
       Exit.match({
-        onFailure: (cause) => selection === this.selection && this.sessions.set({ status: 'failed', detail: Cause.pretty(cause) }),
+        onFailure: (cause) => {
+          if (selection !== this.selection) return;
+          const detail = Cause.pretty(cause);
+          this.sessions.set({ status: 'failed', detail });
+          this.toasts.error('sessions.loadFailed', { detail });
+        },
         onSuccess: (items) => selection === this.selection && this.sessions.set({ status: 'ready', items }),
       }),
     );
@@ -177,6 +189,7 @@ export class ProjectsState {
   remove(projectId: ProjectId): Promise<boolean> {
     return this.runtime.run(Effect.flatMap(DesktopApi, (desktop) => desktop['Projects.remove']({ projectId }))).then(async (exit) => {
       const removed = Exit.isSuccess(exit);
+      if (!removed) this.toasts.error('projects.removeFailed', { detail: Cause.pretty(exit.cause) });
       if (removed && this.selectedId() === projectId) this.deselect();
       await this.refresh();
       return removed;

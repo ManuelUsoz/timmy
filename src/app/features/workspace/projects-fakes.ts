@@ -42,6 +42,11 @@ export interface FakeBackend {
   gitMissing: boolean;
   /** Makes `Projects.list` break, as a failing disk would. */
   listFails: boolean;
+  /** Makes `Sessions.list`, `Projects.checkFolder` and `Projects.remove` break, and `git init` fail. */
+  sessionsFail: boolean;
+  checkFails: boolean;
+  removeFails: boolean;
+  initFails: boolean;
   /** Calls the UI made, as `Name` or `Name:argument`. */
   calls: string[];
 }
@@ -50,6 +55,10 @@ export interface FakeBackend {
 export const makeBackend = (initial: Partial<FakeBackend> = {}): FakeBackend => ({
   gitMissing: false,
   listFails: false,
+  sessionsFail: false,
+  checkFails: false,
+  removeFails: false,
+  initFails: false,
   calls: [],
   ...initial,
   projects: [...(initial.projects ?? [])],
@@ -93,6 +102,7 @@ export const layerFakeProjects = (backend: FakeBackend) =>
         }),
       'Projects.remove': ({ projectId }) =>
         Effect.gen(function* () {
+          if (backend.removeFails) return yield* Effect.die('the store is read-only');
           if (!backend.projects.some((candidate) => candidate.projectId === projectId)) return yield* notFound(projectId);
           backend.projects = backend.projects.filter((candidate) => candidate.projectId !== projectId);
           backend.calls.push(`Projects.remove:${projectId}`);
@@ -105,12 +115,14 @@ export const layerFakeProjects = (backend: FakeBackend) =>
           if (backend.gitMissing) {
             return yield* new ProjectsError({ reason: 'GitUnavailable', detail: 'git is not installed' });
           }
+          if (backend.initFails) return yield* new ProjectsError({ reason: 'GitInitFailed', detail: 'fatal: cannot mkdir .git' });
           if (path in backend.folders && backend.folders[path] === null) backend.folders[path] = 'master';
           return yield* inspect(backend, path);
         }),
       'Projects.checkFolder': ({ projectId }) =>
         Effect.gen(function* () {
           backend.calls.push(`Projects.checkFolder:${projectId}`);
+          if (backend.checkFails) return yield* Effect.die('the disk is unreadable');
           if (!backend.projects.some((candidate) => candidate.projectId === projectId)) return yield* notFound(projectId);
           return backend.missing.has(projectId) ? ('Missing' as const) : ('Present' as const);
         }),
@@ -123,7 +135,8 @@ export const layerFakeProjects = (backend: FakeBackend) =>
         }),
     }),
     SessionsRpcs.toLayer({
-      'Sessions.list': ({ cwd }) => Effect.sync(() => backend.sessions.filter((candidate) => candidate.cwd === cwd)),
+      'Sessions.list': ({ cwd }) =>
+        backend.sessionsFail ? Effect.die('the sessions are unreadable') : Effect.sync(() => backend.sessions.filter((candidate) => candidate.cwd === cwd)),
       'Sessions.history': ({ ref }) =>
         Effect.succeed([
           { _tag: 'Message' as const, role: 'User' as const, text: `question ${ref.sessionId}` },

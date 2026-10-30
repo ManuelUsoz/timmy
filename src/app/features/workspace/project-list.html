@@ -17,7 +17,7 @@
       <p class="note" role="status">{{ i18n.t('projects.loading') }}</p>
     }
     @case ('failed') {
-      <p class="note error" role="alert" [title]="list.detail">{{ i18n.t('projects.loadFailed') }}</p>
+      <p class="note" [title]="list.detail">{{ i18n.t('projects.unavailable') }}</p>
     }
     @case ('ready') {
       @if (state.all().length === 0) {
