@@ -706,7 +706,9 @@ describe('Projects screen', () => {
       expect(hero).toEqual(['Quitar proyecto']);
       expect(buttonNamed('Localizar carpeta')).toBeUndefined();
       expect(buttonNamed('Reintentar')).toBeUndefined();
-      expect(el.querySelector('app-project-content')).toBeNull();
+      // The column stays for Archivos, which says the folder cannot be read; no Sessions or Terminals to use.
+      expect(el.querySelector('app-project-content section[aria-label="Sesiones"]')).toBeNull();
+      expect(el.querySelector('app-project-content section[aria-label="Terminales"]')).toBeNull();
     });
 
     it('tells in a toast, once, when the folder cannot be checked, and the project stays usable', async () => {
@@ -728,7 +730,7 @@ describe('Projects screen', () => {
       window.dispatchEvent(new Event('focus'));
       await settle();
       expect(el.querySelector('app-workspace-hero h2')?.textContent).toBe('No encontramos la carpeta');
-      expect(el.querySelector('app-project-content')).toBeNull();
+      expect(el.querySelector('app-project-content section[aria-label="Sesiones"]')).toBeNull();
     });
 
     it('checks again when the window regains focus: the folder comes back', async () => {
@@ -746,6 +748,86 @@ describe('Projects screen', () => {
       await click('Quitar proyecto');
       expect(rowTitles('app-project-list')).toEqual([]);
       expect(el.querySelector('app-workspace-hero h2')?.textContent).toBe('Aún no tienes proyectos');
+    });
+  });
+
+  describe('Archivos and pending actions', () => {
+    const filesGroup = (el: HTMLElement) => el.querySelector<HTMLElement>('app-project-content section[aria-label="Archivos"]')!;
+    const treeLabels = (el: HTMLElement) =>
+      Array.from(filesGroup(el).querySelectorAll('[role=treeitem] .as-treeitem__label')).map((node) => node.textContent);
+
+    it('shows the Archivos group with the static tree, its modified mark and a dimmed node_modules', async () => {
+      const { el } = await setup({ backend: makeBackend({ projects: [timmy] }) });
+      const group = filesGroup(el);
+      expect(group.querySelector('.label')?.textContent).toBe('Archivos');
+      expect(group.querySelector('[role=tree]')?.getAttribute('aria-label')).toBe('Archivos del proyecto');
+      expect(treeLabels(el)).toEqual(['src', 'app', 'core', 'features', 'electron', 'node_modules', 'CLAUDE.md', 'package.json']);
+      expect(group.querySelector('.as-treeitem__flag')?.getAttribute('aria-label')).toBe('Modificado');
+      const dimmed = Array.from(group.querySelectorAll('[data-dimmed] .as-treeitem__label')).map((node) => node.textContent);
+      expect(dimmed).toEqual(['node_modules']);
+    });
+
+    it('expands and collapses folders as pure UI, with no call to main', async () => {
+      const backend = makeBackend({ projects: [timmy] });
+      const { el, settle } = await setup({ backend });
+      const calls = [...backend.calls];
+      const folder = (name: string) =>
+        Array.from(filesGroup(el).querySelectorAll<HTMLElement>('[role=treeitem]')).find((i) => i.querySelector('.as-treeitem__label')?.textContent === name)!;
+      folder('electron').click();
+      await settle();
+      expect(treeLabels(el)).toContain('main.ts');
+      folder('src').click();
+      await settle();
+      expect(treeLabels(el)).toEqual(['src', 'electron', 'main.ts', 'node_modules', 'CLAUDE.md', 'package.json']);
+      expect(backend.calls).toEqual(calls);
+    });
+
+    it('collapses and expands the whole group with its header button', async () => {
+      const { el, click } = await setup({ backend: makeBackend({ projects: [timmy] }) });
+      await click('Contraer Archivos');
+      expect(filesGroup(el).querySelector('[role=tree]')).toBeNull();
+      expect(filesGroup(el).querySelector('button')?.getAttribute('aria-expanded')).toBe('false');
+      await click('Expandir Archivos');
+      expect(filesGroup(el).querySelector('[role=tree]')).not.toBeNull();
+    });
+
+    it('has the pending buttons enabled to the keyboard, named, and with no effect when pressed', async () => {
+      const backend = makeBackend({ projects: [timmy], sessions: [session('timmy', 's1', 'Refactor del handshake')] });
+      const { el, router, settle, sessionRow, toastTexts } = await setup({ backend });
+      sessionRow('Refactor del handshake')!.click();
+      await settle();
+      const calls = [...backend.calls];
+      const url = router.url;
+      const pending = ['Abrir en el explorador', 'Buscar archivo', 'Bifurcar', 'Ver cambios', 'Más acciones'].map((name) => {
+        const button = Array.from(el.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.getAttribute('aria-label') === name);
+        expect(button, name).toBeDefined();
+        expect(button!.disabled, name).toBe(false);
+        expect(button!.getAttribute('aria-disabled'), name).toBe('true');
+        expect(button!.tabIndex, name).toBe(0);
+        return button!;
+      });
+      const html = el.innerHTML;
+      pending.forEach((button) => button.click());
+      await settle();
+      expect(el.innerHTML).toBe(html);
+      expect(router.url).toBe(url);
+      expect(backend.calls).toEqual(calls);
+      expect(toastTexts()).toEqual([]);
+    });
+
+    it('keeps the chat header actions out of the Panel chat', async () => {
+      const { el } = await setup({ backend: makeBackend({ projects: [timmy] }) });
+      expect(el.querySelector('app-chat-view')).toBeNull();
+      expect(el.querySelector('app-chat-header-actions')).toBeNull();
+    });
+
+    it('says the folder cannot be read in Archivos when the folder is missing, without tree or search', async () => {
+      const { el } = await setup({ backend: makeBackend({ projects: [timmy], missing: new Set([timmy.projectId]) }) });
+      const group = filesGroup(el);
+      expect(group.querySelector('.empty-title')?.textContent).toBe('No se puede leer la carpeta');
+      expect(group.querySelector('.empty small')?.textContent).toBe('Los archivos volverán cuando la carpeta esté disponible.');
+      expect(group.querySelector('[role=tree]')).toBeNull();
+      expect(group.querySelector('[aria-label="Buscar archivo"]')).toBeNull();
     });
   });
 

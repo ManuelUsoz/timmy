@@ -18,6 +18,12 @@ export interface TreeNode {
   readonly meta?: string;
   /** Activity variant: state label with dot, shown before meta. */
   readonly badge?: TreeNodeBadge;
-  /** Activity variant: initial open state of a group. */
+  /** Initial open state of a group. */
   readonly expanded?: boolean;
+  /** Default variant: draws a folder or file icon before the label. */
+  readonly kind?: 'folder' | 'file';
+  /** Default variant: the node is drawn muted (for example an ignored folder). */
+  readonly dimmed?: boolean;
+  /** Default variant: a short mark after the label, with its accessible name. */
+  readonly flag?: { readonly text: string; readonly label: string };
 }

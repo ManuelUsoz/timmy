@@ -6,6 +6,8 @@ import { ButtonComponent } from '../../shared/ui/button/button';
 import { ListRow } from '../../shared/ui/list-row/list-row';
 import { StateComponent } from '../../shared/ui/state/state';
 import { TagComponent } from '../../shared/ui/tag/tag';
+import { TreeViewComponent } from '../../shared/ui/tree-view/tree-view';
+import { sampleFiles } from './files-sample';
 import { ProjectsState } from './projects-state';
 import { stateTone, type SessionState } from './session-state';
 import { terminalsOf, type TerminalEntry, type TerminalId } from './terminal-entries';
@@ -20,7 +22,7 @@ import { timeAgo } from './time-ago';
  */
 @Component({
   selector: 'app-project-content',
-  imports: [ButtonComponent, ListRow, StateComponent, TagComponent],
+  imports: [ButtonComponent, ListRow, StateComponent, TagComponent, TreeViewComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './project-content.html',
   styleUrl: './project-content.css',
@@ -37,6 +39,8 @@ export class ProjectContent {
   readonly openSessionId = input<SessionId>();
   /** A new session is being started, so its button waits. */
   readonly creating = input(false);
+  /** The project's folder is not on disk: only the header and an Archivos that says so are shown. */
+  readonly folderMissing = input(false);
   /** The terminal of the route. */
   readonly openTerminalId = input<TerminalId>();
   readonly sessionOpened = output<SessionSummary>();
@@ -46,6 +50,10 @@ export class ProjectContent {
   /** "Nueva sesión" was pressed: the screen starts it and opens it. */
   readonly newSession = output<void>();
   readonly removed = output<void>();
+
+  /** Archivos is a static placeholder for now (see files-sample.ts); it changes only with the language. */
+  protected readonly files = computed(() => sampleFiles(this.i18n.t('files.modified')));
+  protected readonly filesOpen = signal(true);
 
   protected readonly project = this.state.selected;
   protected readonly sessions = computed(() => this.state.sessions());

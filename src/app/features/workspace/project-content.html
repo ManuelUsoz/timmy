@@ -7,6 +7,19 @@
       <h2 [attr.title]="project.name">{{ project.name }}</h2>
       <span class="path" [attr.title]="project.cwd">{{ project.cwd }}</span>
     </div>
+    <!-- Pending: no handler yet. aria-disabled keeps it in the tab order, as the ticket asks. -->
+    <button
+      uiButton
+      kind="ghost"
+      iconOnly
+      size="sm"
+      type="button"
+      aria-disabled="true"
+      [attr.aria-label]="i18n.t('project.openInExplorer')"
+      [attr.title]="i18n.t('project.openInExplorer')"
+    >
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2h5v5M14 2L7 9M12 9v4H3V4h4" /></svg>
+    </button>
     <button
       uiButton
       kind="ghost"
@@ -22,6 +35,7 @@
     </button>
   </header>
 
+  @if (!folderMissing()) {
   <section class="group" [attr.aria-label]="i18n.t('sessions.title')">
     @let list = sessions();
     <div class="group-header">
@@ -172,6 +186,42 @@
           </as-list-row>
         }
       </div>
+    }
+  </section>
+  }
+
+  <section class="group" [attr.aria-label]="i18n.t('files.title')">
+    <div class="group-header">
+      <button
+        uiButton
+        kind="ghost"
+        iconOnly
+        size="sm"
+        type="button"
+        [attr.aria-label]="filesOpen() ? i18n.t('files.collapse') : i18n.t('files.expand')"
+        [attr.aria-expanded]="filesOpen()"
+        (click)="filesOpen.set(!filesOpen())"
+      >
+        <svg class="chevron" [class.closed]="!filesOpen()" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M4 6l4 4 4-4" /></svg>
+      </button>
+      <span class="label">{{ i18n.t('files.title') }}</span>
+      <span class="spacer"></span>
+      @if (!folderMissing()) {
+        <!-- Pending: no handler yet; aria-disabled keeps it focusable. -->
+        <button uiButton kind="ghost" iconOnly size="sm" type="button" aria-disabled="true" [attr.aria-label]="i18n.t('files.search')" [attr.title]="i18n.t('files.search')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4" /><path d="M10 10l3.5 3.5" /></svg>
+        </button>
+      }
+    </div>
+    @if (filesOpen()) {
+      @if (folderMissing()) {
+        <div class="empty">
+          <p class="empty-title">{{ i18n.t('files.unreadableTitle') }}</p>
+          <small>{{ i18n.t('files.unreadableDetail') }}</small>
+        </div>
+      } @else {
+        <ui-tree-view size="sm" toggleOnActivate [label]="i18n.t('files.tree')" [nodes]="files()" />
+      }
     }
   </section>
 }
