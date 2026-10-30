@@ -17,7 +17,8 @@
     "package": "npm run build && electron-builder",
     "typecheck": "tsc -p tsconfig.electron.json --noEmit",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "e2e": "node e2e/run.mjs"
   },
   "private": true,
   "engines": {
@@ -52,6 +53,7 @@
     "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
     "jsdom": "^30.0.0",
+    "playwright-core": "^1.64.1",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",

@@ -18,6 +18,10 @@ const FALLBACK_BACKGROUND = '#0b0d12';
 /** Transparent page background so the OS material (Mica / vibrancy) can show through. */
 const TRANSPARENT_BACKGROUND = '#00000000';
 
+/** The e2e harness gives each run its own data directory so it never touches the user's sessions. */
+const e2eUserData = process.env['TIMMY_E2E'] === '1' ? process.env['TIMMY_USER_DATA'] : undefined;
+if (e2eUserData) app.setPath('userData', e2eUserData);
+
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {
