@@ -37,8 +37,11 @@ export class I18n {
     document.documentElement.lang = language;
   }
 
-  t(key: MessageKey): string {
-    return this.dictionary()[key];
+  /** The text of `key`; each `{name}` in it is replaced by the value of `params.name`. */
+  t(key: MessageKey, params?: Readonly<Record<string, string | number>>): string {
+    const text = this.dictionary()[key];
+    if (params === undefined) return text;
+    return text.replace(/\{(\w+)\}/g, (match, name: string) => String(params[name] ?? match));
   }
 
   setLanguage(language: Language): void {

@@ -10,7 +10,7 @@ import type { PermissionResponse } from '../../../shared/chat/permission.model';
 import type { ToolCall } from '../../../shared/chat/tool-call.model';
 import { ChatController } from '../chat/chat-controller';
 import { addUserMessage, initialChatState } from '../chat/chat-state';
-import { layerSessionsUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
+import { layerProjectsUnused, layerSessionsUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { provideWorkspaceRouter } from '../workspace/workspace.routes';
 import { ShellComponent } from './shell';
@@ -61,6 +61,7 @@ const setup = async () => {
     }),
     layerChat,
     layerSessionsUnused,
+    layerProjectsUnused,
     SettingsRpcs.toLayer({
       'Settings.get': () => Effect.succeed({ language: 'es' as const }),
       'Settings.setLanguage': ({ language }) => Effect.succeed({ language }),

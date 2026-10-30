@@ -2,6 +2,7 @@ import { Effect, Layer, Stream } from 'effect';
 import { RpcClient, RpcTest, type Rpc, type RpcGroup } from 'effect/rpc';
 import { ChatRpcs } from '../../shared/chat/chat.rpc';
 import { DesktopRpcs } from '../../shared/rpc/desktop-rpcs';
+import { ProjectsRpcs } from '../../shared/projects/projects.rpc';
 import { SessionsRpcs } from '../../shared/sessions/sessions.rpc';
 import { SettingsRpcs } from '../../shared/settings/settings.rpc';
 import { WindowRpcs } from '../../shared/window/window.rpc';
@@ -74,4 +75,18 @@ const settingsUnused = () => Effect.die('Settings handler not under test');
 export const layerSettingsUnused = SettingsRpcs.toLayer({
   'Settings.get': settingsUnused,
   'Settings.setLanguage': settingsUnused,
+});
+
+const projectsUnused = () => Effect.die('Projects handler not under test');
+
+/** Projects handlers that die when called, so a test of another domain can still build `DesktopRpcs`. */
+export const layerProjectsUnused = ProjectsRpcs.toLayer({
+  'Projects.list': projectsUnused,
+  'Projects.add': projectsUnused,
+  'Projects.remove': projectsUnused,
+  'Projects.pickFolder': projectsUnused,
+  'Projects.inspectFolder': projectsUnused,
+  'Projects.initGit': projectsUnused,
+  'Projects.checkFolder': projectsUnused,
+  'Projects.markUsed': projectsUnused,
 });

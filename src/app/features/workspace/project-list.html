@@ -1,0 +1,56 @@
+<div class="search">
+  <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4" /><path d="M10 10l3.5 3.5" /></svg>
+  <input
+    #query
+    type="search"
+    [value]="state.query()"
+    [placeholder]="i18n.t('projects.search')"
+    [attr.aria-label]="i18n.t('projects.search')"
+    (input)="state.query.set(query.value)"
+  />
+</div>
+
+<div class="list" role="listbox" [attr.aria-label]="i18n.t('projects.title')">
+  @let list = state.projects();
+  @switch (list.status) {
+    @case ('loading') {
+      <p class="note" role="status">{{ i18n.t('projects.loading') }}</p>
+    }
+    @case ('failed') {
+      <p class="note error" role="alert" [title]="list.detail">{{ i18n.t('projects.loadFailed') }}</p>
+    }
+    @case ('ready') {
+      @if (state.all().length === 0) {
+        <p class="note">{{ i18n.t('projects.listEmpty') }}</p>
+      } @else if (state.visible().length === 0) {
+        <p class="note">{{ i18n.t('projects.searchEmpty') }}</p>
+      }
+      @for (project of state.visible(); track project.projectId) {
+        <as-list-row
+          lead
+          [label]="project.name"
+          [meta]="project.cwd"
+          [selected]="project.projectId === state.selectedId()"
+          [attr.aria-current]="project.projectId === state.selectedId() ? 'true' : null"
+          (activate)="opened.emit(project.projectId)"
+        >
+          <svg leading class="folder" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M2 4.5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" />
+          </svg>
+          <span trailing>
+            @if (state.badges().get(project.projectId); as badge) {
+              <ui-state [tone]="badge.tone" [attr.aria-label]="i18n.t('projects.live', { count: badge.count })">{{ badge.count }}</ui-state>
+            }
+          </span>
+        </as-list-row>
+      }
+    }
+  }
+</div>
+
+<div class="footer">
+  <button uiButton kind="tertiary" block type="button" (click)="newProject.emit()">
+    {{ i18n.t('projects.new') }}
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+  </button>
+</div>

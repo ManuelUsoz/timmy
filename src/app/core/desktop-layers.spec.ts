@@ -2,7 +2,7 @@ import { describe, expect, it } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
 import { AppInfoRpcs, type AppInfo } from '../../shared/app-info/app-info.rpc';
 import { DesktopApi } from './desktop-api';
-import { layerChatUnused, layerSessionsUnused, layerSettingsUnused, layerWindowUnused, makeDesktopTestLayer } from './desktop-layers';
+import { layerChatUnused, layerProjectsUnused, layerSessionsUnused, layerSettingsUnused, layerWindowUnused, makeDesktopTestLayer } from './desktop-layers';
 import { acquireDesktopPort } from './desktop-port';
 
 const appInfo: AppInfo = {
@@ -24,7 +24,7 @@ describe('DesktopApi', () => {
       const info = yield* desktop['AppInfo.get']();
       expect(info).toEqual(appInfo);
     }).pipe(
-      Effect.provide(makeDesktopTestLayer(Layer.mergeAll(handlers, layerChatUnused, layerSessionsUnused, layerSettingsUnused, layerWindowUnused))),
+      Effect.provide(makeDesktopTestLayer(Layer.mergeAll(handlers, layerChatUnused, layerProjectsUnused, layerSessionsUnused, layerSettingsUnused, layerWindowUnused))),
     ),
   );
 

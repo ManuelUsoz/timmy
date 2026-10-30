@@ -16,28 +16,82 @@
     </button>
   </div>
   @if (layout.layout().projects === 'expanded') {
-    <p class="placeholder">{{ i18n.t('projects.placeholder') }}</p>
+    <app-project-list (opened)="openProject($event)" (newProject)="dialogOpen.set(true)" />
   }
 </aside>
 
-@if (layout.layout().content === 'column' || layout.contentOpen()) {
+@if (showsContent() && (layout.layout().content === 'column' || layout.contentOpen())) {
   <section
     class="content"
     [class.overlay]="layout.layout().content === 'overlay'"
     [attr.aria-label]="i18n.t('projects.content')"
   >
-    <div class="column-header">
-      <h2>{{ i18n.t('projects.content') }}</h2>
-    </div>
-    <p class="placeholder">{{ i18n.t('projects.contentPlaceholder') }}</p>
+    <app-project-content [openSessionId]="routeSessionId()" (sessionOpened)="openSessionOf($event)" (removed)="removeSelected()" />
   </section>
 }
 
 <section class="session">
-  @if (layout.layout().content === 'overlay') {
+  @if (showsContent() && layout.layout().content === 'overlay') {
     <button type="button" class="content-toggle" [attr.aria-expanded]="layout.contentOpen()" (click)="layout.toggleContent()">
       {{ layout.contentOpen() ? i18n.t('projects.hideContent') : i18n.t('projects.showContent') }}
     </button>
   }
-  <p class="placeholder">{{ i18n.t('projects.chatPlaceholder') }}</p>
+
+  @if (!listReady()) {
+    <!-- The list is loading or failed; the list column says which. -->
+  } @else if (!hasProjects()) {
+    <app-workspace-hero [title]="i18n.t('projects.emptyTitle')" [detail]="i18n.t('projects.emptyDetail')">
+      <button uiButton kind="primary" type="button" (click)="dialogOpen.set(true)">
+        {{ i18n.t('projects.new') }}
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+      </button>
+    </app-workspace-hero>
+  } @else if (state.selected(); as project) {
+    @if (folderMissing()) {
+      <app-workspace-hero icon="folder-error" [title]="i18n.t('folder.missingTitle')" [detail]="i18n.t('folder.missingDetail')">
+        <code class="path">{{ project.cwd }}</code>
+        <div class="note" role="alert">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2l6.5 11.5h-13zM8 6.5v3M8 11.5v.01" /></svg>
+          <div>
+            <span class="note-title">{{ i18n.t('folder.missingNoteTitle') }}</span>
+            <p>{{ i18n.t('folder.missingNote') }}</p>
+          </div>
+        </div>
+        <button uiButton kind="danger" type="button" (click)="removeSelected()">{{ i18n.t('projects.remove') }}</button>
+      </app-workspace-hero>
+    } @else if (sessionBusy()) {
+      <app-workspace-hero icon="chat" [title]="i18n.t('sessions.pickTitle')" [detail]="i18n.t('sessions.busy')" />
+    } @else if (openSession(); as session) {
+      <app-chat-view
+        class="chat"
+        embedded
+        [sessionTitle]="session.title === '' ? i18n.t('sessions.untitled') : session.title"
+        [attr.aria-label]="i18n.t('sessions.chat')"
+      />
+    } @else if (state.sessions(); as sessions) {
+      @if (sessions.status === 'ready') {
+        @if (sessions.items.length === 0) {
+          <app-workspace-hero icon="chat" [title]="i18n.t('sessions.startTitle', { name: project.name })" [detail]="i18n.t('sessions.startDetail')">
+            <!-- Starting a session arrives in a later ticket: the button is here, without an action. -->
+            <button uiButton kind="primary" type="button">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h12v8H7l-3 2.5V11H2z" /></svg>
+              {{ i18n.t('sessions.new') }}
+            </button>
+          </app-workspace-hero>
+        } @else if (routeSessionId() === undefined) {
+          <app-workspace-hero icon="chat" [title]="i18n.t('sessions.pickTitle')" [detail]="i18n.t('sessions.pickDetail')" />
+        }
+      }
+    }
+  } @else {
+    <app-workspace-hero [title]="i18n.t('projects.pickTitle')" [detail]="i18n.t('projects.pickDetail')" />
+  }
+
+  @if (state.folderFailure(); as failure) {
+    <p class="failure" role="alert" [title]="failure">{{ i18n.t('projects.checkFailed') }}</p>
+  }
 </section>
+
+@if (dialogOpen()) {
+  <app-new-project-dialog (closed)="dialogOpen.set(false)" (created)="created($event)" />
+}
