@@ -9,7 +9,7 @@ import type { MessageKey } from '../../core/i18n-dictionaries';
 export interface SessionActionFailure {
   readonly action: 'New' | 'Rename' | 'Delete';
   readonly reason: SessionsError['reason'] | 'Busy' | 'Failed';
-  /** What main or the chat said, kept for the tooltip. */
+  /** What main or the chat said, kept for the toast tooltip. */
   readonly detail: string;
 }
 
@@ -33,5 +33,18 @@ export const failureKey = (failure: SessionActionFailure): MessageKey => {
         case 'Delete':
           return 'sessions.error.deleteFailed';
       }
+  }
+};
+
+/** Refusals the user can resolve themselves are warnings; a call that broke is an error. */
+export const failureTone = (failure: SessionActionFailure): 'warning' | 'error' => {
+  switch (failure.reason) {
+    case 'Busy':
+    case 'SessionActive':
+    case 'InvalidTitle':
+      return 'warning';
+    case 'SessionNotFound':
+    case 'Failed':
+      return 'error';
   }
 };

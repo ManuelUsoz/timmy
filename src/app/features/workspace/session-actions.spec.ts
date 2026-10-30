@@ -1,5 +1,5 @@
 import { en, es } from '../../core/i18n-dictionaries';
-import { failureKey, type SessionActionFailure } from './session-actions';
+import { failureKey, failureTone, type SessionActionFailure } from './session-actions';
 
 const failure = (action: SessionActionFailure['action'], reason: SessionActionFailure['reason']): SessionActionFailure => ({
   action,
@@ -26,5 +26,15 @@ describe('failureKey', () => {
   it('falls back to a message per action when the call itself broke', () => {
     expect(failureKey(failure('Rename', 'Failed'))).toBe('sessions.error.renameFailed');
     expect(failureKey(failure('Delete', 'Failed'))).toBe('sessions.error.deleteFailed');
+  });
+});
+
+describe('failureTone', () => {
+  it('warns about what the user can resolve and reports what broke as an error', () => {
+    expect(failureTone(failure('Delete', 'SessionActive'))).toBe('warning');
+    expect(failureTone(failure('New', 'Busy'))).toBe('warning');
+    expect(failureTone(failure('Rename', 'InvalidTitle'))).toBe('warning');
+    expect(failureTone(failure('New', 'Failed'))).toBe('error');
+    expect(failureTone(failure('Delete', 'SessionNotFound'))).toBe('error');
   });
 });

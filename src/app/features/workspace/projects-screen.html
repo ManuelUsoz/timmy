@@ -90,11 +90,6 @@
   } @else {
     <app-workspace-hero [title]="i18n.t('projects.pickTitle')" [detail]="i18n.t('projects.pickDetail')" />
   }
-
-  @if (hiddenActionFailure(); as text) {
-    <p class="failure" role="alert" [title]="state.actionFailure()?.detail ?? ''">{{ text }}</p>
-  }
-
 </section>
 
 @if (dialogOpen()) {

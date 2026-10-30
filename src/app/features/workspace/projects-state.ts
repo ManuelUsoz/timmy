@@ -10,7 +10,7 @@ import { EffectRuntime } from '../../core/effect-runtime';
 import { ToastService } from '../../core/toast';
 import { ChatController } from '../chat/chat-controller';
 import { filterProjects, sortProjects } from './project-search';
-import type { SessionActionFailure } from './session-actions';
+import { failureKey, failureTone, type SessionActionFailure } from './session-actions';
 import { sessionStateOf, stateTone, type SessionState } from './session-state';
 import type { StateTone } from '../../shared/ui/state/state';
 import type { PanelSession } from './workspace-entry';
@@ -47,8 +47,6 @@ export class ProjectsState {
   /** Whether the last check of the folder failed, so a failure is told once and not on every window focus. */
   private folderCheckFailed = false;
   readonly sessions = signal<Loadable<SessionSummary>>({ status: 'loading' });
-  /** Why the last action on a session (new, rename, delete) did not happen. The next action, or another project, clears it. */
-  readonly actionFailure = signal<SessionActionFailure | null>(null);
 
   /** Bumped per selection, so a slower answer about a project that is no longer selected is dropped. */
   private selection = 0;
@@ -126,7 +124,6 @@ export class ProjectsState {
     this.selectedId.set(projectId);
     this.folder.set('Checking');
     this.folderCheckFailed = false;
-    this.actionFailure.set(null);
     this.sessions.set({ status: 'loading' });
     void this.loadSessions(true);
     this.recheckFolder();
@@ -142,7 +139,6 @@ export class ProjectsState {
   deselect(): void {
     this.selection++;
     this.selectedId.set(undefined);
-    this.actionFailure.set(null);
     this.sessions.set({ status: 'loading' });
   }
 
@@ -191,19 +187,18 @@ export class ProjectsState {
 
   /**
    * Starts a session in the selected project, opens it in the chat and reloads the list so it is on it.
-   * Resolves with the new session, or undefined with `actionFailure` saying why there is none.
+   * Resolves with the new session, or undefined after telling the user why there is none in a toast.
    */
   async createSession(): Promise<SessionSummary | undefined> {
     const project = this.selected();
     if (project === undefined) return undefined;
-    this.actionFailure.set(null);
     const outcome = await this.chat.startNewSession(project.cwd);
     switch (outcome.status) {
       case 'busy':
-        this.actionFailure.set({ action: 'New', reason: 'Busy', detail: 'A Turn is running' });
+        this.tell({ action: 'New', reason: 'Busy', detail: 'A Turn is running' });
         return undefined;
       case 'failed':
-        this.actionFailure.set({ action: 'New', reason: 'Failed', detail: outcome.detail });
+        this.tell({ action: 'New', reason: 'Failed', detail: outcome.detail });
         return undefined;
       case 'started': {
         await this.loadSessions(false);
@@ -213,13 +208,13 @@ export class ProjectsState {
     }
   }
 
-  /** Renames a session. Resolves true when main did; otherwise `actionFailure` says why. The list is reloaded either way. */
+  /** Renames a session. Resolves true when main did; otherwise a toast says why. The list is reloaded either way. */
   renameSession(sessionId: SessionId, title: string): Promise<boolean> {
     return this.change('Rename', (desktop) => desktop['Sessions.rename']({ sessionId, title }));
   }
 
   /**
-   * Deletes a session. Main refuses with `SessionActive` while it is open, and `actionFailure` says so; a stored
+   * Deletes a session. Main refuses with `SessionActive` while it is open, and a warning toast says so; a stored
    * session that was on screen leaves the chat. Resolves true when it is gone.
    */
   async deleteSession(sessionId: SessionId): Promise<boolean> {
@@ -228,12 +223,11 @@ export class ProjectsState {
     return deleted;
   }
 
-  /** Runs a change of a stored session, keeps what failed for the user and reloads the list whatever the answer. */
+  /** Runs a change of a stored session, tells the user what failed and reloads the list whatever the answer. */
   private async change(
     action: 'Rename' | 'Delete',
     f: (desktop: DesktopApiShape) => Effect.Effect<void, SessionsError | RpcClientError.RpcClientError>,
   ): Promise<boolean> {
-    this.actionFailure.set(null);
     const program = Effect.flatMap(DesktopApi, f).pipe(
       Effect.as(null),
       Effect.catchTag('SessionsError', (error) =>
@@ -244,9 +238,14 @@ export class ProjectsState {
     const failure: SessionActionFailure | null = Exit.isSuccess(exit)
       ? exit.value
       : { action, reason: 'Failed', detail: Cause.pretty(exit.cause) };
-    this.actionFailure.set(failure);
+    if (failure !== null) this.tell(failure);
     await this.loadSessions(false);
     return failure === null;
+  }
+
+  /** Tells the user why an action on a session did not happen; the technical detail goes in the tooltip. */
+  private tell(failure: SessionActionFailure): void {
+    this.toasts.show({ tone: failureTone(failure), body: failureKey(failure), detail: failure.detail });
   }
 
   /**

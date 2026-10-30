@@ -241,7 +241,6 @@ describe('Projects screen', () => {
     const sessions = [session('timmy', 's1', 'Refactor del handshake', 20), session('timmy', 's2', 'Migrar a Effect', 10)];
     const withSessions = () => makeBackend({ projects: [timmy], sessions });
     type Harness = Awaited<ReturnType<typeof setup>>;
-    const alertText = (el: HTMLElement) => el.querySelector('app-project-content [role=alert]')?.textContent?.trim();
     const answer = async (name: string, t: Harness) => {
       await t.type(t.el.querySelector<HTMLInputElement>('app-project-content .edit-field')!, name);
       await t.click('Guardar');
@@ -285,14 +284,15 @@ describe('Projects screen', () => {
         const t = await setup({ backend: withSessions() });
         t.chat.chat.set({ ...t.chat.chat(), running: true });
         await t.click('Nueva sesión');
-        expect(alertText(t.el)).toBe('Hay un turno en marcha. Espera a que termine para empezar otra sesión.');
+        expect(t.toastTexts()).toEqual(['Aviso: Hay un turno en marcha. Espera a que termine para empezar otra sesión.']);
+        expect(t.el.querySelector('app-project-content [role=alert]')).toBeNull();
         expect(t.backend.calls.some((call) => call.startsWith('Chat.startSession'))).toBe(false);
       });
 
       it('says so when the session cannot be created, and stays where it was', async () => {
         const t = await setup({ backend: makeBackend({ projects: [timmy], sessions, startFails: true }) });
         await t.click('Nueva sesión');
-        expect(alertText(t.el)).toBe('No se pudo crear la sesión.');
+        expect(t.toastTexts()).toEqual(['Error: No se pudo crear la sesión.']);
         expect(t.router.url).toBe('/projects/p-timmy');
         expect(t.rowTitles('app-project-content')).toHaveLength(2);
       });
@@ -327,7 +327,7 @@ describe('Projects screen', () => {
         const t = await setup({ backend: withSessions() });
         await t.click('Renombrar Migrar a Effect');
         await answer('   ', t);
-        expect(alertText(t.el)).toBe('El nombre de la sesión no puede estar vacío.');
+        expect(t.toastTexts()).toEqual(['Aviso: El nombre de la sesión no puede estar vacío.']);
         expect(t.el.querySelector('app-project-content .edit-field')).not.toBeNull();
         expect(t.rowTitles('app-project-content')).toEqual(['Refactor del handshake']);
       });
@@ -369,7 +369,8 @@ describe('Projects screen', () => {
         await t.click('Nueva sesión');
         await t.click('Borrar Sesión sin título');
         await t.click('Borrar');
-        expect(alertText(t.el)).toBe('No se puede borrar una sesión abierta. Abre otra sesión y vuelve a intentarlo.');
+        expect(t.toastTexts()).toEqual(['Aviso: No se puede borrar una sesión abierta. Abre otra sesión y vuelve a intentarlo.']);
+        expect(t.el.querySelector('app-project-content [role=alert]')).toBeNull();
         expect(t.rowTitles('app-project-content')).toHaveLength(3);
         expect(t.router.url).toBe('/projects/p-timmy/sessions/new-3');
         expect(t.el.querySelector('app-chat-view')).not.toBeNull();
@@ -385,17 +386,6 @@ describe('Projects screen', () => {
         expect(t.el.querySelector('app-chat-view')).toBeNull();
         expect(t.chat.selectedSessionId()).toBeUndefined();
         expect(t.rowTitles('app-project-content')).toEqual(['Refactor del handshake']);
-      });
-
-      it('clears the failure when the user does something else', async () => {
-        const t = await setup({ backend: withSessions() });
-        await t.click('Nueva sesión');
-        await t.click('Borrar Sesión sin título');
-        await t.click('Borrar');
-        expect(alertText(t.el)).toContain('sesión abierta');
-        await t.click('Renombrar Migrar a Effect');
-        await answer('Otro nombre', t);
-        expect(alertText(t.el)).toBeUndefined();
       });
     });
 

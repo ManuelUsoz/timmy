@@ -47,10 +47,6 @@
       }
     </div>
 
-    @if (failureText(); as text) {
-      <p class="note error" role="alert" [title]="state.actionFailure()?.detail ?? ''">{{ text }}</p>
-    }
-
     @switch (list.status) {
       @case ('loading') {
         <p class="note" role="status">{{ i18n.t('sessions.loading') }}</p>

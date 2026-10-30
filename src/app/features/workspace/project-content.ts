@@ -7,7 +7,6 @@ import { ListRow } from '../../shared/ui/list-row/list-row';
 import { StateComponent } from '../../shared/ui/state/state';
 import { TagComponent } from '../../shared/ui/tag/tag';
 import { ProjectsState } from './projects-state';
-import { failureKey } from './session-actions';
 import { stateTone, type SessionState } from './session-state';
 import { timeAgo } from './time-ago';
 
@@ -35,10 +34,6 @@ export class ProjectContent {
 
   protected readonly project = this.state.selected;
   protected readonly sessions = computed(() => this.state.sessions());
-  protected readonly failureText = computed(() => {
-    const failure = this.state.actionFailure();
-    return failure === null ? null : this.i18n.t(failureKey(failure));
-  });
 
   /** The session being renamed, and what the user has typed so far. */
   protected readonly renaming = signal<SessionId | null>(null);

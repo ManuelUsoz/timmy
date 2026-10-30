@@ -8,7 +8,6 @@ import { ToastService } from '../../core/toast';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { ChatController } from '../chat/chat-controller';
 import { ChatViewComponent } from '../chat/chat-view';
-import { failureKey } from './session-actions';
 import { NewProjectDialog } from './new-project-dialog';
 import { ProjectContent } from './project-content';
 import { ProjectList } from './project-list';
@@ -63,12 +62,6 @@ export class ProjectsScreen {
   protected readonly folderMissing = computed(() => this.state.selected() !== undefined && this.state.folder() === 'Missing');
   /** The project's content column exists whenever a project is open and its folder is there. */
   protected readonly showsContent = computed(() => this.state.selected() !== undefined && !this.folderMissing());
-  /** The content column is on screen, which is where a failed session action is told; otherwise the screen says it. */
-  protected readonly contentVisible = computed(() => this.showsContent() && (this.layout.layout().content === 'column' || this.layout.contentOpen()));
-  protected readonly hiddenActionFailure = computed(() => {
-    const failure = this.state.actionFailure();
-    return failure === null || this.contentVisible() ? null : this.i18n.t(failureKey(failure));
-  });
 
   constructor() {
     void this.state.refresh();
