@@ -76,6 +76,14 @@ h2 {
   flex: 1;
 }
 
+.chevron {
+  transition: transform 110ms ease;
+}
+
+.chevron.closed {
+  transform: rotate(-90deg);
+}
+
 .note {
   margin: 0;
   padding: var(--spacing-04) var(--spacing-03);

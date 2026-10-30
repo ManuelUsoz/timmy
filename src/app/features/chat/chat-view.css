@@ -35,6 +35,15 @@
   letter-spacing: 0.16px;
 }
 
+.title-actions {
+  display: inline-flex;
+  margin-left: auto;
+}
+
+.title-actions:empty {
+  display: none;
+}
+
 .icon-button {
   display: inline-flex;
   align-items: center;

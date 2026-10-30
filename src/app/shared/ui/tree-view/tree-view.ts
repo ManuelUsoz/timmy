@@ -9,6 +9,7 @@ import {
   forwardRef,
   inject,
   input,
+  linkedSignal,
   signal,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
@@ -46,6 +47,10 @@ export class TreeViewComponent implements ControlValueAccessor {
   readonly size = input<TreeSize>('default');
   /** `activity` renders a read-only tool activity tree with nested groups. */
   readonly variant = input<TreeVariant>('default');
+  /** The accessible name of the tree (default variant). */
+  readonly label = input<string>();
+  /** A folder also opens and closes when it is activated (click, Enter or Space), as in a file explorer. */
+  readonly toggleOnActivate = input(false, { transform: booleanAttribute });
   readonly disabledInput = input(false, { alias: 'disabled', transform: booleanAttribute });
 
   private readonly el = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -53,7 +58,21 @@ export class TreeViewComponent implements ControlValueAccessor {
 
   protected readonly selectedId = signal<string | null>(null);
   protected readonly checkedIds = signal<ReadonlySet<string>>(new Set());
-  protected readonly expanded = signal<ReadonlySet<string>>(new Set());
+  /** The folders open now: those flagged `expanded` at first, then whatever the user toggles. */
+  protected readonly expanded = linkedSignal<readonly TreeNode[], ReadonlySet<string>>({
+    source: this.nodes,
+    computation: (nodes) => {
+      const open = new Set<string>();
+      const walk = (list: readonly TreeNode[]): void => {
+        for (const node of list) {
+          if (node.expanded && node.children?.length) open.add(node.id);
+          if (node.children) walk(node.children);
+        }
+      };
+      walk(nodes);
+      return open;
+    },
+  });
   private readonly activityOverrides = signal<ReadonlyMap<string, boolean>>(new Map());
   private readonly activeRaw = signal<string | null>(null);
   private readonly cvaDisabled = signal(false);
@@ -155,6 +174,11 @@ export class TreeViewComponent implements ControlValueAccessor {
   protected onRowClick(node: TreeNode): void {
     this.activeRaw.set(node.id);
     this.activate(node);
+    this.toggleIfFolder(node);
+  }
+
+  private toggleIfFolder(node: TreeNode): void {
+    if (this.toggleOnActivate() && node.children?.length) this.toggleExpand(node.id);
   }
 
   protected onChevron(event: Event, row: TreeRow): void {
@@ -207,6 +231,7 @@ export class TreeViewComponent implements ControlValueAccessor {
       case 'Enter':
       case ' ':
         this.activate(row.node);
+        this.toggleIfFolder(row.node);
         break;
       case '*': {
         const siblings = rows.filter((r) => r.parentId === row.parentId && r.expandable);

@@ -22,7 +22,7 @@
   }
 </aside>
 
-@if (showsContent() && (layout.layout().content === 'column' || layout.contentOpen())) {
+@if (state.selected() !== undefined && (layout.layout().content === 'column' || layout.contentOpen())) {
   <section
     class="content"
     [class.overlay]="layout.layout().content === 'overlay'"
@@ -32,6 +32,7 @@
       [openSessionId]="routeSessionId()"
       [openTerminalId]="routeTerminal()?.id"
       [creating]="creating()"
+      [folderMissing]="folderMissing()"
       (sessionOpened)="openSessionOf($event)"
       (terminalOpened)="openTerminal($event)"
       (newSession)="newSession()"
@@ -42,7 +43,7 @@
 }
 
 <section class="session">
-  @if (showsContent() && layout.layout().content === 'overlay') {
+  @if (state.selected() !== undefined && layout.layout().content === 'overlay') {
     <button type="button" class="content-toggle" [attr.aria-expanded]="layout.contentOpen()" (click)="layout.toggleContent()">
       {{ layout.contentOpen() ? i18n.t('projects.hideContent') : i18n.t('projects.showContent') }}
     </button>
@@ -81,7 +82,9 @@
         [sessionTitle]="session.title === '' ? i18n.t('sessions.untitled') : session.title"
         [attr.aria-label]="i18n.t('sessions.chat')"
         (newSession)="newSession()"
-      />
+      >
+        <app-chat-header-actions headerActions />
+      </app-chat-view>
     } @else if (state.sessions(); as sessions) {
       @if (sessions.status === 'ready') {
         @if (sessions.items.length === 0) {

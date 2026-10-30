@@ -84,6 +84,7 @@
   class="as-treeview"
   [class.as-treeview--sm]="size() === 'sm'"
   role="tree"
+  [attr.aria-label]="label() ?? null"
   [attr.aria-multiselectable]="mode() === 'checkable' ? 'true' : null"
   [attr.aria-disabled]="disabled() ? 'true' : null"
   (keydown)="onKey($event)"
@@ -96,6 +97,7 @@
       [attr.data-id]="row.node.id"
       [attr.data-active]="activeId() === row.node.id ? '' : null"
       [attr.data-disabled]="disabled() || row.node.disabled ? '' : null"
+      [attr.data-dimmed]="row.node.dimmed ? '' : null"
       [attr.aria-level]="row.depth + 1"
       [attr.aria-setsize]="row.setSize"
       [attr.aria-posinset]="row.posInSet"
@@ -126,7 +128,19 @@
           </svg>
         </span>
       }
+      @if (row.node.kind === 'folder') {
+        <svg class="as-treeitem__kind" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true">
+          <path d="M2 4.5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" />
+        </svg>
+      } @else if (row.node.kind === 'file') {
+        <svg class="as-treeitem__kind" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 2h5l3 3v9H4zM9 2v3h3" />
+        </svg>
+      }
       <span class="as-treeitem__label">{{ row.node.label }}</span>
+      @if (row.node.flag; as flag) {
+        <span class="as-treeitem__flag" role="img" [attr.aria-label]="flag.label">{{ flag.text }}</span>
+      }
     </li>
   }
 </ul>
