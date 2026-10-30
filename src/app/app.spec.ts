@@ -6,10 +6,10 @@ describe('App', () => {
     await TestBed.configureTestingModule({ imports: [App] }).compileComponents();
   });
 
-  it('hosts the chat view and holds no chat logic of its own', async () => {
+  it('hosts the shell and holds no chat logic of its own', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     const host = fixture.nativeElement as HTMLElement;
-    expect(host.querySelector('app-chat-view')).not.toBeNull();
+    expect(host.querySelector('app-shell')).not.toBeNull();
   });
 });

@@ -13,7 +13,7 @@ describe('ChatViewComponent', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
 
-  it('should render the title', async () => {
+  it('renders the Timmy title', async () => {
     const fixture = TestBed.createComponent(ChatViewComponent);
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;
