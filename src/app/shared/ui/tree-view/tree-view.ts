@@ -12,10 +12,13 @@ import {
   signal,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { NgTemplateOutlet } from '@angular/common';
+import { StateComponent } from '../state/state';
 import { TreeNode } from './tree-view.types';
 
 export type TreeMode = 'single' | 'checkable';
 export type TreeSize = 'default' | 'sm';
+export type TreeVariant = 'default' | 'activity';
 export type TreeCheckState = 'checked' | 'unchecked' | 'mixed';
 
 interface TreeRow {
@@ -31,6 +34,7 @@ interface TreeRow {
   selector: 'ui-tree-view',
   templateUrl: './tree-view.html',
   styleUrl: './tree-view.css',
+  imports: [NgTemplateOutlet, StateComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [
     { provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => TreeViewComponent), multi: true },
@@ -40,6 +44,8 @@ export class TreeViewComponent implements ControlValueAccessor {
   readonly nodes = input.required<readonly TreeNode[]>();
   readonly mode = input<TreeMode>('single');
   readonly size = input<TreeSize>('default');
+  /** `activity` renders a read-only tool activity tree with nested groups. */
+  readonly variant = input<TreeVariant>('default');
   readonly disabledInput = input(false, { alias: 'disabled', transform: booleanAttribute });
 
   private readonly el = inject<ElementRef<HTMLElement>>(ElementRef);
@@ -48,6 +54,7 @@ export class TreeViewComponent implements ControlValueAccessor {
   protected readonly selectedId = signal<string | null>(null);
   protected readonly checkedIds = signal<ReadonlySet<string>>(new Set());
   protected readonly expanded = signal<ReadonlySet<string>>(new Set());
+  private readonly activityOverrides = signal<ReadonlyMap<string, boolean>>(new Map());
   private readonly activeRaw = signal<string | null>(null);
   private readonly cvaDisabled = signal(false);
   protected readonly disabled = computed(() => this.disabledInput() || this.cvaDisabled());
@@ -214,6 +221,22 @@ export class TreeViewComponent implements ControlValueAccessor {
         return;
     }
     event.preventDefault();
+  }
+
+  protected isOpen(node: TreeNode): boolean {
+    return this.activityOverrides().get(node.id) ?? node.expanded ?? false;
+  }
+
+  protected toggleActivity(node: TreeNode): void {
+    if (!node.children?.length) return;
+    const open = !this.isOpen(node);
+    this.activityOverrides.update((m) => new Map(m).set(node.id, open));
+  }
+
+  protected onActivityKey(event: KeyboardEvent, node: TreeNode): void {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    this.toggleActivity(node);
   }
 
   protected touched(): void {
