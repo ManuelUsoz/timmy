@@ -25,6 +25,8 @@ import { PillComponent } from '../pill/pill';
 import { PillStackComponent } from '../pill/pill-stack';
 import { HistoryComponent, HistoryFilter, HistoryGroup } from '../history/history';
 import { SessionComponent } from '../session/session';
+import { MessageComponent } from '../message/message';
+import { ChipStripComponent, ChipStripItem } from '../chip-strip/chip-strip';
 import type { PermissionRequest } from '../../../../shared/chat/permission.model';
 import type { AgentId, OptionId, PermissionRequestId, ToolCallId } from '../../../../shared/chat/ids.model';
 
@@ -54,6 +56,8 @@ import type { AgentId, OptionId, PermissionRequestId, ToolCallId } from '../../.
     PillStackComponent,
     HistoryComponent,
     SessionComponent,
+    MessageComponent,
+    ChipStripComponent,
   ],
   templateUrl: './showcase.html',
   styleUrl: './showcase.css',
@@ -150,7 +154,40 @@ export class ShowcaseComponent {
     { id: 'package.json', label: 'package.json' },
     { id: 'locked', label: 'locked.txt', disabled: true },
   ];
-  protected readonly treeSingle = new FormControl<string | null>('main.ts');
+  protected readonly activityNodes: TreeNode[] = [
+    { id: 'read', label: 'Read', status: 'done', meta: '×4' },
+    { id: 'edit', label: 'Edit', status: 'running', meta: 'hook-server.ts' },
+    {
+      id: 'explore',
+      label: 'Explore',
+      expanded: true,
+      badge: { label: 'Live', tone: 'success' },
+      meta: '0:18',
+      children: [
+        { id: 'grep', label: 'Grep', status: 'done', meta: 'announce' },
+        { id: 'read2', label: 'Read', status: 'running', meta: 'pipe.ts' },
+      ],
+    },
+    {
+      id: 'plan',
+      label: 'Plan',
+      badge: { label: 'Done' },
+      meta: '5 tools',
+      children: [{ id: 'glob', label: 'Glob', status: 'done', meta: 'src/**' }],
+    },
+  ];
+  protected readonly stripSelected = signal<string | null>('reply-bubble');
+  protected readonly stripItems: ChipStripItem[] = [
+    { id: 'reply-bubble', label: 'reply-bubble', status: 'live' },
+    { id: 'feat/voice', label: 'feat/voice', branch: true, status: 'live' },
+    { id: 'fix/i18n', label: 'fix/i18n', branch: true, status: 'done' },
+  ];
+  protected readonly stripOthers: ChipStripItem[] = [
+    { id: 'api-gateway', label: 'api-gateway', status: 'asks' },
+    { id: 'perf/cache', label: 'perf/cache', branch: true, status: 'live', outline: true },
+    { id: 'docs-site', label: 'docs-site', status: 'done', outline: true },
+  ];
+  protected readonly treeSingle =new FormControl<string | null>('main.ts');
   protected readonly treeChecked = new FormControl<string[]>(['app.ts']);
 
   protected readonly pillTones = ['neutral', 'running', 'waiting', 'error', 'done'] as const;

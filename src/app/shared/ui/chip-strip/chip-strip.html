@@ -1,0 +1,39 @@
+@if (label()) {
+  <span class="lab" aria-hidden="true">{{ label() }}</span>
+}
+@for (item of items(); track item.id) {
+  <button
+    type="button"
+    class="as-chip"
+    [class.as-chip--outline]="item.outline || item.status === 'asks'"
+    [class.as-chip--asks]="item.status === 'asks'"
+    [attr.aria-pressed]="selectedId() === item.id"
+    (click)="selected.emit(item.id)"
+  >
+    @if (item.branch) {
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="6" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="8" r="2" />
+        <path d="M6 8v8M18 10c0 4-6 3-12 6" />
+      </svg>
+    }
+    @if (item.status === 'asks' || (item.status === 'live' && !item.branch)) {
+      <i class="dot" [class.dot--info]="item.status === 'asks'" aria-hidden="true"></i>
+    }
+    {{ item.label }}
+    @switch (item.status) {
+      @case ('live') {
+        @if (item.branch) {
+          <i class="dot" aria-hidden="true"></i>
+        }
+      }
+      @case ('done') {
+        <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12l5 5 9-10" />
+        </svg>
+      }
+      @case ('asks') {
+        <span class="asks">ASKS</span>
+      }
+    }
+  </button>
+}
