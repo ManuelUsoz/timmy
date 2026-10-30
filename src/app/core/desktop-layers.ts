@@ -63,6 +63,9 @@ export const layerWindowUnused = WindowRpcs.toLayer({
   'Window.current': windowUnused,
   'Window.request': windowUnused,
   'Window.close': windowUnused,
+  'Window.minimize': windowUnused,
+  'Window.toggleMaximize': windowUnused,
+  'Window.maximized': () => Stream.empty,
 });
 
 const settingsUnused = () => Effect.die('Settings handler not under test');

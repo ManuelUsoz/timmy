@@ -1,6 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { Schema } from 'effect';
+import { I18n } from '../../core/i18n';
 import { ChatViewComponent } from '../chat/chat-view';
 import { ChatController } from '../chat/chat-controller';
 import { WorkspaceComponent } from '../workspace/workspace';
@@ -21,6 +22,7 @@ import { WindowModeState } from './window-mode-state';
 })
 export class ShellComponent {
   protected readonly windowMode = inject(WindowModeState);
+  protected readonly i18n = inject(I18n);
   protected readonly pill = inject(ChatController).pill;
   protected readonly switcherOpen = signal(false);
 
@@ -40,6 +42,11 @@ export class ShellComponent {
 
   protected close(): void {
     this.windowMode.close();
+  }
+
+  /** The empty stretch of the Expanded title bar maximizes or restores on double-click, as a system title bar does. */
+  protected toggleMaximize(): void {
+    this.windowMode.toggleMaximize();
   }
 
   protected request(mode: WindowMode): void {

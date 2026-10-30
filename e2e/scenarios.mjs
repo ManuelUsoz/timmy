@@ -149,7 +149,27 @@ export const scenarios = [
         if (b.width < 800 || b.width > 1280 + 8 || b.height > 800 + 8) throw new Error(`got ${b.width}x${b.height}`);
       });
       await t.check('workspace is showing in Spanish', () => t.text('Proyectos'));
-      await t.shot('workspace', 'Rail on the left with Chat, Proyectos, Historial, Ajustes; Projects column and placeholders; system controls top right.');
+      const maximized = () => t.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isMaximized());
+      await t.check('has our own Minimizar, Maximizar and Cerrar controls', async () => {
+        for (const name of ['Minimizar', 'Maximizar', 'Cerrar']) await t.page.getByRole('button', { name, exact: true }).waitFor({ timeout: 3000 });
+      });
+      await t.shot('workspace', 'Rail on the left with Chat, Proyectos, Historial, Ajustes; Projects column and placeholders; custom Carbon-style minimize, maximize and close at the top right, and no native Windows buttons.');
+      await t.check('Maximizar maximizes the window and the control becomes Restaurar', async () => {
+        await t.page.getByRole('button', { name: 'Maximizar', exact: true }).click();
+        await t.page.getByRole('button', { name: 'Restaurar', exact: true }).waitFor({ timeout: 3000 });
+        if (!(await maximized())) throw new Error('window is not maximized');
+      });
+      await t.shot('maximized', 'Workspace filling the work area; the middle control shows the restore icon (two overlapping squares).');
+      await t.check('Restaurar restores the window', async () => {
+        await t.page.getByRole('button', { name: 'Restaurar', exact: true }).click();
+        await t.page.getByRole('button', { name: 'Maximizar', exact: true }).waitFor({ timeout: 3000 });
+        if (await maximized()) throw new Error('window is still maximized');
+      });
+      await t.check('leaving Expanded shows no minimize or maximize in the Panel', async () => {
+        await t.switchMode('Panel');
+        if ((await t.page.getByRole('button', { name: 'Minimizar', exact: true }).count()) > 0) throw new Error('Minimizar still showing');
+      });
+      await t.shot('panel-after', 'Panel with only its own header: switcher and close, no minimize or maximize.');
     },
   },
 ];

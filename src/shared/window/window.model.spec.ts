@@ -44,7 +44,6 @@ describe('window modes', () => {
       resizable: true,
       maximizable: true,
       minWidth: 800,
-      titleBarOverlay: true,
     });
     expect(planFor('Expanded', { x: 1920, y: 40, width: 1600, height: 900 }).bounds).toEqual({
       x: 1920 + 160,
@@ -68,9 +67,15 @@ describe('window modes', () => {
     expect(planFor('Expanded', { x: 0, y: 0, width: 700, height: 600 }).bounds).toMatchObject({ x: 0, width: 700 });
   });
 
-  it('gives Pill and Panel no title bar overlay, no minimum and no maximize', () => {
+  it('gives Pill and Panel no minimum and no maximize', () => {
     for (const mode of ['Pill', 'Panel'] as const) {
-      expect(planFor(mode, workArea)).toMatchObject({ titleBarOverlay: false, maximizable: false, minWidth: 0 });
+      expect(planFor(mode, workArea)).toMatchObject({ maximizable: false, minWidth: 0 });
+    }
+  });
+
+  it('plans no system window controls in any mode: the window is frameless and Expanded draws its own', () => {
+    for (const mode of ['Pill', 'Panel', 'Expanded'] as const) {
+      expect(planFor(mode, workArea)).not.toHaveProperty('titleBarOverlay');
     }
   });
 });

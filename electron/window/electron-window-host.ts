@@ -1,9 +1,8 @@
-import { app, screen, systemPreferences, type BrowserWindow } from 'electron';
-import { Effect, Layer } from 'effect';
+import { app, screen, systemPreferences } from 'electron';
+import { Effect, Layer, Queue, Stream } from 'effect';
 import { restoredBounds } from '../../src/shared/window/window.model';
 import { appWindow, rememberPlan } from './app-window';
 import { makeBoundsAnimator } from './bounds-animator';
-import { titleBarOverlayFor } from './title-bar-overlay';
 import { WindowHost } from './window-service';
 
 const animator = makeBoundsAnimator();
@@ -14,6 +13,29 @@ export const layerElectronWindowHost: Layer.Layer<WindowHost> = Layer.succeed(Wi
     return (win ? screen.getDisplayMatching(win.getBounds()) : screen.getPrimaryDisplay()).workArea;
   }),
   close: Effect.sync(() => app.quit()),
+  minimize: Effect.sync(() => appWindow()?.minimize()),
+  toggleMaximize: Effect.sync(() => {
+    const win = appWindow();
+    if (!win?.isMaximizable()) return; // Pill and Panel are not maximizable
+    if (win.isMaximized()) win.unmaximize();
+    else win.maximize();
+  }),
+  maximized: Stream.callback<boolean>((queue) =>
+    Effect.gen(function* () {
+      const win = appWindow();
+      if (!win) return void Queue.offerUnsafe(queue, false);
+      const push = () => void Queue.offerUnsafe(queue, win.isMaximized());
+      push();
+      win.on('maximize', push);
+      win.on('unmaximize', push);
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          win.removeListener('maximize', push);
+          win.removeListener('unmaximize', push);
+        }),
+      );
+    }),
+  ),
   /** Starts the transition and returns; a later `apply` cancels it, so the window always ends at the latest plan. */
   apply: (plan) =>
     Effect.sync(() => {
@@ -37,7 +59,6 @@ export const layerElectronWindowHost: Layer.Layer<WindowHost> = Layer.succeed(Wi
       win.setAlwaysOnTop(plan.alwaysOnTop);
       win.setSkipTaskbar(plan.skipTaskbar);
       win.setMaximizable(plan.maximizable);
-      showControls(win, plan.titleBarOverlay);
       win.setMinimumSize(0, 0); // a minimum would clamp the first frames of the animation
       win.setResizable(true);
       if (systemPreferences.getAnimationSettings().prefersReducedMotion) {
@@ -58,9 +79,3 @@ export const layerElectronWindowHost: Layer.Layer<WindowHost> = Layer.succeed(Wi
       return true;
     }),
 });
-
-/** macOS draws traffic lights with `titleBarStyle: 'hidden'`; Windows and Linux draw the overlay. */
-const showControls = (win: BrowserWindow, visible: boolean): void => {
-  if (process.platform === 'darwin') win.setWindowButtonVisibility(visible);
-  else win.setTitleBarOverlay(titleBarOverlayFor(visible));
-};

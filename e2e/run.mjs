@@ -83,8 +83,10 @@ async function runScenario(scenario) {
       await page.getByRole('button', { name: 'Send' }).click();
     },
     async switchMode(mode) {
+      // In the Pill the switcher button goes straight to the Panel: there is no menu to pick from.
+      const fromPill = (await page.locator('.pill-bar').count()) > 0;
       await page.getByRole('button', { name: 'Change window mode' }).last().click();
-      await page.getByRole('option', { name: mode }).click();
+      if (!(fromPill && mode === 'Panel')) await page.getByRole('option', { name: mode }).click();
       await settle(page, 900);
     },
     text: (s, timeout = 8000) => page.getByText(s).first().waitFor({ timeout }),

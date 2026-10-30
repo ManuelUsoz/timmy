@@ -2,6 +2,10 @@ import type { Language } from '../../shared/settings/settings.model';
 
 /** Spanish is the source of the keys: `en` must have exactly the same ones or it does not compile. */
 export const es = {
+  'window.minimize': 'Minimizar',
+  'window.maximize': 'Maximizar',
+  'window.restore': 'Restaurar',
+  'window.close': 'Cerrar',
   'workspace.comingSoon': 'Próximamente',
   'workspace.comingSoonDetail': 'Esta pantalla llegará en una próxima versión.',
   'rail.label': 'Principal',
@@ -28,6 +32,10 @@ export type MessageKey = keyof typeof es;
 export type Dictionary = Readonly<Record<MessageKey, string>>;
 
 export const en: Dictionary = {
+  'window.minimize': 'Minimize',
+  'window.maximize': 'Maximize',
+  'window.restore': 'Restore',
+  'window.close': 'Close',
   'workspace.comingSoon': 'Coming soon',
   'workspace.comingSoonDetail': 'This screen will arrive in a future version.',
   'rail.label': 'Primary',

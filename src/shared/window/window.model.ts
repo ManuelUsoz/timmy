@@ -24,12 +24,10 @@ export interface WindowPlan {
   readonly alwaysOnTop: boolean;
   readonly skipTaskbar: boolean;
   readonly resizable: boolean;
-  /** Whether the system maximize control is offered. Only Expanded; maximized is a state of Expanded, not a mode. */
+  /** Whether the window can be maximized (by our own control, ADR 0005). Only Expanded; maximized is a state of Expanded, not a mode. */
   readonly maximizable: boolean;
   /** Narrowest the user may resize to. 0 means no minimum. */
   readonly minWidth: number;
-  /** Whether the system draws minimize, maximize/restore and close over the window (ADR 0005). */
-  readonly titleBarOverlay: boolean;
 }
 
 /** What the window reports about itself; `normalBounds` are the bounds it has when not maximized. */
@@ -78,7 +76,6 @@ export const planFor = (mode: WindowMode, workArea: Rect): WindowPlan => {
       resizable: true,
       maximizable: true,
       minWidth: EXPANDED_MIN_WIDTH,
-      titleBarOverlay: true,
     };
   }
   const size = cornerSize(mode);
@@ -94,6 +91,5 @@ export const planFor = (mode: WindowMode, workArea: Rect): WindowPlan => {
     resizable: false,
     maximizable: false,
     minWidth: 0,
-    titleBarOverlay: false,
   };
 };
