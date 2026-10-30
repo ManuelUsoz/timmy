@@ -1,0 +1,191 @@
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 120px;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay);
+}
+
+.dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: min(560px, calc(100vw - 2 * var(--spacing-05)));
+  max-height: calc(100vh - 2 * var(--spacing-05));
+  overflow-y: auto;
+  background: var(--layer-02);
+  box-shadow: var(--shadow-overlay);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--spacing-06) var(--spacing-03) 0 var(--spacing-07);
+}
+
+h2 {
+  margin: 0;
+  font: var(--text-heading-03);
+  letter-spacing: 0;
+}
+
+.header p {
+  max-width: 440px;
+  margin: var(--spacing-03) 0 0;
+  font: var(--text-body-01);
+  color: var(--text-secondary);
+}
+
+.close {
+  flex: none;
+  width: var(--control-lg);
+  height: var(--control-lg);
+  margin-top: calc(-1 * var(--spacing-03));
+  color: var(--text-primary);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-06);
+  padding: var(--spacing-07);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+}
+
+.label {
+  margin-bottom: var(--spacing-03);
+  font: var(--text-label-01);
+  letter-spacing: 0.32px;
+  color: var(--text-secondary);
+}
+
+.folder-row {
+  display: flex;
+  align-items: stretch;
+  gap: 1px;
+}
+
+.folder-input {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-md);
+  box-sizing: border-box;
+  padding: 0 var(--spacing-05);
+  border: 0;
+  border-bottom: 1px solid var(--border-strong);
+  border-radius: 0;
+  background: var(--field);
+  color: var(--text-primary);
+  font: var(--text-code-02);
+  letter-spacing: 0.32px;
+}
+
+.folder-input::placeholder {
+  color: var(--text-helper);
+  font: var(--text-body-compact-01);
+}
+
+.folder-input.bad {
+  outline: var(--focus-width) solid var(--support-error);
+  outline-offset: -2px;
+}
+
+.help {
+  margin-top: var(--spacing-02);
+  font: var(--text-helper-text-01);
+  letter-spacing: 0.32px;
+  color: var(--text-helper);
+}
+
+.help.bad {
+  color: var(--text-error);
+}
+
+.detect {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-04);
+  margin-top: var(--spacing-03);
+  padding: var(--spacing-03) var(--spacing-04);
+  border: 1px solid var(--border-subtle);
+  background: var(--layer-01);
+  font: var(--text-helper-text-01);
+  letter-spacing: 0.32px;
+  color: var(--text-secondary);
+}
+
+.detect-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.init {
+  flex: none;
+}
+
+.name {
+  max-width: none;
+}
+
+/* The field is 320px wide on its own; in the dialog it takes the whole row. */
+.name ::ng-deep .as-field {
+  max-width: none;
+}
+
+.note {
+  display: flex;
+  gap: var(--spacing-04);
+  padding: var(--spacing-04);
+  border: 1px solid var(--support-error);
+  border-inline-start-width: 3px;
+  background: var(--layer-01);
+}
+
+.note svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  fill: none;
+  stroke: var(--support-error);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.note-title {
+  font: var(--text-heading-01);
+  letter-spacing: 0.16px;
+}
+
+.note p {
+  margin: var(--spacing-02) 0 0;
+  font: var(--text-helper-text-01);
+  letter-spacing: 0.32px;
+  color: var(--text-secondary);
+}
+
+.footer {
+  display: flex;
+  height: 64px;
+}
+
+.footer-button {
+  flex: 1;
+  height: 64px;
+  justify-content: flex-start;
+}

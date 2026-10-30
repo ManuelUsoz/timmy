@@ -1,0 +1,80 @@
+@if (project(); as project) {
+  <header class="header">
+    <svg class="folder" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M2 4.5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" />
+    </svg>
+    <div class="who">
+      <h2 [attr.title]="project.name">{{ project.name }}</h2>
+      <span class="path" [attr.title]="project.cwd">{{ project.cwd }}</span>
+    </div>
+    <button
+      uiButton
+      kind="ghost"
+      iconOnly
+      size="sm"
+      type="button"
+      class="remove"
+      [attr.aria-label]="i18n.t('projects.remove')"
+      [attr.title]="i18n.t('projects.remove')"
+      (click)="removed.emit()"
+    >
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+    </button>
+  </header>
+
+  <section class="group" [attr.aria-label]="i18n.t('sessions.title')">
+    @let list = sessions();
+    <div class="group-header">
+      <span class="label">{{ i18n.t('sessions.title') }}</span>
+      @if (list.status === 'ready' && list.items.length > 0) {
+        <ui-tag>{{ list.items.length }}</ui-tag>
+      }
+      <span class="spacer"></span>
+      @if (list.status === 'ready' && list.items.length > 0) {
+        <!-- Starting a session from here arrives in a later ticket. -->
+        <button uiButton kind="ghost" iconOnly size="sm" type="button" [attr.aria-label]="i18n.t('sessions.new')" [attr.title]="i18n.t('sessions.new')">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+        </button>
+      }
+    </div>
+
+    @switch (list.status) {
+      @case ('loading') {
+        <p class="note" role="status">{{ i18n.t('sessions.loading') }}</p>
+      }
+      @case ('failed') {
+        <p class="note error" role="alert" [title]="list.detail">{{ i18n.t('sessions.loadFailed') }}</p>
+      }
+      @case ('ready') {
+        @if (list.items.length === 0) {
+          <div class="empty">
+            <p class="empty-title">{{ i18n.t('sessions.emptyTitle') }}</p>
+            <small>{{ i18n.t('sessions.emptyDetail') }}</small>
+            <!-- Starting a session arrives in a later ticket: the button is here, without an action. -->
+            <button uiButton kind="tertiary" size="sm" type="button">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+              {{ i18n.t('sessions.new') }}
+            </button>
+          </div>
+        } @else {
+          <div role="listbox" [attr.aria-label]="i18n.t('sessions.title')">
+            @for (session of list.items; track session.sessionId) {
+              @let sessionState = state.stateOf(session.sessionId);
+              <as-list-row
+                lead
+                [label]="title(session)"
+                [meta]="ago(session)"
+                [selected]="session.sessionId === openSessionId()"
+                [attr.aria-current]="session.sessionId === openSessionId() ? 'true' : null"
+                (activate)="sessionOpened.emit(session)"
+              >
+                <svg leading class="chat" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v8H7l-3 2.5V11H2z" /></svg>
+                <ui-state trailing [tone]="tone(sessionState)">{{ stateLabel(sessionState) }}</ui-state>
+              </as-list-row>
+            }
+          </div>
+        }
+      }
+    }
+  </section>
+}

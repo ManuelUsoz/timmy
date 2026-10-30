@@ -3,7 +3,7 @@ import { Effect, Layer, Ref } from 'effect';
 import { AppInfoRpcs } from '../../shared/app-info/app-info.rpc';
 import type { Language } from '../../shared/settings/settings.model';
 import { SettingsRpcs } from '../../shared/settings/settings.rpc';
-import { layerChatUnused, layerSessionsUnused, layerWindowUnused, makeDesktopTestLayer } from './desktop-layers';
+import { layerChatUnused, layerProjectsUnused, layerSessionsUnused, layerWindowUnused, makeDesktopTestLayer } from './desktop-layers';
 import { EffectRuntime } from './effect-runtime';
 import { dictionaries, en, es } from './i18n-dictionaries';
 import { I18n } from './i18n';
@@ -27,6 +27,7 @@ const setup = (options: { stored?: Language; failSave?: boolean } = {}) => {
     layerChatUnused,
     layerSessionsUnused,
     layerWindowUnused,
+    layerProjectsUnused,
   );
   const layer = makeDesktopTestLayer(handlers);
   TestBed.configureTestingModule({
@@ -56,6 +57,13 @@ describe('I18n', () => {
     const { i18n } = setup();
     expect(i18n.language()).toBe('es');
     expect(i18n.t('workspace.comingSoon')).toBe('Próximamente');
+  });
+
+  it('fills the {placeholders} of a text with the given values', () => {
+    const { i18n } = setup();
+    expect(i18n.t('projects.live', { count: 3 })).toBe('3 sesiones vivas');
+    expect(i18n.t('newProject.duplicate', { name: 'timmy' })).toContain('como timmy');
+    expect(i18n.t('projects.live', {})).toBe('{count} sesiones vivas');
   });
 
   it('adopts the language stored in main', async () => {

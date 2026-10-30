@@ -1,0 +1,88 @@
+<div class="overlay" (click)="closed.emit()" aria-hidden="true"></div>
+<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="new-project-title">
+  <div class="header">
+    <div>
+      <h2 id="new-project-title">{{ i18n.t('newProject.title') }}</h2>
+      <p>{{ i18n.t('newProject.detail') }}</p>
+    </div>
+    <button uiButton kind="ghost" iconOnly type="button" class="close" [attr.aria-label]="i18n.t('newProject.close')" (click)="closed.emit()">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+    </button>
+  </div>
+
+  <div class="body">
+    @if (existingName(); as existing) {
+      <div class="note" role="alert">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2l6.5 11.5h-13zM8 6.5v3M8 11.5v.01" /></svg>
+        <div>
+          <span class="note-title">{{ i18n.t('newProject.errorTitle') }}</span>
+          <p>{{ i18n.t('newProject.duplicate', { name: existing }) }}</p>
+        </div>
+      </div>
+    } @else if (failureText(); as text) {
+      <div class="note" role="alert">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2l6.5 11.5h-13zM8 6.5v3M8 11.5v.01" /></svg>
+        <div>
+          <span class="note-title">{{ i18n.t('newProject.errorTitle') }}</span>
+          <p>{{ text }}</p>
+        </div>
+      </div>
+    }
+
+    <div class="field">
+      <label class="label" for="new-project-folder">{{ i18n.t('newProject.folder') }}</label>
+      <div class="folder-row">
+        <input
+          id="new-project-folder"
+          class="folder-input"
+          type="text"
+          readonly
+          [class.bad]="existingName() !== null"
+          [attr.aria-invalid]="existingName() !== null ? 'true' : null"
+          [value]="folderPath()"
+          [placeholder]="i18n.t('newProject.folderEmpty')"
+        />
+        <button #browseButton uiButton kind="secondary" type="button" [disabled]="busy()" (click)="browse()">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 4.5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" />
+          </svg>
+          {{ i18n.t('newProject.browse') }}
+        </button>
+      </div>
+      @if (existingName() !== null) {
+        <span class="help bad">{{ i18n.t('newProject.duplicateField') }}</span>
+      }
+
+      @if (inspection().status === 'inspecting') {
+        <div class="detect" role="status">{{ i18n.t('newProject.inspecting') }}</div>
+      } @else if (info(); as folder) {
+        <div class="detect">
+          @if (folder.branch !== null) {
+            <ui-state tone="success">{{ i18n.t('newProject.git') }}</ui-state>
+            <span class="detect-text">{{ i18n.t('newProject.gitDetected', { branch: folder.branch }) }}</span>
+          } @else {
+            <ui-state tone="warning">{{ i18n.t('newProject.git') }}</ui-state>
+            <span class="detect-text">{{ i18n.t('newProject.noGit') }}</span>
+            <button uiButton kind="tertiary" size="sm" type="button" class="init" [disabled]="busy()" [attr.title]="i18n.t('newProject.initGitHelp')" (click)="initGit()">
+              {{ initializing() ? i18n.t('newProject.initializing') : i18n.t('newProject.initGit') }}
+            </button>
+          }
+        </div>
+      }
+    </div>
+
+    <ui-text-input
+      class="name"
+      [label]="i18n.t('newProject.name')"
+      [placeholder]="placeholder()"
+      [helper]="i18n.t('newProject.nameHelp')"
+      [ngModel]="name()"
+      (ngModelChange)="name.set($event)"
+    />
+  </div>
+
+  <div class="footer">
+    <button uiButton kind="secondary" size="lg" type="button" class="footer-button" (click)="closed.emit()">{{ i18n.t('newProject.cancel') }}</button>
+    <button uiButton kind="primary" size="lg" type="button" class="footer-button" [disabled]="!canCreate()" (click)="create()">{{ i18n.t('newProject.create') }}</button>
+  </div>
+</div>
