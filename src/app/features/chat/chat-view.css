@@ -327,3 +327,8 @@ button.ghost:hover:not(:disabled) {
     display: none;
   }
 }
+
+.activity {
+  display: block;
+  margin-left: var(--spacing-07, 40px);
+}
