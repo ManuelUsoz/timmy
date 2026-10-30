@@ -8,9 +8,16 @@ import { StateComponent } from '../../shared/ui/state/state';
 import { TagComponent } from '../../shared/ui/tag/tag';
 import { ProjectsState } from './projects-state';
 import { stateTone, type SessionState } from './session-state';
+import { terminalsOf, type TerminalEntry, type TerminalId } from './terminal-entries';
+import { SAMPLE_EXIT_CODE } from './terminal-sample';
+import { shortPath, terminalStateKey, terminalTone } from './terminal-view';
+import { TerminalsState } from './terminals-state';
 import { timeAgo } from './time-ago';
 
-/** The selected project: who it is and its Sessions, the open one with its real state and the rest Idle. */
+/**
+ * The selected project: who it is, its Sessions (the open one with its real state, the rest Idle) and its
+ * terminals, which are only visual for now.
+ */
 @Component({
   selector: 'app-project-content',
   imports: [ButtonComponent, ListRow, StateComponent, TagComponent],
@@ -22,18 +29,30 @@ export class ProjectContent {
   protected readonly state = inject(ProjectsState);
   protected readonly i18n = inject(I18n);
   protected readonly tone = stateTone;
+  protected readonly terminalTone = terminalTone;
+  protected readonly terminalStateKey = terminalStateKey;
+  private readonly terminalsState = inject(TerminalsState);
 
   /** The session of the route, the one the chat is showing. */
   readonly openSessionId = input<SessionId>();
   /** A new session is being started, so its button waits. */
   readonly creating = input(false);
+  /** The terminal of the route. */
+  readonly openTerminalId = input<TerminalId>();
   readonly sessionOpened = output<SessionSummary>();
+  readonly terminalOpened = output<TerminalEntry>();
+  /** "Nueva terminal" was pressed: the screen creates it and opens it. */
+  readonly newTerminal = output<void>();
   /** "Nueva sesión" was pressed: the screen starts it and opens it. */
   readonly newSession = output<void>();
   readonly removed = output<void>();
 
   protected readonly project = this.state.selected;
   protected readonly sessions = computed(() => this.state.sessions());
+  protected readonly terminals = computed(() => {
+    const selected = this.project();
+    return selected === undefined ? [] : terminalsOf(this.terminalsState.entries(), selected.projectId);
+  });
 
   /** The session being renamed, and what the user has typed so far. */
   protected readonly renaming = signal<SessionId | null>(null);
@@ -56,6 +75,13 @@ export class ProjectContent {
 
   protected title(session: SessionSummary): string {
     return session.title === '' ? this.i18n.t('sessions.untitled') : session.title;
+  }
+
+  /** A failed terminal says how it ended; the others, where they are. */
+  protected terminalMeta(terminal: TerminalEntry): string {
+    return terminal.state === 'Error'
+      ? this.i18n.t('terminals.exited', { code: SAMPLE_EXIT_CODE })
+      : shortPath(this.project()?.cwd ?? '');
   }
 
   protected stateLabel(state: SessionState): string {

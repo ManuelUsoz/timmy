@@ -62,6 +62,9 @@ The third Window mode: the Workspace, centered on the screen. The user can maxim
 **Workspace**
 The full navigation shell shown in Expanded: a rail of areas (Chat, Projects, History, Settings), the list of Projects, and the content of the selected Project (its Sessions, terminals and files) next to the open Session.
 
+**Terminal**
+A shell in a Project's folder, listed with the Project's Sessions in the Workspace. For now it is only visual: a local entry that lives until the app closes, with no process behind it and nothing stored.
+
 **Ask**
 A request from an agent for the user's permission, waiting for an answer. The user can allow or deny it.
 _Avoid_: permission prompt, permission request.
