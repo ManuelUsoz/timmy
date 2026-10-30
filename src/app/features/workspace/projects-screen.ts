@@ -8,6 +8,7 @@ import { ToastService } from '../../core/toast';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { ChatController } from '../chat/chat-controller';
 import { ChatViewComponent } from '../chat/chat-view';
+import { failureKey } from './session-actions';
 import { NewProjectDialog } from './new-project-dialog';
 import { ProjectContent } from './project-content';
 import { ProjectList } from './project-list';
@@ -42,6 +43,8 @@ export class ProjectsScreen {
   readonly sessionId = input<string>();
 
   protected readonly dialogOpen = signal(false);
+  /** A new session is being started, so the buttons that start one wait. */
+  protected readonly creating = signal(false);
 
   protected readonly routeSessionId = computed(() => {
     const id = this.sessionId();
@@ -60,6 +63,12 @@ export class ProjectsScreen {
   protected readonly folderMissing = computed(() => this.state.selected() !== undefined && this.state.folder() === 'Missing');
   /** The project's content column exists whenever a project is open and its folder is there. */
   protected readonly showsContent = computed(() => this.state.selected() !== undefined && !this.folderMissing());
+  /** The content column is on screen, which is where a failed session action is told; otherwise the screen says it. */
+  protected readonly contentVisible = computed(() => this.showsContent() && (this.layout.layout().content === 'column' || this.layout.contentOpen()));
+  protected readonly hiddenActionFailure = computed(() => {
+    const failure = this.state.actionFailure();
+    return failure === null || this.contentVisible() ? null : this.i18n.t(failureKey(failure));
+  });
 
   constructor() {
     void this.state.refresh();
@@ -113,8 +122,17 @@ export class ProjectsScreen {
     void this.router.navigate(['/projects', projectId]);
   }
 
-  protected openSessionOf(session: SessionSummary): void {
-    void this.router.navigate(['/projects', session.projectId, 'sessions', session.sessionId]);
+  protected async openSessionOf(session: SessionSummary): Promise<void> {
+    await this.router.navigate(['/projects', session.projectId, 'sessions', session.sessionId]);
+  }
+
+  /** "Nueva sesión": starts a session in the project, which opens in the chat at its own route. */
+  protected async newSession(): Promise<void> {
+    if (this.creating()) return;
+    this.creating.set(true);
+    const started = await this.state.createSession();
+    this.creating.set(false);
+    if (started !== undefined) await this.openSessionOf(started);
   }
 
   protected async created(project: Project): Promise<void> {

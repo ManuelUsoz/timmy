@@ -26,7 +26,13 @@
     [class.overlay]="layout.layout().content === 'overlay'"
     [attr.aria-label]="i18n.t('projects.content')"
   >
-    <app-project-content [openSessionId]="routeSessionId()" (sessionOpened)="openSessionOf($event)" (removed)="removeSelected()" />
+    <app-project-content
+      [openSessionId]="routeSessionId()"
+      [creating]="creating()"
+      (sessionOpened)="openSessionOf($event)"
+      (newSession)="newSession()"
+      (removed)="removeSelected()"
+    />
   </section>
 }
 
@@ -65,13 +71,13 @@
         embedded
         [sessionTitle]="session.title === '' ? i18n.t('sessions.untitled') : session.title"
         [attr.aria-label]="i18n.t('sessions.chat')"
+        (newSession)="newSession()"
       />
     } @else if (state.sessions(); as sessions) {
       @if (sessions.status === 'ready') {
         @if (sessions.items.length === 0) {
           <app-workspace-hero icon="chat" [title]="i18n.t('sessions.startTitle', { name: project.name })" [detail]="i18n.t('sessions.startDetail')">
-            <!-- Starting a session arrives in a later ticket: the button is here, without an action. -->
-            <button uiButton kind="primary" type="button">
+            <button uiButton kind="primary" type="button" [disabled]="creating()" (click)="newSession()">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h12v8H7l-3 2.5V11H2z" /></svg>
               {{ i18n.t('sessions.new') }}
             </button>
@@ -84,6 +90,11 @@
   } @else {
     <app-workspace-hero [title]="i18n.t('projects.pickTitle')" [detail]="i18n.t('projects.pickDetail')" />
   }
+
+  @if (hiddenActionFailure(); as text) {
+    <p class="failure" role="alert" [title]="state.actionFailure()?.detail ?? ''">{{ text }}</p>
+  }
+
 </section>
 
 @if (dialogOpen()) {

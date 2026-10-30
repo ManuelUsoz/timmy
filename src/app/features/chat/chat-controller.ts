@@ -1,5 +1,5 @@
 import { FormControl } from '@angular/forms';
-import type { PermissionMode } from '../../../shared/chat/session.model';
+import type { PermissionMode, SessionOptions } from '../../../shared/chat/session.model';
 import type { SelectOption } from '../../shared/ui/select/select.types';
 import { pillView } from '../shell/pill-view';
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
@@ -24,6 +24,12 @@ const MODEL_LABELS: Readonly<Record<string, string>> = {
   'claude-sonnet-5-5': 'Claude Sonnet 5.5',
   'claude-haiku-5-5': 'Claude Haiku 5.5',
 };
+
+/** How starting a new Session came out. */
+export type NewSessionOutcome =
+  | { readonly status: 'started'; readonly sessionId: SessionId }
+  | { readonly status: 'busy' }
+  | { readonly status: 'failed'; readonly detail: string };
 
 /** Owns the live chat so it survives Window mode switches (the Pill reads it too). */
 @Injectable({ providedIn: 'root' })
@@ -239,6 +245,37 @@ export class ChatController {
   /** Opens a stored session of any project in the chat. False while a Turn runs, which cannot be switched away from. */
   openStoredSession(session: SessionSummary): boolean {
     return this.showTranscript({ projectId: session.projectId, sessionId: session.sessionId }, session.cwd);
+  }
+
+  /**
+   * Starts a Session in `cwd` and makes it the open one, with an empty conversation; the first message names it.
+   * Nothing changes while a Turn runs, which cannot be switched away from, or when the session cannot start.
+   */
+  async startNewSession(cwd: string): Promise<NewSessionOutcome> {
+    if (this.chat().running) return { status: 'busy' };
+    const model = this.modelControl.value;
+    const options: SessionOptions = {
+      provider: 'Claude',
+      cwd,
+      ...(model !== null ? { model } : {}),
+      effort: this.effortControl.value,
+      permissionMode: this.permissionControl.value,
+    };
+    const exit = await this.runtime.run(Effect.flatMap(DesktopApi, (desktop) => desktop['Chat.startSession'](options)));
+    if (Exit.isFailure(exit)) return { status: 'failed', detail: Cause.pretty(exit.cause) };
+    const sessionId = exit.value;
+    if (this.chat().running) {
+      void this.call((desktop) => desktop['Chat.closeSession']({ sessionId }), () => undefined);
+      return { status: 'busy' };
+    }
+    this.transcriptLoad++;
+    this.resetSession();
+    this.sessionId = sessionId;
+    this.selectedSessionId.set(sessionId);
+    this.resumeFrom = undefined;
+    this.resumeCwd = cwd;
+    this.chat.set(initialChatState);
+    return { status: 'started', sessionId };
   }
 
   /** A Session chip was picked: show its main transcript. */
