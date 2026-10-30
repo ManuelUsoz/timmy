@@ -1,3 +1,85 @@
+@if (variant() === 'activity') {
+  <ul
+    class="as-treeview as-treeview--activity"
+    [class.as-treeview--sm]="size() === 'sm'"
+    role="tree"
+    aria-label="Activity"
+  >
+    <ng-container
+      [ngTemplateOutlet]="activityNodes"
+      [ngTemplateOutletContext]="{ $implicit: nodes() }"
+    />
+  </ul>
+  <ng-template #activityNodes let-list>
+    @for (node of list; track node.id) {
+      @let group = !!node.children?.length;
+      <li
+        class="as-treeitem"
+        [class.as-treeitem--run]="node.status === 'running'"
+        [class.as-treeitem--group]="group"
+        role="treeitem"
+        [attr.data-id]="node.id"
+        [attr.aria-expanded]="group ? isOpen(node) : null"
+        [attr.tabindex]="group ? 0 : null"
+        (click)="toggleActivity(node)"
+        (keydown)="onActivityKey($event, node)"
+      >
+        @if (group) {
+          <span class="as-treeitem__chev" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          </span>
+        }
+        @if (node.status === 'done') {
+          <svg
+            class="as-treeitem__icon as-treeitem__icon--done"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M5 12l5 5 9-10" />
+          </svg>
+        } @else if (node.status === 'running') {
+          <svg
+            class="as-treeitem__icon as-spin"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M12 3a9 9 0 1 1-9 9" />
+          </svg>
+        } @else if (group) {
+          <i class="as-dot" aria-hidden="true"></i>
+        }
+        <span class="as-treeitem__label">{{ node.label }}</span>
+        @if (node.badge; as badge) {
+          <ui-state class="as-treeitem__badge" [tone]="badge.tone ?? 'idle'">{{ badge.label }}</ui-state>
+        }
+        @if (node.meta) {
+          <span class="as-treeitem__meta" [class.as-treeitem__meta--after]="node.badge">{{ node.meta }}</span>
+        }
+      </li>
+      @if (group && isOpen(node)) {
+        <li role="none">
+          <ul class="as-treegroup" role="group">
+            <ng-container
+              [ngTemplateOutlet]="activityNodes"
+              [ngTemplateOutletContext]="{ $implicit: node.children }"
+            />
+          </ul>
+        </li>
+      }
+    }
+  </ng-template>
+} @else {
 <ul
   class="as-treeview"
   [class.as-treeview--sm]="size() === 'sm'"
@@ -48,3 +130,4 @@
     </li>
   }
 </ul>
+}

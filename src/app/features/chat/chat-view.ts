@@ -1,7 +1,9 @@
-import { NgTemplateOutlet } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
-import type { AgentId } from '../../../shared/chat/ids.model';
+import type { SessionId } from '../../../shared/chat/ids.model';
+import { ChipStripComponent } from '../../shared/ui/chip-strip/chip-strip';
+import { MessageComponent } from '../../shared/ui/message/message';
+import { TreeViewComponent } from '../../shared/ui/tree-view/tree-view';
 import { SelectComponent } from '../../shared/ui/select/select';
 import { PillComponent } from '../../shared/ui/pill/pill';
 import { AskRowComponent } from '../../shared/ui/ask-row/ask-row';
@@ -14,7 +16,9 @@ import { MarkdownPipe } from './markdown.pipe';
 
 @Component({
   imports: [
-    NgTemplateOutlet,
+    MessageComponent,
+    ChipStripComponent,
+    TreeViewComponent,
     MarkdownPipe,
     ComposerInputComponent,
     ReactiveFormsModule,
@@ -40,7 +44,9 @@ export class ChatViewComponent {
   protected readonly effortControl = this.controller.effortControl;
   protected readonly permissionOptions = this.controller.permissionOptions;
   protected readonly permissionControl = this.controller.permissionControl;
-  protected readonly tree = this.controller.tree;
+  protected readonly blocks = this.controller.blocks;
+  protected readonly sessionChips = this.controller.sessionChips;
+  protected readonly selectedSessionId = this.controller.selectedSessionId;
   protected readonly pill = this.controller.pill;
   protected readonly contextPercent = this.controller.contextPercent;
 
@@ -50,5 +56,5 @@ export class ChatViewComponent {
   protected showTranscript = (ref: Parameters<ChatController['showTranscript']>[0]) => this.controller.showTranscript(ref);
   protected answer = (request: PermissionRequest, decision: 'Allow' | 'Deny') =>
     this.controller.answerPermission(permissionAnswer(request, decision));
-  protected agent = (id: AgentId) => this.controller.agent(id);
+  protected openSession = (id: string) => this.controller.openSession(id as SessionId);
 }

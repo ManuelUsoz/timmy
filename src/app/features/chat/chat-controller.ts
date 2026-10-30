@@ -14,7 +14,8 @@ import { DesktopApi } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
 import type { CommandsState } from './slash-commands';
 import { chatStateFromHistory } from '../sessions/history-state';
-import type { TranscriptRef } from '../../../shared/sessions/sessions.model';
+import type { SessionSummary, TranscriptRef } from '../../../shared/sessions/sessions.model';
+import { chatBlocks, sessionChips } from './chat-blocks';
 import { addUserMessage, groupByOwner, initialChatState, reduceChat, type ChatState } from './chat-state';
 
 /** Display names live in the renderer; the adapter only knows model ids. */
@@ -59,6 +60,13 @@ export class ChatController {
   ];
   readonly permissionControl = new FormControl<PermissionMode>('Default', { nonNullable: true });
   readonly tree = computed(() => groupByOwner(this.chat()));
+  readonly blocks = computed(() => chatBlocks(this.chat(), this.tree()));
+
+  /** Sessions of the current project, newest first as the list RPC returns them. */
+  readonly sessions = signal<ReadonlyArray<SessionSummary>>([]);
+  /** The Session whose transcript is on screen; undefined for a fresh chat. */
+  readonly selectedSessionId = signal<SessionId | undefined>(undefined);
+  readonly sessionChips = computed(() => sessionChips(this.sessions(), this.selectedSessionId()));
 
   private readonly turnStartedAt = signal(0);
   private readonly now = signal(Date.now());
@@ -81,6 +89,7 @@ export class ChatController {
         onSuccess: (appInfo) => {
           this.info.set(appInfo);
           this.loadCommands(appInfo.cwd);
+          this.watchSessions(appInfo.cwd);
         },
       }),
     );
@@ -123,6 +132,27 @@ export class ChatController {
         else control.enable({ emitEvent: false });
       }
     });
+  }
+
+  /** Loads the project's Sessions and reloads whenever main pushes a change. */
+  private watchSessions(cwd: string): void {
+    const load = Effect.gen(function* () {
+      const desktop = yield* DesktopApi;
+      return yield* desktop['Sessions.list']({ cwd });
+    });
+    const refresh = () =>
+      this.runtime.run(load).then(
+        Exit.match({
+          onFailure: (cause) => this.error.set(Cause.pretty(cause)),
+          onSuccess: (items) => this.sessions.set(items),
+        }),
+      );
+    void refresh();
+    const changes = Effect.gen(function* () {
+      const desktop = yield* DesktopApi;
+      yield* Stream.runForEach(desktop['Sessions.changes'](), () => Effect.promise(refresh));
+    });
+    void this.runtime.run(changes);
   }
 
   private loadCommands(cwd: string): void {
@@ -173,6 +203,7 @@ export class ChatController {
     const remember = (id: SessionId) =>
       Effect.sync(() => {
         this.sessionId = id;
+        this.selectedSessionId.set(resume ?? id);
       });
 
     const program = Effect.gen(function* () {
@@ -203,6 +234,7 @@ export class ChatController {
   /** Shows a stored transcript. The next message continues that session; a subagent transcript is read-only. */
   showTranscript(ref: TranscriptRef): void {
     this.resetSession();
+    this.selectedSessionId.set(ref.sessionId);
     this.resumeFrom = ref.subagent === undefined ? ref.sessionId : undefined;
     const program = Effect.gen(function* () {
       const desktop = yield* DesktopApi;
@@ -216,8 +248,15 @@ export class ChatController {
     );
   }
 
+  /** A Session chip was picked: show its main transcript. */
+  openSession(sessionId: SessionId): void {
+    const projectId = this.sessions().find((s) => s.sessionId === sessionId)?.projectId;
+    if (projectId !== undefined) this.showTranscript({ projectId, sessionId });
+  }
+
   clearChat(): void {
     this.resetSession();
+    this.selectedSessionId.set(undefined);
     this.resumeFrom = undefined;
     this.chat.set(initialChatState);
   }
@@ -233,9 +272,6 @@ export class ChatController {
     );
   }
 
-  agent(id: AgentId) {
-    return this.chat().agents.get(id);
-  }
 
   stop(): void {
     const sessionId = this.sessionId;

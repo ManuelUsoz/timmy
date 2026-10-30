@@ -43,8 +43,39 @@
     }
   </dl></section>
 
+  @if (sessionChips().length > 0) {
+    <ui-chip-strip
+      groupLabel="Sessions"
+      [items]="sessionChips()"
+      [selectedId]="selectedSessionId() ?? null"
+      (selected)="openSession($event)"
+    />
+  }
+
   <section class="card log">
-    <ng-container *ngTemplateOutlet="items; context: { $implicit: undefined }" />
+    @for (block of blocks(); track $index) {
+      @switch (block.kind) {
+        @case ('User') {
+          <ui-message [role]="'user'">{{ block.text }}</ui-message>
+        }
+        @case ('Assistant') {
+          <ui-message [role]="'agent'">
+            @if (block.thinking !== '') {
+              <details>
+                <summary>Thinking</summary>
+                <pre>{{ block.thinking }}</pre>
+              </details>
+            }
+            @if (block.text !== '') {
+              <div class="markdown" [innerHTML]="block.text | markdown"></div>
+            }
+          </ui-message>
+        }
+        @case ('Activity') {
+          <ui-tree-view class="activity" variant="activity" size="sm" [nodes]="block.nodes" />
+        }
+      }
+    }
     @if (chat().items.length === 0) {
       <p class="muted">Say something to start a session.</p>
     }
@@ -74,61 +105,5 @@
     }
   </form>
 
-  <ng-template #items let-owner>
-    @for (item of tree().get(owner) ?? []; track $index) {
-      @switch (item.kind) {
-        @case ('User') {
-          <div class="msg user">{{ item.text }}</div>
-        }
-        @case ('Assistant') {
-          <div class="msg assistant">
-            @if (item.thinking !== '') {
-              <details>
-                <summary>Thinking</summary>
-                <pre>{{ item.thinking }}</pre>
-              </details>
-            }
-            @if (item.text !== '') {
-              <div class="markdown" [innerHTML]="item.text | markdown"></div>
-            }
-          </div>
-        }
-        @case ('Agent') {
-          @if (agent(item.agentId); as sub) {
-            <div class="subagent" [class]="'subagent ' + sub.status.toLowerCase()">
-              <div class="tool-head">
-                <span class="badge">{{ sub.status }}</span>
-                <strong>{{ sub.info.name }}</strong>
-                @if (sub.info.task; as task) {
-                  <span class="muted">{{ task }}</span>
-                }
-              </div>
-              @if (sub.usage; as u) {
-                <p class="muted small">{{ u.inputTokens }} in · {{ u.outputTokens }} out · {{ u.cacheReadTokens ?? 0 }} cache read</p>
-              }
-              <div class="nested">
-                <ng-container *ngTemplateOutlet="items; context: { $implicit: item.agentId }" />
-              </div>
-            </div>
-          }
-        }
-        @case ('Tool') {
-          <div class="tool" [class]="'tool ' + item.call.status.toLowerCase()">
-            <div class="tool-head">
-              <span class="badge">{{ item.call.status }}</span>
-              <strong>{{ item.call.name }}</strong>
-              <span class="muted">{{ item.call.title }}</span>
-            </div>
-            @if (item.call.output; as output) {
-              <details>
-                <summary>Output</summary>
-                <pre>{{ output }}</pre>
-              </details>
-            }
-          </div>
-        }
-      }
-    }
-  </ng-template>
 </main>
 </div>

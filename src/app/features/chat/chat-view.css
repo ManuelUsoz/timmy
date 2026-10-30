@@ -134,51 +134,6 @@ dl.stats {
   min-height: 240px;
 }
 
-.msg {
-  padding: 10px 14px;
-  border-radius: 0;
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
-.msg.user {
-  justify-self: end;
-  max-width: 80%;
-  background: var(--layer-02);
-}
-
-.msg.assistant {
-  background: var(--layer-hover);
-}
-
-.tool {
-  padding: 8px 12px;
-  border-left: 3px solid var(--support-idle);
-  background: var(--layer-02);
-  border-radius: 0;
-}
-
-.tool.completed {
-  border-left-color: var(--support-success);
-}
-
-.tool.failed {
-  border-left-color: var(--support-error);
-}
-
-.tool-head {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-}
-
-.badge {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-helper);
-}
-
 pre {
   margin: 6px 0 0;
   max-height: 220px;
@@ -222,37 +177,6 @@ button.ghost {
 
 button.ghost:hover:not(:disabled) {
   background: var(--layer-hover);
-}
-
-.subagent {
-  padding: 8px 12px;
-  border-left: 3px solid var(--info);
-  background: var(--layer-02);
-  border-radius: 0;
-}
-
-.subagent.completed {
-  border-left-color: var(--support-success);
-}
-
-.subagent.failed,
-.subagent.cancelled {
-  border-left-color: var(--support-error);
-}
-
-.nested {
-  display: grid;
-  gap: 10px;
-  margin-top: 8px;
-  padding-left: 12px;
-}
-
-.small {
-  font-size: 0.8rem;
-}
-
-.msg.assistant {
-  white-space: normal;
 }
 
 :host ::ng-deep .markdown > :first-child {
@@ -326,4 +250,9 @@ button.ghost:hover:not(:disabled) {
   .top .muted {
     display: none;
   }
+}
+
+.activity {
+  display: block;
+  margin-left: var(--spacing-07, 40px);
 }
