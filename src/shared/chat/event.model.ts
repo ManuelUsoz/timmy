@@ -29,6 +29,8 @@ export const ChatEvent = Schema.Union([
     channel: Schema.Literals(['Text', 'Thinking']),
     text: Schema.String,
   }),
+  /** Mentioned content was cut or left out of the prompt (only for providers without native Mentions). */
+  Schema.TaggedStruct('MentionsTrimmed', { ...sessionFields, detail: Schema.String }),
   Schema.TaggedStruct('AgentSpawned', { ...sessionFields, agent: AgentInfo }),
   Schema.TaggedStruct('AgentFinished', {
     ...sessionFields,

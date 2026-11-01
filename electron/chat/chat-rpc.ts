@@ -12,6 +12,7 @@ import { ProjectFiles } from '../files/project-files';
 import { ProjectResolver } from '../sessions/project-resolver';
 import { SessionObserver } from '../sessions/session-observer';
 import { SessionRepo } from '../sessions/session-repo';
+import { expandMentions } from './mention-expansion';
 import { resolveMentions } from './mention-resolver';
 import { SdkAdapter, SdkAdapterRegistry } from './sdk-adapter';
 
@@ -91,11 +92,14 @@ export const layerChatRpc = Layer.effect(
      */
     const prepareMessage = Effect.fn('ChatRpc.prepareMessage')(function* (adapter: SdkAdapter, message: UserMessage) {
       const stored = yield* repo.get(message.sessionId);
-      if (Option.isNone(stored)) return { ...message, mentions: [] };
-      const mentions = yield* resolveMentions(stored.value.cwd, message.text).pipe(
-        Effect.provideService(ProjectFiles, projectFiles),
-      );
-      return { ...message, mentions };
+      if (Option.isNone(stored)) return { message: { ...message, mentions: [] }, prompt: message.text, warning: undefined };
+      const cwd = stored.value.cwd;
+      const mentions = yield* resolveMentions(cwd, message.text).pipe(Effect.provideService(ProjectFiles, projectFiles));
+      const resolved = { ...message, mentions };
+      // Native adapters read `@path` themselves; for the rest Timmy puts the content in the prompt.
+      if (adapter.capabilities.mentions === 'native') return { message: resolved, prompt: message.text, warning: undefined };
+      const expansion = yield* expandMentions(cwd, message.text, mentions).pipe(Effect.provideService(ProjectFiles, projectFiles));
+      return { message: resolved, prompt: expansion.prompt, warning: expansion.warning };
     });
 
     const changeAdapter = Effect.fn('ChatRpc.changeAdapter')(function* (provider: ProviderId) {
@@ -185,8 +189,15 @@ export const layerChatRpc = Layer.effect(
           Effect.gen(function* () {
             const adapter = yield* requireSession(message.sessionId);
             const prepared = yield* prepareMessage(adapter, message);
-            yield* observer.userMessage(prepared);
-            return adapter.send(prepared).pipe(Stream.tap(observer.event));
+            yield* observer.userMessage(prepared.message);
+            const notice: ReadonlyArray<ChatEvent> =
+              prepared.warning === undefined
+                ? []
+                : [{ _tag: 'MentionsTrimmed', sessionId: message.sessionId, detail: prepared.warning }];
+            return Stream.concat(
+              Stream.fromIterable(notice),
+              adapter.send({ ...prepared.message, text: prepared.prompt }).pipe(Stream.tap(observer.event)),
+            );
           }),
         ),
       isOpen: (sessionId) => Ref.get(state).pipe(Effect.map((s) => s.sessions.has(sessionId))),

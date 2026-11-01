@@ -34,7 +34,7 @@ interface Calls {
 }
 
 /** Test double for the SDK boundary: counts lifecycle calls and replays one scripted turn. */
-const makeFakeAdapter = (provider: ProviderId, calls: Calls): SdkAdapter => {
+const makeFakeAdapter = (provider: ProviderId, calls: Calls, mentions: 'native' | 'none' = 'native'): SdkAdapter => {
   const unused = Effect.void;
   return {
     capabilities: {
@@ -45,7 +45,7 @@ const makeFakeAdapter = (provider: ProviderId, calls: Calls): SdkAdapter => {
       questions: true,
       thinking: false,
       resume: true,
-      mentions: 'native',
+      mentions,
     },
     startup: Ref.update(calls.startups, (n) => n + 1),
     shutdown: Ref.update(calls.shutdowns, (n) => n + 1),
@@ -71,7 +71,7 @@ const makeFakeAdapter = (provider: ProviderId, calls: Calls): SdkAdapter => {
   };
 };
 
-const makeHarness = Effect.gen(function* () {
+const makeHarnessWith = (mentions: 'native' | 'none') => Effect.gen(function* () {
   const calls: Calls = {
     startups: yield* Ref.make(0),
     closed: yield* Ref.make<ReadonlyArray<SessionId>>([]),
@@ -81,13 +81,15 @@ const makeHarness = Effect.gen(function* () {
   };
   const layerRegistry = Layer.succeed(SdkAdapterRegistry, {
     defaultProvider: 'Claude',
-    get: (provider) => Effect.succeed(makeFakeAdapter(provider, calls)),
+    get: (provider) => Effect.succeed(makeFakeAdapter(provider, calls, mentions)),
   });
   const layerServices = Layer.mergeAll(layerProjectResolver, layerSessionObserver, layerProjectFiles()).pipe(
     Layer.provideMerge(layerSessionRepo(':memory:')),
   );
   return { calls, layer: layerChatRpc.pipe(Layer.provideMerge(Layer.merge(layerRegistry, layerServices))) };
 });
+
+const makeHarness = makeHarnessWith('native');
 
 describe('ChatRpc', () => {
   it.effect('starts the adapter once however many calls follow', () =>
@@ -339,6 +341,97 @@ describe('ChatRpc mentions', () => {
     return Effect.gen(function* () {
       const { result } = yield* sendIn(root, 'read @link.txt');
       expect(result._tag).toBe('Failure');
+    });
+  });
+});
+
+describe('ChatRpc mentions on an adapter without native support', () => {
+  const sendWith = (root: string, text: string, adapter: 'native' | 'none' = 'none') =>
+    Effect.gen(function* () {
+      const { calls, layer } = yield* makeHarnessWith(adapter);
+      const events = yield* Effect.gen(function* () {
+        const chat = yield* ChatRpc;
+        const sessionId = yield* chat.startSession({ ...options('Claude'), cwd: root });
+        return yield* Stream.runCollect(chat.send({ sessionId, text, mentions: [] }));
+      }).pipe(Effect.provide(layer));
+      const sent = yield* Ref.get(calls.sent);
+      return { events, prompt: sent[0]?.text ?? '' };
+    });
+  const trimmed = (events: ReadonlyArray<ChatEvent>) => events.some((e) => e._tag === 'MentionsTrimmed');
+
+  it.effect('puts the content of a small file in the prompt', () => {
+    const root = makeRepo();
+    write(root, 'small.ts', 'const answer = 42;');
+    return Effect.gen(function* () {
+      const { prompt, events } = yield* sendWith(root, 'read @small.ts');
+      expect(prompt.startsWith('read @small.ts')).toBe(true);
+      expect(prompt).toContain('const answer = 42;');
+      expect(trimmed(events)).toBe(false);
+    });
+  });
+
+  it.effect('does not expand anything for a native adapter', () => {
+    const root = makeRepo();
+    write(root, 'small.ts', 'const answer = 42;');
+    return Effect.gen(function* () {
+      const { prompt } = yield* sendWith(root, 'read @small.ts', 'native');
+      expect(prompt).toBe('read @small.ts');
+    });
+  });
+
+  it.effect('truncates a file over 64 KB with a note and warns', () => {
+    const root = makeRepo();
+    write(root, 'big.txt', 'a'.repeat(70 * 1024));
+    return Effect.gen(function* () {
+      const { prompt, events } = yield* sendWith(root, 'read @big.txt');
+      expect(prompt).toContain('[Truncated: showing 65536 of 71680 bytes.]');
+      expect(prompt.length).toBeLessThan(70 * 1024);
+      expect(trimmed(events)).toBe(true);
+    });
+  });
+
+  it.effect('lists a folder recursively without ignored files', () => {
+    const root = makeRepo();
+    write(root, 'lib/x.ts');
+    write(root, 'lib/deep/y.ts');
+    write(root, 'lib/.env', 'SECRET=1');
+    return Effect.gen(function* () {
+      const { prompt } = yield* sendWith(root, 'see @lib');
+      expect(prompt).toContain('lib/x.ts');
+      expect(prompt).toContain('lib/deep/y.ts');
+      expect(prompt).not.toContain('SECRET');
+    });
+  });
+
+  it.effect('cuts a folder listing at 200 entries', () => {
+    const root = makeRepo();
+    for (let i = 0; i < 205; i++) write(root, `many/f${String(i).padStart(3, '0')}.ts`);
+    return Effect.gen(function* () {
+      const { prompt, events } = yield* sendWith(root, 'see @many');
+      expect(prompt).toContain('many/f199.ts');
+      expect(prompt).not.toContain('many/f200.ts');
+      expect(prompt).toContain('Listing cut at 200 of 205 entries');
+      expect(trimmed(events)).toBe(true);
+    });
+  });
+
+  it.effect('reports a binary file by name and size only', () => {
+    const root = makeRepo();
+    writeFileSync(path.join(root, 'pic.bin'), Buffer.from([1, 2, 0, 3, 4]));
+    return Effect.gen(function* () {
+      const { prompt } = yield* sendWith(root, 'see @pic.bin');
+      expect(prompt).toContain('Binary file (5 bytes); content not included.');
+    });
+  });
+
+  it.effect('caps the whole message at 256 KB and warns', () => {
+    const root = makeRepo();
+    for (const n of ['a', 'b', 'c', 'd', 'e', 'f']) write(root, `${n}.txt`, n.repeat(60 * 1024));
+    return Effect.gen(function* () {
+      const { prompt, events } = yield* sendWith(root, 'see @a.txt @b.txt @c.txt @d.txt @e.txt @f.txt');
+      expect(prompt.length).toBeLessThan(260 * 1024);
+      expect(prompt).toContain('Left out: message size limit reached.');
+      expect(trimmed(events)).toBe(true);
     });
   });
 });

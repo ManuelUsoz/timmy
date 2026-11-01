@@ -37,6 +37,9 @@
       <p class="status status--error" role="alert">{{ state.detail }}</p>
     } @else if (mentionMatches().length === 0) {
       <p class="status" role="status">No files match</p>
+      @if (state.truncated) {
+        <p class="status" role="status">refina la búsqueda</p>
+      }
     } @else {
       <ul role="listbox" aria-label="Files">
         @for (entry of mentionMatches(); track entry.path; let i = $index) {
@@ -53,6 +56,9 @@
           </li>
         }
       </ul>
+      @if (state.truncated) {
+        <p class="status" role="status">refina la búsqueda</p>
+      }
     }
   </div>
 }

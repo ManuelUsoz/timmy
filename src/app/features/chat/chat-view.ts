@@ -31,10 +31,13 @@ import { ComposerInputComponent } from './composer-input';
 import { permissionAnswer } from './permission-answer';
 import type { PermissionRequest } from '../../../shared/chat/permission.model';
 import { MarkdownPipe } from './markdown.pipe';
+import { ChipComponent } from '../../shared/ui/chip/chip';
+import { splitMentionText } from '../../../shared/chat/mention.model';
 
 @Component({
   imports: [
     MessageComponent,
+    ChipComponent,
     ChipStripComponent,
     TreeViewComponent,
     MarkdownPipe,
@@ -83,6 +86,9 @@ export class ChatViewComponent {
   protected readonly effortControl = this.controller.effortControl;
   protected readonly permissionOptions = this.controller.permissionOptions;
   protected readonly permissionControl = this.controller.permissionControl;
+  protected readonly segmentsOf = splitMentionText;
+  /** The chip shows the file or folder name; the full path is its tooltip. */
+  protected readonly mentionName = (path: string): string => path.replace(/\/$/, '').split('/').pop() ?? path;
   protected readonly blocks = this.controller.blocks;
   protected readonly sessionChips = this.controller.sessionChips;
   protected readonly selectedSessionId = this.controller.selectedSessionId;
