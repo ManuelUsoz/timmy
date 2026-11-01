@@ -16,13 +16,40 @@
             [id]="'slash-option-' + i"
             [attr.aria-selected]="i === highlighted()"
             [attr.data-active]="i === highlighted() ? '' : null"
-            (mousedown)="$event.preventDefault(); pick(command)"
+            (mousedown)="$event.preventDefault(); pickAt(i)"
           >
             <span class="name">/{{ command.name }}</span>
             @if (command.argumentHint) {
               <span class="hint">{{ command.argumentHint }}</span>
             }
             <span class="description">{{ command.description }}</span>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+} @else if (mentionOpen()) {
+  <div class="menu" id="mention-menu">
+    @let state = files();
+    @if (state.status === 'idle' || state.status === 'loading') {
+      <p class="status" role="status">Loading files…</p>
+    } @else if (state.status === 'failed') {
+      <p class="status status--error" role="alert">{{ state.detail }}</p>
+    } @else if (mentionMatches().length === 0) {
+      <p class="status" role="status">No files match</p>
+    } @else {
+      <ul role="listbox" aria-label="Files">
+        @for (entry of mentionMatches(); track entry.path; let i = $index) {
+          <li
+            role="option"
+            class="option"
+            [id]="'mention-option-' + i"
+            [attr.aria-selected]="i === highlighted()"
+            [attr.data-active]="i === highlighted() ? '' : null"
+            (mousedown)="$event.preventDefault(); pickAt(i)"
+          >
+            <span class="name">{{ name(entry) }}{{ entry.kind === 'folder' ? '/' : '' }}</span>
+            <span class="description">{{ folderOf(entry) }}</span>
           </li>
         }
       </ul>
@@ -36,9 +63,9 @@
   role="combobox"
   aria-autocomplete="list"
   aria-haspopup="listbox"
-  [attr.aria-controls]="open() ? 'slash-menu' : null"
-  [attr.aria-expanded]="open()"
-  [attr.aria-activedescendant]="selectable() ? 'slash-option-' + highlighted() : null"
+  [attr.aria-controls]="open() ? 'slash-menu' : mentionOpen() ? 'mention-menu' : null"
+  [attr.aria-expanded]="popupOpen()"
+  [attr.aria-activedescendant]="selectable() ? (open() ? 'slash-option-' : 'mention-option-') + highlighted() : null"
   [value]="draft()"
   (input)="onInput()"
   (keydown)="onKeydown($event)"

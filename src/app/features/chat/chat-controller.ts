@@ -14,6 +14,7 @@ import type { PermissionResponse } from '../../../shared/chat/permission.model';
 import { DesktopApi, type DesktopApiShape } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
 import type { CommandsState } from './slash-commands';
+import { entriesFromPaths, type FilesState } from './file-mentions';
 import { chatStateFromHistory } from '../sessions/history-state';
 import type { SessionSummary, TranscriptRef } from '../../../shared/sessions/sessions.model';
 import { chatBlocks, sessionChips } from './chat-blocks';
@@ -50,6 +51,9 @@ export class ChatController {
   readonly chat = signal<ChatState>(initialChatState);
   readonly draft = signal('');
   readonly commands = signal<CommandsState>({ status: 'loading' });
+  /** Files the `@` popup offers; loaded the first time the user types `@` in the Session's folder. */
+  readonly files = signal<FilesState>({ status: 'idle' });
+  private filesCwd: string | undefined;
 
   private readonly models = signal<ReadonlyArray<ModelInfo>>([]);
   readonly selectedModel = signal<string | null>(null);
@@ -174,6 +178,19 @@ export class ChatController {
       (desktop) => desktop['Chat.commands']({ cwd }),
       (items) => this.commands.set({ status: 'ready', items }),
       (cause) => this.commands.set({ status: 'failed', detail: Cause.pretty(cause) }),
+    );
+  }
+
+  /** Loads the file list for the `@` popup if the folder has none yet. */
+  requestFiles(): void {
+    const cwd = this.resumeCwd ?? this.info()?.cwd;
+    if (cwd === undefined || (this.filesCwd === cwd && this.files().status !== 'idle')) return;
+    this.filesCwd = cwd;
+    this.files.set({ status: 'loading' });
+    void this.call(
+      (desktop) => desktop['Files.list']({ cwd }),
+      (list) => this.files.set({ status: 'ready', entries: entriesFromPaths(list.paths), truncated: list.truncated }),
+      (cause) => this.files.set({ status: 'failed', detail: Cause.pretty(cause) }),
     );
   }
 

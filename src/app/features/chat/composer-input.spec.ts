@@ -2,6 +2,7 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 import { ComposerInputComponent } from './composer-input';
+import { entriesFromPaths, type FilesState } from './file-mentions';
 import type { CommandsState } from './slash-commands';
 
 const READY: CommandsState = {
@@ -15,11 +16,13 @@ const READY: CommandsState = {
 
 @Component({
   imports: [ComposerInputComponent],
-  template: `<app-composer-input [(draft)]="draft" [commands]="commands()" (submitted)="submitted = submitted + 1" />`,
+  template: `<app-composer-input [(draft)]="draft" [commands]="commands()" [files]="files()" (mentionOpened)="opened = opened + 1" (submitted)="submitted = submitted + 1" />`,
 })
 class Host {
   readonly draft = signal('');
   readonly commands = signal<CommandsState>(READY);
+  readonly files = signal<FilesState>({ status: 'idle' });
+  opened = 0;
   submitted = 0;
 }
 
@@ -142,5 +145,96 @@ describe('ComposerInputComponent', () => {
     const empty = await render();
     await empty.type('/zzz');
     expect(empty.el.querySelector('.status')?.textContent).toContain('No commands match');
+  });
+
+  describe('@ mentions', () => {
+    const FILES: FilesState = {
+      status: 'ready',
+      truncated: false,
+      entries: entriesFromPaths(['src/app/chat.ts', 'src/chat/readme.md', 'mi carpeta/a b.ts', 'docs/notes.md']),
+    };
+    const labels = (options: () => HTMLElement[]) => options().map((o) => o.querySelector('.name')?.textContent);
+
+    it('opens after @ at the start or after a space, asking for the file list', async () => {
+      const { host, el, type } = await render();
+      host.files.set(FILES);
+      await type('@');
+      expect(el.querySelector('#mention-menu')).not.toBeNull();
+      expect(host.opened).toBe(1);
+      await type('mira @');
+      expect(el.querySelector('#mention-menu')).not.toBeNull();
+    });
+
+    it('stays closed inside an email address', async () => {
+      const { host, el, type } = await render();
+      host.files.set(FILES);
+      await type('correo@dominio');
+      expect(el.querySelector('.menu')).toBeNull();
+      expect(host.opened).toBe(0);
+    });
+
+    it('ranks file-name matches above folder-path matches and filters as you type', async () => {
+      const { host, options, type } = await render();
+      host.files.set(FILES);
+      await type('@chat');
+      expect(labels(options).slice(0, 2).sort()).toEqual(['chat.ts', 'chat/']);
+      expect(labels(options)).toContain('readme.md');
+      await type('@zzz');
+      expect(options()).toHaveLength(0);
+    });
+
+    it('caps the list at 50 results', async () => {
+      const { host, options, type } = await render();
+      host.files.set({ status: 'ready', truncated: false, entries: entriesFromPaths(Array.from({ length: 80 }, (_, i) => `f${i}.ts`)) });
+      await type('@f');
+      expect(options()).toHaveLength(50);
+    });
+
+    it('Tab inserts @path with a trailing space and keeps the focus in the textarea', async () => {
+      const { host, box, el, type, key } = await render();
+      host.files.set(FILES);
+      await type('mira @notes');
+      await key('Tab');
+      expect(host.draft()).toBe('mira @docs/notes.md ');
+      expect(box().selectionStart).toBe('mira @docs/notes.md '.length);
+      expect(el.querySelector('.menu')).toBeNull();
+      expect(host.submitted).toBe(0);
+    });
+
+    it('quotes paths with spaces', async () => {
+      const { host, type, key } = await render();
+      host.files.set(FILES);
+      await type('@"a b');
+      await key('Enter');
+      expect(host.draft()).toBe('@"mi carpeta/a b.ts" ');
+    });
+
+    it('offers folders too', async () => {
+      const { host, options, type, key } = await render();
+      host.files.set(FILES);
+      await type('@docs');
+      expect(labels(options)).toContain('docs/');
+      await key('Tab');
+      expect(host.draft()).toBe('@docs ');
+    });
+
+    it('Escape closes the popup so a literal @ can stay', async () => {
+      const { host, el, type, key } = await render();
+      host.files.set(FILES);
+      await type('@a');
+      await key('Escape');
+      expect(el.querySelector('.menu')).toBeNull();
+      expect(host.draft()).toBe('@a');
+    });
+
+    it('shows loading, failure and no-match distinctly', async () => {
+      const { host, el, type } = await render();
+      host.files.set({ status: 'loading' });
+      await type('@');
+      expect(el.querySelector('.status')?.textContent).toContain('Loading');
+      host.files.set({ status: 'failed', detail: 'git exploded' });
+      await type('@');
+      expect(el.querySelector('.status--error')?.textContent).toContain('git exploded');
+    });
   });
 });

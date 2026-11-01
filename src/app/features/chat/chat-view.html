@@ -105,7 +105,7 @@
 }
 
 <form class="composer" (submit)="$event.preventDefault(); send()">
-  <app-composer-input [(draft)]="draft" [commands]="commands()" (submitted)="send()" />
+  <app-composer-input [(draft)]="draft" [commands]="commands()" [files]="files()" (mentionOpened)="requestFiles()" (submitted)="send()" />
   <div class="composer-bar">
     <button
       type="button"

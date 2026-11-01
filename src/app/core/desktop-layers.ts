@@ -1,6 +1,7 @@
 import { Effect, Layer, Stream } from 'effect';
 import { RpcClient, RpcTest, type Rpc, type RpcGroup } from 'effect/rpc';
 import { ChatRpcs } from '../../shared/chat/chat.rpc';
+import { FilesRpcs } from '../../shared/files/files.rpc';
 import { DesktopRpcs } from '../../shared/rpc/desktop-rpcs';
 import { ProjectsRpcs } from '../../shared/projects/projects.rpc';
 import { SessionsRpcs } from '../../shared/sessions/sessions.rpc';
@@ -89,4 +90,9 @@ export const layerProjectsUnused = ProjectsRpcs.toLayer({
   'Projects.initGit': projectsUnused,
   'Projects.checkFolder': projectsUnused,
   'Projects.markUsed': projectsUnused,
+});
+
+/** Files handlers that die when called, so a test of another domain can still build `DesktopRpcs`. */
+export const layerFilesUnused = FilesRpcs.toLayer({
+  'Files.list': () => Effect.die('Files handler not under test'),
 });

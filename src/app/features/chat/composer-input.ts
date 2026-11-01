@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   ElementRef,
   inject,
   Injector,
@@ -13,10 +14,12 @@ import {
   viewChild,
 } from '@angular/core';
 import type { SlashCommand } from '../../../shared/chat/command.model';
+import { applyMention, filterEntries, mentionContext, type FilesState, type MentionEntry } from './file-mentions';
 import { applyCommand, filterCommands, slashQuery, type CommandsState } from './slash-commands';
 
 /**
  * The message textarea. Typing `/` at the start opens a list of the provider's commands above it;
+ * typing `@` at the start or after a space opens a list of the folder's files and folders.
  * Tab (or Enter) inserts the highlighted one. Focus never leaves the textarea.
  */
 @Component({
@@ -32,23 +35,54 @@ export class ComposerInputComponent {
 
   readonly draft = model.required<string>();
   readonly commands = input.required<CommandsState>();
+  readonly files = input<FilesState>({ status: 'idle' });
   /** Enter was pressed with no popup selection to take. */
   readonly submitted = output<void>();
+  /** The `@` popup opened; the owner should make sure the file list is loading or loaded. */
+  readonly mentionOpened = output<void>();
 
   private readonly caret = signal(0);
   private readonly dismissed = signal(false);
   protected readonly activeIndex = signal(0);
 
   private readonly query = computed(() => slashQuery(this.draft(), this.caret()));
+  private readonly mention = computed(() => mentionContext(this.draft(), this.caret()));
   protected readonly open = computed(() => this.query() !== undefined && !this.dismissed());
+  protected readonly mentionOpen = computed(() => this.mention() !== undefined && !this.dismissed());
   protected readonly matches = computed((): ReadonlyArray<SlashCommand> => {
     const state = this.commands();
     const query = this.query();
     return state.status === 'ready' && query !== undefined ? filterCommands(state.items, query) : [];
   });
-  protected readonly selectable = computed(() => this.open() && this.matches().length > 0);
+  protected readonly mentionMatches = computed((): ReadonlyArray<MentionEntry> => {
+    const state = this.files();
+    const context = this.mention();
+    return state.status === 'ready' && context !== undefined ? filterEntries(state.entries, context.query) : [];
+  });
+  protected readonly count = computed(() => (this.open() ? this.matches().length : this.mentionOpen() ? this.mentionMatches().length : 0));
+  protected readonly selectable = computed(() => this.count() > 0);
+  protected readonly popupOpen = computed(() => this.open() || this.mentionOpen());
   /** The highlighted row, kept inside the list when moving the caret narrows the matches. */
-  protected readonly highlighted = computed(() => Math.min(this.activeIndex(), this.matches().length - 1));
+  protected readonly highlighted = computed(() => Math.min(this.activeIndex(), this.count() - 1));
+
+  constructor() {
+    let wasOpen = false;
+    // Ask the owner for the file list each time the popup opens; it decides whether one is needed.
+    effect(() => {
+      const now = this.mentionOpen();
+      if (now && !wasOpen) this.mentionOpened.emit();
+      wasOpen = now;
+    });
+  }
+
+  protected name(entry: MentionEntry): string {
+    return entry.path.slice(entry.path.lastIndexOf('/') + 1);
+  }
+
+  protected folderOf(entry: MentionEntry): string {
+    const slash = entry.path.lastIndexOf('/');
+    return slash === -1 ? '' : entry.path.slice(0, slash);
+  }
 
   protected onInput(): void {
     this.draft.set(this.box().nativeElement.value);
@@ -63,7 +97,7 @@ export class ComposerInputComponent {
 
   protected onKeydown(event: KeyboardEvent): void {
     if (event.isComposing) return;
-    if (this.open() && event.key === 'Escape') {
+    if (this.popupOpen() && event.key === 'Escape') {
       event.preventDefault();
       this.dismissed.set(true);
       return;
@@ -73,10 +107,9 @@ export class ComposerInputComponent {
       switch (event.key) {
         case 'Tab':
         case 'Enter': {
-          const command = this.matches()[this.highlighted()];
-          if (command === undefined || !plain) break;
+          if (!plain) break;
           event.preventDefault();
-          this.pick(command);
+          this.pickAt(this.highlighted());
           return;
         }
         case 'ArrowDown':
@@ -95,9 +128,18 @@ export class ComposerInputComponent {
     }
   }
 
-  protected pick(command: SlashCommand): void {
+  protected pickAt(index: number): void {
+    const command = this.open() ? this.matches()[index] : undefined;
+    const entry = command === undefined && this.mentionOpen() ? this.mentionMatches()[index] : undefined;
     const element = this.box().nativeElement;
-    const next = applyCommand(element.value, element.selectionStart, command);
+    const context = this.mention();
+    const next =
+      command !== undefined
+        ? applyCommand(element.value, element.selectionStart, command)
+        : entry !== undefined && context !== undefined
+          ? applyMention(element.value, element.selectionStart, context, entry)
+          : undefined;
+    if (next === undefined) return;
     // Write the DOM first so the caret survives: the value binding then sees no change.
     element.value = next.text;
     element.setSelectionRange(next.caret, next.caret);
@@ -107,7 +149,7 @@ export class ComposerInputComponent {
   }
 
   private move(step: number): void {
-    const count = this.matches().length;
+    const count = this.count();
     this.activeIndex.set((this.highlighted() + step + count) % count);
     afterNextRender(
       () => this.host.nativeElement.querySelector('[data-active]')?.scrollIntoView?.({ block: 'nearest' }),
