@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { offeredModes, planFor, startupMode } from './window.model';
+import { offeredModes, planFor, restoredBounds, startupMode } from './window.model';
 
 const workArea = { x: 0, y: 0, width: 1920, height: 1040 };
 
@@ -35,24 +35,61 @@ describe('window modes', () => {
     }
   });
 
-  it('centers Expanded at 900x700 in the work area, as a normal taskbar window', () => {
+  it('opens Expanded at 1280x800, centered, as a resizable and maximizable taskbar window with a minimum of 800 wide', () => {
     expect(planFor('Expanded', workArea)).toEqual({
       mode: 'Expanded',
-      bounds: { x: 510, y: 170, width: 900, height: 700 },
+      bounds: { x: 320, y: 120, width: 1280, height: 800 },
       alwaysOnTop: false,
       skipTaskbar: false,
       resizable: true,
+      maximizable: true,
+      minWidth: 800,
     });
-    expect(planFor('Expanded', { x: 1920, y: 40, width: 1280, height: 720 }).bounds).toEqual({
-      x: 1920 + 190,
-      y: 40 + 10,
-      width: 900,
-      height: 700,
+    expect(planFor('Expanded', { x: 1920, y: 40, width: 1600, height: 900 }).bounds).toEqual({
+      x: 1920 + 160,
+      y: 40 + 50,
+      width: 1280,
+      height: 800,
     });
   });
 
-  it('shrinks Expanded to fit a small work area', () => {
-    const { bounds } = planFor('Expanded', { x: 0, y: 0, width: 800, height: 600 });
-    expect(bounds).toEqual({ x: 0, y: 0, width: 800, height: 600 });
+  it('clamps Expanded to 90 % of the work area', () => {
+    expect(planFor('Expanded', { x: 0, y: 0, width: 1366, height: 728 }).bounds).toEqual({
+      x: 69,
+      y: 37,
+      width: 1229,
+      height: 655,
+    });
+  });
+
+  it('never lets Expanded go under its minimum width, nor over a tiny work area', () => {
+    expect(planFor('Expanded', { x: 0, y: 0, width: 880, height: 600 }).bounds.width).toBe(800);
+    expect(planFor('Expanded', { x: 0, y: 0, width: 700, height: 600 }).bounds).toMatchObject({ x: 0, width: 700 });
+  });
+
+  it('gives Pill and Panel no minimum and no maximize', () => {
+    for (const mode of ['Pill', 'Panel'] as const) {
+      expect(planFor(mode, workArea)).toMatchObject({ maximizable: false, minWidth: 0 });
+    }
+  });
+
+  it('plans no system window controls in any mode: the window is frameless and Expanded draws its own', () => {
+    for (const mode of ['Pill', 'Panel', 'Expanded'] as const) {
+      expect(planFor(mode, workArea)).not.toHaveProperty('titleBarOverlay');
+    }
+  });
+});
+
+describe('restoredBounds', () => {
+  const bounds = { x: 0, y: 0, width: 1920, height: 1040 };
+  const normal = { x: 320, y: 120, width: 1280, height: 800 };
+
+  it('is the normal (restored) bounds while maximized, so leaving Expanded animates from them', () => {
+    expect(restoredBounds({ bounds, normalBounds: normal, maximized: true })).toEqual(normal);
+  });
+
+  it('is the current bounds when not maximized', () => {
+    expect(restoredBounds({ bounds: normal, normalBounds: normal, maximized: false })).toEqual(normal);
+    expect(restoredBounds({ bounds: { ...normal, x: 5 }, normalBounds: normal, maximized: false }).x).toBe(5);
   });
 });

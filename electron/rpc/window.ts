@@ -9,6 +9,9 @@ export const layerWindowHandlers = WindowRpcs.toLayer(
       'Window.current': () => windows.current,
       'Window.request': ({ mode }) => windows.request(mode),
       'Window.close': () => windows.close,
+      'Window.minimize': () => windows.minimize,
+      'Window.toggleMaximize': () => windows.toggleMaximize,
+      'Window.maximized': () => windows.maximized,
     };
   }),
 );

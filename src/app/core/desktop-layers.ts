@@ -3,6 +3,7 @@ import { RpcClient, RpcTest, type Rpc, type RpcGroup } from 'effect/rpc';
 import { ChatRpcs } from '../../shared/chat/chat.rpc';
 import { DesktopRpcs } from '../../shared/rpc/desktop-rpcs';
 import { SessionsRpcs } from '../../shared/sessions/sessions.rpc';
+import { SettingsRpcs } from '../../shared/settings/settings.rpc';
 import { WindowRpcs } from '../../shared/window/window.rpc';
 import { layerClientProtocol } from '../../shared/rpc/message-port-protocol';
 import { DesktopApi } from './desktop-api';
@@ -62,4 +63,15 @@ export const layerWindowUnused = WindowRpcs.toLayer({
   'Window.current': windowUnused,
   'Window.request': windowUnused,
   'Window.close': windowUnused,
+  'Window.minimize': windowUnused,
+  'Window.toggleMaximize': windowUnused,
+  'Window.maximized': () => Stream.empty,
+});
+
+const settingsUnused = () => Effect.die('Settings handler not under test');
+
+/** Settings handlers that die when called, so a test of another domain can still build `DesktopRpcs`. */
+export const layerSettingsUnused = SettingsRpcs.toLayer({
+  'Settings.get': settingsUnused,
+  'Settings.setLanguage': settingsUnused,
 });

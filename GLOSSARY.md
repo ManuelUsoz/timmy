@@ -57,7 +57,10 @@ The first Window mode: a single bar at the corner of the screen showing the stat
 The second Window mode: a small surface anchored at the same corner as the Pill, holding the views of the design (Home, Chat, Diff).
 
 **Expanded**
-The third Window mode: the same content as the Panel, centered on the screen and larger.
+The third Window mode: the Workspace, centered on the screen. The user can maximize it.
+
+**Workspace**
+The full navigation shell shown in Expanded: a rail of areas (Chat, Projects, History, Settings), the list of Projects, and the content of the selected Project (its Sessions, terminals and files) next to the open Session.
 
 **Ask**
 A request from an agent for the user's permission, waiting for an answer. The user can allow or deny it.

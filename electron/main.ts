@@ -31,7 +31,10 @@ function createWindow(): void {
   const start = plannedWindow() ?? planFor(startupMode, screen.getPrimaryDisplay().workArea);
   mainWindow = new BrowserWindow({
     ...start.bounds,
+    // Frameless in every mode: no system window controls ever show, Expanded draws its own (ADR 0005).
     frame: false,
+    maximizable: start.maximizable,
+    minWidth: start.minWidth,
     resizable: start.resizable,
     alwaysOnTop: start.alwaysOnTop,
     skipTaskbar: start.skipTaskbar,

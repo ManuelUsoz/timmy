@@ -1,0 +1,43 @@
+<aside class="projects" [class.collapsed]="layout.layout().projects === 'collapsed'" [attr.aria-label]="i18n.t('projects.title')">
+  <div class="column-header">
+    @if (layout.layout().projects === 'expanded') {
+      <h2>{{ i18n.t('projects.title') }}</h2>
+    }
+    <button
+      type="button"
+      class="icon-button"
+      [attr.aria-label]="layout.layout().projects === 'expanded' ? i18n.t('projects.collapse') : i18n.t('projects.expand')"
+      [attr.aria-expanded]="layout.layout().projects === 'expanded'"
+      (click)="layout.toggleProjects()"
+    >
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true">
+        <path d="M2 3h12v10H2zM6 3v10" />
+      </svg>
+    </button>
+  </div>
+  @if (layout.layout().projects === 'expanded') {
+    <p class="placeholder">{{ i18n.t('projects.placeholder') }}</p>
+  }
+</aside>
+
+@if (layout.layout().content === 'column' || layout.contentOpen()) {
+  <section
+    class="content"
+    [class.overlay]="layout.layout().content === 'overlay'"
+    [attr.aria-label]="i18n.t('projects.content')"
+  >
+    <div class="column-header">
+      <h2>{{ i18n.t('projects.content') }}</h2>
+    </div>
+    <p class="placeholder">{{ i18n.t('projects.contentPlaceholder') }}</p>
+  </section>
+}
+
+<section class="session">
+  @if (layout.layout().content === 'overlay') {
+    <button type="button" class="content-toggle" [attr.aria-expanded]="layout.contentOpen()" (click)="layout.toggleContent()">
+      {{ layout.contentOpen() ? i18n.t('projects.hideContent') : i18n.t('projects.showContent') }}
+    </button>
+  }
+  <p class="placeholder">{{ i18n.t('projects.chatPlaceholder') }}</p>
+</section>

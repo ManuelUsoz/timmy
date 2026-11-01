@@ -4,7 +4,7 @@ import { AppInfoRpcs } from '../../../shared/app-info/app-info.rpc';
 import { SessionId } from '../../../shared/chat/ids.model';
 import { SessionsRpcs } from '../../../shared/sessions/sessions.rpc';
 import { ProjectId, ProviderSessionId, type SessionSummary } from '../../../shared/sessions/sessions.model';
-import { layerChatUnused, layerWindowUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
+import { layerChatUnused, layerSettingsUnused, layerWindowUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { ChatViewComponent } from './chat-view';
 
@@ -27,6 +27,7 @@ const setup = async () => {
     }),
     layerChatUnused,
     layerWindowUnused,
+    layerSettingsUnused,
     SessionsRpcs.toLayer({
       'Sessions.list': () => Effect.succeed([summary('a', 'Alpha'), summary('b', 'Beta')]),
       'Sessions.history': ({ ref }) =>

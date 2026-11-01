@@ -96,39 +96,92 @@
   bottom: auto;
 }
 
-.drag-fill {
+/*
+ * Expanded is frameless like every mode and draws its own window controls (ADR 0005). The title bar
+ * is a drag region; the switcher and the controls opt out of dragging. A frameless window gets no
+ * system double-click, so the header handles it (shell.html) and maximizes or restores the window.
+ */
+.workspace-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--background);
+}
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: var(--spacing-03);
+  height: var(--control-md);
+  padding-inline-start: var(--spacing-05);
+  color: var(--text-helper);
+  user-select: none;
+}
+
+.titlebar-title {
+  color: var(--text-primary);
+  font: var(--text-heading-01);
+}
+
+.workspace-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.panel-header .drag-fill {
   display: none;
 }
 
-/*
- * Expanded is frameless, so its header is the drag region. Chromium never fires dblclick inside a
- * drag region, so only the empty stretch drags; the title and the padding around it stay clickable
- * and keep the double-click that collapses to the Pill. Controls inside must opt out of dragging.
- */
-.expanded .panel-header {
-  gap: 0;
-  padding: 0;
-}
-
-.expanded .panel-title {
-  flex: none;
-  padding: var(--spacing-03) var(--spacing-05);
-}
-
-.expanded .drag-fill {
-  display: block;
+.titlebar .drag-fill {
   flex: 1;
   align-self: stretch;
   -webkit-app-region: drag;
 }
 
-.expanded .switcher,
-.expanded .close-button {
+.titlebar .switcher {
   -webkit-app-region: no-drag;
 }
 
-.expanded .close-button {
-  margin-right: var(--spacing-04);
+.window-controls {
+  display: flex;
+  align-self: stretch;
+  flex: none;
+  -webkit-app-region: no-drag;
+}
+
+.window-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-lg);
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-helper);
+  cursor: pointer;
+}
+
+.window-control:hover {
+  background: var(--layer-hover);
+  color: var(--text-primary);
+}
+
+.window-control:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
+.window-control--close:hover {
+  background: var(--button-danger);
+  color: var(--text-on-color);
+}
+
+.titlebar .switcher-menu {
+  top: 100%;
+  bottom: auto;
 }
 
 /* Mode change: the outgoing content fades out on top while the incoming fades in, matching the 200 ms window transition. */
