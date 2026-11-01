@@ -8,6 +8,7 @@ import { ToastService } from '../../core/toast';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { ChatController } from '../chat/chat-controller';
 import { ChatViewComponent } from '../chat/chat-view';
+import { ChatHeaderActions } from './chat-header-actions';
 import { NewProjectDialog } from './new-project-dialog';
 import { ProjectContent } from './project-content';
 import { ProjectList } from './project-list';
@@ -27,7 +28,7 @@ import { entryPath, entryTarget } from './workspace-entry';
  */
 @Component({
   selector: 'app-projects-screen',
-  imports: [ButtonComponent, ChatViewComponent, NewProjectDialog, ProjectContent, ProjectList, TerminalScreen, WorkspaceHero],
+  imports: [ButtonComponent, ChatHeaderActions, ChatViewComponent, NewProjectDialog, ProjectContent, ProjectList, TerminalScreen, WorkspaceHero],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './projects-screen.html',
   styleUrl: './projects-screen.css',
@@ -72,8 +73,6 @@ export class ProjectsScreen {
   protected readonly listReady = computed(() => this.state.projects().status === 'ready');
   protected readonly hasProjects = computed(() => this.state.all().length > 0);
   protected readonly folderMissing = computed(() => this.state.selected() !== undefined && this.state.folder() === 'Missing');
-  /** The project's content column exists whenever a project is open and its folder is there. */
-  protected readonly showsContent = computed(() => this.state.selected() !== undefined && !this.folderMissing());
 
   constructor() {
     void this.state.refresh();

@@ -16,6 +16,8 @@
   <ui-state class="title-state" [tone]="stateTone()">{{ stateLabel() }}</ui-state>
   <span class="title-name" [attr.title]="title()">{{ title() }}</span>
   <ui-tag tone="purple">Claude Code</ui-tag>
+  <!-- The Workspace puts the session's pending actions here; the Panel has none. -->
+  <span class="title-actions"><ng-content select="[headerActions]" /></span>
   @if (!embedded()) {
     <button type="button" class="icon-button new-chat" aria-label="New chat" (click)="clearChat()">
       <svg
