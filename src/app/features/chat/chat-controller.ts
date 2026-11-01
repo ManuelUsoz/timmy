@@ -9,6 +9,7 @@ import type { Effort, ModelInfo } from '../../../shared/chat/provider.model';
 import { Cause, Effect, Exit, Stream } from 'effect';
 import type { AppInfo } from '../../../shared/app-info/app-info.rpc';
 import type { ChatEvent } from '../../../shared/chat/event.model';
+import type { MessageKey } from '../../core/i18n-dictionaries';
 import type { AttachmentId } from '../../../shared/attachments/attachment.model';
 import type { SessionId } from '../../../shared/chat/ids.model';
 import type { PermissionResponse } from '../../../shared/chat/permission.model';
@@ -244,13 +245,30 @@ export class ChatController {
   /** Images being stored in main, which already count against the limit. */
   private storing = 0;
 
-  /** Stores each image in main and shows it above the composer. What main refuses is dropped, with a note why. */
+  /** Why attaching failed, for the modal that tells the user. Each reason appears once. */
+  readonly attachErrors = signal<ReadonlyArray<MessageKey>>([]);
+
+  private failAttach(key: MessageKey): void {
+    this.attachErrors.update((keys) => (keys.includes(key) ? keys : [...keys, key]));
+  }
+
+  dismissAttachErrors(): void {
+    this.attachErrors.set([]);
+  }
+
+  /**
+   * Stores each image in main and shows it above the composer. A batch that would pass the limit is
+   * refused whole; what main refuses is left out, and the user is told why in a modal.
+   */
   addImages(files: ReadonlyArray<Blob>): void {
-    const room = Math.max(0, MAX_IMAGES - this.images().length - this.storing);
-    if (files.length > room) this.error.set(this.i18n.t('chat.attachTooMany'));
-    for (const file of files.slice(0, room)) {
+    if (files.length === 0) return;
+    if (files.length > MAX_IMAGES - this.images().length - this.storing) {
+      this.failAttach('chat.attachTooMany');
+      return;
+    }
+    for (const file of files) {
       if (file.size > MAX_FILE_BYTES) {
-        this.error.set(this.i18n.t('chat.attachTooLarge'));
+        this.failAttach('chat.attachTooLarge');
         continue;
       }
       this.storing++;
@@ -271,7 +289,7 @@ export class ChatController {
         }
         URL.revokeObjectURL(url);
         const reason = Exit.isSuccess(exit) && 'refused' in exit.value ? exit.value.refused : undefined;
-        this.error.set(this.i18n.t(reason === 'TooLarge' ? 'chat.attachTooLarge' : 'chat.attachFailed'));
+        this.failAttach(reason === 'TooLarge' ? 'chat.attachTooLarge' : 'chat.attachFailed');
       });
     }
   }

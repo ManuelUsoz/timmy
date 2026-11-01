@@ -6,6 +6,7 @@ import {
   booleanAttribute,
   computed,
   inject,
+  signal,
   input,
   output,
   viewChild,
@@ -20,6 +21,7 @@ import type { AttachmentId } from '../../../shared/attachments/attachment.model'
 import type { Effort } from '../../../shared/chat/provider.model';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { TagComponent } from '../../shared/ui/tag/tag';
+import { ModalComponent } from '../../shared/ui/modal/modal';
 import { ProviderIconComponent } from '../../shared/ui/provider-icon/provider-icon';
 import { AskRowComponent } from '../../shared/ui/ask-row/ask-row';
 import { I18n } from '../../core/i18n';
@@ -55,12 +57,22 @@ import { splitMentionText } from '../../../shared/chat/mention.model';
     ProviderIconComponent,
     AskRowComponent,
     ChatStopped,
+    ModalComponent,
   ],
   selector: 'app-chat-view',
   templateUrl: './chat-view.html',
   styleUrl: './chat-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { '[class.empty]': 'empty()', '(dragover)': 'onDragOver($event)', '(drop)': 'onDrop($event)' },
+  host: {
+    '[class.empty]': 'empty()',
+    '(dragenter)': 'onDragEnter($event)',
+    '(dragover)': 'onDragOver($event)',
+    '(dragleave)': 'onDragLeave($event)',
+    '(drop)': 'onDrop($event)',
+    '(dragend)': 'endDrag()',
+    '(document:click)': 'onDocumentClick($event)',
+    '(keydown.escape)': 'attachMenuOpen.set(false)',
+  },
 })
 export class ChatViewComponent {
   private readonly controller = inject(ChatController);
@@ -81,12 +93,55 @@ export class ChatViewComponent {
   protected readonly draft = this.controller.draft;
   protected readonly images = this.controller.images;
   protected readonly addImages = (files: ReadonlyArray<File>) => this.controller.addImages(files);
+  protected readonly attachErrors = this.controller.attachErrors;
+  protected readonly dismissAttachErrors = () => this.controller.dismissAttachErrors();
+  private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
+  protected readonly attachMenuOpen = signal(false);
+  /** Files are being dragged over the chat: the composer invites the user to drop them. */
+  protected readonly dragging = signal(false);
+  /** dragenter/dragleave also fire for every child crossed, so the hint stays until the count is back to zero. */
+  private dragDepth = 0;
+
+  private carriesFiles(event: DragEvent): boolean {
+    return event.dataTransfer?.types.includes('Files') === true;
+  }
+
+  protected onDragEnter(event: DragEvent): void {
+    if (!this.carriesFiles(event)) return;
+    this.dragDepth++;
+    this.dragging.set(true);
+  }
+
+  protected onDragLeave(event: DragEvent): void {
+    if (!this.carriesFiles(event)) return;
+    this.dragDepth = Math.max(0, this.dragDepth - 1);
+    if (this.dragDepth === 0) this.dragging.set(false);
+  }
+
+  protected endDrag(): void {
+    this.dragDepth = 0;
+    this.dragging.set(false);
+  }
+
   protected onDragOver(event: DragEvent): void {
     // Only files are ours; dragged text keeps its default.
-    if (event.dataTransfer?.types.includes('Files')) event.preventDefault();
+    if (this.carriesFiles(event)) event.preventDefault();
+  }
+
+  protected pickImages(input: HTMLInputElement): void {
+    this.attachMenuOpen.set(false);
+    input.click();
+  }
+
+  protected onDocumentClick(event: Event): void {
+    if (!this.attachMenuOpen()) return;
+    const target = event.target as Node | null;
+    if (target !== null && this.element.nativeElement.querySelector('.attach-wrap')?.contains(target)) return;
+    this.attachMenuOpen.set(false);
   }
 
   protected onDrop(event: DragEvent): void {
+    this.endDrag();
     const files = Array.from(event.dataTransfer?.files ?? []);
     if (files.length === 0) return;
     event.preventDefault();

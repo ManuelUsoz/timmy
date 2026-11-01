@@ -2,6 +2,20 @@
   <p class="error">{{ message }}</p>
 }
 
+@if (attachErrors().length > 0) {
+  <ui-modal
+    [heading]="i18n.t('chat.attachErrorTitle')"
+    [primaryLabel]="i18n.t('chat.attachErrorOk')"
+    [closeLabel]="i18n.t('chat.attachErrorClose')"
+    (primary)="dismissAttachErrors()"
+    (closed)="dismissAttachErrors()"
+  >
+    @for (key of attachErrors(); track key) {
+      <p>{{ i18n.t(key) }}</p>
+    }
+  </ui-modal>
+}
+
 @if (!embedded() && sessionChips().length > 0) {
   <ui-chip-strip
     [label]="project()"
@@ -128,7 +142,10 @@
   />
 }
 
-<form class="composer" (submit)="$event.preventDefault(); send()">
+<form class="composer" [class.dragging]="dragging()" (submit)="$event.preventDefault(); send()">
+  @if (dragging()) {
+    <div class="drop-hint" aria-hidden="true">{{ i18n.t('chat.dropHere') }}</div>
+  }
   @if (images().length > 0) {
     <ul class="images" [attr.aria-label]="i18n.t('chat.images')">
       @for (image of images(); track image.id) {
@@ -182,13 +199,32 @@
       [formControl]="permissionControl"
     />
     <input #picker type="file" class="picker" multiple accept="image/png,image/jpeg,image/gif,image/webp" tabindex="-1" (change)="onPicked(picker)" />
-    <button type="button" uiButton kind="ghost" size="sm" iconOnly class="attach" [attr.aria-label]="i18n.t('chat.attach')" [title]="i18n.t('chat.attach')" (click)="picker.click()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <rect x="3" y="4" width="18" height="16" rx="2" />
-        <circle cx="9" cy="10" r="1.6" />
-        <path d="M21 16l-5-5-8 8" />
-      </svg>
-    </button>
+    <span class="attach-wrap">
+      <ui-tooltip class="attach-tip" [text]="attachMenuOpen() ? '' : i18n.t('chat.attachHint')" placement="top">
+        <button
+          type="button"
+          uiButton
+          kind="ghost"
+          size="sm"
+          iconOnly
+          class="attach"
+          aria-haspopup="menu"
+          [attr.aria-expanded]="attachMenuOpen()"
+          [attr.aria-label]="i18n.t('chat.attach')"
+          (click)="attachMenuOpen.set(!attachMenuOpen())"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" />
+          </svg>
+        </button>
+      </ui-tooltip>
+      @if (attachMenuOpen()) {
+        <div class="attach-menu" role="menu">
+          <button type="button" role="menuitem" (click)="pickImages(picker)">{{ i18n.t('chat.attachImages') }}</button>
+          <button type="button" role="menuitem" disabled>{{ i18n.t('chat.attachFiles') }}</button>
+        </div>
+      }
+    </span>
     <span class="spacer"></span>
     @if (contextPercent() !== undefined) {
       <span class="context" title="Context window used">{{ contextPercent() }}%</span>

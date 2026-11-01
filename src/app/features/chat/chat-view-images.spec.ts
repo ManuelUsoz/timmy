@@ -180,12 +180,24 @@ describe('ChatViewComponent images', () => {
     expect(sent[0]).toMatchObject({ text: '', attachments: [{ id: 'a1' }] });
   });
 
-  it('says so, and shows no thumbnail, when main refuses the file', async () => {
+  it('tells why in a modal, and shows no thumbnail, when main refuses the file', async () => {
     const { el, paste } = await setup();
     await paste([new File([new Uint8Array([1, 2, 3])], 'x.png', { type: 'image/png' })]);
 
     expect(el.querySelector('.images')).toBeNull();
-    expect(el.querySelector('.error')?.textContent).toContain('PNG');
+    expect(el.querySelector('.error')).toBeNull();
+    expect(el.querySelector('[role="dialog"]')?.textContent).toContain('PNG');
+  });
+
+  it('closes the error modal with its button, and keeps working', async () => {
+    const { el, paste, drop, settle } = await setup();
+    await paste([new File([new Uint8Array([1, 2, 3])], 'x.png', { type: 'image/png' })]);
+    (el.querySelector('[role="dialog"] .actions button') as HTMLButtonElement).click();
+    await settle();
+
+    expect(el.querySelector('[role="dialog"]')).toBeNull();
+    await drop([pngFile()]);
+    expect(el.querySelectorAll('.images img')).toHaveLength(1);
   });
 
   it('adds the images dropped onto the chat', async () => {
@@ -197,20 +209,59 @@ describe('ChatViewComponent images', () => {
     expect(el.querySelectorAll('.images img')).toHaveLength(2);
   });
 
-  it('opens a picker from the attach button and adds what it returns', async () => {
-    const { el, added, pick } = await setup();
+  it('hints that images and files can be added, with files not available yet', async () => {
+    const { el, settle } = await setup();
+    el.querySelector('ui-tooltip.attach-tip')!.dispatchEvent(new Event('mouseenter'));
+    await settle();
+    expect(el.querySelector('[role="tooltip"]')?.textContent).toMatch(/(images|imágenes).*(files|archivos)/i);
+
+    (el.querySelector('button.attach') as HTMLButtonElement).click();
+    await settle();
+    const items = Array.from(el.querySelectorAll<HTMLButtonElement>('.attach-menu button'));
+    expect(items).toHaveLength(2);
+    expect(items[0].disabled).toBe(false);
+    expect(items[1].disabled).toBe(true);
+  });
+
+  it('opens a picker from the attach menu and adds what it returns', async () => {
+    const { el, added, pick, settle } = await setup();
     const input = el.querySelector('input[type="file"]') as HTMLInputElement;
     const clicked = vi.spyOn(input, 'click');
     (el.querySelector('button.attach') as HTMLButtonElement).click();
+    await settle();
+    (el.querySelector('.attach-menu button') as HTMLButtonElement).click();
+    await settle();
     expect(clicked).toHaveBeenCalled();
     expect(input.accept).toContain('image/png');
+    expect(el.querySelector('.attach-menu')).toBeNull();
     await pick([pngFile()]);
 
     expect(added).toHaveLength(1);
     expect(el.querySelectorAll('.images img')).toHaveLength(1);
   });
 
-  it('refuses a sixth image with a message, and keeps the five', async () => {
+  it('invites the user to drop while files are dragged over the chat, and stops when they leave or drop', async () => {
+    const { el, settle, drop } = await setup();
+    const drag = async (type: string, types: string[] = ['Files']) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, 'dataTransfer', { value: { types, files: [] } });
+      el.dispatchEvent(event);
+      await settle();
+    };
+    await drag('dragenter', ['text/plain']);
+    expect(el.querySelector('.drop-hint')).toBeNull();
+
+    await drag('dragenter');
+    expect(el.querySelector('.drop-hint')?.textContent).toMatch(/suelta|drop/i);
+    await drag('dragleave');
+    expect(el.querySelector('.drop-hint')).toBeNull();
+
+    await drag('dragenter');
+    await drop([pngFile()]);
+    expect(el.querySelector('.drop-hint')).toBeNull();
+  });
+
+  it('refuses a sixth image with a modal, and keeps the five', async () => {
     const { el, added, drop } = await setup();
     await drop(Array.from({ length: 5 }, pngFile));
     expect(el.querySelectorAll('.images img')).toHaveLength(5);
@@ -218,15 +269,17 @@ describe('ChatViewComponent images', () => {
 
     expect(added).toHaveLength(5);
     expect(el.querySelectorAll('.images img')).toHaveLength(5);
-    expect(el.querySelector('.error')?.textContent).toContain('5');
+    expect(el.querySelector('[role="dialog"]')?.textContent).toContain('5');
+    expect(el.querySelector('.error')).toBeNull();
   });
 
-  it('keeps the first five of a batch of seven and says the rest were left out', async () => {
-    const { el, drop } = await setup();
+  it('attaches none of a batch that would pass five, and says so in a modal', async () => {
+    const { el, added, drop } = await setup();
     await drop(Array.from({ length: 7 }, pngFile));
 
-    expect(el.querySelectorAll('.images img')).toHaveLength(5);
-    expect(el.querySelector('.error')).not.toBeNull();
+    expect(added).toEqual([]);
+    expect(el.querySelector('.images')).toBeNull();
+    expect(el.querySelector('[role="dialog"]')).not.toBeNull();
   });
 
   it('says an image is too large when main refuses it for its size', async () => {
@@ -234,7 +287,7 @@ describe('ChatViewComponent images', () => {
     await drop([new File([new Uint8Array([0, 1])], 'huge.png', { type: 'image/png' })]);
 
     expect(el.querySelector('.images')).toBeNull();
-    expect(el.querySelector('.error')?.textContent).toContain('5 MB');
+    expect(el.querySelector('[role="dialog"]')?.textContent).toContain('5 MB');
   });
 
   it('rejects a dropped file that is not an image', async () => {
@@ -242,7 +295,7 @@ describe('ChatViewComponent images', () => {
     await drop([new File([new Uint8Array([1, 2, 3])], 'notes.txt', { type: 'text/plain' })]);
 
     expect(el.querySelector('.images')).toBeNull();
-    expect(el.querySelector('.error')?.textContent).toContain('PNG');
+    expect(el.querySelector('[role="dialog"]')?.textContent).toContain('PNG');
   });
 
   it('takes a file dropped anywhere on the chat, so the window never navigates to it', async () => {
@@ -263,6 +316,6 @@ describe('ChatViewComponent images', () => {
     await drop([huge]);
 
     expect(added).toEqual([]);
-    expect(el.querySelector('.error')?.textContent).toContain('5 MB');
+    expect(el.querySelector('[role="dialog"]')?.textContent).toContain('5 MB');
   });
 });
