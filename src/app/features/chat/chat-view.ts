@@ -16,6 +16,7 @@ import { MessageComponent } from '../../shared/ui/message/message';
 import { TreeViewComponent } from '../../shared/ui/tree-view/tree-view';
 import { SelectComponent } from '../../shared/ui/select/select';
 import { ModelPickerComponent } from '../../shared/ui/model-picker/model-picker';
+import type { AttachmentId } from '../../../shared/attachments/attachment.model';
 import type { Effort } from '../../../shared/chat/provider.model';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { TagComponent } from '../../shared/ui/tag/tag';
@@ -78,6 +79,9 @@ export class ChatViewComponent {
   protected readonly error = this.controller.error;
   protected readonly chat = this.controller.chat;
   protected readonly draft = this.controller.draft;
+  protected readonly images = this.controller.images;
+  protected readonly addImages = (files: ReadonlyArray<File>) => this.controller.addImages(files);
+  protected readonly removeImage = (id: AttachmentId) => this.controller.removeImage(id);
   protected readonly commands = this.controller.commands;
   protected readonly files = this.controller.files;
   protected readonly requestFiles = () => this.controller.requestFiles();

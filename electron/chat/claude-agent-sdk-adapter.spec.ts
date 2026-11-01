@@ -1,12 +1,18 @@
-import type { Options, PermissionResult, Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { Options, PermissionResult, Query, SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { describe, expect, it } from '@effect/vitest';
 import { beforeEach, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { Effect, Stream, type Scope } from 'effect';
+import { Effect, Layer, Stream, type Scope } from 'effect';
+import { AttachmentId } from '../../src/shared/attachments/attachment.model';
 import { ChatEvent } from '../../src/shared/chat/event.model';
 import { OptionId, PermissionRequestId, QuestionId, SessionId } from '../../src/shared/chat/ids.model';
 import { SessionOptions } from '../../src/shared/chat/session.model';
 import { ProviderSessionId } from '../../src/shared/sessions/sessions.model';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { AttachmentStore, layerAttachmentStore } from '../attachments/attachment-store';
+import { layerImageResizerTest } from '../attachments/image-resizer';
 import { layerSessionRepo, SessionRepo } from '../sessions/session-repo';
 import { makeClaudeAgentSdkAdapter } from './claude-agent-sdk-adapter';
 import { ALLOW_ONCE, REJECT_ONCE } from './claude-interaction';
@@ -50,20 +56,29 @@ const options: SessionOptions = { provider: 'Claude', cwd: '/work', permissionMo
 
 interface FakeRun {
   readonly options: Options | undefined;
-  readonly prompt: string;
+  readonly prompt: string | AsyncIterable<SDKUserMessage>;
 }
 
 /** A scripted Claude CLI: the script receives the query options, so it can call `canUseTool`. */
 const scriptSdk = (script: (options: Options) => AsyncGenerator<SDKMessage>, runs: FakeRun[] = []): void => {
-  mocks.query.mockImplementation(({ prompt, options: queryOptions }: { prompt: string; options?: Options }) => {
+  mocks.query.mockImplementation(({ prompt, options: queryOptions }: { prompt: string | AsyncIterable<SDKUserMessage>; options?: Options }) => {
     runs.push({ options: queryOptions, prompt });
     return Object.assign(script(queryOptions ?? {}), { close: () => undefined }) as unknown as Query;
   });
 };
 
 /** `it.effect` with an in-memory `SessionRepo`, which the adapter needs for its stored sessions. */
-const itRepo = <E>(name: string, body: () => Effect.Effect<void, E, SessionRepo | Scope.Scope>) =>
-  it.effect(name, () => body().pipe(Effect.provide(layerSessionRepo(':memory:'))));
+const itRepo = <E>(name: string, body: () => Effect.Effect<void, E, SessionRepo | AttachmentStore | Scope.Scope>) =>
+  it.effect(name, () =>
+    body().pipe(
+      Effect.provide(layerSessionRepo(':memory:')),
+      Effect.provide(
+        layerAttachmentStore(path.join(mkdtempSync(path.join(tmpdir(), 'timmy-adapter-')), 'attachments')).pipe(
+          Layer.provide(layerImageResizerTest),
+        ),
+      ),
+    ),
+  );
 
 /** Opens a session under a fresh Timmy id, which is what the tests then address it by. */
 const openSession = (adapter: SdkAdapter, sessionOptions: SessionOptions) =>
@@ -79,6 +94,16 @@ const ready = Effect.gen(function* () {
   const sessionId = yield* openSession(adapter, options);
   return { adapter, sessionId };
 });
+
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+
+/** What the fake SDK was handed as a streaming prompt. */
+const collectPrompt = async (prompt: string | AsyncIterable<SDKUserMessage> | undefined): Promise<SDKUserMessage[]> => {
+  const messages: SDKUserMessage[] = [];
+  if (prompt === undefined || typeof prompt === 'string') return messages;
+  for await (const message of prompt) messages.push(message);
+  return messages;
+};
 
 const tags = (events: ReadonlyArray<ChatEvent>) => events.map((e) => e._tag);
 
@@ -103,8 +128,8 @@ describe('ClaudeAgentSdkAdapter', () => {
       const sessionId = SessionId.make(randomUUID());
       const providerSessionId = yield* adapter.startSession(options, { sessionId });
       expect(providerSessionId).not.toBe(sessionId);
-      const first = yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi @a.ts', mentions: [{ path: 'a.ts' }] }));
-      yield* Stream.runCollect(adapter.send({ sessionId, text: 'again', mentions: [] }));
+      const first = yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi @a.ts', mentions: [{ path: 'a.ts' }], attachments: [] }));
+      yield* Stream.runCollect(adapter.send({ sessionId, text: 'again', mentions: [], attachments: [] }));
       expect(tags(first)).toEqual(['TurnStarted', 'SessionStarted', 'AgentSpawned', 'UsageUpdated', 'TurnFinished']);
       expect(runs[0]?.prompt).toBe('hi @a.ts');
       expect(runs[0]?.options).toMatchObject({
@@ -133,7 +158,7 @@ describe('ClaudeAgentSdkAdapter', () => {
         { ...options, resume: sessionId },
         { sessionId, resumeProviderSessionId: stored },
       );
-      yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi', mentions: [] }));
+      yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi', mentions: [], attachments: [] }));
       expect(providerSessionId).toBe(stored);
       expect(runs[0]?.options).toMatchObject({ resume: stored });
     }));
@@ -148,7 +173,7 @@ describe('ClaudeAgentSdkAdapter', () => {
       const adapter = yield* makeClaudeAgentSdkAdapter();
       yield* adapter.startup;
       const sessionId = yield* openSession(adapter, { ...options, permissionMode: 'Auto' });
-      yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi', mentions: [] }));
+      yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi', mentions: [], attachments: [] }));
       expect(runs[0]?.options).toMatchObject({ permissionMode: 'auto' });
     }));
 
@@ -208,8 +233,8 @@ describe('ClaudeAgentSdkAdapter', () => {
       yield* adapter.startup;
       const high = yield* openSession(adapter, { ...options, effort: 'XHigh' });
       const plain = yield* openSession(adapter, { ...options, effort: 'Default' });
-      yield* Stream.runCollect(adapter.send({ sessionId: high, text: 'hi', mentions: [] }));
-      yield* Stream.runCollect(adapter.send({ sessionId: plain, text: 'hi', mentions: [] }));
+      yield* Stream.runCollect(adapter.send({ sessionId: high, text: 'hi', mentions: [], attachments: [] }));
+      yield* Stream.runCollect(adapter.send({ sessionId: plain, text: 'hi', mentions: [], attachments: [] }));
       expect(runs[0]?.options).toMatchObject({ effort: 'xhigh' });
       expect(runs[1]?.options?.effort).toBeUndefined();
     }));
@@ -227,7 +252,7 @@ describe('ClaudeAgentSdkAdapter', () => {
       });
       const { adapter, sessionId } = yield* ready;
       const events = yield* Stream.runCollect(
-        adapter.send({ sessionId, text: 'go', mentions: [] }).pipe(
+        adapter.send({ sessionId, text: 'go', mentions: [], attachments: [] }).pipe(
           Stream.tap((event) =>
             event._tag === 'PermissionRequested'
               ? adapter.resolvePermission(sessionId, {
@@ -260,7 +285,7 @@ describe('ClaudeAgentSdkAdapter', () => {
       });
       const { adapter, sessionId } = yield* ready;
       yield* Stream.runCollect(
-        adapter.send({ sessionId, text: 'go', mentions: [] }).pipe(
+        adapter.send({ sessionId, text: 'go', mentions: [], attachments: [] }).pipe(
           Stream.tap((event) =>
             event._tag === 'PermissionRequested'
               ? adapter.resolvePermission(sessionId, { _tag: 'Selected', requestId: event.request.id, optionId: REJECT_ONCE })
@@ -299,7 +324,7 @@ describe('ClaudeAgentSdkAdapter', () => {
       });
       const { adapter, sessionId } = yield* ready;
       yield* Stream.runCollect(
-        adapter.send({ sessionId, text: 'go', mentions: [] }).pipe(
+        adapter.send({ sessionId, text: 'go', mentions: [], attachments: [] }).pipe(
           Stream.tap((event) =>
             event._tag === 'QuestionAsked'
               ? adapter.answerQuestion(sessionId, {
@@ -329,7 +354,7 @@ describe('ClaudeAgentSdkAdapter', () => {
       });
       const { adapter, sessionId } = yield* ready;
       const events = yield* Stream.runCollect(
-        adapter.send({ sessionId, text: 'go', mentions: [] }).pipe(
+        adapter.send({ sessionId, text: 'go', mentions: [], attachments: [] }).pipe(
           Stream.tap((event) => (event._tag === 'PermissionRequested' ? adapter.interrupt(sessionId) : Effect.void)),
         ),
       );
@@ -344,7 +369,7 @@ describe('ClaudeAgentSdkAdapter', () => {
         throw new globalThis.Error('spawn failed');
       });
       const { adapter, sessionId } = yield* ready;
-      const events = yield* Stream.runCollect(adapter.send({ sessionId, text: 'go', mentions: [] }));
+      const events = yield* Stream.runCollect(adapter.send({ sessionId, text: 'go', mentions: [], attachments: [] }));
       const finished = events.find((e) => e._tag === 'TurnFinished');
       expect(finished?._tag === 'TurnFinished' && finished.outcome).toBe('Failed');
       expect(finished?._tag === 'TurnFinished' && finished.detail).toContain('spawn failed');
@@ -360,5 +385,80 @@ describe('ClaudeAgentSdkAdapter', () => {
         })
         .pipe(Effect.flip);
       expect(error.reason).toBe('RequestNotFound');
+    }));
+
+  itRepo('sends text and base64 image blocks as one streaming user message when the message has Attachments', () =>
+    Effect.gen(function* () {
+      const runs: FakeRun[] = [];
+      scriptSdk(async function* () {
+        yield init;
+        yield success;
+      }, runs);
+      const store = yield* AttachmentStore;
+      const stored = yield* store.add(PNG);
+      const { adapter, sessionId } = yield* ready;
+      yield* Stream.runCollect(
+        adapter.send({ sessionId, text: 'what is this?', mentions: [], attachments: [{ id: stored.id }] }),
+      );
+      const messages = yield* Effect.promise(() => collectPrompt(runs[0]?.prompt));
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({
+        type: 'user',
+        parent_tool_use_id: null,
+        message: {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'what is this?' },
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: Buffer.from(PNG).toString('base64') } },
+          ],
+        },
+      });
+    }));
+
+  itRepo('leaves the text block out when an image is sent alone', () =>
+    Effect.gen(function* () {
+      const runs: FakeRun[] = [];
+      scriptSdk(async function* () {
+        yield init;
+        yield success;
+      }, runs);
+      const store = yield* AttachmentStore;
+      const stored = yield* store.add(PNG);
+      const { adapter, sessionId } = yield* ready;
+      yield* Stream.runCollect(adapter.send({ sessionId, text: '', mentions: [], attachments: [{ id: stored.id }] }));
+      const messages = yield* Effect.promise(() => collectPrompt(runs[0]?.prompt));
+      const content = messages[0]?.message.content;
+      expect(Array.isArray(content) && content.map((block) => block.type)).toEqual(['image']);
+    }));
+
+  itRepo('keeps the plain string prompt for a text-only message', () =>
+    Effect.gen(function* () {
+      const runs: FakeRun[] = [];
+      scriptSdk(async function* () {
+        yield init;
+        yield success;
+      }, runs);
+      const { adapter, sessionId } = yield* ready;
+      yield* Stream.runCollect(adapter.send({ sessionId, text: 'plain', mentions: [], attachments: [] }));
+      expect(runs[0]?.prompt).toBe('plain');
+    }));
+
+  itRepo('fails with AttachmentNotFound, before any Turn starts, when a stored image is gone', () =>
+    Effect.gen(function* () {
+      const runs: FakeRun[] = [];
+      scriptSdk(async function* () {
+        yield init;
+        yield success;
+      }, runs);
+      const { adapter, sessionId } = yield* ready;
+      const missing = AttachmentId.make(randomUUID());
+      const error = yield* Stream.runCollect(
+        adapter.send({ sessionId, text: 'x', mentions: [], attachments: [{ id: missing }] }),
+      ).pipe(Effect.flip);
+      expect(error.reason).toBe('AttachmentNotFound');
+      expect(runs).toHaveLength(0);
+      // The failed send did not leave the session claimed.
+      yield* Stream.runCollect(adapter.send({ sessionId, text: 'again', mentions: [], attachments: [] }));
+      expect(runs).toHaveLength(1);
     }));
 });

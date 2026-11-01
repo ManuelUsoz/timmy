@@ -5,7 +5,7 @@ import { DesktopApi } from '../../src/app/core/desktop-api';
 import {
   layerChatUnused,
   layerSessionsUnused,
-  layerFilesUnused,
+  layerFilesUnused, layerAttachmentsUnused,
   layerSettingsUnused,
   layerWindowUnused,
   makeDesktopTestLayer,
@@ -35,7 +35,7 @@ const makeLayer = (picked: Option.Option<string> = Option.none()) =>
       layerChatUnused,
       layerSessionsUnused,
       layerWindowUnused,
-      layerFilesUnused,
+      layerFilesUnused, layerAttachmentsUnused,
       layerSettingsUnused,
     ),
   );

@@ -6,7 +6,7 @@ import { SessionId, TurnId } from '../../../shared/chat/ids.model';
 import { FilesError } from '../../../shared/files/files-error.model';
 import { FilesRpcs } from '../../../shared/files/files.rpc';
 import { SessionsRpcs } from '../../../shared/sessions/sessions.rpc';
-import { layerProjectsUnused, layerSettingsUnused, layerWindowUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
+import { layerProjectsUnused, layerSettingsUnused, layerAttachmentsUnused, layerWindowUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { ChatViewComponent } from './chat-view';
 
@@ -47,7 +47,7 @@ const setup = async (list: (call: number) => Effect.Effect<{ paths: string[]; tr
     }),
     FilesRpcs.toLayer({ 'Files.list': () => list(++calls) }),
     layerWindowUnused,
-    layerSettingsUnused,
+    layerSettingsUnused, layerAttachmentsUnused,
     layerProjectsUnused,
   );
   const layer = makeDesktopTestLayer(handlers);

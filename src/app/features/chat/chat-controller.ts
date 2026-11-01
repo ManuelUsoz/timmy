@@ -9,6 +9,7 @@ import type { Effort, ModelInfo } from '../../../shared/chat/provider.model';
 import { Cause, Effect, Exit, Stream } from 'effect';
 import type { AppInfo } from '../../../shared/app-info/app-info.rpc';
 import type { ChatEvent } from '../../../shared/chat/event.model';
+import type { AttachmentId } from '../../../shared/attachments/attachment.model';
 import type { SessionId } from '../../../shared/chat/ids.model';
 import type { PermissionResponse } from '../../../shared/chat/permission.model';
 import { DesktopApi, type DesktopApiShape } from '../../core/desktop-api';
@@ -26,6 +27,12 @@ const MODEL_LABELS: Readonly<Record<string, string>> = {
   'claude-sonnet-5-5': 'Claude Sonnet 5.5',
   'claude-haiku-5-5': 'Claude Haiku 5.5',
 };
+
+/** An image added to the draft: stored in main under `id`, shown from the bytes the renderer already has. */
+export interface DraftImage {
+  readonly id: AttachmentId;
+  readonly url: string;
+}
 
 /** How starting a new Session came out. */
 export type NewSessionOutcome =
@@ -50,6 +57,8 @@ export class ChatController {
   readonly error = signal<string | null>(null);
   readonly chat = signal<ChatState>(initialChatState);
   readonly draft = signal('');
+  /** Images of the draft, in the order they were stored. */
+  readonly images = signal<ReadonlyArray<DraftImage>>([]);
   readonly commands = signal<CommandsState>({ status: 'loading' });
   /** Files the `@` popup offers; loaded the first time the user types `@` in the Session's folder. */
   readonly files = signal<FilesState>({ status: 'idle' });
@@ -226,14 +235,46 @@ export class ChatController {
     void this.call((desktop) => desktop['Chat.closeSession']({ sessionId }), () => undefined);
   }
 
+  /** Stores each image in main and shows it above the composer. A file main refuses is dropped, with a note. */
+  addImages(files: ReadonlyArray<Blob>): void {
+    for (const file of files) {
+      const url = URL.createObjectURL(file);
+      const program = Effect.gen(function* () {
+        const desktop = yield* DesktopApi;
+        const bytes = yield* Effect.promise(async () => new Uint8Array(await file.arrayBuffer()));
+        return yield* desktop['Attachments.add']({ bytes });
+      });
+      void this.runtime.run(program).then(
+        Exit.match({
+          onFailure: () => {
+            URL.revokeObjectURL(url);
+            this.error.set(this.i18n.t('chat.attachFailed'));
+          },
+          onSuccess: ({ id }) => this.images.update((list) => [...list, { id, url }]),
+        }),
+      );
+    }
+  }
+
+  /** Takes the image out of the draft and deletes its stored file. */
+  removeImage(id: AttachmentId): void {
+    const image = this.images().find((candidate) => candidate.id === id);
+    if (image === undefined) return;
+    this.images.update((list) => list.filter((candidate) => candidate.id !== id));
+    URL.revokeObjectURL(image.url);
+    void this.call((desktop) => desktop['Attachments.remove']({ id }), () => undefined);
+  }
+
   send(): void {
     const draft = this.draft();
     const text = draft.trim();
     const cwd = this.resumeCwd ?? this.info()?.cwd;
-    if (text === '' || cwd === undefined || this.chat().running) return;
+    const sentImages = this.images();
+    if ((text === '' && sentImages.length === 0) || cwd === undefined || this.chat().running) return;
 
     const before = this.chat();
     this.draft.set('');
+    this.images.set([]);
     this.turnStartedAt.set(Date.now());
     this.now.set(Date.now());
     this.chat.update((state) => ({ ...addUserMessage(state, text), running: true }));
@@ -255,11 +296,15 @@ export class ChatController {
         this.selectedSessionId.set(resume ?? id);
       });
 
+    let restored = false;
     // No Turn started: take the message back out of the transcript and give the draft back.
     const rejectMentions = (detail: string) =>
       Effect.sync(() => {
         this.chat.set({ ...before, failure: detail });
         if (this.draft() === '') this.draft.set(draft);
+        // The images are still stored, so they go back to the draft as they were.
+        if (this.images().length === 0) this.images.set(sentImages);
+        restored = true;
       });
 
     const program = Effect.gen(function* () {
@@ -275,20 +320,20 @@ export class ChatController {
           permissionMode,
         }));
       yield* remember(sessionId);
-      yield* Stream.runForEach(desktop['Chat.send']({ sessionId, text, mentions: [] }), apply).pipe(
+      yield* Stream.runForEach(desktop['Chat.send']({ sessionId, text, mentions: [], attachments: sentImages.map(({ id }) => ({ id })) }), apply).pipe(
         Effect.catchTag('ChatError', (error) =>
           error.reason === 'InvalidMention' ? rejectMentions(error.detail) : Effect.fail(error),
         ),
       );
     });
 
-    void this.runtime.run(program).then(
-      Exit.match({
-        onFailure: (cause) =>
-          this.chat.update((state) => ({ ...state, running: false, failure: Cause.pretty(cause) })),
-        onSuccess: () => undefined,
-      }),
-    );
+    void this.runtime.run(program).then((exit) => {
+      // The thumbnails are done with unless they went back to the draft.
+      if (!restored) for (const image of sentImages) URL.revokeObjectURL(image.url);
+      if (Exit.isFailure(exit)) {
+        this.chat.update((state) => ({ ...state, running: false, failure: Cause.pretty(exit.cause) }));
+      }
+    });
   }
 
   /**

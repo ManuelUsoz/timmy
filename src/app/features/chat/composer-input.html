@@ -82,6 +82,7 @@
   [value]="draft()"
   (input)="onInput()"
   (keydown)="onKeydown($event)"
+  (paste)="onPaste($event)"
   (keyup)="syncCaret()"
   (click)="syncCaret()"
 ></textarea>

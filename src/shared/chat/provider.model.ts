@@ -13,6 +13,8 @@ export type Effort = typeof Effort.Type;
 export const ModelInfo = Schema.Struct({
   id: Schema.String,
   efforts: Schema.Array(Effort),
+  /** Overrides `AdapterCapabilities.images` for this model. */
+  images: Schema.optionalKey(Schema.Boolean),
 }).annotate({ identifier: 'ModelInfo' });
 export type ModelInfo = typeof ModelInfo.Type;
 
@@ -25,6 +27,8 @@ export const AdapterCapabilities = Schema.Struct({
   questions: Schema.Boolean,
   thinking: Schema.Boolean,
   resume: Schema.Boolean,
+  /** The provider accepts images in a message. Declared, not discovered: SDK model info has no vision flag. */
+  images: Schema.Boolean,
   /** `native`: the provider understands `@path` itself. `none`: Timmy expands each Mention into the prompt. */
   mentions: Schema.Literals(['native', 'none']),
 }).annotate({ identifier: 'AdapterCapabilities' });

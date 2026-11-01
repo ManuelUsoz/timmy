@@ -9,6 +9,8 @@ export class ChatError extends Schema.TaggedError<ChatError>()('ChatError', {
     'AuthMissing',
     'Unsupported',
     'InvalidMention',
+    'ImagesUnsupported',
+    'AttachmentNotFound',
   ]),
   detail: Schema.String,
 }) {}
