@@ -116,6 +116,23 @@ export const enterFolder = (text: string, caret: number, context: MentionContext
   return { text: text.slice(0, context.start) + reference + text.slice(caret), caret: context.start + reference.length };
 };
 
+/**
+ * Goes one level up from a query that ends in `/` (`@src/app/` becomes `@src/`; `@src/` becomes `@`), keeping
+ * the text after the caret. `left` is the folder that was left, so the caller can highlight it.
+ */
+export const leaveFolder = (text: string, caret: number, context: MentionContext) => {
+  const left = splitQuery(context.query).dir;
+  const parent = splitQuery(left).dir;
+  const query = parent === '' ? '' : `${parent}/`;
+  const reference = /\s/.test(query) ? `@"${query}` : `@${query}`;
+  return {
+    text: text.slice(0, context.start) + reference + text.slice(caret),
+    caret: context.start + reference.length,
+    query,
+    left,
+  };
+};
+
 /** Replaces the typed `@query` with `@path ` (quoted when the path has spaces) and puts the caret after it. */
 export const applyMention = (text: string, caret: number, context: MentionContext, entry: Mention) => {
   const rest = text.slice(caret).replace(/^ /, '');
