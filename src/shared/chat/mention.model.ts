@@ -1,9 +1,8 @@
 import { Schema } from 'effect';
 
-/** A file or folder of the Session's working directory that a message points at. Paths use `/` and are relative. */
+/** A file of the Session's working directory that a message points at. Paths use `/` and are relative. */
 export const Mention = Schema.Struct({
   path: Schema.String,
-  kind: Schema.Literals(['file', 'folder']),
 }).annotate({ identifier: 'Mention' });
 export type Mention = typeof Mention.Type;
 

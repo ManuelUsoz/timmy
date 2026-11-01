@@ -90,7 +90,7 @@ export class ChatViewComponent {
   protected readonly permissionOptions = this.controller.permissionOptions;
   protected readonly permissionControl = this.controller.permissionControl;
   protected readonly segmentsOf = splitMentionText;
-  /** The chip shows the file or folder name; the full path is its tooltip. */
+  /** The chip shows the file name; the full path is its tooltip. */
   protected readonly mentionName = baseName;
   protected readonly blocks = this.controller.blocks;
   protected readonly sessionChips = this.controller.sessionChips;

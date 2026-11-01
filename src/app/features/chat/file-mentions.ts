@@ -1,5 +1,4 @@
 import type { Mention } from '../../../shared/chat/mention.model';
-import { foldersOf } from '../../../shared/files/files.model';
 
 /** The last segment of a `/` path (a trailing `/` is ignored). */
 export const baseName = (path: string): string => {
@@ -13,7 +12,7 @@ export const dirName = (path: string): string => {
   return slash === -1 ? '' : path.slice(0, slash);
 };
 
-/** A file or folder of the working directory that a message can point at, with its lowercase forms precomputed for matching. */
+/** A file of the working directory that a message can point at, with its lowercase forms precomputed for matching. */
 export interface FileEntry extends Mention {
   readonly lower: string;
   readonly nameLower: string;
@@ -29,14 +28,12 @@ export type FilesState =
 /** Most rows the popup shows. */
 export const MAX_MENTION_RESULTS = 50;
 
-/** Every file, plus every folder that holds one. */
-export const entriesFromPaths = (paths: ReadonlyArray<string>): ReadonlyArray<FileEntry> => {
-  const entry = (path: string, kind: Mention['kind']): FileEntry => {
+/** One entry per file. */
+export const entriesFromPaths = (paths: ReadonlyArray<string>): ReadonlyArray<FileEntry> =>
+  paths.map((path) => {
     const lower = path.toLowerCase();
-    return { path, kind, lower, nameLower: baseName(lower) };
-  };
-  return [...[...foldersOf(paths)].map((path) => entry(path, 'folder')), ...paths.map((path) => entry(path, 'file'))];
-};
+    return { path, lower, nameLower: baseName(lower) };
+  });
 
 export interface MentionContext {
   /** Index of the `@`. */

@@ -4,7 +4,6 @@ import { Effect } from 'effect';
 import { Mention } from '../../src/shared/chat/mention.model';
 
 export const MAX_FILE_BYTES = 64 * 1024;
-export const MAX_FOLDER_ENTRIES = 200;
 export const MAX_TOTAL_BYTES = 256 * 1024;
 const BINARY_SNIFF_BYTES = 8 * 1024;
 
@@ -56,27 +55,15 @@ const renderFile = (cwd: string, mention: Mention, budget: number) =>
     }),
   );
 
-const renderFolder = (folder: string, files: ReadonlyArray<string>): Rendered => {
-  const prefix = `${folder}/`;
-  const inside = files.filter((file) => file.startsWith(prefix));
-  const shown = inside.slice(0, MAX_FOLDER_ENTRIES);
-  const more = inside.length > shown.length;
-  const note = more ? `\n[Listing cut at ${MAX_FOLDER_ENTRIES} of ${inside.length} entries.]` : '';
-  const block = `<folder path="${folder}">\n${shown.join('\n')}${note}\n</folder>`;
-  return more ? { block, bytes: block.length, cut: `${folder} listing was cut` } : { block, bytes: block.length };
-};
-
 /**
  * For adapters that declare `mentions: 'none'`: appends the content of each Mention to the prompt, since the
- * provider cannot read `@path` itself. `listed` is the git listing of `cwd`, as `resolveMentions` returns it. Files up to 64 KB go whole, folders as a listing of their git-listed files
- * (so `.gitignore` is respected) up to 200 entries, binaries as name and size, and the whole message is capped
- * at 256 KB. The user's own text is never changed here.
+ * provider cannot read `@path` itself. Files up to 64 KB go whole, binaries as name and size, and the whole
+ * message is capped at 256 KB. The user's own text is never changed here.
  */
 export const expandMentions = Effect.fn('Mentions.expand')(function* (
   cwd: string,
   text: string,
   mentions: ReadonlyArray<Mention>,
-  listed: ReadonlyArray<string>,
 ) {
   if (mentions.length === 0) return { prompt: text } satisfies Expansion;
   const blocks: string[] = [];
@@ -86,11 +73,10 @@ export const expandMentions = Effect.fn('Mentions.expand')(function* (
     const remaining = MAX_TOTAL_BYTES - used;
     if (remaining <= 0) {
       cuts.push(`${mention.path} was left out`);
-      blocks.push(`<${mention.kind} path="${mention.path}">Left out: message size limit reached.</${mention.kind}>`);
+      blocks.push(`<file path="${mention.path}">Left out: message size limit reached.</file>`);
       continue;
     }
-    const rendered =
-      mention.kind === 'file' ? yield* renderFile(cwd, mention, remaining) : renderFolder(mention.path, listed);
+    const rendered = yield* renderFile(cwd, mention, remaining);
     used += rendered.bytes;
     blocks.push(rendered.block);
     if (rendered.cut !== undefined) cuts.push(rendered.cut);

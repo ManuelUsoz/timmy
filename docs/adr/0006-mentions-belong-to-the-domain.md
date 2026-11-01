@@ -9,3 +9,5 @@ A Mention that does not resolve (the path is gone, absolute, outside the `cwd`, 
 When a Session is reopened, each Adapter's history mapper returns the user's original text, not the expanded prompt the provider recorded. Mentions are shown as chips derived from that text, so the UI only ever sees `@path`.
 
 Alternatives rejected: always inlining file contents for every provider (burns context, goes stale, and loses the agent's ability to read on demand), and sending only `@path` as text (fails for providers without tool calls and validates nothing).
+
+**Amendment (NXY-69):** a Mention now references a file only. Folders are no longer mentionable: `Mention` is just `{ path }`, a path that is a folder fails as `InvalidMention`, and the `'none'` expansion no longer renders folder listings. The rest of this decision stands.

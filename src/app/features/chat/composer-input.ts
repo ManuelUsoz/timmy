@@ -19,7 +19,7 @@ import { applyCommand, filterCommands, slashQuery, type CommandsState } from './
 
 /**
  * The message textarea. Typing `/` at the start opens a list of the provider's commands above it;
- * typing `@` at the start or after a space opens a list of the folder's files and folders.
+ * typing `@` at the start or after a space opens a list of the folder's files.
  * Tab (or Enter) inserts the highlighted one. Focus never leaves the textarea.
  */
 @Component({

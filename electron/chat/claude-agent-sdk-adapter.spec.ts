@@ -103,7 +103,7 @@ describe('ClaudeAgentSdkAdapter', () => {
       const sessionId = SessionId.make(randomUUID());
       const providerSessionId = yield* adapter.startSession(options, { sessionId });
       expect(providerSessionId).not.toBe(sessionId);
-      const first = yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi @a.ts', mentions: [{ path: 'a.ts', kind: 'file' }] }));
+      const first = yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi @a.ts', mentions: [{ path: 'a.ts' }] }));
       yield* Stream.runCollect(adapter.send({ sessionId, text: 'again', mentions: [] }));
       expect(tags(first)).toEqual(['TurnStarted', 'SessionStarted', 'AgentSpawned', 'UsageUpdated', 'TurnFinished']);
       expect(runs[0]?.prompt).toBe('hi @a.ts');

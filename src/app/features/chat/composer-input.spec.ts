@@ -177,7 +177,7 @@ describe('ComposerInputComponent', () => {
       const { host, options, type } = await render();
       host.files.set(FILES);
       await type('@chat');
-      expect(labels(options).slice(0, 2).sort()).toEqual(['chat.ts', 'chat/']);
+      expect(labels(options)[0]).toBe('chat.ts');
       expect(labels(options)).toContain('readme.md');
       await type('@zzz');
       expect(options()).toHaveLength(0);
@@ -209,13 +209,13 @@ describe('ComposerInputComponent', () => {
       expect(host.draft()).toBe('@"mi carpeta/a b.ts" ');
     });
 
-    it('offers folders too', async () => {
+    it('offers files only, never a folder', async () => {
       const { host, options, type, key } = await render();
       host.files.set(FILES);
       await type('@docs');
-      expect(labels(options)).toContain('docs/');
+      expect(labels(options)).toEqual(['notes.md']);
       await key('Tab');
-      expect(host.draft()).toBe('@docs ');
+      expect(host.draft()).toBe('@docs/notes.md ');
     });
 
     it('Escape closes the popup so a literal @ can stay', async () => {
