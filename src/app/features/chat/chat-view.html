@@ -128,7 +128,7 @@
   />
 }
 
-<form class="composer" (submit)="$event.preventDefault(); send()" (dragover)="onDragOver($event)" (drop)="onDrop($event)">
+<form class="composer" (submit)="$event.preventDefault(); send()">
   @if (images().length > 0) {
     <ul class="images" [attr.aria-label]="i18n.t('chat.images')">
       @for (image of images(); track image.id) {

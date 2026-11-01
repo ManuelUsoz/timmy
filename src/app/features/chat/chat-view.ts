@@ -60,7 +60,7 @@ import { splitMentionText } from '../../../shared/chat/mention.model';
   templateUrl: './chat-view.html',
   styleUrl: './chat-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { '[class.empty]': 'empty()' },
+  host: { '[class.empty]': 'empty()', '(dragover)': 'onDragOver($event)', '(drop)': 'onDrop($event)' },
 })
 export class ChatViewComponent {
   private readonly controller = inject(ChatController);

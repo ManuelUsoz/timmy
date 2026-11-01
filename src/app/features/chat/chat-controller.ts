@@ -31,6 +31,9 @@ const MODEL_LABELS: Readonly<Record<string, string>> = {
 /** The most images one message can carry. */
 export const MAX_IMAGES = 5;
 
+/** Files bigger than this are not even read: main would refuse them after the renderer had loaded them whole. */
+const MAX_FILE_BYTES = 50 * 1024 * 1024;
+
 /** An image added to the draft: stored in main under `id`, shown from the bytes the renderer already has. */
 export interface DraftImage {
   readonly id: AttachmentId;
@@ -246,6 +249,10 @@ export class ChatController {
     const room = Math.max(0, MAX_IMAGES - this.images().length - this.storing);
     if (files.length > room) this.error.set(this.i18n.t('chat.attachTooMany'));
     for (const file of files.slice(0, room)) {
+      if (file.size > MAX_FILE_BYTES) {
+        this.error.set(this.i18n.t('chat.attachTooLarge'));
+        continue;
+      }
       this.storing++;
       const url = URL.createObjectURL(file);
       const program = Effect.gen(function* () {

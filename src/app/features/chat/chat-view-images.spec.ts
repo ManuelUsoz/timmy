@@ -244,4 +244,25 @@ describe('ChatViewComponent images', () => {
     expect(el.querySelector('.images')).toBeNull();
     expect(el.querySelector('.error')?.textContent).toContain('PNG');
   });
+
+  it('takes a file dropped anywhere on the chat, so the window never navigates to it', async () => {
+    const { el, added } = await setup();
+    const event = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'dataTransfer', { value: { files: [pngFile()], types: ['Files'] } });
+    el.querySelector('.title')!.dispatchEvent(event);
+    await new Promise((r) => setTimeout(r));
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(added).toHaveLength(1);
+  });
+
+  it('refuses a huge file without reading it', async () => {
+    const { el, added, drop } = await setup();
+    const huge = new File([], 'big.png', { type: 'image/png' });
+    Object.defineProperty(huge, 'size', { value: 60 * 1024 * 1024 });
+    await drop([huge]);
+
+    expect(added).toEqual([]);
+    expect(el.querySelector('.error')?.textContent).toContain('5 MB');
+  });
 });
