@@ -48,8 +48,7 @@
             [attr.data-active]="i === highlighted() ? '' : null"
             (mousedown)="$event.preventDefault(); pickAt(i)"
           >
-            <span class="name">{{ name(entry) }}</span>
-            <span class="description">{{ folderOf(entry) }}</span>
+            <span class="name">{{ entry.name }}{{ entry.kind === 'folder' ? '/' : '' }}</span>
           </li>
         }
       </ul>
