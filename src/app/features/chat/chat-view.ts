@@ -22,6 +22,7 @@ import { TagComponent } from '../../shared/ui/tag/tag';
 import { ProviderIconComponent } from '../../shared/ui/provider-icon/provider-icon';
 import { AskRowComponent } from '../../shared/ui/ask-row/ask-row';
 import { I18n } from '../../core/i18n';
+import { baseName } from './file-mentions';
 import type { MessageKey } from '../../core/i18n-dictionaries';
 import { sessionStateOf, stateTone } from '../workspace/session-state';
 import { StateComponent } from '../../shared/ui/state/state';
@@ -88,7 +89,7 @@ export class ChatViewComponent {
   protected readonly permissionControl = this.controller.permissionControl;
   protected readonly segmentsOf = splitMentionText;
   /** The chip shows the file or folder name; the full path is its tooltip. */
-  protected readonly mentionName = (path: string): string => path.replace(/\/$/, '').split('/').pop() ?? path;
+  protected readonly mentionName = baseName;
   protected readonly blocks = this.controller.blocks;
   protected readonly sessionChips = this.controller.sessionChips;
   protected readonly selectedSessionId = this.controller.selectedSessionId;

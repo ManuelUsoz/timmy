@@ -94,11 +94,11 @@ export const layerChatRpc = Layer.effect(
       const stored = yield* repo.get(message.sessionId);
       if (Option.isNone(stored)) return { message: { ...message, mentions: [] }, prompt: message.text, warning: undefined };
       const cwd = stored.value.cwd;
-      const mentions = yield* resolveMentions(cwd, message.text).pipe(Effect.provideService(ProjectFiles, projectFiles));
+      const { mentions, paths } = yield* resolveMentions(cwd, message.text).pipe(Effect.provideService(ProjectFiles, projectFiles));
       const resolved = { ...message, mentions };
       // Native adapters read `@path` themselves; for the rest Timmy puts the content in the prompt.
       if (adapter.capabilities.mentions === 'native') return { message: resolved, prompt: message.text, warning: undefined };
-      const expansion = yield* expandMentions(cwd, message.text, mentions).pipe(Effect.provideService(ProjectFiles, projectFiles));
+      const expansion = yield* expandMentions(cwd, message.text, mentions, paths);
       return { message: resolved, prompt: expansion.prompt, warning: expansion.warning };
     });
 

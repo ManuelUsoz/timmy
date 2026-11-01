@@ -14,7 +14,7 @@ import {
   viewChild,
 } from '@angular/core';
 import type { SlashCommand } from '../../../shared/chat/command.model';
-import { applyMention, filterEntries, mentionContext, type FilesState, type MentionEntry } from './file-mentions';
+import { applyMention, baseName, dirName, filterEntries, mentionContext, type FileEntry, type FilesState } from './file-mentions';
 import { applyCommand, filterCommands, slashQuery, type CommandsState } from './slash-commands';
 
 /**
@@ -54,7 +54,7 @@ export class ComposerInputComponent {
     const query = this.query();
     return state.status === 'ready' && query !== undefined ? filterCommands(state.items, query) : [];
   });
-  protected readonly mentionMatches = computed((): ReadonlyArray<MentionEntry> => {
+  protected readonly mentionMatches = computed((): ReadonlyArray<FileEntry> => {
     const state = this.files();
     const context = this.mention();
     return state.status === 'ready' && context !== undefined ? filterEntries(state.entries, context.query) : [];
@@ -75,13 +75,12 @@ export class ComposerInputComponent {
     });
   }
 
-  protected name(entry: MentionEntry): string {
-    return entry.path.slice(entry.path.lastIndexOf('/') + 1);
+  protected name(entry: FileEntry): string {
+    return baseName(entry.path);
   }
 
-  protected folderOf(entry: MentionEntry): string {
-    const slash = entry.path.lastIndexOf('/');
-    return slash === -1 ? '' : entry.path.slice(0, slash);
+  protected folderOf(entry: FileEntry): string {
+    return dirName(entry.path);
   }
 
   protected onInput(): void {

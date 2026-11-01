@@ -2,7 +2,6 @@ import { open } from 'node:fs/promises';
 import path from 'node:path';
 import { Effect } from 'effect';
 import { Mention } from '../../src/shared/chat/mention.model';
-import { ProjectFiles } from '../files/project-files';
 
 export const MAX_FILE_BYTES = 64 * 1024;
 export const MAX_FOLDER_ENTRIES = 200;
@@ -69,7 +68,7 @@ const renderFolder = (folder: string, files: ReadonlyArray<string>): Rendered =>
 
 /**
  * For adapters that declare `mentions: 'none'`: appends the content of each Mention to the prompt, since the
- * provider cannot read `@path` itself. Files up to 64 KB go whole, folders as a listing of their git-listed files
+ * provider cannot read `@path` itself. `listed` is the git listing of `cwd`, as `resolveMentions` returns it. Files up to 64 KB go whole, folders as a listing of their git-listed files
  * (so `.gitignore` is respected) up to 200 entries, binaries as name and size, and the whole message is capped
  * at 256 KB. The user's own text is never changed here.
  */
@@ -77,13 +76,9 @@ export const expandMentions = Effect.fn('Mentions.expand')(function* (
   cwd: string,
   text: string,
   mentions: ReadonlyArray<Mention>,
+  listed: ReadonlyArray<string>,
 ) {
   if (mentions.length === 0) return { prompt: text } satisfies Expansion;
-  const projectFiles = yield* ProjectFiles;
-  const hasFolder = mentions.some((m) => m.kind === 'folder');
-  const listed = hasFolder
-    ? (yield* projectFiles.list(cwd).pipe(Effect.orElseSucceed(() => ({ paths: [] as ReadonlyArray<string> })))).paths
-    : [];
   const blocks: string[] = [];
   const cuts: string[] = [];
   let used = 0;

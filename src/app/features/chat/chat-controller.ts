@@ -3,7 +3,7 @@ import type { PermissionMode, SessionOptions } from '../../../shared/chat/sessio
 import type { SelectOption } from '../../shared/ui/select/select.types';
 import { I18n } from '../../core/i18n';
 import { pillView } from '../shell/pill-view';
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { Effort, ModelInfo } from '../../../shared/chat/provider.model';
 import { Cause, Effect, Exit, Stream } from 'effect';
@@ -117,7 +117,9 @@ export class ChatController {
     );
     void this.call((desktop) => desktop['Chat.models'](), (models) => this.models.set(models));
     // Files edited outside Timmy show up in the next `@`.
-    window.addEventListener('focus', () => this.invalidateFiles());
+    const onFocus = () => this.invalidateFiles();
+    window.addEventListener('focus', onFocus);
+    inject(DestroyRef).onDestroy(() => window.removeEventListener('focus', onFocus));
 
     this.modelControl.valueChanges.pipe(takeUntilDestroyed()).subscribe((id) => {
       this.selectedModel.set(id);
