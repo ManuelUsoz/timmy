@@ -92,3 +92,17 @@ it.effect('gets app info', () =>
 - `npm run typecheck`: electron tsc
 - `npm test`: `ng test`
 - `npm run package`: build + electron-builder
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in Linear, team `NXY`, via the Linear MCP tools. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.

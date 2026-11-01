@@ -5,7 +5,13 @@ A repository on disk that sessions belong to.
 
 **Session**
 A conversation between the user and an agent, within one project. Timmy owns the session and its stored transcript.
-_Avoid_: thread, chat.
+_Avoid_: thread, conversation.
+
+**Chat**
+The view where the user converses with the open Session: its transcript and the composer. It is a surface, not an entity; the thing it shows is the Session.
+
+**Mention**
+A reference to a file or folder of the Session's working directory, written as `@path` inside a message. Timmy defines and validates it; the Adapter decides how the provider receives it.
 
 **Provider Session**
 The id by which a provider's SDK knows a Session. One Session maps to exactly one Provider Session.
