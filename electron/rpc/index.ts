@@ -2,6 +2,7 @@ import { Layer } from 'effect';
 import { layerChatRpc } from '../chat/chat-rpc';
 import { layerMockSdkAdapterRegistry } from '../chat/mock-sdk-adapter';
 import { layerSdkAdapterRegistry } from '../chat/sdk-adapter-registry';
+import { layerProjectFiles } from '../files/project-files';
 import { layerProjectFolders } from '../projects/project-folders';
 import { layerProjectsService } from '../projects/projects-service';
 import { layerProjectResolver } from '../sessions/project-resolver';
@@ -9,6 +10,7 @@ import { layerSessionObserver } from '../sessions/session-observer';
 import { layerSessionsService } from '../sessions/sessions-service';
 import { layerAppInfoHandlers } from './app-info';
 import { layerChatHandlers } from './chat';
+import { layerFilesHandlers } from './files';
 import { layerProjectsHandlers } from './projects';
 import { layerSessionsHandlers } from './sessions';
 import { layerSettingsHandlers } from './settings';
@@ -31,6 +33,8 @@ const layerProjectsHandlersLive = layerProjectsHandlers.pipe(
   Layer.provide(layerProjectFolders),
 );
 
+const layerFilesHandlersLive = layerFilesHandlers.pipe(Layer.provide(layerProjectFiles()));
+
 const layerWindowHandlersLive = layerWindowHandlers.pipe(Layer.provide(layerWindowService));
 
 /**
@@ -44,4 +48,5 @@ export const layerDesktopHandlers = Layer.mergeAll(
   layerWindowHandlersLive,
   layerSettingsHandlers,
   layerProjectsHandlersLive,
+  layerFilesHandlersLive,
 ).pipe(Layer.provide(layerChatServices));

@@ -73,6 +73,8 @@ export class ChatViewComponent {
   protected readonly chat = this.controller.chat;
   protected readonly draft = this.controller.draft;
   protected readonly commands = this.controller.commands;
+  protected readonly files = this.controller.files;
+  protected readonly requestFiles = () => this.controller.requestFiles();
   protected readonly modelOptions = this.controller.modelOptions;
   protected readonly modelControl = this.controller.modelControl;
   protected readonly selectedModel = this.controller.selectedModel;
