@@ -48,3 +48,6 @@ Thumbs.db
 .nxy/local
 # e2e harness output
 /e2e-output
+
+# Agent progress tracking (local)
+/.claude/progress/
