@@ -43,16 +43,20 @@
         <ui-message [role]="'user'">
           @for (segment of segmentsOf(block.text); track $index) {
             @if (segment.kind === 'Mention') {
-              <ui-chip class="mention-chip" tone="mono" [attr.title]="segment.path">
-                <svg class="mention-icon" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  @if (segment.path.endsWith('/')) {
-                    <path d="M2 4.5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" />
-                  } @else {
-                    <path d="M4 2h5l3 3v9H4zM9 2v3h3" />
-                  }
-                </svg>
-                {{ mentionName(segment.path) }}
-              </ui-chip>
+              <ui-tooltip [text]="segment.path" placement="bottom">
+                <ui-chip class="mention-chip" tone="mono">
+                  <span class="mention-label">
+                    <svg class="mention-icon" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      @if (segment.path.endsWith('/')) {
+                        <path d="M2 4.5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" />
+                      } @else {
+                        <path d="M4 2h5l3 3v9H4zM9 2v3h3" />
+                      }
+                    </svg>
+                    {{ mentionName(segment.path) }}
+                  </span>
+                </ui-chip>
+              </ui-tooltip>
             } @else {
               {{ segment.text }}
             }

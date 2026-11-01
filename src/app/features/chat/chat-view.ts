@@ -33,12 +33,14 @@ import { permissionAnswer } from './permission-answer';
 import type { PermissionRequest } from '../../../shared/chat/permission.model';
 import { MarkdownPipe } from './markdown.pipe';
 import { ChipComponent } from '../../shared/ui/chip/chip';
+import { TooltipComponent } from '../../shared/ui/tooltip/tooltip';
 import { splitMentionText } from '../../../shared/chat/mention.model';
 
 @Component({
   imports: [
     MessageComponent,
     ChipComponent,
+    TooltipComponent,
     ChipStripComponent,
     TreeViewComponent,
     MarkdownPipe,
