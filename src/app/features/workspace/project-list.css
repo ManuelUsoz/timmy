@@ -75,3 +75,80 @@
   padding: var(--spacing-04);
   border-top: 1px solid var(--border-subtle);
 }
+
+/* Collapsed: one avatar per project down the rail, and the way to add one at the bottom. */
+.rail {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-02);
+  min-height: 0;
+  overflow-y: auto;
+  padding-block: var(--spacing-03);
+}
+
+.rail-project {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-lg);
+  height: var(--control-lg);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.rail-project:hover {
+  background: var(--layer-hover);
+}
+
+.rail-project.on {
+  background: var(--layer-selected);
+  box-shadow: inset 2px 0 0 var(--text-primary);
+}
+
+/* The project's initials on a square tile, as in the design; the open project's tile is inverted. */
+.tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  background: var(--layer-02);
+  color: var(--text-primary);
+  font: var(--text-heading-01);
+  letter-spacing: 0.16px;
+}
+
+.rail-project.on .tile {
+  background: var(--text-primary);
+  color: var(--background);
+}
+
+.rail-project .dot {
+  position: absolute;
+  inset-block-start: calc((var(--control-lg) - var(--control-sm)) / 2 - 3px);
+  inset-inline-end: calc((100% - var(--control-sm)) / 2 - 3px);
+  box-sizing: content-box;
+  gap: 0;
+  border: 2px solid var(--layer-01);
+  border-radius: var(--radius-full);
+  font-size: 0;
+}
+
+.rail-footer {
+  display: flex;
+  flex: none;
+  justify-content: center;
+  padding-block: var(--spacing-03);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.rail-new {
+  box-shadow: inset 0 0 0 1px var(--link);
+  color: var(--link);
+}

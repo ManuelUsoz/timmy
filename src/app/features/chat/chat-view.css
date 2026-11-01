@@ -67,8 +67,20 @@
   gap: var(--spacing-04);
   min-height: 0;
   padding: var(--spacing-04);
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
   background: var(--pill-inset);
+}
+
+.log > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Under the avatar's column when the agent's box above already has it (avatar 28px + the box's gap). */
+.working-after {
+  margin-left: calc(28px + var(--spacing-03));
 }
 
 .error {
@@ -90,10 +102,60 @@ pre {
   color: var(--text-secondary);
 }
 
-/* Tools hang under the reply text, aligned with it (avatar 32px + gap). */
+.title-state {
+  flex: none;
+}
+
+/* Tools sit in their own container inside the agent's box (design "Chat abierto": .tools / .tl): rows of 32px, the
+   state icon first, the target on the right cut with an ellipsis, square hovers. Nothing here may push the log
+   sideways. */
 .activity {
   display: block;
-  margin-left: var(--spacing-07);
+  min-width: 0;
+  padding: var(--spacing-02) 0;
+  border: 1px solid var(--border-subtle);
+  background: var(--layer-01);
+}
+
+.activity ::ng-deep .as-treeitem {
+  gap: var(--spacing-03);
+  min-width: 0;
+  padding: 0 var(--spacing-04) 0 var(--spacing-04);
+  border-radius: 0;
+}
+
+.activity ::ng-deep .as-treeitem--run {
+  font-weight: 400;
+}
+
+.activity ::ng-deep .as-treeitem__label {
+  flex: 0 1 auto;
+}
+
+.activity ::ng-deep .as-treeview--activity .as-treeitem__badge {
+  margin-left: var(--spacing-02);
+}
+
+.activity ::ng-deep .as-treeview--activity .as-treeitem__meta {
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-helper);
+}
+
+.activity ::ng-deep .as-treeview--activity .as-treeitem__meta--after {
+  margin-left: auto;
+}
+
+/* The calls of a group sit one level in, with no guide line. */
+.activity ::ng-deep .as-treegroup {
+  margin: 0;
+  padding: 0 0 0 30px;
+  border-left: 0;
 }
 
 .composer {
@@ -103,6 +165,18 @@ pre {
   border-bottom: 1px solid var(--border-strong);
 }
 
+.composer-bar > ui-select {
+  flex: none;
+}
+
+.vsep {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin: 0 var(--spacing-02);
+  background: var(--border-strong);
+}
+
 .composer-bar {
   display: flex;
   align-items: center;
@@ -110,32 +184,85 @@ pre {
   padding: 0 var(--spacing-03) var(--spacing-03);
 }
 
-.composer-bar ui-select {
-  flex: 0 1 auto;
-  min-width: 0;
+/* Empty chat: the composer is centered on the free space (the log above and .below share it) and glides to the
+   bottom once the first message grows the log. */
+.below {
+  flex: 0 1 0;
+  min-height: 0;
+  margin-top: calc(-1 * var(--spacing-03));
 }
 
-/* The selects keep an accessible name through their label, but only the value is drawn. */
-.composer-bar ui-select ::ng-deep .as-field__label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+.log,
+.below {
+  transition: flex-grow 200ms ease-out;
 }
 
-/* Selects take the width of their value, as in the design. */
-.composer-bar ui-select ::ng-deep .as-field {
-  width: auto;
-  max-width: none;
+:host(.empty) .below {
+  flex-grow: 1;
+}
+
+/* No panel behind the heading: it sits in the middle of the free space, over the project the session works in. */
+:host(.empty) .log {
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-05);
+  background: transparent;
+}
+
+.empty-title {
+  margin: 0;
+  color: var(--text-primary);
+  font: 300 32px/40px var(--ff-sans);
+  letter-spacing: 0;
+  text-align: center;
+}
+
+.empty-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-05);
+  margin: 0;
+  color: var(--text-secondary);
+  font: 400 14px/18px var(--ff-sans);
+  letter-spacing: 0.16px;
+}
+
+.empty-project {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.meta-icon {
   flex: none;
 }
 
-.composer-bar ui-select ::ng-deep .as-select__trigger {
-  width: auto;
-  gap: var(--spacing-02);
-  padding: 0 var(--spacing-03);
+/* The composer keeps the width of the design and sits centered. */
+:host(.empty) .composer {
+  align-self: center;
+  box-sizing: border-box;
+  width: 760px;
+  max-width: 100%;
+  background: var(--layer-01);
+}
+
+/* Too short to center, or the reader asks for no motion. */
+@media (max-height: 420px) {
+  :host(.empty) .below {
+    flex-grow: 0;
+  }
+
+  .log,
+  .below {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .log,
+  .below {
+    transition: none;
+  }
 }
 
 .provider {
@@ -164,7 +291,20 @@ pre {
   margin-bottom: 0;
 }
 
+:host ::ng-deep .markdown {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+:host ::ng-deep .markdown img {
+  max-width: 100%;
+  height: auto;
+}
+
 :host ::ng-deep .markdown pre {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   padding: 10px 12px;
   border-radius: 0;
   background: var(--layer-01);
@@ -180,6 +320,8 @@ pre {
 }
 
 :host ::ng-deep .markdown table {
+  width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
 }
 

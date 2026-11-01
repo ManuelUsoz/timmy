@@ -47,13 +47,13 @@ const doneSummary = (chat: ChatState): string | undefined => {
 };
 
 /** What the Pill shows for the current Session: Idle, Live (activity, elapsed time, subagent count), Asks or Done (summary). */
-export const pillView = (chat: ChatState, elapsedMs: number): PillView => {
+export const pillView = (chat: ChatState, elapsedMs: number, workingText = 'Working…'): PillView => {
   if (chat.permission) {
     return { ...NO_EXTRAS, tone: 'waiting', label: 'Asks', text: `${chat.permission.toolCall.name} ${chat.permission.toolCall.title}`, action: 'Review' };
   }
   if (chat.running) {
     const active = findLastItem(chat.items, (item) => item.kind === 'Tool' && item.call.status === 'Running');
-    const text = active?.kind === 'Tool' ? `${active.call.name} ${active.call.title}` : 'Working…';
+    const text = active?.kind === 'Tool' ? `${active.call.name} ${active.call.title}` : workingText;
     return { tone: 'running', label: 'Live', text, meta: formatElapsed(elapsedMs), action: '', pulse: true, subagents: runningSubagents(chat) };
   }
   const summary = doneSummary(chat);

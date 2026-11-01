@@ -9,13 +9,14 @@ import { AvatarComponent } from '../../shared/ui/avatar/avatar';
 import { MenuComponent } from '../../shared/ui/menu/menu';
 import { OptionComponent } from '../../shared/ui/menu/option';
 import { PillComponent } from '../../shared/ui/pill/pill';
+import { ProviderIconComponent } from '../../shared/ui/provider-icon/provider-icon';
 import { WindowMode } from '../../../shared/window/window.model';
 import { WindowModeState } from './window-mode-state';
 
 /** Picks the content for the current Window mode. Nothing here changes the mode on its own: only the switcher and double-clicks do. */
 @Component({
   selector: 'app-shell',
-  imports: [NgTemplateOutlet, ChatViewComponent, WorkspaceComponent, PillComponent, AvatarComponent, MenuComponent, OptionComponent],
+  imports: [NgTemplateOutlet, ChatViewComponent, WorkspaceComponent, PillComponent, ProviderIconComponent, AvatarComponent, MenuComponent, OptionComponent],
   templateUrl: './shell.html',
   styleUrl: './shell.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

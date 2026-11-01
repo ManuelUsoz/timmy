@@ -12,19 +12,22 @@ import { NewProjectDialog } from './new-project-dialog';
 import { ProjectContent } from './project-content';
 import { ProjectList } from './project-list';
 import { ProjectsState } from './projects-state';
+import type { TerminalEntry } from './terminal-entries';
+import { TerminalScreen } from './terminal-screen';
+import { TerminalsState } from './terminals-state';
 import { WorkspaceHero } from './workspace-hero';
 import { WorkspaceLayoutState } from './workspace-layout';
 import { entryPath, entryTarget } from './workspace-entry';
 
 /**
  * Projects: the list, the content of the selected project and the open session. One component serves
- * `/projects`, `/projects/:projectId` and `/projects/:projectId/sessions/:sessionId` (see `workspace.routes`),
+ * `/projects`, `/projects/:projectId`, `/projects/:projectId/sessions/:sessionId` and `/projects/:projectId/terminals/:terminalId` (see `workspace.routes`),
  * so moving between them keeps the columns in place. The route decides what is open; this screen makes the
  * state follow it.
  */
 @Component({
   selector: 'app-projects-screen',
-  imports: [ButtonComponent, ChatViewComponent, NewProjectDialog, ProjectContent, ProjectList, WorkspaceHero],
+  imports: [ButtonComponent, ChatViewComponent, NewProjectDialog, ProjectContent, ProjectList, TerminalScreen, WorkspaceHero],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './projects-screen.html',
   styleUrl: './projects-screen.css',
@@ -36,10 +39,12 @@ export class ProjectsScreen {
   private readonly chat = inject(ChatController);
   private readonly router = inject(Router);
   private readonly toasts = inject(ToastService);
+  private readonly terminals = inject(TerminalsState);
 
   /** Path parameters of the route, bound to inputs. */
   readonly projectId = input<string>();
   readonly sessionId = input<string>();
+  readonly terminalId = input<string>();
 
   protected readonly dialogOpen = signal(false);
   /** A new session is being started, so the buttons that start one wait. */
@@ -55,6 +60,13 @@ export class ProjectsScreen {
     const list = this.state.sessions();
     const id = this.routeSessionId();
     return list.status === 'ready' && id !== undefined ? list.items.find((session) => session.sessionId === id) : undefined;
+  });
+
+  /** The terminal of the route, if it is one of the selected project's. Terminals live only as long as the app run. */
+  protected readonly routeTerminal = computed((): TerminalEntry | undefined => {
+    const id = this.terminalId();
+    const entry = id === undefined ? undefined : this.terminals.find(id);
+    return entry !== undefined && entry.projectId === this.state.selectedId() ? entry : undefined;
   });
 
   protected readonly listReady = computed(() => this.state.projects().status === 'ready');
@@ -92,6 +104,14 @@ export class ProjectsScreen {
       });
     });
 
+    // A terminal that does not exist (a stale route) sends the user back to the project.
+    effect(() => {
+      const id = this.terminalId();
+      const selected = this.state.selectedId();
+      if (id === undefined || selected === undefined || selected !== this.projectId() || this.routeTerminal() !== undefined) return;
+      untracked(() => void this.router.navigate(['/projects', selected], { replaceUrl: true }));
+    });
+
     // The folder may come back, or go away, while the app is in the background.
     const onFocus = () => this.state.recheckFolder();
     window.addEventListener('focus', onFocus);
@@ -117,6 +137,17 @@ export class ProjectsScreen {
 
   protected async openSessionOf(session: SessionSummary): Promise<void> {
     await this.router.navigate(['/projects', session.projectId, 'sessions', session.sessionId]);
+  }
+
+  protected async openTerminal(terminal: TerminalEntry): Promise<void> {
+    await this.router.navigate(['/projects', terminal.projectId, 'terminals', terminal.id]);
+  }
+
+  /** "Nueva terminal": adds a local entry to the project and opens it at its own route. */
+  protected async newTerminal(): Promise<void> {
+    const projectId = this.state.selectedId();
+    if (projectId === undefined) return;
+    await this.openTerminal(this.terminals.create(projectId));
   }
 
   /** "Nueva sesión": starts a session in the project, which opens in the chat at its own route. */

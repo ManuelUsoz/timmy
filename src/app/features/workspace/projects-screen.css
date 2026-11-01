@@ -71,7 +71,8 @@ h2 {
   font: var(--text-heading-02);
 }
 
-.chat {
+.chat,
+.terminal {
   flex: 1;
   min-height: 0;
 }

@@ -1,17 +1,22 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { AvatarComponent } from '../avatar/avatar';
+import { ProviderIconComponent, type Provider } from '../provider-icon/provider-icon';
 
 export type MessageRole = 'user' | 'agent';
 
 @Component({
   selector: 'ui-message',
-  imports: [AvatarComponent],
+  imports: [AvatarComponent, ProviderIconComponent],
   template: `
     @if (role() === 'agent') {
       <ui-avatar tone="merged">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 3c1 3 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 1-9z" />
-        </svg>
+        @if (provider(); as provider) {
+          <ui-provider-icon [provider]="provider" />
+        } @else {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3c1 3 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-5 1-9z" />
+          </svg>
+        }
       </ui-avatar>
     }
     <div [class]="role() === 'agent' ? 'as-message__body' : 'as-message__bubble'"><ng-content /></div>
@@ -30,6 +35,8 @@ export class MessageComponent {
   readonly role = input<MessageRole>('agent');
   /** Overrides the default accessible name ("You" / "Agent"). */
   readonly author = input('');
+  /** The agent's provider: its mark is the avatar, in place of the generic one. */
+  readonly provider = input<Provider>();
 
   protected readonly accessibleName = computed(
     () => this.author() || (this.role() === 'user' ? 'You' : 'Agent'),

@@ -11,6 +11,7 @@ class Host {
   nodes: TreeNode[] = [
     { id: 'read', label: 'Read', status: 'done', meta: '×4' },
     { id: 'edit', label: 'Edit', status: 'running', meta: 'hook-server.ts' },
+    { id: 'bad', label: 'Bash', status: 'failed', meta: 'npm test' },
     {
       id: 'explore',
       label: 'Explore',
@@ -50,6 +51,15 @@ describe('TreeViewComponent activity variant', () => {
     expect(edit.textContent).toContain('hook-server.ts');
   });
 
+  it('shows the icon of each state: tick, spinner, red cross and the violet dot of a subagent', async () => {
+    const { items } = await render();
+    const icon = (label: string) => items().find((i) => i.querySelector('.as-treeitem__label')?.textContent === label)!;
+    expect(icon('Read').querySelector('.as-treeitem__icon--done')).not.toBeNull();
+    expect(icon('Edit').querySelector('.as-spin')).not.toBeNull();
+    expect(icon('Bash').querySelector('.as-treeitem__icon--failed')).not.toBeNull();
+    expect(icon('Plan').querySelector('.as-dot')).not.toBeNull();
+  });
+
   it('shows nested items in a group only for open parents', async () => {
     const { root, items } = await render();
     expect(root.querySelectorAll('[role="group"]').length).toBe(1);
@@ -60,6 +70,7 @@ describe('TreeViewComponent activity variant', () => {
     expect(items().map((i) => i.querySelector('.as-treeitem__label')?.textContent)).toEqual([
       'Read',
       'Edit',
+      'Bash',
       'Explore',
       'Grep',
       'Read',

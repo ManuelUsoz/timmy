@@ -25,11 +25,13 @@
   <section class="group" [attr.aria-label]="i18n.t('sessions.title')">
     @let list = sessions();
     <div class="group-header">
-      <span class="label">{{ i18n.t('sessions.title') }}</span>
-      @if (list.status === 'ready' && list.items.length > 0) {
-        <ui-tag>{{ list.items.length }}</ui-tag>
-      }
-      <span class="spacer"></span>
+      <button type="button" class="toggle" [attr.aria-expanded]="!isCollapsed('sessions')" (click)="toggle('sessions')">
+        <svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" /></svg>
+        <span class="label">{{ i18n.t('sessions.title') }}</span>
+        @if (list.status === 'ready' && list.items.length > 0) {
+          <ui-tag>{{ list.items.length }}</ui-tag>
+        }
+      </button>
       @if (list.status === 'ready' && list.items.length > 0) {
         <button
           uiButton
@@ -47,6 +49,7 @@
       }
     </div>
 
+    @if (!isCollapsed('sessions')) {
     @switch (list.status) {
       @case ('loading') {
         <p class="note" role="status">{{ i18n.t('sessions.loading') }}</p>
@@ -118,6 +121,65 @@
           </div>
         }
       }
+    }
+    }
+  </section>
+
+  <section class="group" [attr.aria-label]="i18n.t('terminals.title')">
+    @let terminalList = terminals();
+    <div class="group-header">
+      <button type="button" class="toggle" [attr.aria-expanded]="!isCollapsed('terminals')" (click)="toggle('terminals')">
+        <svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" /></svg>
+        <span class="label">{{ i18n.t('terminals.title') }}</span>
+        @if (terminalList.length > 0) {
+          <ui-tag>{{ terminalList.length }}</ui-tag>
+        }
+      </button>
+      @if (terminalList.length > 0) {
+        <button
+          uiButton
+          kind="ghost"
+          iconOnly
+          size="sm"
+          type="button"
+          [attr.aria-label]="i18n.t('terminals.new')"
+          [attr.title]="i18n.t('terminals.new')"
+          (click)="newTerminal.emit()"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+        </button>
+      }
+    </div>
+
+    @if (!isCollapsed('terminals')) {
+    @if (terminalList.length === 0) {
+      <div class="empty">
+        <p class="empty-title">{{ i18n.t('terminals.emptyTitle') }}</p>
+        <small>{{ i18n.t('terminals.emptyDetail') }}</small>
+        <button uiButton kind="tertiary" size="sm" type="button" (click)="newTerminal.emit()">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+          {{ i18n.t('terminals.new') }}
+        </button>
+      </div>
+    } @else {
+      <div role="listbox" [attr.aria-label]="i18n.t('terminals.title')">
+        @for (terminal of terminalList; track terminal.id) {
+          <as-list-row
+            lead
+            [label]="i18n.t('terminals.name', { number: terminal.number })"
+            [meta]="terminalMeta(terminal)"
+            [selected]="terminal.id === openTerminalId()"
+            [attr.aria-current]="terminal.id === openTerminalId() ? 'true' : null"
+            (activate)="terminalOpened.emit(terminal)"
+          >
+            <svg leading class="chat" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
+            <span trailing>
+              <ui-state [tone]="terminalTone(terminal.state)">{{ i18n.t(terminalStateKey(terminal.state)) }}</ui-state>
+            </span>
+          </as-list-row>
+        }
+      </div>
+    }
     }
   </section>
 }

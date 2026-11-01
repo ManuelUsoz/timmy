@@ -1,6 +1,7 @@
 import type { StateTone } from '../state/state';
 
-export type TreeNodeStatus = 'done' | 'running';
+/** `agent` is a subagent or a plan: the violet dot, whatever its state (the badge says it). */
+export type TreeNodeStatus = 'done' | 'running' | 'failed' | 'agent';
 
 export interface TreeNodeBadge {
   readonly label: string;
@@ -12,7 +13,7 @@ export interface TreeNode {
   readonly label: string;
   readonly children?: readonly TreeNode[];
   readonly disabled?: boolean;
-  /** Activity variant: leading status icon (check / spinner). Groups without a status get a dot. */
+  /** Activity variant: leading status icon (check / spinner / red cross / violet dot). Groups without a status get a dot. */
   readonly status?: TreeNodeStatus;
   /** Activity variant: trailing mono text (target, count, elapsed time). */
   readonly meta?: string;

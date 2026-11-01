@@ -12,16 +12,18 @@ import {
 const comingSoon = () => import('./coming-soon-screen').then((m) => m.ComingSoonScreen);
 
 /**
- * One route for the three shapes of the Projects area, so moving between them keeps the screen alive:
- * `/projects`, `/projects/:projectId` and `/projects/:projectId/sessions/:sessionId`.
+ * One route for the shapes of the Projects area, so moving between them keeps the screen alive:
+ * `/projects`, `/projects/:projectId`, `/projects/:projectId/sessions/:sessionId` and
+ * `/projects/:projectId/terminals/:terminalId`.
  */
 export const projectsMatcher: NonNullable<Route['matcher']> = (segments: UrlSegment[]): UrlMatchResult | null => {
-  const [area, projectId, sessions, sessionId] = segments;
+  const [area, projectId, child, childId] = segments;
   if (area?.path !== 'projects') return null;
   if (segments.length === 1) return { consumed: segments };
   if (segments.length === 2 && projectId !== undefined) return { consumed: segments, posParams: { projectId } };
-  if (segments.length === 4 && projectId !== undefined && sessions?.path === 'sessions' && sessionId !== undefined) {
-    return { consumed: segments, posParams: { projectId, sessionId } };
+  if (segments.length === 4 && projectId !== undefined && childId !== undefined) {
+    if (child?.path === 'sessions') return { consumed: segments, posParams: { projectId, sessionId: childId } };
+    if (child?.path === 'terminals') return { consumed: segments, posParams: { projectId, terminalId: childId } };
   }
   return null;
 };

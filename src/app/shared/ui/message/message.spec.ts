@@ -1,14 +1,16 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MessageComponent, MessageRole } from './message';
+import type { Provider } from '../provider-icon/provider-icon';
 
 @Component({
   imports: [MessageComponent],
-  template: `<ui-message [role]="role" [author]="author"><p>Hello there</p></ui-message>`,
+  template: `<ui-message [role]="role" [author]="author" [provider]="provider"><p>Hello there</p></ui-message>`,
 })
 class Host {
   role: MessageRole = 'agent';
   author = '';
+  provider: Provider | undefined = undefined;
 }
 
 describe('MessageComponent', () => {
@@ -30,6 +32,11 @@ describe('MessageComponent', () => {
   it('agent messages show an avatar', async () => {
     const el = await render();
     expect(el.querySelector('ui-avatar')).not.toBeNull();
+  });
+
+  it('shows the mark of the provider as the avatar when it is given', async () => {
+    const el = await render({ provider: 'claude' });
+    expect(el.querySelector('ui-avatar ui-provider-icon')).not.toBeNull();
   });
 
   it('user messages are named "You" and have no avatar', async () => {
