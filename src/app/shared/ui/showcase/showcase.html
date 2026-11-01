@@ -415,3 +415,15 @@
     <ui-ask-row title="api-gateway asks" sub="git push origin fix/rate-limit" />
   </div>
 </section>
+
+<section>
+  <h2>Modal</h2>
+  <div class="row">
+    <button uiButton kind="secondary" type="button" (click)="modalOpen.set(true)">Open modal</button>
+  </div>
+  @if (modalOpen()) {
+    <ui-modal heading="Send without text?" primaryLabel="Send anyway" closeLabel="Close" (primary)="modalOpen.set(false)" (closed)="modalOpen.set(false)">
+      Your message has only images.
+    </ui-modal>
+  }
+</section>
