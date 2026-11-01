@@ -8,6 +8,7 @@ export class ChatError extends Schema.TaggedError<ChatError>()('ChatError', {
     'AdapterNotReady',
     'AuthMissing',
     'Unsupported',
+    'InvalidMention',
   ]),
   detail: Schema.String,
 }) {}

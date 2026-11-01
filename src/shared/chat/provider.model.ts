@@ -25,5 +25,7 @@ export const AdapterCapabilities = Schema.Struct({
   questions: Schema.Boolean,
   thinking: Schema.Boolean,
   resume: Schema.Boolean,
+  /** `native`: the provider understands `@path` itself. `none`: Timmy expands each Mention into the prompt. */
+  mentions: Schema.Literals(['native', 'none']),
 }).annotate({ identifier: 'AdapterCapabilities' });
 export type AdapterCapabilities = typeof AdapterCapabilities.Type;

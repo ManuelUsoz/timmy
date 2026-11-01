@@ -205,10 +205,12 @@ export class ChatController {
   }
 
   send(): void {
-    const text = this.draft().trim();
+    const draft = this.draft();
+    const text = draft.trim();
     const cwd = this.resumeCwd ?? this.info()?.cwd;
     if (text === '' || cwd === undefined || this.chat().running) return;
 
+    const before = this.chat();
     this.draft.set('');
     this.turnStartedAt.set(Date.now());
     this.now.set(Date.now());
@@ -226,6 +228,13 @@ export class ChatController {
         this.selectedSessionId.set(resume ?? id);
       });
 
+    // No Turn started: take the message back out of the transcript and give the draft back.
+    const rejectMentions = (detail: string) =>
+      Effect.sync(() => {
+        this.chat.set({ ...before, failure: detail });
+        if (this.draft() === '') this.draft.set(draft);
+      });
+
     const program = Effect.gen(function* () {
       const desktop = yield* DesktopApi;
       const sessionId =
@@ -239,7 +248,11 @@ export class ChatController {
           permissionMode,
         }));
       yield* remember(sessionId);
-      yield* Stream.runForEach(desktop['Chat.send']({ sessionId, text, files: [] }), apply);
+      yield* Stream.runForEach(desktop['Chat.send']({ sessionId, text, mentions: [] }), apply).pipe(
+        Effect.catchTag('ChatError', (error) =>
+          error.reason === 'InvalidMention' ? rejectMentions(error.detail) : Effect.fail(error),
+        ),
+      );
     });
 
     void this.runtime.run(program).then(

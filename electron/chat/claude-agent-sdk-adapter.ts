@@ -53,6 +53,7 @@ const claudeCapabilities: AdapterCapabilities = {
   questions: true,
   thinking: true,
   resume: true,
+  mentions: 'native',
 };
 
 /**
@@ -305,10 +306,7 @@ export const makeClaudeAgentSdkAdapter = (adapterOptions: ClaudeAdapterOptions =
           yield* Ref.set(runtime.interrupted, false);
           const turnId = TurnId.make(randomUUID());
           const started = yield* Ref.get(runtime.started);
-          const prompt =
-            message.files.length === 0
-              ? message.text
-              : `${message.text}\n\n${message.files.map((file) => `@${file}`).join(' ')}`;
+          const prompt = message.text;
           const options = queryOptions(runtime, started, abortController, makeCanUseTool(sessionId, runtime, queue));
           yield* Effect.logInfo(`[claude] -> query ${show({ prompt, options: loggableOptions(options) })}`);
           const claudeQuery = sdkQuery({ prompt, options });
