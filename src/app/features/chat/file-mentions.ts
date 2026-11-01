@@ -1,8 +1,7 @@
+import type { Mention } from '../../../shared/chat/mention.model';
+
 /** A file or folder of the working directory that a message can point at. */
-export interface MentionEntry {
-  readonly path: string;
-  readonly kind: 'file' | 'folder';
-}
+export type MentionEntry = Mention;
 
 /** Loading, failure and empty stay distinct so the popup never shows a failure as "no matches". */
 export type FilesState =

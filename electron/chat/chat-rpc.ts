@@ -8,9 +8,11 @@ import { PermissionResponse } from '../../src/shared/chat/permission.model';
 import { AdapterCapabilities, ModelInfo, ProviderId } from '../../src/shared/chat/provider.model';
 import { QuestionResponse } from '../../src/shared/chat/question.model';
 import { SessionOptions, UserMessage } from '../../src/shared/chat/session.model';
+import { ProjectFiles } from '../files/project-files';
 import { ProjectResolver } from '../sessions/project-resolver';
 import { SessionObserver } from '../sessions/session-observer';
 import { SessionRepo } from '../sessions/session-repo';
+import { resolveMentions } from './mention-resolver';
 import { SdkAdapter, SdkAdapterRegistry } from './sdk-adapter';
 
 export interface ChatRpcShape {
@@ -63,6 +65,7 @@ export const layerChatRpc = Layer.effect(
     const repo = yield* SessionRepo;
     const resolver = yield* ProjectResolver;
     const observer = yield* SessionObserver;
+    const projectFiles = yield* ProjectFiles;
     const initial = yield* registry.get(registry.defaultProvider).pipe(Effect.flatMap(makeActive), Effect.orDie);
     const state = yield* Ref.make<State>({ active: initial, sessions: new Set<SessionId>() });
     const swapLock = yield* Semaphore.make(1);
@@ -79,6 +82,20 @@ export const layerChatRpc = Layer.effect(
         return yield* new ChatError({ reason: 'SessionNotFound', detail: `No open session ${sessionId}` });
       }
       return yield* ready;
+    });
+
+    /**
+     * Parses and validates the Mentions of an outgoing message, so every adapter gets the same guarantees; fails
+     * with `InvalidMention` before anything is recorded or any Turn starts. The text is never rewritten here.
+     * Expanding Mentions for adapters that declare `mentions: 'none'` belongs after this step.
+     */
+    const prepareMessage = Effect.fn('ChatRpc.prepareMessage')(function* (adapter: SdkAdapter, message: UserMessage) {
+      const stored = yield* repo.get(message.sessionId);
+      if (Option.isNone(stored)) return { ...message, mentions: [] };
+      const mentions = yield* resolveMentions(stored.value.cwd, message.text).pipe(
+        Effect.provideService(ProjectFiles, projectFiles),
+      );
+      return { ...message, mentions };
     });
 
     const changeAdapter = Effect.fn('ChatRpc.changeAdapter')(function* (provider: ProviderId) {
@@ -165,10 +182,12 @@ export const layerChatRpc = Layer.effect(
       startSession: (options) => swapLock.withPermit(startSession(options)),
       send: (message) =>
         Stream.unwrap(
-          requireSession(message.sessionId).pipe(
-            Effect.tap(() => observer.userMessage(message)),
-            Effect.map((adapter) => adapter.send(message).pipe(Stream.tap(observer.event))),
-          ),
+          Effect.gen(function* () {
+            const adapter = yield* requireSession(message.sessionId);
+            const prepared = yield* prepareMessage(adapter, message);
+            yield* observer.userMessage(prepared);
+            return adapter.send(prepared).pipe(Stream.tap(observer.event));
+          }),
         ),
       isOpen: (sessionId) => Ref.get(state).pipe(Effect.map((s) => s.sessions.has(sessionId))),
       resolvePermission: (sessionId, response) =>

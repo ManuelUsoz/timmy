@@ -1,5 +1,6 @@
 import { Schema } from 'effect';
 import { SessionId } from './ids.model';
+import { Mention } from './mention.model';
 import { Effort, ProviderId } from './provider.model';
 
 export const PermissionMode = Schema.Literals(['Auto', 'AutoAccept', 'Default', 'Plan']).annotate({
@@ -19,10 +20,13 @@ export const SessionOptions = Schema.Struct({
 }).annotate({ identifier: 'SessionOptions' });
 export type SessionOptions = typeof SessionOptions.Type;
 
-/** What the user sends. File mentions are paths relative to the session `cwd`. */
+/**
+ * What the user sends. `text` is exactly what they typed; `mentions` are the `@path` references in it, resolved by
+ * Timmy (the renderer sends none) before the message reaches an adapter.
+ */
 export const UserMessage = Schema.Struct({
   sessionId: SessionId,
   text: Schema.String,
-  files: Schema.Array(Schema.String),
+  mentions: Schema.Array(Mention),
 }).annotate({ identifier: 'UserMessage' });
 export type UserMessage = typeof UserMessage.Type;

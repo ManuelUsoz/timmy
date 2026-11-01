@@ -22,7 +22,7 @@ const isE2e = process.env['TIMMY_E2E'] === '1';
 
 /** The services chat and sessions share. Built once, so both see the same open sessions. */
 const layerChatServices = layerChatRpc.pipe(
-  Layer.provideMerge(Layer.mergeAll(isE2e ? layerMockSdkAdapterRegistry : layerSdkAdapterRegistry, layerProjectResolver, layerSessionObserver)),
+  Layer.provideMerge(Layer.mergeAll(isE2e ? layerMockSdkAdapterRegistry : layerSdkAdapterRegistry, layerProjectResolver, layerSessionObserver, layerProjectFiles())),
 );
 
 const layerSessionHandlers = layerSessionsHandlers.pipe(Layer.provide(layerSessionsService));

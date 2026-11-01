@@ -82,8 +82,8 @@ describe('SessionObserver', () => {
         provider: 'Claude',
         providerSessionId: ProviderSessionId.make('native'),
       });
-      yield* observer.userMessage({ sessionId, text: 'Fix the bug', files: [] });
-      yield* observer.userMessage({ sessionId, text: 'Something else', files: [] });
+      yield* observer.userMessage({ sessionId, text: 'Fix the bug', mentions: [] });
+      yield* observer.userMessage({ sessionId, text: 'Something else', mentions: [] });
       expect((yield* repo.get(sessionId)).pipe(Option.map((s) => s.title))).toEqual(Option.some('Fix the bug'));
     }).pipe(Effect.provide(layer)));
 
@@ -103,7 +103,7 @@ describe('SessionObserver', () => {
   it.effect('does not fail the chat when the session is not stored', () =>
     Effect.gen(function* () {
       const observer = yield* SessionObserver;
-      yield* observer.userMessage({ sessionId: SessionId.make('ghost'), text: 'hi', files: [] });
+      yield* observer.userMessage({ sessionId: SessionId.make('ghost'), text: 'hi', mentions: [] });
       yield* observer.event(event({ _tag: 'TurnFinished', sessionId: SessionId.make('ghost'), turnId }));
     }).pipe(Effect.provide(layer)));
 });

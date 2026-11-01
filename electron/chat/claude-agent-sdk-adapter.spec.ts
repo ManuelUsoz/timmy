@@ -103,10 +103,10 @@ describe('ClaudeAgentSdkAdapter', () => {
       const sessionId = SessionId.make(randomUUID());
       const providerSessionId = yield* adapter.startSession(options, { sessionId });
       expect(providerSessionId).not.toBe(sessionId);
-      const first = yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi', files: ['a.ts'] }));
-      yield* Stream.runCollect(adapter.send({ sessionId, text: 'again', files: [] }));
+      const first = yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi @a.ts', mentions: [{ path: 'a.ts', kind: 'file' }] }));
+      yield* Stream.runCollect(adapter.send({ sessionId, text: 'again', mentions: [] }));
       expect(tags(first)).toEqual(['TurnStarted', 'SessionStarted', 'AgentSpawned', 'UsageUpdated', 'TurnFinished']);
-      expect(runs[0]?.prompt).toBe('hi\n\n@a.ts');
+      expect(runs[0]?.prompt).toBe('hi @a.ts');
       expect(runs[0]?.options).toMatchObject({
         sessionId: providerSessionId,
         includePartialMessages: true,
@@ -133,7 +133,7 @@ describe('ClaudeAgentSdkAdapter', () => {
         { ...options, resume: sessionId },
         { sessionId, resumeProviderSessionId: stored },
       );
-      yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi', files: [] }));
+      yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi', mentions: [] }));
       expect(providerSessionId).toBe(stored);
       expect(runs[0]?.options).toMatchObject({ resume: stored });
     }));
@@ -148,7 +148,7 @@ describe('ClaudeAgentSdkAdapter', () => {
       const adapter = yield* makeClaudeAgentSdkAdapter();
       yield* adapter.startup;
       const sessionId = yield* openSession(adapter, { ...options, permissionMode: 'Auto' });
-      yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi', files: [] }));
+      yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi', mentions: [] }));
       expect(runs[0]?.options).toMatchObject({ permissionMode: 'auto' });
     }));
 
@@ -208,8 +208,8 @@ describe('ClaudeAgentSdkAdapter', () => {
       yield* adapter.startup;
       const high = yield* openSession(adapter, { ...options, effort: 'XHigh' });
       const plain = yield* openSession(adapter, { ...options, effort: 'Default' });
-      yield* Stream.runCollect(adapter.send({ sessionId: high, text: 'hi', files: [] }));
-      yield* Stream.runCollect(adapter.send({ sessionId: plain, text: 'hi', files: [] }));
+      yield* Stream.runCollect(adapter.send({ sessionId: high, text: 'hi', mentions: [] }));
+      yield* Stream.runCollect(adapter.send({ sessionId: plain, text: 'hi', mentions: [] }));
       expect(runs[0]?.options).toMatchObject({ effort: 'xhigh' });
       expect(runs[1]?.options?.effort).toBeUndefined();
     }));
@@ -227,7 +227,7 @@ describe('ClaudeAgentSdkAdapter', () => {
       });
       const { adapter, sessionId } = yield* ready;
       const events = yield* Stream.runCollect(
-        adapter.send({ sessionId, text: 'go', files: [] }).pipe(
+        adapter.send({ sessionId, text: 'go', mentions: [] }).pipe(
           Stream.tap((event) =>
             event._tag === 'PermissionRequested'
               ? adapter.resolvePermission(sessionId, {
@@ -260,7 +260,7 @@ describe('ClaudeAgentSdkAdapter', () => {
       });
       const { adapter, sessionId } = yield* ready;
       yield* Stream.runCollect(
-        adapter.send({ sessionId, text: 'go', files: [] }).pipe(
+        adapter.send({ sessionId, text: 'go', mentions: [] }).pipe(
           Stream.tap((event) =>
             event._tag === 'PermissionRequested'
               ? adapter.resolvePermission(sessionId, { _tag: 'Selected', requestId: event.request.id, optionId: REJECT_ONCE })
@@ -299,7 +299,7 @@ describe('ClaudeAgentSdkAdapter', () => {
       });
       const { adapter, sessionId } = yield* ready;
       yield* Stream.runCollect(
-        adapter.send({ sessionId, text: 'go', files: [] }).pipe(
+        adapter.send({ sessionId, text: 'go', mentions: [] }).pipe(
           Stream.tap((event) =>
             event._tag === 'QuestionAsked'
               ? adapter.answerQuestion(sessionId, {
@@ -329,7 +329,7 @@ describe('ClaudeAgentSdkAdapter', () => {
       });
       const { adapter, sessionId } = yield* ready;
       const events = yield* Stream.runCollect(
-        adapter.send({ sessionId, text: 'go', files: [] }).pipe(
+        adapter.send({ sessionId, text: 'go', mentions: [] }).pipe(
           Stream.tap((event) => (event._tag === 'PermissionRequested' ? adapter.interrupt(sessionId) : Effect.void)),
         ),
       );
@@ -344,7 +344,7 @@ describe('ClaudeAgentSdkAdapter', () => {
         throw new globalThis.Error('spawn failed');
       });
       const { adapter, sessionId } = yield* ready;
-      const events = yield* Stream.runCollect(adapter.send({ sessionId, text: 'go', files: [] }));
+      const events = yield* Stream.runCollect(adapter.send({ sessionId, text: 'go', mentions: [] }));
       const finished = events.find((e) => e._tag === 'TurnFinished');
       expect(finished?._tag === 'TurnFinished' && finished.outcome).toBe('Failed');
       expect(finished?._tag === 'TurnFinished' && finished.detail).toContain('spawn failed');

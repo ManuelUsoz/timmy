@@ -34,6 +34,7 @@ const capabilities: AdapterCapabilities = {
   questions: false,
   thinking: true,
   resume: true,
+  mentions: 'native',
 };
 
 const ANSWER = [

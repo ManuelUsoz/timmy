@@ -1,4 +1,8 @@
-import { describe, expect, it } from '@effect/vitest';
+import { afterAll, describe, expect, it } from '@effect/vitest';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { Effect, Layer, Option, Ref, Stream } from 'effect';
 import { ChatError } from '../../src/shared/chat/chat-error.model';
 import { ChatEvent } from '../../src/shared/chat/event.model';
@@ -6,6 +10,8 @@ import { SessionId, TurnId } from '../../src/shared/chat/ids.model';
 import { ProviderId } from '../../src/shared/chat/provider.model';
 import { SessionOptions } from '../../src/shared/chat/session.model';
 import { ProviderSessionId } from '../../src/shared/sessions/sessions.model';
+import { layerProjectFiles } from '../files/project-files';
+import { UserMessage } from '../../src/shared/chat/session.model';
 import { layerProjectResolver } from '../sessions/project-resolver';
 import { layerSessionObserver } from '../sessions/session-observer';
 import { layerSessionRepo, SessionRepo } from '../sessions/session-repo';
@@ -24,6 +30,7 @@ interface Calls {
   readonly closed: Ref.Ref<ReadonlyArray<SessionId>>;
   readonly shutdowns: Ref.Ref<number>;
   readonly started: Ref.Ref<ReadonlyArray<StartedSession>>;
+  readonly sent: Ref.Ref<ReadonlyArray<UserMessage>>;
 }
 
 /** Test double for the SDK boundary: counts lifecycle calls and replays one scripted turn. */
@@ -38,6 +45,7 @@ const makeFakeAdapter = (provider: ProviderId, calls: Calls): SdkAdapter => {
       questions: true,
       thinking: false,
       resume: true,
+      mentions: 'native',
     },
     startup: Ref.update(calls.startups, (n) => n + 1),
     shutdown: Ref.update(calls.shutdowns, (n) => n + 1),
@@ -49,7 +57,7 @@ const makeFakeAdapter = (provider: ProviderId, calls: Calls): SdkAdapter => {
         Effect.as(ids.resumeProviderSessionId ?? ProviderSessionId.make(`${provider}-native`)),
       ),
     send: (message) =>
- Stream.fromIterable<ChatEvent>([ { _tag: 'TurnStarted', sessionId: message.sessionId, turnId: TurnId.make('t1') }, { _tag: 'TurnFinished', sessionId: message.sessionId, turnId: TurnId.make('t1'), outcome: 'Completed', usage: { inputTokens: 1, outputTokens: 2 }, }, ]),
+      Stream.fromEffect(Ref.update(calls.sent, (all) => [...all, message])).pipe(Stream.flatMap(() => Stream.fromIterable<ChatEvent>([ { _tag: 'TurnStarted', sessionId: message.sessionId, turnId: TurnId.make('t1') }, { _tag: 'TurnFinished', sessionId: message.sessionId, turnId: TurnId.make('t1'), outcome: 'Completed', usage: { inputTokens: 1, outputTokens: 2 }, }, ]))),
     resolvePermission: () => unused,
     answerQuestion: () => unused,
     interrupt: () => unused,
@@ -69,12 +77,13 @@ const makeHarness = Effect.gen(function* () {
     closed: yield* Ref.make<ReadonlyArray<SessionId>>([]),
     shutdowns: yield* Ref.make(0),
     started: yield* Ref.make<ReadonlyArray<StartedSession>>([]),
+    sent: yield* Ref.make<ReadonlyArray<UserMessage>>([]),
   };
   const layerRegistry = Layer.succeed(SdkAdapterRegistry, {
     defaultProvider: 'Claude',
     get: (provider) => Effect.succeed(makeFakeAdapter(provider, calls)),
   });
-  const layerServices = Layer.mergeAll(layerProjectResolver, layerSessionObserver).pipe(
+  const layerServices = Layer.mergeAll(layerProjectResolver, layerSessionObserver, layerProjectFiles()).pipe(
     Layer.provideMerge(layerSessionRepo(':memory:')),
   );
   return { calls, layer: layerChatRpc.pipe(Layer.provideMerge(Layer.merge(layerRegistry, layerServices))) };
@@ -119,7 +128,7 @@ describe('ChatRpc', () => {
       const tags = yield* Effect.gen(function* () {
         const chat = yield* ChatRpc;
         const sessionId = yield* chat.startSession(options('Claude'));
-        const events = yield* Stream.runCollect(chat.send({ sessionId, text: 'hi', files: [] }));
+        const events = yield* Stream.runCollect(chat.send({ sessionId, text: 'hi', mentions: [] }));
         return events.map((event) => event._tag);
       }).pipe(Effect.provide(layer));
       expect(tags).toEqual(['TurnStarted', 'TurnFinished']);
@@ -131,7 +140,7 @@ describe('ChatRpc', () => {
       const error = yield* Effect.gen(function* () {
         const chat = yield* ChatRpc;
         return yield* Stream.runCollect(
-          chat.send({ sessionId: SessionId.make('nope'), text: 'hi', files: [] }),
+          chat.send({ sessionId: SessionId.make('nope'), text: 'hi', mentions: [] }),
         ).pipe(Effect.flip);
       }).pipe(Effect.provide(layer));
       expect(error).toBeInstanceOf(ChatError);
@@ -189,8 +198,8 @@ describe('ChatRpc', () => {
         const chat = yield* ChatRpc;
         const repo = yield* SessionRepo;
         const sessionId = yield* chat.startSession(options('Claude'));
-        yield* Stream.runCollect(chat.send({ sessionId, text: '  Fix the\n login bug ', files: [] }));
-        yield* Stream.runCollect(chat.send({ sessionId, text: 'and the logout one', files: [] }));
+        yield* Stream.runCollect(chat.send({ sessionId, text: '  Fix the\n login bug ', mentions: [] }));
+        yield* Stream.runCollect(chat.send({ sessionId, text: 'and the logout one', mentions: [] }));
         return (yield* repo.get(sessionId)).pipe(Option.map((row) => row.title));
       }).pipe(Effect.provide(layer));
       expect(title).toEqual(Option.some('Fix the'));
@@ -235,4 +244,101 @@ describe('ChatRpc', () => {
       expect(yield* Ref.get(calls.shutdowns)).toBe(0);
       expect(yield* Ref.get(calls.startups)).toBe(1);
     }));
+});
+
+const roots: string[] = [];
+afterAll(() => roots.forEach((root) => rmSync(root, { recursive: true, force: true })));
+
+const write = (root: string, file: string, content = 'x') => {
+  mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+  writeFileSync(path.join(root, file), content);
+};
+
+/** A git repository with a tracked file, a folder, an untracked file, and an ignored `.env`. */
+const makeRepo = () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'timmy-mentions-'));
+  roots.push(root);
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: root, stdio: 'ignore' });
+  git('init');
+  write(root, '.gitignore', '.env'.concat(String.fromCharCode(10)));
+  write(root, '.env', 'SECRET=1');
+  write(root, 'src/a.ts');
+  write(root, 'mi carpeta/a b.ts');
+  git('add', '.');
+  git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-m', 'init');
+  write(root, 'new.ts');
+  return root;
+};
+
+describe('ChatRpc mentions', () => {
+  const sendIn = (root: string, text: string) =>
+    Effect.gen(function* () {
+      const { calls, layer } = yield* makeHarness;
+      const outcome = yield* Effect.gen(function* () {
+        const chat = yield* ChatRpc;
+        const sessionId = yield* chat.startSession({ ...options('Claude'), cwd: root });
+        const result = yield* Stream.runCollect(chat.send({ sessionId, text, mentions: [] })).pipe(Effect.result);
+        const again = yield* Stream.runCollect(chat.send({ sessionId, text: 'still here', mentions: [] }));
+        return { result, usable: again.length };
+      }).pipe(Effect.provide(layer));
+      return { ...outcome, sent: yield* Ref.get(calls.sent) };
+    });
+
+  it.effect('hands the adapter the resolved mentions, once each, with the text untouched', () => {
+    const root = makeRepo();
+    const text = 'look at @src/a.ts, then @"mi carpeta/a b.ts" and @src/a.ts and @src and @new.ts. mail me@x.com';
+    return Effect.gen(function* () {
+      const { sent } = yield* sendIn(root, text);
+      expect(sent[0]?.text).toBe(text);
+      expect(sent[0]?.mentions).toEqual([
+        { path: 'src/a.ts', kind: 'file' },
+        { path: 'mi carpeta/a b.ts', kind: 'file' },
+        { path: 'src', kind: 'folder' },
+        { path: 'new.ts', kind: 'file' },
+      ]);
+    });
+  });
+
+  it.effect('fails with InvalidMention before any turn when a mention is gone or ignored, and the session stays usable', () => {
+    const root = makeRepo();
+    return Effect.gen(function* () {
+      const { result, usable, sent } = yield* sendIn(root, 'see @nope.ts and @.env');
+      expect(result._tag).toBe('Failure');
+      const error = result._tag === 'Failure' ? result.failure : undefined;
+      expect(error).toBeInstanceOf(ChatError);
+      expect(error?.reason).toBe('InvalidMention');
+      expect(error?.detail).toContain('nope.ts');
+      expect(error?.detail).toContain('.env');
+      expect(sent.map((m) => m.text)).toEqual(['still here']);
+      expect(usable).toBeGreaterThan(0);
+    });
+  });
+
+  it.effect('rejects absolute paths and ".." paths', () => {
+    const root = makeRepo();
+    return Effect.gen(function* () {
+      const absolute = yield* sendIn(root, `@${path.join(root, 'src/a.ts').split(path.sep).join('/')}`);
+      const parent = yield* sendIn(root, '@../outside.ts @src/../src/a.ts');
+      for (const outcome of [absolute, parent]) {
+        expect(outcome.result._tag).toBe('Failure');
+        expect(outcome.sent.map((m) => m.text)).toEqual(['still here']);
+      }
+    });
+  });
+
+  it.effect('rejects a symlink that leaves the working directory', () => {
+    const root = makeRepo();
+    const outside = mkdtempSync(path.join(tmpdir(), 'timmy-outside-'));
+    roots.push(outside);
+    write(outside, 'secret.txt');
+    try {
+      symlinkSync(path.join(outside, 'secret.txt'), path.join(root, 'link.txt'));
+    } catch {
+      return Effect.void; // symlinks need privileges on some platforms
+    }
+    return Effect.gen(function* () {
+      const { result } = yield* sendIn(root, 'read @link.txt');
+      expect(result._tag).toBe('Failure');
+    });
+  });
 });
