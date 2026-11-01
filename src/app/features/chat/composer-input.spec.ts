@@ -378,6 +378,77 @@ describe('ComposerInputComponent', () => {
       expect(host.draft()).toBe('@"mi carpeta/a b.ts" ');
     });
 
+    describe('controls bar', () => {
+      const controls = (el: HTMLElement) => el.querySelector('.controls')?.textContent?.replace(/\s+/g, ' ').trim();
+
+      it('always shows move, choose and close under the list', async () => {
+        const { host, el, type } = await render();
+        host.files.set(FILES);
+        await type('@');
+        expect(controls(el)).toContain('↑↓ mover');
+        expect(controls(el)).toContain('Tab/Enter elegir');
+        expect(controls(el)).toContain('Esc cerrar');
+      });
+
+      it('offers → entrar only while a folder is highlighted', async () => {
+        const { host, el, type, key } = await render();
+        host.files.set({ status: 'ready', truncated: false, entries: entriesFromPaths(['docs/a.md', 'z.ts']) });
+        await type('@');
+        expect(controls(el)).toContain('→ entrar');
+        await key('ArrowDown');
+        expect(controls(el)).not.toContain('→ entrar');
+        await key('ArrowUp');
+        expect(controls(el)).toContain('→ entrar');
+      });
+
+      it('offers ← salir only inside a folder with no filter typed', async () => {
+        const { host, el, type, key } = await render();
+        host.files.set(FILES);
+        await type('@');
+        expect(controls(el)).not.toContain('← salir');
+        await key('ArrowRight');
+        expect(host.draft()).toBe('@docs/');
+        expect(controls(el)).toContain('← salir');
+        expect(controls(el)).not.toContain('→ entrar');
+        await type('@docs/zz');
+        expect(controls(el)).toBeUndefined();
+        await type('@docs/n');
+        expect(controls(el)).not.toContain('← salir');
+      });
+
+      it('hides → entrar and ← salir while the caret is inside a word, where the arrows move the caret', async () => {
+        const { host, el, box, type, key } = await render();
+        host.files.set(FILES);
+        await type('@src');
+        expect(controls(el)).toContain('→ entrar');
+        box().setSelectionRange(2, 2);
+        box().dispatchEvent(new Event('keyup'));
+        await key('Shift'); // lets the caret move settle
+        expect(controls(el)).not.toContain('→ entrar');
+        await type('@docs/ bla');
+        box().setSelectionRange('@docs/'.length, '@docs/'.length);
+        box().dispatchEvent(new Event('keyup'));
+        await key('Shift');
+        expect(controls(el)).toContain('← salir');
+        box().setSelectionRange(3, 3);
+        box().dispatchEvent(new Event('keyup'));
+        await key('Shift');
+        expect(controls(el)).not.toContain('← salir');
+      });
+
+      it('is not shown for the slash commands nor without rows to choose', async () => {
+        const { host, el, type } = await render();
+        host.files.set(FILES);
+        await type('/');
+        expect(el.querySelector('.controls')).toBeNull();
+        await type('@zzz');
+        expect(el.querySelector('.controls')).toBeNull();
+        host.files.set({ status: 'loading' });
+        await type('@');
+        expect(el.querySelector('.controls')).toBeNull();
+      });
+    });
+
     it('Escape closes the popup so a literal @ can stay', async () => {
       const { host, el, type, key } = await render();
       host.files.set(FILES);

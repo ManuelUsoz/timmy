@@ -52,6 +52,17 @@
           </li>
         }
       </ul>
+      <p class="controls">
+        @if (canEnter()) {
+          <span><kbd>→</kbd> entrar</span>
+        }
+        @if (canLeave()) {
+          <span><kbd>←</kbd> salir</span>
+        }
+        <span><kbd>↑↓</kbd> mover</span>
+        <span><kbd>Tab/Enter</kbd> elegir</span>
+        <span><kbd>Esc</kbd> cerrar</span>
+      </p>
     }
     @if (state.status === 'ready' && state.truncated) {
       <p class="status" role="status">refina la búsqueda</p>

@@ -60,6 +60,12 @@ export class ComposerInputComponent {
     const context = this.mention();
     return state.status === 'ready' && context !== undefined ? levelRows(state.entries, context.query) : [];
   });
+  /** The caret is at the end of the text or right before whitespace, the only place → and ← navigate levels. */
+  private readonly atWordEnd = computed(() => this.caret() >= this.draft().length || /\s/.test(this.draft().charAt(this.caret())));
+  /** The highlighted row is a folder, so → goes into it. */
+  protected readonly canEnter = computed(() => this.atWordEnd() && this.mentionMatches()[this.highlighted()]?.kind === 'folder');
+  /** The query sits right after the `/` of a folder, so ← goes back up. */
+  protected readonly canLeave = computed(() => this.atWordEnd() && this.mention()?.query.endsWith('/') === true);
   protected readonly count = computed(() => (this.open() ? this.matches().length : this.mentionOpen() ? this.mentionMatches().length : 0));
   protected readonly selectable = computed(() => this.count() > 0);
   protected readonly popupOpen = computed(() => this.open() || this.mentionOpen());
