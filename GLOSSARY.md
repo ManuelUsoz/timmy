@@ -13,6 +13,10 @@ The view where the user converses with the open Session: its transcript and the 
 **Mention**
 A reference to a file of the Session's working directory, written as `@path` inside a message. Timmy defines and validates it; the Adapter decides how the provider receives it.
 
+**Attachment**
+A file the user adds to a message so the agent receives its content directly. For now it is always an image. It is not a Mention: it need not live in the Session's working directory, and Timmy stores it. The Adapter decides how the provider receives it, and declares whether its Provider (or model) accepts it.
+_Avoid_: upload, file (for a Mention).
+
 **Provider Session**
 The id by which a provider's SDK knows a Session. One Session maps to exactly one Provider Session.
 
