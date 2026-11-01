@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { ChipComponent } from '../chip/chip';
+import { ModalComponent } from '../modal/modal';
 import { TagComponent } from '../tag/tag';
 import { StateComponent } from '../state/state';
 import { NotificationComponent } from '../notification/notification';
@@ -62,6 +63,7 @@ import type { AgentId, OptionId, PermissionRequestId, ToolCallId } from '../../.
     AskRowComponent,
     MessageComponent,
     ChipStripComponent,
+    ModalComponent,
   ],
   templateUrl: './showcase.html',
   styleUrl: './showcase.css',
@@ -250,6 +252,7 @@ export class ShowcaseComponent {
   ] as const;
   protected readonly stateTones = ['success', 'info', 'warning', 'error', 'merged', 'idle'] as const;
   protected readonly removable = signal(['alpha', 'beta', 'gamma']);
+  protected readonly modalOpen = signal(false);
   protected readonly accepted = new FormControl<boolean>(true);
   protected readonly menuSelected = signal<unknown>('sonnet');
   protected readonly menuMulti = signal<unknown[]>(['opus']);
