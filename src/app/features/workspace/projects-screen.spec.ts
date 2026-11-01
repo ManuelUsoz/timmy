@@ -256,7 +256,7 @@ describe('Projects screen', () => {
         expect(t.backend.calls).toContain('Chat.startSession:/work/timmy');
         expect(t.router.url).toBe('/projects/p-timmy/sessions/new-3');
         expect(t.el.querySelector('app-chat-view')).not.toBeNull();
-        expect(t.el.querySelector('app-chat-view')?.textContent).toContain('Say something to start a session.');
+        expect(t.el.querySelector('app-chat-view')?.textContent).not.toContain('Say something to start a session.');
         expect(t.rowTitles('app-project-content')).toEqual(['Sesión sin título', 'Refactor del handshake', 'Migrar a Effect']);
         expect(t.sessionRow('Sesión sin título')!.getAttribute('aria-current')).toBe('true');
       });
@@ -557,6 +557,24 @@ describe('Projects screen', () => {
     });
   });
 
+  describe('Groups of the project', () => {
+    it('fold and unfold with a left click on their header', async () => {
+      const { el, settle } = await setup({ backend: makeBackend({ projects: [timmy] }) });
+      const group = (name: string) => el.querySelector(`app-project-content section[aria-label="${name}"]`)!;
+      const toggle = (name: string) => group(name).querySelector<HTMLButtonElement>('.toggle')!;
+      expect(toggle('Terminales').getAttribute('aria-expanded')).toBe('true');
+      expect(group('Terminales').querySelector('.empty')).not.toBeNull();
+      toggle('Terminales').click();
+      await settle();
+      expect(toggle('Terminales').getAttribute('aria-expanded')).toBe('false');
+      expect(group('Terminales').querySelector('.empty')).toBeNull();
+      expect(group('Sesiones').querySelector('.empty')).not.toBeNull();
+      toggle('Terminales').click();
+      await settle();
+      expect(group('Terminales').querySelector('.empty')).not.toBeNull();
+    });
+  });
+
   describe('Projects column collapsed', () => {
     it('shows an avatar per project and a button for a new one, which open and add projects', async () => {
       const { el, settle, router } = await setup({ backend: makeBackend({ projects: [timmy, ascua] }) });
@@ -566,6 +584,7 @@ describe('Projects screen', () => {
       const rail = Array.from(el.querySelectorAll<HTMLButtonElement>('app-project-list .rail-project'));
       expect(rail.map((button) => button.getAttribute('aria-label'))).toEqual(['ascua', 'timmy']);
       expect(rail.map((button) => button.getAttribute('aria-current'))).toEqual([null, 'true']);
+      expect(rail.map((button) => button.querySelector('.tile')?.textContent?.trim())).toEqual(['A', 'T']);
       rail[0].click();
       await settle();
       expect(router.url).toBe('/projects/p-ascua');

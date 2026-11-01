@@ -10,7 +10,7 @@
         [attr.aria-current]="project.projectId === state.selectedId() ? 'true' : null"
         (click)="opened.emit(project.projectId)"
       >
-        <ui-avatar [name]="project.name" />
+        <span class="tile" aria-hidden="true">{{ initials(project.name) }}</span>
         @if (state.badges().get(project.projectId); as badge) {
           <ui-state class="dot" role="img" [tone]="badge.tone" [attr.aria-label]="i18n.t('projects.live', { count: badge.count })" />
         }

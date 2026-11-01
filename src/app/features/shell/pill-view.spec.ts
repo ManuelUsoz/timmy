@@ -37,6 +37,10 @@ describe('pillView', () => {
     expect(pillView({ ...initialChatState, running: true }, 0).text).toBe('Working…');
   });
 
+  it('says it in the given language when no tool is running', () => {
+    expect(pillView({ ...initialChatState, running: true }, 0, 'Trabajando…').text).toBe('Trabajando…');
+  });
+
   const assistant = (text: string): ChatState['items'][number] => ({
     kind: 'Assistant',
     agentId: AgentId.make('root'),

@@ -83,3 +83,23 @@
 .as-check svg { display: none; width: 12px; height: 12px; stroke-width: 2.4; }
 .as-check[data-state='checked'] { background: var(--text-primary); }
 .as-check[data-state='checked'] svg { display: block; }
+
+.as-select__icon { flex: none; vertical-align: -3px; margin-right: 6px; }
+.as-option__icon { flex: none; color: var(--text-secondary); }
+
+/* Inline: the trigger of a toolbar (composer). Transparent, square, label spoken only. */
+.as-field__label--hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+[data-variant='inline'] .as-select__trigger {
+  width: auto; padding: 0 var(--spacing-03); gap: var(--spacing-02); background: transparent;
+  border-bottom: 0; color: var(--text-secondary);
+}
+[data-variant='inline'] .as-select__value { flex: none; }
+[data-variant='inline'] .as-select__trigger:hover,
+[data-variant='inline'] .as-select__trigger[aria-expanded='true'] { background: var(--layer-hover); color: var(--text-primary); }
+[data-variant='inline'] .as-select__trigger[aria-expanded='true']:not(:focus-visible) { outline: 0; }
+
+/* Icon and text side by side (the global reset makes svgs blocks). */
+.as-select__value { display: flex; align-items: center; gap: 6px; }
+.as-select__icon { margin-right: 0; vertical-align: baseline; }

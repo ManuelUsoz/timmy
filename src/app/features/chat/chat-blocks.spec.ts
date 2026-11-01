@@ -45,15 +45,35 @@ const stateOf = (items: ChatItem[], withSub = false): ChatState => ({
     : new Map(),
 });
 
+const partsOf = (blocks: ReturnType<typeof chatBlocks>, i = 0) => {
+  const block = blocks[i];
+  return block.kind === 'Agent' ? block.parts : [];
+};
+const nodesOf = (blocks: ReturnType<typeof chatBlocks>, i = 0) => {
+  const part = partsOf(blocks, i)[0];
+  return part?.kind === 'Activity' ? part.nodes : [];
+};
+
 describe('chatBlocks', () => {
-  it('keeps messages in order and groups consecutive tool calls into one activity block', () => {
+  it('puts the tool calls and the reply of one turn in a single agent block, in order', () => {
     const state = stateOf([{ kind: 'User', text: 'hi' }, tool('a', 'Completed'), tool('b', 'Running'), assistant('done')]);
     const blocks = chatBlocks(state, groupByOwner(state));
-    expect(blocks.map((b) => b.kind)).toEqual(['User', 'Activity', 'Assistant']);
-    const activity = blocks[1];
-    expect(activity.kind === 'Activity' && activity.nodes.map((n) => [n.id, n.status])).toEqual([
-      ['a', 'done'],
-      ['b', 'running'],
+    expect(blocks.map((b) => b.kind)).toEqual(['User', 'Agent']);
+    expect(partsOf(blocks, 1).map((p) => p.kind)).toEqual(['Activity', 'Text']);
+  });
+
+  it('starts a new agent block after each user message', () => {
+    const state = stateOf([assistant('one'), { kind: 'User', text: 'next' }, assistant('two')]);
+    expect(chatBlocks(state, groupByOwner(state)).map((b) => b.kind)).toEqual(['Agent', 'User', 'Agent']);
+  });
+
+  it('folds a run of the same tool into one collapsed row with its count', () => {
+    const state = stateOf([tool('a', 'Completed'), tool('b', 'Running')]);
+    const [node] = nodesOf(chatBlocks(state, groupByOwner(state)));
+    expect([node.label, node.meta, node.status]).toEqual(['Read', '×2', 'running']);
+    expect(node.children?.map((c) => [c.id, c.label])).toEqual([
+      ['a', 'a'],
+      ['b', 'b'],
     ]);
   });
 
@@ -62,18 +82,27 @@ describe('chatBlocks', () => {
       [tool('a', 'Completed'), { kind: 'Agent', agentId: sub }, tool('s1', 'Completed', sub), tool('s2', 'Pending', sub)],
       true,
     );
-    const blocks = chatBlocks(state, groupByOwner(state));
-    const nodes = blocks[0].kind === 'Activity' ? blocks[0].nodes : [];
+    const nodes = nodesOf(chatBlocks(state, groupByOwner(state)));
     expect(nodes.map((n) => n.id)).toEqual(['a', sub]);
     expect(nodes[1].label).toBe('Explore');
-    expect(nodes[1].children?.map((c) => c.id)).toEqual(['s1', 's2']);
-    expect(nodes[1].badge?.label).toBe('Running');
+    expect(nodes[1].children?.map((c) => c.id)).toEqual(['s1']);
+    expect(nodes[1].children?.[0].meta).toBe('×2');
+    expect(nodes[1].status).toBe('agent');
+    expect(nodes[1].badge?.label).toBe('Live');
+  });
+
+  it('does not fold a failed call into a run, so its cross stays visible', () => {
+    const state = stateOf([tool('a', 'Completed'), tool('b', 'Failed'), tool('c', 'Completed')]);
+    expect(nodesOf(chatBlocks(state, groupByOwner(state))).map((n) => [n.id, n.status])).toEqual([
+      ['a', 'done'],
+      ['b', 'failed'],
+      ['c', 'done'],
+    ]);
   });
 
   it('flags failed tool calls', () => {
     const state = stateOf([tool('a', 'Failed')]);
-    const block = chatBlocks(state, groupByOwner(state))[0];
-    expect(block.kind === 'Activity' && block.nodes[0].badge).toEqual({ label: 'Failed', tone: 'error' });
+    expect(nodesOf(chatBlocks(state, groupByOwner(state)))[0].status).toBe('failed');
   });
 });
 

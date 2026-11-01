@@ -55,6 +55,8 @@ export class ProjectContent {
   });
 
   /** The session being renamed, and what the user has typed so far. */
+  /** The groups the user folded; a folded group keeps its header, its count and its "new" button. */
+  private readonly folded = signal<ReadonlySet<'sessions' | 'terminals'>>(new Set());
   protected readonly renaming = signal<SessionId | null>(null);
   protected readonly draft = signal('');
   /** The session waiting for the user to confirm its deletion. */
@@ -138,5 +140,17 @@ export class ProjectContent {
 
   protected ago(session: SessionSummary): string {
     return timeAgo(session.updatedAt, Date.now(), this.i18n.language());
+  }
+
+  protected isCollapsed(group: 'sessions' | 'terminals'): boolean {
+    return this.folded().has(group);
+  }
+
+  protected toggle(group: 'sessions' | 'terminals'): void {
+    this.folded.update((set) => {
+      const next = new Set(set);
+      if (!next.delete(group)) next.add(group);
+      return next;
+    });
   }
 }

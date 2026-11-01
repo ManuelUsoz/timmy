@@ -15,6 +15,8 @@ import { SelectGroup, SelectOption } from './select.types';
 
 export type SelectSize = 'sm' | 'md' | 'lg';
 export type SelectDisplay = 'count' | 'chips';
+/** `inline` is the borderless, transparent trigger for toolbars; its label is only spoken, never drawn. */
+export type SelectVariant = 'field' | 'inline';
 
 interface IndexedOption {
   opt: SelectOption;
@@ -47,6 +49,7 @@ export class SelectComponent implements ControlValueAccessor {
   readonly multiple = input(false, { transform: booleanAttribute });
   readonly display = input<SelectDisplay>('count');
   readonly size = input<SelectSize>('md');
+  readonly variant = input<SelectVariant>('field');
   readonly label = input('');
   readonly helper = input('');
   readonly placeholder = input('Select');

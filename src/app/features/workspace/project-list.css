@@ -108,14 +108,35 @@
 
 .rail-project.on {
   background: var(--layer-selected);
-  box-shadow: inset 2px 0 0 var(--focus);
+  box-shadow: inset 2px 0 0 var(--text-primary);
+}
+
+/* The project's initials on a square tile, as in the design; the open project's tile is inverted. */
+.tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  background: var(--layer-02);
+  color: var(--text-primary);
+  font: var(--text-heading-01);
+  letter-spacing: 0.16px;
+}
+
+.rail-project.on .tile {
+  background: var(--text-primary);
+  color: var(--background);
 }
 
 .rail-project .dot {
   position: absolute;
-  inset-block-start: 8px;
-  inset-inline-end: 8px;
+  inset-block-start: calc((var(--control-lg) - var(--control-sm)) / 2 - 3px);
+  inset-inline-end: calc((100% - var(--control-sm)) / 2 - 3px);
+  box-sizing: content-box;
   gap: 0;
+  border: 2px solid var(--layer-01);
+  border-radius: var(--radius-full);
   font-size: 0;
 }
 

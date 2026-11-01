@@ -44,6 +44,18 @@
           >
             <path d="M5 12l5 5 9-10" />
           </svg>
+        } @else if (node.status === 'failed') {
+          <svg
+            class="as-treeitem__icon as-treeitem__icon--failed"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
         } @else if (node.status === 'running') {
           <svg
             class="as-treeitem__icon as-spin"
@@ -56,7 +68,7 @@
           >
             <path d="M12 3a9 9 0 1 1-9 9" />
           </svg>
-        } @else if (group) {
+        } @else if (node.status === 'agent' || group) {
           <i class="as-dot" aria-hidden="true"></i>
         }
         <span class="as-treeitem__label">{{ node.label }}</span>

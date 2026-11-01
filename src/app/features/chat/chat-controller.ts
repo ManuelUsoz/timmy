@@ -1,6 +1,7 @@
 import { FormControl } from '@angular/forms';
 import type { PermissionMode, SessionOptions } from '../../../shared/chat/session.model';
 import type { SelectOption } from '../../shared/ui/select/select.types';
+import { I18n } from '../../core/i18n';
 import { pillView } from '../shell/pill-view';
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -35,6 +36,7 @@ export type NewSessionOutcome =
 @Injectable({ providedIn: 'root' })
 export class ChatController {
   private readonly runtime = inject(EffectRuntime);
+  private readonly i18n = inject(I18n);
   private sessionId: SessionId | undefined;
   /** Stored session the next `startSession` continues; set while a past transcript is shown. */
   private resumeFrom: SessionId | undefined;
@@ -50,7 +52,9 @@ export class ChatController {
   readonly commands = signal<CommandsState>({ status: 'loading' });
 
   private readonly models = signal<ReadonlyArray<ModelInfo>>([]);
-  private readonly selectedModel = signal<string | null>(null);
+  readonly selectedModel = signal<string | null>(null);
+  /** Mirrors `effortControl` for views that draw it (the control itself is not reactive). */
+  readonly selectedEffort = signal<Effort>('Default');
   readonly modelOptions = computed((): SelectOption<string>[] =>
     this.models().map((m) => ({ value: m.id, label: MODEL_LABELS[m.id] ?? m.id })),
   );
@@ -62,11 +66,12 @@ export class ChatController {
     })),
   );
   readonly effortControl = new FormControl<Effort>('Default', { nonNullable: true });
+  /** Icons are 16x16 stroke paths: bolt, double check, lock, checklist. */
   readonly permissionOptions: SelectOption<PermissionMode>[] = [
-    { value: 'Auto', label: 'Auto mode' },
-    { value: 'AutoAccept', label: 'Auto accept' },
-    { value: 'Default', label: 'Default' },
-    { value: 'Plan', label: 'Plan' },
+    { value: 'Auto', label: 'Auto mode', icon: 'M9 2L4 9h4l-1 5 5-7H8z' },
+    { value: 'AutoAccept', label: 'Auto accept', icon: 'M1.5 8.5l3 3L10 6M7 11.5l1 1L14.5 6' },
+    { value: 'Default', label: 'Default', icon: 'M4 7h8v6H4zM6 7V5a2 2 0 0 1 4 0v2' },
+    { value: 'Plan', label: 'Plan', icon: 'M3 3h10v10H3zM5.5 6h5M5.5 8.5h5M5.5 11h3' },
   ];
   readonly permissionControl = new FormControl<PermissionMode>('Default', { nonNullable: true });
   readonly tree = computed(() => groupByOwner(this.chat()));
@@ -88,7 +93,7 @@ export class ChatController {
   private readonly running = computed(() => this.chat().running);
   private readonly turnStartedAt = signal(0);
   private readonly now = signal(Date.now());
-  readonly pill = computed(() => pillView(this.chat(), this.now() - this.turnStartedAt()));
+  readonly pill = computed(() => pillView(this.chat(), this.now() - this.turnStartedAt(), this.i18n.t('chat.working')));
 
   readonly contextPercent = computed(() => {
     const context = this.chat().context;
@@ -108,10 +113,16 @@ export class ChatController {
 
     this.modelControl.valueChanges.pipe(takeUntilDestroyed()).subscribe((id) => {
       this.selectedModel.set(id);
-      if (!this.effortsOf(id).includes(this.effortControl.value)) this.effortControl.setValue('Default', { emitEvent: false });
+      if (!this.effortsOf(id).includes(this.effortControl.value)) {
+        this.effortControl.setValue('Default', { emitEvent: false });
+        this.selectedEffort.set('Default');
+      }
       this.resetSession();
     });
-    this.effortControl.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.resetSession());
+    this.effortControl.valueChanges.pipe(takeUntilDestroyed()).subscribe((effort) => {
+      this.selectedEffort.set(effort);
+      this.resetSession();
+    });
     this.permissionControl.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.resetSession());
 
     // Elapsed time on the Pill: tick once a second while a Turn runs.

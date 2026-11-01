@@ -131,6 +131,9 @@
 .as-treeitem__icon--done {
   color: var(--support-success);
 }
+.as-treeitem__icon--failed {
+  color: var(--support-error);
+}
 .as-spin {
   animation: as-spin 1s linear infinite;
   transform-origin: center;

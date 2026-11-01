@@ -232,7 +232,7 @@
   --radius-tag: 24px;
   --radius-full: 50%;
   --radius-pill: 20px;
-  --radius-panel: 16px;
+  --radius-panel: 0px;
   --radius-sheet: 28px;
 
   --shadow-*: initial;

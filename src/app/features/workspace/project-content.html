@@ -25,11 +25,13 @@
   <section class="group" [attr.aria-label]="i18n.t('sessions.title')">
     @let list = sessions();
     <div class="group-header">
-      <span class="label">{{ i18n.t('sessions.title') }}</span>
-      @if (list.status === 'ready' && list.items.length > 0) {
-        <ui-tag>{{ list.items.length }}</ui-tag>
-      }
-      <span class="spacer"></span>
+      <button type="button" class="toggle" [attr.aria-expanded]="!isCollapsed('sessions')" (click)="toggle('sessions')">
+        <svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" /></svg>
+        <span class="label">{{ i18n.t('sessions.title') }}</span>
+        @if (list.status === 'ready' && list.items.length > 0) {
+          <ui-tag>{{ list.items.length }}</ui-tag>
+        }
+      </button>
       @if (list.status === 'ready' && list.items.length > 0) {
         <button
           uiButton
@@ -47,6 +49,7 @@
       }
     </div>
 
+    @if (!isCollapsed('sessions')) {
     @switch (list.status) {
       @case ('loading') {
         <p class="note" role="status">{{ i18n.t('sessions.loading') }}</p>
@@ -119,16 +122,19 @@
         }
       }
     }
+    }
   </section>
 
   <section class="group" [attr.aria-label]="i18n.t('terminals.title')">
     @let terminalList = terminals();
     <div class="group-header">
-      <span class="label">{{ i18n.t('terminals.title') }}</span>
-      @if (terminalList.length > 0) {
-        <ui-tag>{{ terminalList.length }}</ui-tag>
-      }
-      <span class="spacer"></span>
+      <button type="button" class="toggle" [attr.aria-expanded]="!isCollapsed('terminals')" (click)="toggle('terminals')">
+        <svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" /></svg>
+        <span class="label">{{ i18n.t('terminals.title') }}</span>
+        @if (terminalList.length > 0) {
+          <ui-tag>{{ terminalList.length }}</ui-tag>
+        }
+      </button>
       @if (terminalList.length > 0) {
         <button
           uiButton
@@ -145,6 +151,7 @@
       }
     </div>
 
+    @if (!isCollapsed('terminals')) {
     @if (terminalList.length === 0) {
       <div class="empty">
         <p class="empty-title">{{ i18n.t('terminals.emptyTitle') }}</p>
@@ -172,6 +179,7 @@
           </as-list-row>
         }
       </div>
+    }
     }
   </section>
 }
