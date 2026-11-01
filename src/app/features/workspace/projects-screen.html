@@ -59,8 +59,6 @@
         </div>
         <button uiButton kind="danger" type="button" (click)="removeSelected()">{{ i18n.t('projects.remove') }}</button>
       </app-workspace-hero>
-    } @else if (sessionBusy()) {
-      <app-workspace-hero icon="chat" [title]="i18n.t('sessions.pickTitle')" [detail]="i18n.t('sessions.busy')" />
     } @else if (openSession(); as session) {
       <app-chat-view
         class="chat"
@@ -85,10 +83,6 @@
     }
   } @else {
     <app-workspace-hero [title]="i18n.t('projects.pickTitle')" [detail]="i18n.t('projects.pickDetail')" />
-  }
-
-  @if (state.folderFailure(); as failure) {
-    <p class="failure" role="alert" [title]="failure">{{ i18n.t('projects.checkFailed') }}</p>
   }
 </section>
 

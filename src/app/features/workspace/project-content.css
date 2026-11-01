@@ -83,10 +83,6 @@ h2 {
   color: var(--text-helper);
 }
 
-.note.error {
-  color: var(--text-error);
-}
-
 .empty {
   display: flex;
   flex-direction: column;

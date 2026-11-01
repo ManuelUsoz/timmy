@@ -17,6 +17,7 @@ import type { ProjectsError } from '../../../shared/projects/projects-error.mode
 import { DesktopApi, type DesktopApiShape } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { I18n } from '../../core/i18n';
+import { ToastService } from '../../core/toast';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { StateComponent } from '../../shared/ui/state/state';
 import { TextInputComponent } from '../../shared/ui/text-input/text-input';
@@ -54,6 +55,7 @@ const folderName = (folder: string): string => folder.split(/[\\/]/).filter(Bool
 export class NewProjectDialog {
   private readonly runtime = inject(EffectRuntime);
   protected readonly i18n = inject(I18n);
+  private readonly toasts = inject(ToastService);
 
   readonly closed = output<void>();
   readonly created = output<Project>();
@@ -64,7 +66,7 @@ export class NewProjectDialog {
   protected readonly name = signal('');
   protected readonly initializing = signal(false);
   protected readonly creating = signal(false);
-  /** Why the last pick, `git init` or create failed. */
+  /** Why the last pick, `git init` or create failed, when it is about the folder in the field. */
   protected readonly failure = signal<Failure | null>(null);
 
   protected readonly info = computed(() => {
@@ -99,7 +101,7 @@ export class NewProjectDialog {
       case 'GitUnavailable':
         return this.i18n.t('projectsError.GitUnavailable');
       case 'GitInitFailed':
-        return `${this.i18n.t('projectsError.GitInitFailed')} ${failure.detail}`;
+        return this.i18n.t('projectsError.GitInitFailed');
     }
   });
 
@@ -120,6 +122,25 @@ export class NewProjectDialog {
     return this.runtime.run(program).then((exit) => (Exit.isSuccess(exit) ? exit.value : null));
   }
 
+  /**
+   * Says why a call failed. What is wrong with the folder in the field (already a project, not a repository, no git)
+   * stays in the dialog next to it; any other result of the user's action is a toast.
+   */
+  private report(failure: Failure): void {
+    switch (failure.reason) {
+      case 'AlreadyAdded':
+      case 'NotAGitRepository':
+      case 'GitUnavailable':
+        this.failure.set(failure);
+        return;
+      case 'ProjectNotFound':
+      case 'FolderNotFound':
+      case 'GitInitFailed':
+        this.toasts.error(`projectsError.${failure.reason}`, { detail: failure.detail });
+        return;
+    }
+  }
+
   protected async browse(): Promise<void> {
     const picked = await this.runtime.run(Effect.flatMap(DesktopApi, (desktop) => desktop['Projects.pickFolder']()));
     if (picked._tag !== 'Success' || picked.value === null) return;
@@ -135,7 +156,7 @@ export class NewProjectDialog {
       return;
     }
     this.inspection.set({ status: 'idle' });
-    if (result?.ok === false) this.failure.set(result.failure);
+    if (result?.ok === false) this.report(result.failure);
   }
 
   protected async initGit(): Promise<void> {
@@ -147,7 +168,7 @@ export class NewProjectDialog {
     this.initializing.set(false);
     if (result === null) return;
     if (result.ok) this.inspection.set({ status: 'ready', info: result.value });
-    else this.failure.set(result.failure);
+    else this.report(result.failure);
   }
 
   protected async create(): Promise<void> {
@@ -165,7 +186,7 @@ export class NewProjectDialog {
       this.created.emit(result.value);
       return;
     }
-    this.failure.set(result.failure);
+    this.report(result.failure);
     // Somebody else may have added the folder meanwhile: look again so the dialog says so.
     if (result.failure.reason === 'AlreadyAdded') await this.inspect(info.path);
   }

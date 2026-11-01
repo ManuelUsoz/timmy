@@ -7,6 +7,7 @@ import { layerChatUnused, layerProjectsUnused, layerSessionsUnused, layerWindowU
 import { EffectRuntime } from './effect-runtime';
 import { dictionaries, en, es } from './i18n-dictionaries';
 import { I18n } from './i18n';
+import { ToastService } from './toast';
 
 /** The real client against a main whose stored language is a Ref. `failSave` makes storing die. */
 const setup = (options: { stored?: Language; failSave?: boolean } = {}) => {
@@ -91,6 +92,7 @@ describe('I18n', () => {
     await settle();
     expect(i18n.language()).toBe('es');
     expect(i18n.error()).not.toBeNull();
+    expect(TestBed.inject(ToastService).toasts().map((toast) => [toast.tone, toast.body])).toEqual([['error', 'settings.saveFailed']]);
   });
 
   it('marks the document with the language', async () => {

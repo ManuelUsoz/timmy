@@ -4,6 +4,7 @@ import { defaultLanguage, type Language } from '../../shared/settings/settings.m
 import { DesktopApi } from './desktop-api';
 import { EffectRuntime } from './effect-runtime';
 import { dictionaries, type MessageKey } from './i18n-dictionaries';
+import { ToastService } from './toast';
 
 /**
  * The language of the Workspace. A new language is applied instantly and then stored in main; if main
@@ -12,6 +13,7 @@ import { dictionaries, type MessageKey } from './i18n-dictionaries';
 @Injectable({ providedIn: 'root' })
 export class I18n {
   private readonly runtime = inject(EffectRuntime);
+  private readonly toasts = inject(ToastService);
 
   readonly language = signal<Language>(defaultLanguage);
   readonly error = signal<string | null>(null);
@@ -56,7 +58,9 @@ export class I18n {
         if (Exit.isSuccess(exit)) return;
         // Only undo our own change: the user may have picked another language meanwhile.
         if (this.language() === language) this.apply(previous);
-        this.error.set(Cause.pretty(exit.cause));
+        const detail = Cause.pretty(exit.cause);
+        this.error.set(detail);
+        this.toasts.error('settings.saveFailed', { detail });
       });
   }
 }

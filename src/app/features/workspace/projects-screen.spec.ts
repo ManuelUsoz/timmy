@@ -53,7 +53,12 @@ const setup = async ({ backend = makeBackend(), panel }: Options = {}) => {
     input.dispatchEvent(new Event('input'));
     await settle();
   };
-  return { el, router, chat, settle, buttonNamed, click, rowTitles, projectRow, sessionRow, type, backend, fixture };
+  /** The toasts on screen, as "Title: body". */
+  const toastTexts = () =>
+    Array.from(el.querySelectorAll('app-toast-host .toast')).map(
+      (toast) => `${toast.querySelector('.as-note__title')?.textContent}: ${toast.querySelector('.as-note__body')?.textContent?.trim()}`,
+    );
+  return { el, router, chat, settle, buttonNamed, click, rowTitles, projectRow, sessionRow, type, backend, fixture, toastTexts };
 };
 
 const timmy = project('timmy', { lastUsedAt: 300 });
@@ -92,9 +97,13 @@ describe('Projects screen', () => {
       expect(buttonNamed('Nuevo proyecto')).toBeDefined();
     });
 
-    it('shows the failure, not an empty list, when the projects cannot be loaded', async () => {
-      const { el } = await setup({ backend: makeBackend({ listFails: true }) });
-      expect(el.querySelector('app-project-list [role=alert]')?.textContent).toContain('No se pudieron cargar los proyectos');
+    it('tells the failure in a toast, and shows the list as unavailable, not empty, when the projects cannot be loaded', async () => {
+      const { el, toastTexts } = await setup({ backend: makeBackend({ listFails: true }) });
+      expect(toastTexts()).toEqual(['Error: No se pudieron cargar los proyectos. Vuelve a abrir Proyectos para intentarlo de nuevo.']);
+      expect(el.querySelector('app-toast-host .toast')?.getAttribute('role')).toBe('alert');
+      expect(el.querySelector('app-project-list [role=alert]')).toBeNull();
+      expect(el.querySelector('app-project-list .note')?.textContent).toContain('Lista no disponible');
+      expect(el.querySelector('app-project-list .note')?.textContent).not.toContain('Aquí aparecerán');
       expect(el.querySelector('app-workspace-hero')).toBeNull();
     });
   });
@@ -210,13 +219,22 @@ describe('Projects screen', () => {
       expect(router.url).toBe('/projects/p-timmy');
     });
 
-    it('tells the user a running turn blocks opening another session', async () => {
-      const { el, chat, sessionRow, settle } = await setup({ backend: withSessions() });
+    it('tells the user in a toast that a running turn blocks opening another session', async () => {
+      const { el, router, chat, sessionRow, settle, toastTexts } = await setup({ backend: withSessions() });
       chat.chat.set({ ...chat.chat(), running: true });
       sessionRow('Migrar a Effect')!.click();
       await settle();
-      expect(el.querySelector('app-workspace-hero p')?.textContent).toContain('Hay un turno en marcha');
+      expect(toastTexts()).toEqual(['Aviso: Hay un turno en marcha en otra sesión. Espera a que termine para abrir esta.']);
+      expect(el.querySelector('app-workspace-hero p')?.textContent).not.toContain('Hay un turno en marcha');
       expect(el.querySelector('app-chat-view')).toBeNull();
+      expect(router.url).toBe('/projects/p-timmy');
+    });
+
+    it('tells a failure to load the sessions in a toast, and the column says they are unavailable', async () => {
+      const { el, toastTexts } = await setup({ backend: makeBackend({ projects: [timmy], sessionsFail: true }) });
+      expect(toastTexts()).toEqual(['Error: No se pudieron cargar las sesiones. Inténtalo de nuevo en un momento.']);
+      expect(el.querySelector('app-project-content [role=alert]')).toBeNull();
+      expect(el.querySelector('app-project-content .note')?.textContent).toContain('Sesiones no disponibles');
     });
   });
 
@@ -256,6 +274,7 @@ describe('Projects screen', () => {
       await click('Examinar');
       expect(el.querySelector('.dialog .note')?.textContent).toContain('Esa carpeta ya está en tu lista como timmy');
       expect(el.querySelector('.dialog .help.bad')?.textContent).toBe('Esta carpeta ya es un proyecto.');
+      expect(el.querySelector('app-toast-host .toast')).toBeNull();
       expect(el.querySelector<HTMLButtonElement>('.footer-button:last-child')!.disabled).toBe(true);
     });
 
@@ -273,6 +292,17 @@ describe('Projects screen', () => {
       expect(rowTitles('app-project-list')).toEqual(['plain']);
     });
 
+    it('tells a git init that failed in a toast, not in the dialog', async () => {
+      const backend = makeBackend({ ...git, picks: ['/work/plain'], initFails: true });
+      const { el, click, toastTexts } = await setup({ backend });
+      await click('Nuevo proyecto');
+      await click('Examinar');
+      await click('Inicializar git');
+      expect(toastTexts()).toEqual(['Error: No se pudo inicializar git en la carpeta.']);
+      expect(el.querySelector('.dialog .note')).toBeNull();
+      expect(el.querySelector('[role=dialog]')).not.toBeNull();
+    });
+
     it('says so when git is not installed, and keeps the folder without a repository', async () => {
       const backend = makeBackend({ ...git, picks: ['/work/plain'], gitMissing: true });
       const { el, click } = await setup({ backend });
@@ -280,6 +310,7 @@ describe('Projects screen', () => {
       await click('Examinar');
       await click('Inicializar git');
       expect(el.querySelector('.dialog .note')?.textContent).toContain('Git no está instalado');
+      expect(el.querySelector('app-toast-host .toast')).toBeNull();
       expect(el.querySelector<HTMLButtonElement>('.footer-button:last-child')!.disabled).toBe(true);
     });
 
@@ -311,6 +342,15 @@ describe('Projects screen', () => {
       expect(backend.sessions).toHaveLength(1);
     });
 
+    it('tells in a toast that the project could not be removed, and keeps it in the list', async () => {
+      const { el, rowTitles, click, router, toastTexts } = await setup({ backend: makeBackend({ projects: [timmy], removeFails: true }) });
+      await click('Quitar proyecto');
+      expect(toastTexts()).toEqual(['Error: No se pudo quitar el proyecto. Inténtalo de nuevo.']);
+      expect(rowTitles('app-project-list')).toEqual(['timmy']);
+      expect(router.url).toBe('/projects/p-timmy');
+      expect(el.querySelector('app-workspace-hero h2')?.textContent).not.toBe('Aún no tienes proyectos');
+    });
+
     it('shows the empty state after the last project is removed', async () => {
       const { el, click } = await setup({ backend: makeBackend({ projects: [timmy] }) });
       await click('Quitar proyecto');
@@ -330,6 +370,17 @@ describe('Projects screen', () => {
       expect(buttonNamed('Localizar carpeta')).toBeUndefined();
       expect(buttonNamed('Reintentar')).toBeUndefined();
       expect(el.querySelector('app-project-content')).toBeNull();
+    });
+
+    it('tells in a toast, once, when the folder cannot be checked, and the project stays usable', async () => {
+      const { el, settle, toastTexts } = await setup({ backend: makeBackend({ projects: [timmy], checkFails: true }) });
+      expect(toastTexts()).toEqual([
+        'Error: No se pudo comprobar la carpeta del proyecto. Se volverá a comprobar al volver a la ventana.',
+      ]);
+      expect(el.querySelector('app-project-content')).not.toBeNull();
+      window.dispatchEvent(new Event('focus'));
+      await settle();
+      expect(toastTexts()).toHaveLength(1);
     });
 
     it('checks again when the window regains focus: the folder disappears', async () => {
@@ -368,6 +419,13 @@ describe('Projects screen', () => {
       await settle();
       expect(el.querySelector('app-project-content .empty-title')?.textContent).toBe('No sessions yet');
       expect(el.querySelector('app-project-list input')?.getAttribute('placeholder')).toBe('Search projects');
+    });
+
+    it('shows a toast already on screen in the new language', async () => {
+      const { settle, toastTexts } = await setup({ backend: makeBackend({ listFails: true }) });
+      TestBed.inject(I18n).setLanguage('en');
+      await settle();
+      expect(toastTexts()).toEqual(['Error: The projects could not be loaded. Open Projects again to retry.']);
     });
   });
 });

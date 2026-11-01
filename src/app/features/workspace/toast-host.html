@@ -1,0 +1,17 @@
+<div class="stack" role="region" [attr.aria-label]="i18n.t('toast.region')">
+  @for (toast of newestFirst(); track toast.id) {
+    <div
+      class="toast"
+      animate.enter="toast-in"
+      animate.leave="toast-out"
+      [attr.role]="toast.tone === 'error' ? 'alert' : 'status'"
+      [attr.aria-live]="toast.tone === 'error' ? 'assertive' : 'polite'"
+      aria-atomic="true"
+      (keydown.escape)="service.dismiss(toast.id)"
+    >
+      <ui-notification [tone]="toast.tone" [title]="i18n.t(toast.title)" (dismissed)="service.dismiss(toast.id)">
+        <span [attr.title]="toast.detail">{{ body(toast) }}</span>
+      </ui-notification>
+    </div>
+  }
+</div>

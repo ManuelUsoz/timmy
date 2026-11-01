@@ -70,10 +70,6 @@
   color: var(--text-helper);
 }
 
-.note.error {
-  color: var(--text-error);
-}
-
 .footer {
   flex: none;
   padding: var(--spacing-04);
