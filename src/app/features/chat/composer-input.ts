@@ -14,13 +14,14 @@ import {
   viewChild,
 } from '@angular/core';
 import type { SlashCommand } from '../../../shared/chat/command.model';
-import { applyMention, baseName, dirName, filterEntries, mentionContext, type FileEntry, type FilesState } from './file-mentions';
+import { applyMention, enterFolder, levelRows, mentionContext, type FilesState, type LevelRow } from './file-mentions';
 import { applyCommand, filterCommands, slashQuery, type CommandsState } from './slash-commands';
 
 /**
  * The message textarea. Typing `/` at the start opens a list of the provider's commands above it;
  * typing `@` at the start or after a space opens a list of the folder's files.
- * Tab (or Enter) inserts the highlighted one. Focus never leaves the textarea.
+ * The `@` list shows one folder level at a time: → (or Tab/Enter) on a folder enters it, Tab/Enter on a file inserts it.
+ * Focus never leaves the textarea.
  */
 @Component({
   selector: 'app-composer-input',
@@ -54,10 +55,10 @@ export class ComposerInputComponent {
     const query = this.query();
     return state.status === 'ready' && query !== undefined ? filterCommands(state.items, query) : [];
   });
-  protected readonly mentionMatches = computed((): ReadonlyArray<FileEntry> => {
+  protected readonly mentionMatches = computed((): ReadonlyArray<LevelRow> => {
     const state = this.files();
     const context = this.mention();
-    return state.status === 'ready' && context !== undefined ? filterEntries(state.entries, context.query) : [];
+    return state.status === 'ready' && context !== undefined ? levelRows(state.entries, context.query) : [];
   });
   protected readonly count = computed(() => (this.open() ? this.matches().length : this.mentionOpen() ? this.mentionMatches().length : 0));
   protected readonly selectable = computed(() => this.count() > 0);
@@ -73,14 +74,6 @@ export class ComposerInputComponent {
       if (now && !wasOpen) this.mentionOpened.emit();
       wasOpen = now;
     });
-  }
-
-  protected name(entry: FileEntry): string {
-    return baseName(entry.path);
-  }
-
-  protected folderOf(entry: FileEntry): string {
-    return dirName(entry.path);
   }
 
   protected onInput(): void {
@@ -111,6 +104,13 @@ export class ComposerInputComponent {
           this.pickAt(this.highlighted());
           return;
         }
+        case 'ArrowRight': {
+          // Only a clear "go in" gesture: otherwise the arrow keeps moving the caret through the text.
+          if (!plain || !this.mentionOpen() || this.mentionMatches()[this.highlighted()]?.kind !== 'folder' || !this.caretAtWordEnd()) break;
+          event.preventDefault();
+          this.pickAt(this.highlighted());
+          return;
+        }
         case 'ArrowDown':
           event.preventDefault();
           this.move(1);
@@ -136,7 +136,9 @@ export class ComposerInputComponent {
       command !== undefined
         ? applyCommand(element.value, element.selectionStart, command)
         : entry !== undefined && context !== undefined
-          ? applyMention(element.value, element.selectionStart, context, entry)
+          ? entry.kind === 'folder'
+            ? enterFolder(element.value, element.selectionStart, context, entry)
+            : applyMention(element.value, element.selectionStart, context, entry)
           : undefined;
     if (next === undefined) return;
     // Write the DOM first so the caret survives: the value binding then sees no change.
@@ -145,6 +147,12 @@ export class ComposerInputComponent {
     this.draft.set(next.text);
     this.caret.set(next.caret);
     this.activeIndex.set(0);
+  }
+
+  /** The caret sits with no selection at the end of the text or right before whitespace. */
+  private caretAtWordEnd(): boolean {
+    const { selectionStart, selectionEnd, value } = this.box().nativeElement;
+    return selectionStart === selectionEnd && (selectionStart === value.length || /\s/.test(value.charAt(selectionStart)));
   }
 
   private move(step: number): void {

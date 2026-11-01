@@ -173,14 +173,104 @@ describe('ComposerInputComponent', () => {
       expect(host.opened).toBe(0);
     });
 
-    it('ranks file-name matches above folder-path matches and filters as you type', async () => {
+    it('lists the root level, folders first and then files, each alphabetical', async () => {
       const { host, options, type } = await render();
-      host.files.set(FILES);
-      await type('@chat');
-      expect(labels(options)[0]).toBe('chat.ts');
-      expect(labels(options)).toContain('readme.md');
-      await type('@zzz');
+      host.files.set({
+        status: 'ready',
+        truncated: false,
+        entries: entriesFromPaths(['zeta.ts', 'src/app/chat.ts', 'README.md', 'docs/notes.md', 'a.ts', 'Lib/x.ts']),
+      });
+      await type('@');
+      expect(labels(options)).toEqual(['docs/', 'Lib/', 'src/', 'a.ts', 'README.md', 'zeta.ts']);
+    });
+
+    it('filters only the current level, prefix matches first', async () => {
+      const { host, options, type } = await render();
+      host.files.set({
+        status: 'ready',
+        truncated: false,
+        entries: entriesFromPaths(['cat.ts', 'abc.ts', 'src/cat.ts', 'zzz.ts', 'src/deep/c.ts']),
+      });
+      await type('@c');
+      expect(labels(options)).toEqual(['cat.ts', 'src/', 'abc.ts']);
+      await type('@zzz.tsx');
       expect(options()).toHaveLength(0);
+      await type('@src/c');
+      expect(labels(options)).toEqual(['cat.ts']);
+    });
+
+    it('ArrowRight on a folder enters it, replacing the list with its content', async () => {
+      const { host, options, type, key } = await render();
+      host.files.set(FILES);
+      await type('@sr');
+      expect(labels(options)).toEqual(['src/']);
+      const event = await key('ArrowRight');
+      expect(event.defaultPrevented).toBe(true);
+      expect(host.draft()).toBe('@src/');
+      expect(labels(options)).toEqual(['app/', 'chat/']);
+    });
+
+    it('Tab and Enter on a folder enter it instead of inserting or sending', async () => {
+      const { host, options, type, key } = await render();
+      host.files.set(FILES);
+      await type('@src');
+      await key('Enter');
+      expect(host.draft()).toBe('@src/');
+      expect(host.submitted).toBe(0);
+      expect(labels(options)).toEqual(['app/', 'chat/']);
+      await key('ArrowDown');
+      await key('Tab');
+      expect(host.draft()).toBe('@src/chat/');
+      expect(labels(options)).toEqual(['readme.md']);
+    });
+
+    it('goes down level after level until a file is picked', async () => {
+      const { host, el, options, type, key } = await render();
+      host.files.set(FILES);
+      await type('@src/');
+      await key('ArrowRight');
+      expect(host.draft()).toBe('@src/app/');
+      expect(labels(options)).toEqual(['chat.ts']);
+      await key('Tab');
+      expect(host.draft()).toBe('@src/app/chat.ts ');
+      expect(el.querySelector('.menu')).toBeNull();
+    });
+
+    it('keeps the arrow keys for the text when the highlighted row is a file or the caret is inside the word', async () => {
+      const { host, box, type, key } = await render();
+      host.files.set(FILES);
+      await type('@docs/');
+      const onFile = await key('ArrowRight');
+      expect(onFile.defaultPrevented).toBe(false);
+      expect(host.draft()).toBe('@docs/');
+      await type('@src');
+      box().setSelectionRange(1, 1);
+      const inside = await key('ArrowRight');
+      expect(inside.defaultPrevented).toBe(false);
+      expect(host.draft()).toBe('@src');
+    });
+
+    it('enters a folder when the caret is at the end of the word but not of the text', async () => {
+      const { host, box, type, key } = await render();
+      host.files.set(FILES);
+      await type('@src bla');
+      box().setSelectionRange(4, 4);
+      box().dispatchEvent(new Event('keyup'));
+      const event = await key('ArrowRight');
+      expect(event.defaultPrevented).toBe(true);
+      expect(host.draft()).toBe('@src/ bla');
+    });
+
+    it('enters a folder whose name has spaces with an open quote', async () => {
+      const { host, options, type, key } = await render();
+      host.files.set(FILES);
+      await type('@mi');
+      expect(labels(options)).toEqual(['mi carpeta/']);
+      await key('Tab');
+      expect(host.draft()).toBe('@"mi carpeta/');
+      expect(labels(options)).toEqual(['a b.ts']);
+      await key('Tab');
+      expect(host.draft()).toBe('@"mi carpeta/a b.ts" ');
     });
 
     it('caps the list at 50 results', async () => {
@@ -193,7 +283,7 @@ describe('ComposerInputComponent', () => {
     it('Tab inserts @path with a trailing space and keeps the focus in the textarea', async () => {
       const { host, box, el, type, key } = await render();
       host.files.set(FILES);
-      await type('mira @notes');
+      await type('mira @docs/notes');
       await key('Tab');
       expect(host.draft()).toBe('mira @docs/notes.md ');
       expect(box().selectionStart).toBe('mira @docs/notes.md '.length);
@@ -204,18 +294,9 @@ describe('ComposerInputComponent', () => {
     it('quotes paths with spaces', async () => {
       const { host, type, key } = await render();
       host.files.set(FILES);
-      await type('@"a b');
+      await type('@"mi carpeta/a b');
       await key('Enter');
       expect(host.draft()).toBe('@"mi carpeta/a b.ts" ');
-    });
-
-    it('offers files only, never a folder', async () => {
-      const { host, options, type, key } = await render();
-      host.files.set(FILES);
-      await type('@docs');
-      expect(labels(options)).toEqual(['notes.md']);
-      await key('Tab');
-      expect(host.draft()).toBe('@docs/notes.md ');
     });
 
     it('Escape closes the popup so a literal @ can stay', async () => {
