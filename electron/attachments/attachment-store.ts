@@ -33,6 +33,9 @@ export class AttachmentStore extends Context.Service<
   }
 >()('attachments/AttachmentStore') {}
 
+/** The most a stored image may weigh, after it has been scaled down. */
+export const MAX_BYTES = 5 * 1024 * 1024;
+
 const MEDIA_TYPES = Object.keys(extensionOf) as ReadonlyArray<AttachmentMediaType>;
 
 /** Ids are ours (UUIDs). Anything else from the renderer never reaches the file system, so no path can be injected. */
@@ -54,6 +57,9 @@ export const layerAttachmentStore = (dir: string): Layer.Layer<AttachmentStore, 
           });
         }
         const image = yield* resizer.fit({ bytes, mediaType: sniffed });
+        if (image.bytes.length > MAX_BYTES) {
+          return yield* new AttachmentsError({ reason: 'TooLarge', detail: 'The image is over 5 MB even after scaling it down' });
+        }
         const id = AttachmentId.make(randomUUID());
         yield* Effect.tryPromise(async () => {
           await mkdir(dir, { recursive: true });

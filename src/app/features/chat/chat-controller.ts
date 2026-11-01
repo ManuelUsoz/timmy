@@ -28,6 +28,9 @@ const MODEL_LABELS: Readonly<Record<string, string>> = {
   'claude-haiku-5-5': 'Claude Haiku 5.5',
 };
 
+/** The most images one message can carry. */
+export const MAX_IMAGES = 5;
+
 /** An image added to the draft: stored in main under `id`, shown from the bytes the renderer already has. */
 export interface DraftImage {
   readonly id: AttachmentId;
@@ -235,24 +238,34 @@ export class ChatController {
     void this.call((desktop) => desktop['Chat.closeSession']({ sessionId }), () => undefined);
   }
 
-  /** Stores each image in main and shows it above the composer. A file main refuses is dropped, with a note. */
+  /** Images being stored in main, which already count against the limit. */
+  private storing = 0;
+
+  /** Stores each image in main and shows it above the composer. What main refuses is dropped, with a note why. */
   addImages(files: ReadonlyArray<Blob>): void {
-    for (const file of files) {
+    const room = Math.max(0, MAX_IMAGES - this.images().length - this.storing);
+    if (files.length > room) this.error.set(this.i18n.t('chat.attachTooMany'));
+    for (const file of files.slice(0, room)) {
+      this.storing++;
       const url = URL.createObjectURL(file);
       const program = Effect.gen(function* () {
         const desktop = yield* DesktopApi;
         const bytes = yield* Effect.promise(async () => new Uint8Array(await file.arrayBuffer()));
-        return yield* desktop['Attachments.add']({ bytes });
+        return yield* desktop['Attachments.add']({ bytes }).pipe(
+          Effect.catchTag('AttachmentsError', (error) => Effect.succeed({ refused: error.reason })),
+        );
       });
-      void this.runtime.run(program).then(
-        Exit.match({
-          onFailure: () => {
-            URL.revokeObjectURL(url);
-            this.error.set(this.i18n.t('chat.attachFailed'));
-          },
-          onSuccess: ({ id }) => this.images.update((list) => [...list, { id, url }]),
-        }),
-      );
+      void this.runtime.run(program).then((exit) => {
+        this.storing--;
+        if (Exit.isSuccess(exit) && 'id' in exit.value) {
+          const { id } = exit.value;
+          this.images.update((list) => [...list, { id, url }]);
+          return;
+        }
+        URL.revokeObjectURL(url);
+        const reason = Exit.isSuccess(exit) && 'refused' in exit.value ? exit.value.refused : undefined;
+        this.error.set(this.i18n.t(reason === 'TooLarge' ? 'chat.attachTooLarge' : 'chat.attachFailed'));
+      });
     }
   }
 

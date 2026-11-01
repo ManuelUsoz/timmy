@@ -81,6 +81,24 @@ export class ChatViewComponent {
   protected readonly draft = this.controller.draft;
   protected readonly images = this.controller.images;
   protected readonly addImages = (files: ReadonlyArray<File>) => this.controller.addImages(files);
+  protected onDragOver(event: DragEvent): void {
+    // Only files are ours; dragged text keeps its default.
+    if (event.dataTransfer?.types.includes('Files')) event.preventDefault();
+  }
+
+  protected onDrop(event: DragEvent): void {
+    const files = Array.from(event.dataTransfer?.files ?? []);
+    if (files.length === 0) return;
+    event.preventDefault();
+    // Main decides what is an image: a name or a type proves nothing.
+    this.controller.addImages(files);
+  }
+
+  protected onPicked(input: HTMLInputElement): void {
+    this.controller.addImages(Array.from(input.files ?? []));
+    input.value = '';
+  }
+
   protected readonly removeImage = (id: AttachmentId) => this.controller.removeImage(id);
   protected readonly commands = this.controller.commands;
   protected readonly files = this.controller.files;

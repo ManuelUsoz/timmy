@@ -50,4 +50,32 @@ describe('AttachmentStore', () => {
       expect((yield* store.read(AttachmentId.make('../secret')).pipe(Effect.flip)).reason).toBe('NotFound');
     }).pipe(Effect.provide(layerAttachmentStore(tempDir()).pipe(Layer.provide(layerImageResizerTest)))),
   );
+
+  it.effect('refuses a file that is not an image, even one named like an image', () =>
+    Effect.gen(function* () {
+      const store = yield* AttachmentStore;
+      const error = yield* store.add(new TextEncoder().encode('not an image.png')).pipe(Effect.flip);
+      expect(error.reason).toBe('UnsupportedType');
+    }).pipe(Effect.provide(layerAttachmentStore(tempDir()).pipe(Layer.provide(layerImageResizerTest)))),
+  );
+
+  it.effect('refuses an image that is still over 5 MB after resizing, and accepts one just under', () => {
+    const sized = (length: number) =>
+      Layer.succeed(
+        ImageResizer,
+        ImageResizer.of({ fit: () => Effect.succeed({ bytes: new Uint8Array(length), mediaType: 'image/png' as const }) }),
+      );
+    return Effect.gen(function* () {
+      const big = yield* Effect.provide(
+        AttachmentStore.use((store) => store.add(PNG)).pipe(Effect.flip),
+        layerAttachmentStore(tempDir()).pipe(Layer.provide(sized(5 * 1024 * 1024 + 1))),
+      );
+      expect(big.reason).toBe('TooLarge');
+      const ok = yield* Effect.provide(
+        AttachmentStore.use((store) => store.add(PNG)),
+        layerAttachmentStore(tempDir()).pipe(Layer.provide(sized(5 * 1024 * 1024))),
+      );
+      expect(ok.mediaType).toBe('image/png');
+    });
+  });
 });

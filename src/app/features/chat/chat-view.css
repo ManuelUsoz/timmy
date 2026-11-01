@@ -401,3 +401,7 @@ pre {
 .mention-icon {
   flex: none;
 }
+
+.picker {
+  display: none;
+}

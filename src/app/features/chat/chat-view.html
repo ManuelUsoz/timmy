@@ -128,7 +128,7 @@
   />
 }
 
-<form class="composer" (submit)="$event.preventDefault(); send()">
+<form class="composer" (submit)="$event.preventDefault(); send()" (dragover)="onDragOver($event)" (drop)="onDrop($event)">
   @if (images().length > 0) {
     <ul class="images" [attr.aria-label]="i18n.t('chat.images')">
       @for (image of images(); track image.id) {
@@ -181,6 +181,14 @@
       [options]="permissionOptions"
       [formControl]="permissionControl"
     />
+    <input #picker type="file" class="picker" multiple accept="image/png,image/jpeg,image/gif,image/webp" tabindex="-1" (change)="onPicked(picker)" />
+    <button type="button" uiButton kind="ghost" size="sm" iconOnly class="attach" [attr.aria-label]="i18n.t('chat.attach')" [title]="i18n.t('chat.attach')" (click)="picker.click()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <circle cx="9" cy="10" r="1.6" />
+        <path d="M21 16l-5-5-8 8" />
+      </svg>
+    </button>
     <span class="spacer"></span>
     @if (contextPercent() !== undefined) {
       <span class="context" title="Context window used">{{ contextPercent() }}%</span>
