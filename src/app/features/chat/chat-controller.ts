@@ -9,6 +9,7 @@ import type { Effort, ModelInfo } from '../../../shared/chat/provider.model';
 import { Cause, Effect, Exit, Stream } from 'effect';
 import type { AppInfo } from '../../../shared/app-info/app-info.rpc';
 import type { ChatEvent } from '../../../shared/chat/event.model';
+import type { MessageKey } from '../../core/i18n-dictionaries';
 import type { AttachmentId } from '../../../shared/attachments/attachment.model';
 import type { SessionId } from '../../../shared/chat/ids.model';
 import type { PermissionResponse } from '../../../shared/chat/permission.model';
@@ -27,6 +28,12 @@ const MODEL_LABELS: Readonly<Record<string, string>> = {
   'claude-sonnet-5-5': 'Claude Sonnet 5.5',
   'claude-haiku-5-5': 'Claude Haiku 5.5',
 };
+
+/** The most images one message can carry. */
+export const MAX_IMAGES = 5;
+
+/** Files bigger than this are not even read: main would refuse them after the renderer had loaded them whole. */
+const MAX_FILE_BYTES = 50 * 1024 * 1024;
 
 /** An image added to the draft: stored in main under `id`, shown from the bytes the renderer already has. */
 export interface DraftImage {
@@ -235,24 +242,55 @@ export class ChatController {
     void this.call((desktop) => desktop['Chat.closeSession']({ sessionId }), () => undefined);
   }
 
-  /** Stores each image in main and shows it above the composer. A file main refuses is dropped, with a note. */
+  /** Images being stored in main, which already count against the limit. */
+  private storing = 0;
+
+  /** Why attaching failed, for the modal that tells the user. Each reason appears once. */
+  readonly attachErrors = signal<ReadonlyArray<MessageKey>>([]);
+
+  private failAttach(key: MessageKey): void {
+    this.attachErrors.update((keys) => (keys.includes(key) ? keys : [...keys, key]));
+  }
+
+  dismissAttachErrors(): void {
+    this.attachErrors.set([]);
+  }
+
+  /**
+   * Stores each image in main and shows it above the composer. A batch that would pass the limit is
+   * refused whole; what main refuses is left out, and the user is told why in a modal.
+   */
   addImages(files: ReadonlyArray<Blob>): void {
+    if (files.length === 0) return;
+    if (files.length > MAX_IMAGES - this.images().length - this.storing) {
+      this.failAttach('chat.attachTooMany');
+      return;
+    }
     for (const file of files) {
+      if (file.size > MAX_FILE_BYTES) {
+        this.failAttach('chat.attachTooLarge');
+        continue;
+      }
+      this.storing++;
       const url = URL.createObjectURL(file);
       const program = Effect.gen(function* () {
         const desktop = yield* DesktopApi;
         const bytes = yield* Effect.promise(async () => new Uint8Array(await file.arrayBuffer()));
-        return yield* desktop['Attachments.add']({ bytes });
+        return yield* desktop['Attachments.add']({ bytes }).pipe(
+          Effect.catchTag('AttachmentsError', (error) => Effect.succeed({ refused: error.reason })),
+        );
       });
-      void this.runtime.run(program).then(
-        Exit.match({
-          onFailure: () => {
-            URL.revokeObjectURL(url);
-            this.error.set(this.i18n.t('chat.attachFailed'));
-          },
-          onSuccess: ({ id }) => this.images.update((list) => [...list, { id, url }]),
-        }),
-      );
+      void this.runtime.run(program).then((exit) => {
+        this.storing--;
+        if (Exit.isSuccess(exit) && 'id' in exit.value) {
+          const { id } = exit.value;
+          this.images.update((list) => [...list, { id, url }]);
+          return;
+        }
+        URL.revokeObjectURL(url);
+        const reason = Exit.isSuccess(exit) && 'refused' in exit.value ? exit.value.refused : undefined;
+        this.failAttach(reason === 'TooLarge' ? 'chat.attachTooLarge' : 'chat.attachFailed');
+      });
     }
   }
 

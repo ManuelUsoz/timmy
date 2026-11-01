@@ -401,3 +401,66 @@ pre {
 .mention-icon {
   flex: none;
 }
+
+.picker {
+  display: none;
+}
+
+/* Files are being dragged over the chat: the composer says where to drop them. */
+.composer {
+  position: relative;
+}
+
+.composer.dragging {
+  outline: 2px dashed var(--focus);
+  outline-offset: -2px;
+}
+
+.drop-hint {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--field) 88%, transparent);
+  color: var(--text-primary);
+  font: var(--text-body-01);
+  pointer-events: none;
+}
+
+.attach-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.attach-menu {
+  position: absolute;
+  bottom: calc(100% + var(--spacing-02));
+  left: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  background: var(--layer-02);
+  border: 1px solid var(--border-strong);
+}
+
+.attach-menu button {
+  padding: var(--spacing-03) var(--spacing-04);
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: var(--text-body-01);
+  text-align: left;
+  cursor: pointer;
+}
+
+.attach-menu button:hover:not(:disabled) {
+  background: var(--layer-hover);
+}
+
+.attach-menu button:disabled {
+  color: var(--text-disabled, var(--text-helper));
+  cursor: not-allowed;
+}
