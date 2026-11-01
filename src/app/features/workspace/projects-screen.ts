@@ -42,6 +42,8 @@ export class ProjectsScreen {
   readonly sessionId = input<string>();
 
   protected readonly dialogOpen = signal(false);
+  /** A new session is being started, so the buttons that start one wait. */
+  protected readonly creating = signal(false);
 
   protected readonly routeSessionId = computed(() => {
     const id = this.sessionId();
@@ -113,8 +115,17 @@ export class ProjectsScreen {
     void this.router.navigate(['/projects', projectId]);
   }
 
-  protected openSessionOf(session: SessionSummary): void {
-    void this.router.navigate(['/projects', session.projectId, 'sessions', session.sessionId]);
+  protected async openSessionOf(session: SessionSummary): Promise<void> {
+    await this.router.navigate(['/projects', session.projectId, 'sessions', session.sessionId]);
+  }
+
+  /** "Nueva sesión": starts a session in the project, which opens in the chat at its own route. */
+  protected async newSession(): Promise<void> {
+    if (this.creating()) return;
+    this.creating.set(true);
+    const started = await this.state.createSession();
+    this.creating.set(false);
+    if (started !== undefined) await this.openSessionOf(started);
   }
 
   protected async created(project: Project): Promise<void> {
