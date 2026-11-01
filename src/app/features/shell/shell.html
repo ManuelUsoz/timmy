@@ -21,7 +21,7 @@
 } @else if (windowMode.mode() === 'Expanded') {
   <section class="workspace-frame" animate.enter="mode-in" animate.leave="mode-out" aria-label="Timmy workspace">
     <header class="titlebar" (dblclick)="toggleMaximize()">
-      <svg class="panel-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>
+      <img class="panel-icon" src="ascua-geometric-blue.svg" width="16" height="16" alt="" />
       <span class="titlebar-title">Timmy</span>
       <span class="drag-fill" aria-hidden="true"></span>
       <ng-container *ngTemplateOutlet="switcher" />
@@ -50,7 +50,7 @@
 } @else {
   <section class="panel" animate.enter="mode-in" animate.leave="mode-out" aria-label="Timmy panel">
     <header class="panel-header" (dblclick)="request('Pill')">
-      <svg class="panel-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" /></svg>
+      <img class="panel-icon" src="ascua-geometric-blue.svg" width="16" height="16" alt="" />
       <span class="panel-title">Chat</span>
       <span class="drag-fill" aria-hidden="true"></span>
       <ng-container *ngTemplateOutlet="switcher" />
