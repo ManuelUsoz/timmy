@@ -14,7 +14,7 @@ import {
   viewChild,
 } from '@angular/core';
 import type { SlashCommand } from '../../../shared/chat/command.model';
-import { applyMention, enterFolder, levelRows, mentionContext, type FilesState, type LevelRow } from './file-mentions';
+import { applyMention, enterFolder, leaveFolder, levelRows, mentionContext, type FilesState, type LevelRow } from './file-mentions';
 import { applyCommand, filterCommands, slashQuery, type CommandsState } from './slash-commands';
 
 /**
@@ -95,6 +95,10 @@ export class ComposerInputComponent {
       return;
     }
     const plain = !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey;
+    if (event.key === 'ArrowLeft' && plain && this.leaveLevel()) {
+      event.preventDefault();
+      return;
+    }
     if (this.selectable()) {
       switch (event.key) {
         case 'Tab':
@@ -141,12 +145,34 @@ export class ComposerInputComponent {
             : applyMention(element.value, element.selectionStart, context, entry)
           : undefined;
     if (next === undefined) return;
-    // Write the DOM first so the caret survives: the value binding then sees no change.
+    this.write(next);
+    this.activeIndex.set(0);
+  }
+
+  /** Writes the DOM first so the caret survives: the value binding then sees no change. */
+  private write(next: { readonly text: string; readonly caret: number }): void {
+    const element = this.box().nativeElement;
     element.value = next.text;
     element.setSelectionRange(next.caret, next.caret);
     this.draft.set(next.text);
     this.caret.set(next.caret);
-    this.activeIndex.set(0);
+  }
+
+  /**
+   * ← straight after the `/` of an `@dir/` goes back up one level and highlights the folder it left. Anywhere
+   * else (a filter typed, the root, a selection, the caret inside a word) the key is left to the textarea. Returns whether it acted.
+   */
+  private leaveLevel(): boolean {
+    const element = this.box().nativeElement;
+    // Read the live caret: the `caret` signal lags behind native moves until the next keyup.
+    const context = mentionContext(element.value, element.selectionStart);
+    if (this.dismissed() || context === undefined || !context.query.endsWith('/') || !this.caretAtWordEnd()) return false;
+    const next = leaveFolder(element.value, element.selectionStart, context);
+    this.write(next);
+    const state = this.files();
+    const index = state.status === 'ready' ? levelRows(state.entries, next.query).findIndex((row) => row.path === next.left) : -1;
+    this.activeIndex.set(Math.max(0, index));
+    return true;
   }
 
   /** The caret sits with no selection at the end of the text or right before whitespace. */

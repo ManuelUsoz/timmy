@@ -261,6 +261,85 @@ describe('ComposerInputComponent', () => {
       expect(host.draft()).toBe('@src/ bla');
     });
 
+    it('ArrowLeft right after a slash goes back one level and highlights the folder it left', async () => {
+      const { host, el, options, type, key } = await render();
+      host.files.set(FILES);
+      await type('@src/app/');
+      expect(labels(options)).toEqual(['chat.ts']);
+      const event = await key('ArrowLeft');
+      expect(event.defaultPrevented).toBe(true);
+      expect(host.draft()).toBe('@src/');
+      expect(labels(options)).toEqual(['app/', 'chat/']);
+      expect(el.querySelector('[data-active] .name')?.textContent).toBe('app/');
+      await type('@src/chat/');
+      await key('ArrowLeft');
+      expect(el.querySelector('[data-active] .name')?.textContent).toBe('chat/');
+    });
+
+    it('climbs level after level up to the root, where ArrowLeft moves the caret as usual', async () => {
+      const { host, options, type, key } = await render();
+      host.files.set(FILES);
+      await type('@src/app/');
+      await key('ArrowLeft');
+      await key('ArrowLeft');
+      expect(host.draft()).toBe('@');
+      expect(labels(options)).toEqual(['docs/', 'mi carpeta/', 'src/']);
+      const atRoot = await key('ArrowLeft');
+      expect(atRoot.defaultPrevented).toBe(false);
+      expect(host.draft()).toBe('@');
+      expect(options()).toHaveLength(3);
+    });
+
+    it('ArrowLeft keeps moving the caret while a filter is typed after the slash', async () => {
+      const { host, type, key } = await render();
+      host.files.set(FILES);
+      await type('@src/ap');
+      const event = await key('ArrowLeft');
+      expect(event.defaultPrevented).toBe(false);
+      expect(host.draft()).toBe('@src/ap');
+    });
+
+    it('deleting the slash with backspace shows the parent level filtered by the folder name', async () => {
+      const { host, options, type } = await render();
+      host.files.set(FILES);
+      await type('@src/');
+      expect(labels(options)).toEqual(['app/', 'chat/']);
+      await type('@src');
+      expect(labels(options)).toEqual(['src/']);
+    });
+
+    it('goes back out of a quoted folder with spaces and keeps the text after the word', async () => {
+      const { host, box, options, type, key } = await render();
+      host.files.set(FILES);
+      await type('@"mi carpeta/ bla');
+      box().setSelectionRange('@"mi carpeta/'.length, '@"mi carpeta/'.length);
+      box().dispatchEvent(new Event('keyup'));
+      await key('Shift'); // lets the caret move settle
+      expect(labels(options)).toEqual(['a b.ts']);
+      await key('ArrowLeft');
+      expect(host.draft()).toBe('@ bla');
+      expect(labels(options)).toEqual(['docs/', 'mi carpeta/', 'src/']);
+    });
+
+    it('ArrowLeft inside a word does not leave the level or glue the rest of the word on', async () => {
+      const { host, box, type, key } = await render();
+      host.files.set(FILES);
+      await type('@src/app/foo');
+      box().setSelectionRange('@src/app/'.length, '@src/app/'.length);
+      const event = await key('ArrowLeft');
+      expect(event.defaultPrevented).toBe(false);
+      expect(host.draft()).toBe('@src/app/foo');
+    });
+
+    it('leaves a level that has no rows', async () => {
+      const { host, options, type, key } = await render();
+      host.files.set(FILES);
+      await type('@nosuch/');
+      expect(options()).toHaveLength(0);
+      await key('ArrowLeft');
+      expect(host.draft()).toBe('@');
+    });
+
     it('enters a folder whose name has spaces with an open quote', async () => {
       const { host, options, type, key } = await render();
       host.files.set(FILES);
