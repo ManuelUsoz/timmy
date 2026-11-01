@@ -174,6 +174,51 @@ pre {
   border-bottom: 1px solid var(--border-strong);
 }
 
+/* Thumbnails of the draft's images, above the text field. */
+.images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-03);
+  margin: 0;
+  padding: var(--spacing-03) var(--spacing-04) 0;
+  list-style: none;
+}
+
+.image {
+  position: relative;
+  width: 56px;
+  height: 56px;
+}
+
+.image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: 1px solid var(--border-strong);
+}
+
+.image-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--layer-02);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.image-remove:focus-visible {
+  outline: 2px solid var(--focus, currentColor);
+}
+
 .composer-bar > ui-select {
   flex: none;
 }

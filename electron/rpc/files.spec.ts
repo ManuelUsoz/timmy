@@ -9,7 +9,7 @@ import {
   layerChatUnused,
   layerProjectsUnused,
   layerSessionsUnused,
-  layerSettingsUnused,
+  layerSettingsUnused, layerAttachmentsUnused,
   layerWindowUnused,
   makeDesktopTestLayer,
 } from '../../src/app/core/desktop-layers';
@@ -37,7 +37,7 @@ const makeLayer = (limit?: number) =>
       layerChatUnused,
       layerSessionsUnused,
       layerWindowUnused,
-      layerSettingsUnused,
+      layerSettingsUnused, layerAttachmentsUnused,
       layerProjectsUnused,
     ),
   );

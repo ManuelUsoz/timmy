@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Effect, Layer, Option, Ref, Stream } from 'effect';
+import { AttachmentId } from '../../src/shared/attachments/attachment.model';
 import { ChatError } from '../../src/shared/chat/chat-error.model';
 import { ChatEvent } from '../../src/shared/chat/event.model';
 import { SessionId, TurnId } from '../../src/shared/chat/ids.model';
@@ -46,6 +47,7 @@ const makeFakeAdapter = (provider: ProviderId, calls: Calls, mentions: 'native' 
       thinking: false,
       resume: true,
       mentions,
+      images: true,
     },
     startup: Ref.update(calls.startups, (n) => n + 1),
     shutdown: Ref.update(calls.shutdowns, (n) => n + 1),
@@ -130,10 +132,23 @@ describe('ChatRpc', () => {
       const tags = yield* Effect.gen(function* () {
         const chat = yield* ChatRpc;
         const sessionId = yield* chat.startSession(options('Claude'));
-        const events = yield* Stream.runCollect(chat.send({ sessionId, text: 'hi', mentions: [] }));
+        const events = yield* Stream.runCollect(chat.send({ sessionId, text: 'hi', mentions: [], attachments: [] }));
         return events.map((event) => event._tag);
       }).pipe(Effect.provide(layer));
       expect(tags).toEqual(['TurnStarted', 'TurnFinished']);
+    }));
+
+  it.effect('hands the adapter the attachments of the message untouched', () =>
+    Effect.gen(function* () {
+      const { calls, layer } = yield* makeHarness;
+      const id = AttachmentId.make('11111111-1111-4111-8111-111111111111');
+      yield* Effect.gen(function* () {
+        const chat = yield* ChatRpc;
+        const sessionId = yield* chat.startSession(options('Claude'));
+        yield* Stream.runCollect(chat.send({ sessionId, text: '', mentions: [], attachments: [{ id }] }));
+      }).pipe(Effect.provide(layer));
+      const sent = yield* Ref.get(calls.sent);
+      expect(sent[0]?.attachments).toEqual([{ id }]);
     }));
 
   it.effect('rejects send on an unknown session', () =>
@@ -142,7 +157,7 @@ describe('ChatRpc', () => {
       const error = yield* Effect.gen(function* () {
         const chat = yield* ChatRpc;
         return yield* Stream.runCollect(
-          chat.send({ sessionId: SessionId.make('nope'), text: 'hi', mentions: [] }),
+          chat.send({ sessionId: SessionId.make('nope'), text: 'hi', mentions: [], attachments: [] }),
         ).pipe(Effect.flip);
       }).pipe(Effect.provide(layer));
       expect(error).toBeInstanceOf(ChatError);
@@ -200,8 +215,8 @@ describe('ChatRpc', () => {
         const chat = yield* ChatRpc;
         const repo = yield* SessionRepo;
         const sessionId = yield* chat.startSession(options('Claude'));
-        yield* Stream.runCollect(chat.send({ sessionId, text: '  Fix the\n login bug ', mentions: [] }));
-        yield* Stream.runCollect(chat.send({ sessionId, text: 'and the logout one', mentions: [] }));
+        yield* Stream.runCollect(chat.send({ sessionId, text: '  Fix the\n login bug ', mentions: [], attachments: [] }));
+        yield* Stream.runCollect(chat.send({ sessionId, text: 'and the logout one', mentions: [], attachments: [] }));
         return (yield* repo.get(sessionId)).pipe(Option.map((row) => row.title));
       }).pipe(Effect.provide(layer));
       expect(title).toEqual(Option.some('Fix the'));
@@ -279,8 +294,8 @@ describe('ChatRpc mentions', () => {
       const outcome = yield* Effect.gen(function* () {
         const chat = yield* ChatRpc;
         const sessionId = yield* chat.startSession({ ...options('Claude'), cwd: root });
-        const result = yield* Stream.runCollect(chat.send({ sessionId, text, mentions: [] })).pipe(Effect.result);
-        const again = yield* Stream.runCollect(chat.send({ sessionId, text: 'still here', mentions: [] }));
+        const result = yield* Stream.runCollect(chat.send({ sessionId, text, mentions: [], attachments: [] })).pipe(Effect.result);
+        const again = yield* Stream.runCollect(chat.send({ sessionId, text: 'still here', mentions: [], attachments: [] }));
         return { result, usable: again.length };
       }).pipe(Effect.provide(layer));
       return { ...outcome, sent: yield* Ref.get(calls.sent) };
@@ -364,7 +379,7 @@ describe('ChatRpc mentions on an adapter without native support', () => {
       const events = yield* Effect.gen(function* () {
         const chat = yield* ChatRpc;
         const sessionId = yield* chat.startSession({ ...options('Claude'), cwd: root });
-        return yield* Stream.runCollect(chat.send({ sessionId, text, mentions: [] }));
+        return yield* Stream.runCollect(chat.send({ sessionId, text, mentions: [], attachments: [] }));
       }).pipe(Effect.provide(layer));
       const sent = yield* Ref.get(calls.sent);
       return { events, prompt: sent[0]?.text ?? '' };

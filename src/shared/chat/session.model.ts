@@ -1,4 +1,5 @@
 import { Schema } from 'effect';
+import { Attachment } from '../attachments/attachment.model';
 import { SessionId } from './ids.model';
 import { Mention } from './mention.model';
 import { Effort, ProviderId } from './provider.model';
@@ -28,5 +29,7 @@ export const UserMessage = Schema.Struct({
   sessionId: SessionId,
   text: Schema.String,
   mentions: Schema.Array(Mention),
+  /** Images added to the message, by id; the Adapter reads the stored files when it sends. */
+  attachments: Schema.Array(Attachment),
 }).annotate({ identifier: 'UserMessage' });
 export type UserMessage = typeof UserMessage.Type;

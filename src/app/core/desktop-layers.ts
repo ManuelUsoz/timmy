@@ -1,5 +1,6 @@
 import { Effect, Layer, Stream } from 'effect';
 import { RpcClient, RpcTest, type Rpc, type RpcGroup } from 'effect/rpc';
+import { AttachmentsRpcs } from '../../shared/attachments/attachments.rpc';
 import { ChatRpcs } from '../../shared/chat/chat.rpc';
 import { FilesRpcs } from '../../shared/files/files.rpc';
 import { DesktopRpcs } from '../../shared/rpc/desktop-rpcs';
@@ -95,4 +96,12 @@ export const layerProjectsUnused = ProjectsRpcs.toLayer({
 /** Files handlers that die when called, so a test of another domain can still build `DesktopRpcs`. */
 export const layerFilesUnused = FilesRpcs.toLayer({
   'Files.list': () => Effect.die('Files handler not under test'),
+});
+
+const attachmentsUnused = () => Effect.die('Attachments handler not under test');
+
+/** Attachments handlers that die when called, so a test of another domain can still build `DesktopRpcs`. */
+export const layerAttachmentsUnused = AttachmentsRpcs.toLayer({
+  'Attachments.add': attachmentsUnused,
+  'Attachments.remove': attachmentsUnused,
 });

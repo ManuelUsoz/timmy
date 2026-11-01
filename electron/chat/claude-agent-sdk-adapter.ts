@@ -18,6 +18,7 @@ import { QuestionResponse } from '../../src/shared/chat/question.model';
 import { PermissionMode, SessionOptions, UserMessage } from '../../src/shared/chat/session.model';
 import { ToolCall } from '../../src/shared/chat/tool-call.model';
 import { ProviderSessionId } from '../../src/shared/sessions/sessions.model';
+import { AttachmentStore } from '../attachments/attachment-store';
 import { SessionRepo } from '../sessions/session-repo';
 import { claudeHistory } from './claude-history-mapper';
 import { makeClaudeSessionStore } from './claude-session-store';
@@ -39,6 +40,7 @@ import {
 import { SdkAdapter } from './sdk-adapter';
 
 type SdkQuery = typeof import('@anthropic-ai/claude-agent-sdk').query;
+type ContentBlockParam = Exclude<SDKUserMessage['message']['content'], string>[number];
 
 export interface ClaudeAdapterOptions {
   /** Path to the Claude Code binary; required when the app is packaged (see electron-builder `asarUnpack`). */
@@ -54,6 +56,7 @@ const claudeCapabilities: AdapterCapabilities = {
   thinking: true,
   resume: true,
   mentions: 'native',
+  images: true,
 };
 
 /**
@@ -161,6 +164,7 @@ const notFound = (sessionId: SessionId) =>
 export const makeClaudeAgentSdkAdapter = (adapterOptions: ClaudeAdapterOptions = {}) =>
   Effect.gen(function* () {
     const repo = yield* SessionRepo;
+    const attachments = yield* AttachmentStore;
     const sessionOps = yield* makeSessionOps('Claude');
     const sessionStore: SessionStore = yield* makeClaudeSessionStore;
     const sdkRef = yield* Ref.make<SdkQuery | undefined>(undefined);
@@ -293,9 +297,37 @@ export const makeClaudeAgentSdkAdapter = (adapterOptions: ClaudeAdapterOptions =
       canUseTool,
     });
 
+    /**
+     * What the SDK is asked. Text-only messages keep the plain string; one with Attachments goes as a single
+     * streaming user message: a text block (left out when empty) and a base64 image block per Attachment.
+     */
+    const promptOf = Effect.fn('ClaudeAdapter.promptOf')(function* (message: UserMessage) {
+      if (message.attachments.length === 0) return message.text;
+      const images = yield* Effect.forEach(message.attachments, (attachment) =>
+        attachments.read(attachment.id).pipe(
+          Effect.mapError((error) => new ChatError({ reason: 'AttachmentNotFound', detail: error.detail })),
+        ),
+      );
+      const content: ContentBlockParam[] = [
+        ...(message.text === '' ? [] : [{ type: 'text' as const, text: message.text }]),
+        ...images.map(
+          (image): ContentBlockParam => ({
+            type: 'image',
+            source: { type: 'base64', media_type: image.mediaType, data: Buffer.from(image.bytes).toString('base64') },
+          }),
+        ),
+      ];
+      const user: SDKUserMessage = { type: 'user', message: { role: 'user', content }, parent_tool_use_id: null };
+      return (async function* () {
+        yield user;
+      })();
+    });
+
     const runTurn = (sdkQuery: SdkQuery, sessionId: SessionId, runtime: SessionRuntime, message: UserMessage) =>
       Stream.callback<ChatEvent, ChatError>(
         Effect.fnUntraced(function* (queue) {
+          // Read the images first: a message that cannot be built must not leave the Turn claimed.
+          const prompt = yield* promptOf(message);
           const abortController = new AbortController();
           const claimed = yield* Ref.modify(runtime.abort, (current) =>
             current === undefined ? ([true, abortController] as const) : ([false, current] as const),
@@ -308,7 +340,7 @@ export const makeClaudeAgentSdkAdapter = (adapterOptions: ClaudeAdapterOptions =
           const started = yield* Ref.get(runtime.started);
           const options = queryOptions(runtime, started, abortController, makeCanUseTool(sessionId, runtime, queue));
           yield* Effect.logInfo(`[claude] -> query ${show({ prompt: message.text, options: loggableOptions(options) })}`);
-          const claudeQuery = sdkQuery({ prompt: message.text, options });
+          const claudeQuery = sdkQuery({ prompt, options });
 
           yield* Effect.addFinalizer(() =>
             Effect.sync(() => {

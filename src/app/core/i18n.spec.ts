@@ -3,7 +3,7 @@ import { Effect, Layer, Ref } from 'effect';
 import { AppInfoRpcs } from '../../shared/app-info/app-info.rpc';
 import type { Language } from '../../shared/settings/settings.model';
 import { SettingsRpcs } from '../../shared/settings/settings.rpc';
-import { layerChatUnused, layerFilesUnused, layerProjectsUnused, layerSessionsUnused, layerWindowUnused, makeDesktopTestLayer } from './desktop-layers';
+import { layerChatUnused, layerFilesUnused, layerAttachmentsUnused, layerProjectsUnused, layerSessionsUnused, layerWindowUnused, makeDesktopTestLayer } from './desktop-layers';
 import { EffectRuntime } from './effect-runtime';
 import { dictionaries, en, es } from './i18n-dictionaries';
 import { I18n } from './i18n';
@@ -28,7 +28,7 @@ const setup = (options: { stored?: Language; failSave?: boolean } = {}) => {
     layerChatUnused,
     layerSessionsUnused,
     layerWindowUnused,
-    layerFilesUnused, layerProjectsUnused,
+    layerFilesUnused, layerAttachmentsUnused, layerProjectsUnused,
   );
   const layer = makeDesktopTestLayer(handlers);
   TestBed.configureTestingModule({

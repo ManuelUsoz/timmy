@@ -3,6 +3,8 @@ import { app } from 'electron';
 import { Effect, Layer, ManagedRuntime } from 'effect';
 import { RpcServer } from 'effect/rpc';
 import { DesktopRpcs } from '../../src/shared/rpc/desktop-rpcs';
+import { layerAttachmentStore } from '../attachments/attachment-store';
+import { layerElectronImageResizer } from '../attachments/electron-image-resizer';
 import { layerElectronFolderPicker } from '../projects/electron-folder-picker';
 import { layerSettingsStore } from '../settings/settings-store';
 import { layerSessionRepo } from '../sessions/session-repo';
@@ -20,10 +22,15 @@ const layerSettingsStoreFile = Layer.unwrap(
   Effect.sync(() => layerSettingsStore(path.join(app.getPath('userData'), 'settings.json'))),
 );
 
+/** Draft images live as files in a folder of the app's data directory. */
+const layerAttachmentStoreFiles = Layer.unwrap(
+  Effect.sync(() => layerAttachmentStore(path.join(app.getPath('userData'), 'attachments'))),
+).pipe(Layer.provide(layerElectronImageResizer));
+
 /** The RPC server for the app's lifetime; windows attach through `RpcPortHandoff`. */
 const layerRpcServer = RpcServer.layer(DesktopRpcs).pipe(
   Layer.provideMerge(layerIpcServer),
-  Layer.provide(layerDesktopHandlers.pipe(Layer.provide(layerSessionRepoFile), Layer.provide(layerSettingsStoreFile), Layer.provide(layerElectronWindowHost), Layer.provide(layerElectronFolderPicker))),
+  Layer.provide(layerDesktopHandlers.pipe(Layer.provide(layerSessionRepoFile), Layer.provide(layerSettingsStoreFile), Layer.provide(layerAttachmentStoreFiles), Layer.provide(layerElectronWindowHost), Layer.provide(layerElectronFolderPicker))),
 );
 
 /** App-lifetime runtime running the RPC server. Disposed on `before-quit`. */

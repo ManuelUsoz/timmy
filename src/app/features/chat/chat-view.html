@@ -129,7 +129,21 @@
 }
 
 <form class="composer" (submit)="$event.preventDefault(); send()">
-  <app-composer-input [(draft)]="draft" [commands]="commands()" [files]="files()" (mentionOpened)="requestFiles()" (submitted)="send()" />
+  @if (images().length > 0) {
+    <ul class="images" [attr.aria-label]="i18n.t('chat.images')">
+      @for (image of images(); track image.id) {
+        <li class="image">
+          <img [src]="image.url" [alt]="i18n.t('chat.image')" />
+          <button type="button" class="image-remove" [attr.aria-label]="i18n.t('chat.removeImage')" (click)="removeImage(image.id)">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+              <path d="M2 2l6 6M8 2L2 8" />
+            </svg>
+          </button>
+        </li>
+      }
+    </ul>
+  }
+  <app-composer-input [(draft)]="draft" [commands]="commands()" [files]="files()" (mentionOpened)="requestFiles()" (imagesPasted)="addImages($event)" (submitted)="send()" />
   <div class="composer-bar">
     <button
       type="button"
@@ -193,7 +207,7 @@
         iconOnly
         type="submit"
         aria-label="Send"
-        [disabled]="draft().trim() === '' || info() === null"
+        [disabled]="(draft().trim() === '' && images().length === 0) || info() === null"
       >
         <svg
           width="16"

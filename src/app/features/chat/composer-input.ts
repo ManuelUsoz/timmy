@@ -41,6 +41,8 @@ export class ComposerInputComponent {
   readonly submitted = output<void>();
   /** The `@` popup opened; the owner should make sure the file list is loading or loaded. */
   readonly mentionOpened = output<void>();
+  /** Images were pasted; the owner decides what to do with them. Plain-text pastes are left to the textarea. */
+  readonly imagesPasted = output<ReadonlyArray<File>>();
 
   private readonly caret = signal(0);
   private readonly dismissed = signal(false);
@@ -87,6 +89,15 @@ export class ComposerInputComponent {
     this.dismissed.set(false);
     this.activeIndex.set(0);
     this.syncCaret();
+  }
+
+  protected onPaste(event: ClipboardEvent): void {
+    const data = event.clipboardData;
+    const images = Array.from(data?.files ?? []).filter((file) => file.type.startsWith('image/'));
+    if (data === null || images.length === 0) return;
+    // A screenshot carries no text; when text came along too (copied from a document) it still pastes.
+    if (data.getData('text/plain') === '') event.preventDefault();
+    this.imagesPasted.emit(images);
   }
 
   protected syncCaret(): void {

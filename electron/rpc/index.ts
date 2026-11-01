@@ -9,6 +9,7 @@ import { layerProjectResolver } from '../sessions/project-resolver';
 import { layerSessionObserver } from '../sessions/session-observer';
 import { layerSessionsService } from '../sessions/sessions-service';
 import { layerAppInfoHandlers } from './app-info';
+import { layerAttachmentsHandlers } from './attachments';
 import { layerChatHandlers } from './chat';
 import { layerFilesHandlers } from './files';
 import { layerProjectsHandlers } from './projects';
@@ -51,4 +52,5 @@ export const layerDesktopHandlers = Layer.mergeAll(
   layerSettingsHandlers,
   layerProjectsHandlersLive,
   layerFilesHandlersLive,
+  layerAttachmentsHandlers,
 ).pipe(Layer.provide(layerChatServices));

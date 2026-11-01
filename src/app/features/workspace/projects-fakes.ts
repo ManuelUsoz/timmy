@@ -10,7 +10,7 @@ import { ProjectId, ProviderSessionId, type SessionSummary } from '../../../shar
 import { SessionsError } from '../../../shared/sessions/sessions-error.model';
 import { SessionsRpcs } from '../../../shared/sessions/sessions.rpc';
 import { SettingsRpcs } from '../../../shared/settings/settings.rpc';
-import { layerFilesUnused, layerWindowUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
+import { layerFilesUnused, layerAttachmentsUnused, layerWindowUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
 
 export const project = (name: string, overrides: Partial<Project> = {}): Project => ({
   projectId: ProjectId.make(`p-${name}`),
@@ -230,7 +230,7 @@ export const layerFakeProjects = (backend: FakeBackend) =>
     AppInfoRpcs.toLayer({ 'AppInfo.get': () => Effect.die('unused') }),
     layerFakeChat(backend),
     layerWindowUnused,
-    layerFilesUnused,
+    layerFilesUnused, layerAttachmentsUnused,
   );
 
 /** The same, with settings that answer Spanish and accept any language. */

@@ -6,7 +6,7 @@ import { SessionId } from '../../../shared/chat/ids.model';
 import { SessionsRpcs } from '../../../shared/sessions/sessions.rpc';
 import { ProjectId, ProviderSessionId, type SessionSummary } from '../../../shared/sessions/sessions.model';
 import {
-  layerFilesUnused,
+  layerFilesUnused, layerAttachmentsUnused,
   layerProjectsUnused,
   layerSettingsUnused,
   layerWindowUnused,
@@ -59,7 +59,7 @@ const setup = async () => {
     }),
     layerWindowUnused,
     layerSettingsUnused,
-    layerFilesUnused,
+    layerFilesUnused, layerAttachmentsUnused,
     layerProjectsUnused,
   );
   const layer = makeDesktopTestLayer(handlers);
