@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, booleanAttribute, computed, inject, input } from '@angular/core';
 import { ReactiveFormsModule } from '@angular/forms';
 import { ChipStripComponent } from '../../shared/ui/chip-strip/chip-strip';
 import { MessageComponent } from '../../shared/ui/message/message';
@@ -35,6 +35,10 @@ import { MarkdownPipe } from './markdown.pipe';
 })
 export class ChatViewComponent {
   private readonly controller = inject(ChatController);
+  /** In the Workspace the sessions are listed next to the chat, so the chip strip and the new-chat button stay out. */
+  readonly embedded = input(false, { transform: booleanAttribute });
+  /** Names the session when the chat's own list of sessions does not know it (it is in another project). */
+  readonly sessionTitle = input<string>();
   protected readonly info = this.controller.info;
   protected readonly error = this.controller.error;
   protected readonly chat = this.controller.chat;
@@ -52,7 +56,7 @@ export class ChatViewComponent {
   protected readonly contextPercent = this.controller.contextPercent;
   protected readonly project = computed(() => this.info()?.cwd.split(/[\\/]/).filter(Boolean).at(-1) ?? 'project');
   protected readonly title = computed(
-    () => this.sessionChips().find((chip) => chip.id === this.selectedSessionId())?.label ?? 'New session',
+    () => this.sessionTitle() ?? this.sessionChips().find((chip) => chip.id === this.selectedSessionId())?.label ?? 'New session',
   );
 
   protected send = () => this.controller.send();

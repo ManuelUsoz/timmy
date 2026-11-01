@@ -71,10 +71,57 @@ h2 {
   font: var(--text-heading-02);
 }
 
-.placeholder {
+.chat {
+  flex: 1;
+  min-height: 0;
+}
+
+.path {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font: var(--text-code-02);
+  letter-spacing: 0.32px;
+  color: var(--text-primary);
+}
+
+.note {
+  display: flex;
+  gap: var(--spacing-04);
+  padding: var(--spacing-04);
+  border: 1px solid var(--support-error);
+  border-inline-start-width: 3px;
+  background: var(--layer-01);
+}
+
+.note svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  fill: none;
+  stroke: var(--support-error);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.note-title {
+  font: var(--text-heading-01);
+  letter-spacing: 0.16px;
+}
+
+.note p {
+  margin: var(--spacing-02) 0 0;
+  font: var(--text-helper-text-01);
+  letter-spacing: 0.32px;
+  color: var(--text-secondary);
+}
+
+.failure {
   margin: 0;
-  padding: var(--spacing-05);
-  color: var(--text-helper);
+  padding: var(--spacing-03) var(--spacing-05);
+  font: var(--text-helper-text-01);
+  color: var(--text-error);
 }
 
 .icon-button,

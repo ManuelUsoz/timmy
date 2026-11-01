@@ -32,6 +32,8 @@ export class ChatController {
   private sessionId: SessionId | undefined;
   /** Stored session the next `startSession` continues; set while a past transcript is shown. */
   private resumeFrom: SessionId | undefined;
+  /** Folder of the stored session the next `startSession` continues, when it is not the app's own cwd. */
+  private resumeCwd: string | undefined;
   /** Bumped per transcript load so a slower, older response cannot overwrite a newer pick. */
   private transcriptLoad = 0;
 
@@ -69,6 +71,12 @@ export class ChatController {
   /** The Session whose transcript is on screen; undefined for a fresh chat. */
   readonly selectedSessionId = signal<SessionId | undefined>(undefined);
   readonly sessionChips = computed(() => sessionChips(this.sessions(), this.selectedSessionId()));
+  /** The session the user is talking to right now (not a stored transcript being read), if it is one of `sessions`. */
+  readonly liveSession = computed(() => {
+    const sessionId = this.selectedSessionId();
+    if (sessionId === undefined || this.chat().stored) return undefined;
+    return this.sessions().find((session) => session.sessionId === sessionId);
+  });
 
   /** Only flips on a real transition, so effects reading it do not re-run on every streamed delta. */
   private readonly running = computed(() => this.chat().running);
@@ -164,7 +172,7 @@ export class ChatController {
 
   send(): void {
     const text = this.draft().trim();
-    const cwd = this.info()?.cwd;
+    const cwd = this.resumeCwd ?? this.info()?.cwd;
     if (text === '' || cwd === undefined || this.chat().running) return;
 
     this.draft.set('');
@@ -209,18 +217,28 @@ export class ChatController {
     );
   }
 
-  /** Shows a stored transcript. The next message continues that session; a subagent transcript is read-only. */
-  showTranscript(ref: TranscriptRef): void {
-    if (this.chat().running) return;
+  /**
+   * Shows a stored transcript. The next message continues that session, in `cwd` when the session belongs to
+   * another folder than the app's; a subagent transcript is read-only. Does nothing, and says so, while a Turn runs.
+   */
+  showTranscript(ref: TranscriptRef, cwd?: string): boolean {
+    if (this.chat().running) return false;
     const load = ++this.transcriptLoad;
     this.resetSession();
     this.selectedSessionId.set(ref.sessionId);
     this.resumeFrom = ref.subagent === undefined ? ref.sessionId : undefined;
+    this.resumeCwd = ref.subagent === undefined ? cwd : undefined;
     void this.call(
       (desktop) => desktop['Sessions.history']({ ref }),
       (history) => load === this.transcriptLoad && this.chat.set(chatStateFromHistory(history)),
       (cause) => load === this.transcriptLoad && this.chat.set({ ...initialChatState, failure: Cause.pretty(cause) }),
     );
+    return true;
+  }
+
+  /** Opens a stored session of any project in the chat. False while a Turn runs, which cannot be switched away from. */
+  openStoredSession(session: SessionSummary): boolean {
+    return this.showTranscript({ projectId: session.projectId, sessionId: session.sessionId }, session.cwd);
   }
 
   /** A Session chip was picked: show its main transcript. */
@@ -234,6 +252,7 @@ export class ChatController {
     this.resetSession();
     this.selectedSessionId.set(undefined);
     this.resumeFrom = undefined;
+    this.resumeCwd = undefined;
     this.chat.set(initialChatState);
   }
 

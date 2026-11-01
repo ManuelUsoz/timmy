@@ -1,25 +1,23 @@
 import { TestBed } from '@angular/core/testing';
 import { Effect, Layer, Ref } from 'effect';
-import { AppInfoRpcs } from '../../../shared/app-info/app-info.rpc';
 import type { Language } from '../../../shared/settings/settings.model';
 import { SettingsRpcs } from '../../../shared/settings/settings.rpc';
-import { layerChatUnused, layerSessionsUnused, layerWindowUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
+import { makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
+import { layerFakeProjects, makeBackend, project } from './projects-fakes';
 import { WorkspaceComponent } from './workspace';
 import { WorkspaceLayoutState } from './workspace-layout';
 import { provideWorkspaceRouter } from './workspace.routes';
 
-const setup = async (width = 1400) => {
+/** One project, used before, so the Workspace opens it and its content column exists. */
+const setup = async (width = 1400, backend = makeBackend({ projects: [project('timmy', { lastUsedAt: 1 })] })) => {
   const stored = Ref.makeUnsafe<Language>('es');
   const handlers = Layer.mergeAll(
     SettingsRpcs.toLayer({
       'Settings.get': () => Effect.map(Ref.get(stored), (language) => ({ language })),
       'Settings.setLanguage': ({ language }) => Ref.set(stored, language).pipe(Effect.as({ language })),
     }),
-    AppInfoRpcs.toLayer({ 'AppInfo.get': () => Effect.die('unused') }),
-    layerChatUnused,
-    layerSessionsUnused,
-    layerWindowUnused,
+    layerFakeProjects(backend),
   );
   const layer = makeDesktopTestLayer(handlers);
   await TestBed.configureTestingModule({

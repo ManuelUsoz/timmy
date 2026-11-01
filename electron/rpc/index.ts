@@ -2,11 +2,14 @@ import { Layer } from 'effect';
 import { layerChatRpc } from '../chat/chat-rpc';
 import { layerMockSdkAdapterRegistry } from '../chat/mock-sdk-adapter';
 import { layerSdkAdapterRegistry } from '../chat/sdk-adapter-registry';
+import { layerProjectFolders } from '../projects/project-folders';
+import { layerProjectsService } from '../projects/projects-service';
 import { layerProjectResolver } from '../sessions/project-resolver';
 import { layerSessionObserver } from '../sessions/session-observer';
 import { layerSessionsService } from '../sessions/sessions-service';
 import { layerAppInfoHandlers } from './app-info';
 import { layerChatHandlers } from './chat';
+import { layerProjectsHandlers } from './projects';
 import { layerSessionsHandlers } from './sessions';
 import { layerSettingsHandlers } from './settings';
 import { layerWindowHandlers } from './window';
@@ -22,11 +25,17 @@ const layerChatServices = layerChatRpc.pipe(
 
 const layerSessionHandlers = layerSessionsHandlers.pipe(Layer.provide(layerSessionsService));
 
+const layerProjectsHandlersLive = layerProjectsHandlers.pipe(
+  Layer.provide(layerProjectsService),
+  Layer.provide(layerProjectResolver),
+  Layer.provide(layerProjectFolders),
+);
+
 const layerWindowHandlersLive = layerWindowHandlers.pipe(Layer.provide(layerWindowService));
 
 /**
  * Handlers for every domain in `DesktopRpcs`. Merge new domain handler layers here.
- * Needs a `SessionRepo`, a `SettingsStore` and a `WindowHost`; the runtime provides the real ones.
+ * Needs a `SessionRepo`, a `SettingsStore`, a `WindowHost` and a `FolderPicker`; the runtime provides the real ones.
  */
 export const layerDesktopHandlers = Layer.mergeAll(
   layerAppInfoHandlers,
@@ -34,4 +43,5 @@ export const layerDesktopHandlers = Layer.mergeAll(
   layerSessionHandlers,
   layerWindowHandlersLive,
   layerSettingsHandlers,
+  layerProjectsHandlersLive,
 ).pipe(Layer.provide(layerChatServices));

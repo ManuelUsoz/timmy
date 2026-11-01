@@ -3,6 +3,7 @@ import { app } from 'electron';
 import { Effect, Layer, ManagedRuntime } from 'effect';
 import { RpcServer } from 'effect/rpc';
 import { DesktopRpcs } from '../../src/shared/rpc/desktop-rpcs';
+import { layerElectronFolderPicker } from '../projects/electron-folder-picker';
 import { layerSettingsStore } from '../settings/settings-store';
 import { layerSessionRepo } from '../sessions/session-repo';
 import { layerDesktopHandlers } from './index';
@@ -22,7 +23,7 @@ const layerSettingsStoreFile = Layer.unwrap(
 /** The RPC server for the app's lifetime; windows attach through `RpcPortHandoff`. */
 const layerRpcServer = RpcServer.layer(DesktopRpcs).pipe(
   Layer.provideMerge(layerIpcServer),
-  Layer.provide(layerDesktopHandlers.pipe(Layer.provide(layerSessionRepoFile), Layer.provide(layerSettingsStoreFile), Layer.provide(layerElectronWindowHost))),
+  Layer.provide(layerDesktopHandlers.pipe(Layer.provide(layerSessionRepoFile), Layer.provide(layerSettingsStoreFile), Layer.provide(layerElectronWindowHost), Layer.provide(layerElectronFolderPicker))),
 );
 
 /** App-lifetime runtime running the RPC server. Disposed on `before-quit`. */

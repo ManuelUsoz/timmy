@@ -2,6 +2,7 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { Clock, Context, Effect, Layer, Option, PubSub, Schema, Stream } from 'effect';
 import { AgentId, SessionId } from '../../src/shared/chat/ids.model';
 import { ProviderId } from '../../src/shared/chat/provider.model';
+import { Project } from '../../src/shared/projects/projects.model';
 import {
   ProjectId,
   ProviderSessionId,
@@ -25,6 +26,12 @@ export interface NewSession {
   readonly providerSessionId: ProviderSessionId;
 }
 
+/** A project row nobody added on purpose: it exists because a session was started in its folder. */
+export interface ImplicitProject {
+  readonly projectId: ProjectId;
+  readonly cwd: string;
+}
+
 /**
  * Persistent store of projects, sessions and their transcripts. It never interprets a
  * transcript entry. Storage failures are defects: no caller can act on them.
@@ -34,6 +41,20 @@ export class SessionRepo extends Context.Service<
   {
     /** Registers the project of `cwd` under `projectId`; a no-op when it already exists. */
     readonly ensureProject: (projectId: ProjectId, cwd: string) => Effect.Effect<void>;
+    /** Projects in the user's list: not the implicit ones and not the removed ones. */
+    readonly listProjects: Effect.Effect<ReadonlyArray<Project>>;
+    /** A project in the user's list. */
+    readonly getProject: (projectId: ProjectId) => Effect.Effect<Option.Option<Project>>;
+    /** Puts the project in the list under `name`, whether it is new, implicit or was removed. Its sessions stay as they are. */
+    readonly saveProject: (projectId: ProjectId, cwd: string, name: string) => Effect.Effect<void>;
+    /** Takes the project out of the list and keeps everything else. */
+    readonly unlistProject: (projectId: ProjectId) => Effect.Effect<void>;
+    readonly markProjectUsed: (projectId: ProjectId) => Effect.Effect<void>;
+    /** Projects that exist only because a session was started in their folder. */
+    readonly implicitProjects: Effect.Effect<ReadonlyArray<ImplicitProject>>;
+    /** Whether the implicit projects were already offered to the list. */
+    readonly implicitProjectsImported: Effect.Effect<boolean>;
+    readonly markImplicitProjectsImported: Effect.Effect<void>;
     readonly createSession: (session: NewSession) => Effect.Effect<void>;
     readonly get: (sessionId: SessionId) => Effect.Effect<Option.Option<SessionSummary>>;
     readonly findByProvider: (
@@ -89,6 +110,13 @@ const migrations: ReadonlyArray<string> = [
   CREATE INDEX entries_by_transcript ON entries(session_id, sub, seq);
   CREATE UNIQUE INDEX entries_by_uuid ON entries(session_id, sub, uuid) WHERE uuid IS NOT NULL;
   `,
+  // A project is "listed" once the user added it or it was imported; sessions keep pointing at it either way.
+  `
+  ALTER TABLE projects ADD COLUMN name TEXT NOT NULL DEFAULT '';
+  ALTER TABLE projects ADD COLUMN listed INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE projects ADD COLUMN last_used_at INTEGER;
+  CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+  `,
 ];
 
 const SELECT_SESSION = `
@@ -97,7 +125,15 @@ const SELECT_SESSION = `
          s.created_at AS createdAt, s.updated_at AS updatedAt
   FROM sessions s JOIN projects p ON p.id = s.project_id`;
 
-const EntryRow = Schema.Struct({
+const SELECT_PROJECT = `
+  SELECT id AS projectId, cwd, name, created_at AS createdAt, last_used_at AS lastUsedAt
+  FROM projects WHERE listed = 1`;
+
+const ImplicitRow = Schema.Struct({ projectId: ProjectId, cwd: Schema.String });
+
+const IMPORTED_KEY = 'implicit-projects-imported';
+
+const EntryRow =Schema.Struct({
   kind: Schema.String,
   uuid: Schema.NullOr(Schema.String),
   ts: Schema.NullOr(Schema.String),
@@ -106,7 +142,9 @@ const EntryRow = Schema.Struct({
 
 const SubRow = Schema.Struct({ sub: AgentId });
 
-const decodeSessions = Schema.decodeUnknownEffect(Schema.Array(SessionSummary));
+const decodeProjects = Schema.decodeUnknownEffect(Schema.Array(Project));
+const decodeImplicitRows = Schema.decodeUnknownEffect(Schema.Array(ImplicitRow));
+const decodeSessions =Schema.decodeUnknownEffect(Schema.Array(SessionSummary));
 const decodeEntryRows = Schema.decodeUnknownEffect(Schema.Array(EntryRow));
 const decodeSubRows = Schema.decodeUnknownEffect(Schema.Array(SubRow));
 
@@ -161,8 +199,38 @@ export const layerSessionRepo = (path: string) =>
         yield* run('INSERT OR IGNORE INTO projects (id, cwd, created_at) VALUES (?, ?, ?)', projectId, cwd, now);
       });
 
+      const findProjects = (where: string, ...params: ReadonlyArray<SQLInputValue>) =>
+        all(`${SELECT_PROJECT} ${where}`, ...params).pipe(Effect.flatMap(decodeProjects), Effect.orDie);
+
       return SessionRepo.of({
         ensureProject,
+        listProjects: findProjects('ORDER BY created_at'),
+        getProject: (projectId) =>
+          findProjects('AND id = ?', projectId).pipe(Effect.map((rows) => Option.fromNullishOr(rows[0]))),
+        saveProject: Effect.fn('SessionRepo.saveProject')(function* (projectId, cwd, name) {
+          const now = yield* Clock.currentTimeMillis;
+          yield* run(
+            `INSERT INTO projects (id, cwd, created_at, name, listed) VALUES (?, ?, ?, ?, 1)
+             ON CONFLICT(id) DO UPDATE SET cwd = excluded.cwd, name = excluded.name, listed = 1`,
+            projectId,
+            cwd,
+            now,
+            name,
+          );
+        }),
+        unlistProject: (projectId) => run('UPDATE projects SET listed = 0 WHERE id = ?', projectId),
+        markProjectUsed: (projectId) =>
+          Clock.currentTimeMillis.pipe(
+            Effect.flatMap((now) => run('UPDATE projects SET last_used_at = ? WHERE id = ?', now, projectId)),
+          ),
+        implicitProjects: all('SELECT id AS projectId, cwd FROM projects WHERE listed = 0 ORDER BY created_at').pipe(
+          Effect.flatMap(decodeImplicitRows),
+          Effect.orDie,
+        ),
+        implicitProjectsImported: all('SELECT 1 AS found FROM meta WHERE key = ?', IMPORTED_KEY).pipe(
+          Effect.map((rows) => rows.length > 0),
+        ),
+        markImplicitProjectsImported: run("INSERT OR IGNORE INTO meta (key, value) VALUES (?, '1')", IMPORTED_KEY),
         createSession: Effect.fn('SessionRepo.createSession')(function* (session) {
           const now = yield* Clock.currentTimeMillis;
           yield* ensureProject(session.projectId, session.cwd);
