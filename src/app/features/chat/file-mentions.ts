@@ -1,32 +1,41 @@
 import type { Mention } from '../../../shared/chat/mention.model';
+import { foldersOf } from '../../../shared/files/files.model';
 
-/** A file or folder of the working directory that a message can point at. */
-export type MentionEntry = Mention;
+/** The last segment of a `/` path (a trailing `/` is ignored). */
+export const baseName = (path: string): string => {
+  const trimmed = path.endsWith('/') ? path.slice(0, -1) : path;
+  return trimmed.slice(trimmed.lastIndexOf('/') + 1);
+};
+
+/** The folder part of a `/` path; empty for a top-level one. */
+export const dirName = (path: string): string => {
+  const slash = path.lastIndexOf('/');
+  return slash === -1 ? '' : path.slice(0, slash);
+};
+
+/** A file or folder of the working directory that a message can point at, with its lowercase forms precomputed for matching. */
+export interface FileEntry extends Mention {
+  readonly lower: string;
+  readonly nameLower: string;
+}
 
 /** Loading, failure and empty stay distinct so the popup never shows a failure as "no matches". */
 export type FilesState =
   | { readonly status: 'idle' }
   | { readonly status: 'loading' }
   | { readonly status: 'failed'; readonly detail: string }
-  | { readonly status: 'ready'; readonly entries: ReadonlyArray<MentionEntry>; readonly truncated: boolean };
+  | { readonly status: 'ready'; readonly entries: ReadonlyArray<FileEntry>; readonly truncated: boolean };
 
 /** Most rows the popup shows. */
 export const MAX_MENTION_RESULTS = 50;
 
 /** Every file, plus every folder that holds one. */
-export const entriesFromPaths = (paths: ReadonlyArray<string>): ReadonlyArray<MentionEntry> => {
-  const folders = new Set<string>();
-  for (const file of paths) {
-    let slash = file.indexOf('/');
-    while (slash !== -1) {
-      folders.add(file.slice(0, slash));
-      slash = file.indexOf('/', slash + 1);
-    }
-  }
-  return [
-    ...[...folders].map((path): MentionEntry => ({ path, kind: 'folder' })),
-    ...paths.map((path): MentionEntry => ({ path, kind: 'file' })),
-  ];
+export const entriesFromPaths = (paths: ReadonlyArray<string>): ReadonlyArray<FileEntry> => {
+  const entry = (path: string, kind: Mention['kind']): FileEntry => {
+    const lower = path.toLowerCase();
+    return { path, kind, lower, nameLower: baseName(lower) };
+  };
+  return [...[...foldersOf(paths)].map((path) => entry(path, 'folder')), ...paths.map((path) => entry(path, 'file'))];
 };
 
 export interface MentionContext {
@@ -58,9 +67,7 @@ const subsequence = (haystack: string, needle: string): boolean => {
 };
 
 /** Lower is better. File-name matches (0-2) rank above matches only in the folder path (3-4). */
-const rank = (path: string, needle: string): number | undefined => {
-  const lower = path.toLowerCase();
-  const name = lower.slice(lower.lastIndexOf('/') + 1);
+const rank = ({ lower, nameLower: name }: FileEntry, needle: string): number | undefined => {
   if (name.startsWith(needle)) return 0;
   if (name.includes(needle)) return 1;
   if (subsequence(name, needle)) return 2;
@@ -70,12 +77,12 @@ const rank = (path: string, needle: string): number | undefined => {
 };
 
 /** Fuzzy matches, best first, at most {@link MAX_MENTION_RESULTS}. */
-export const filterEntries = (entries: ReadonlyArray<MentionEntry>, query: string): ReadonlyArray<MentionEntry> => {
+export const filterEntries = (entries: ReadonlyArray<FileEntry>, query: string): ReadonlyArray<FileEntry> => {
   const needle = query.toLowerCase();
   if (needle === '') return entries.slice(0, MAX_MENTION_RESULTS);
-  const ranked: { entry: MentionEntry; rank: number }[] = [];
+  const ranked: { entry: FileEntry; rank: number }[] = [];
   for (const entry of entries) {
-    const value = rank(entry.path, needle);
+    const value = rank(entry, needle);
     if (value !== undefined) ranked.push({ entry, rank: value });
   }
   ranked.sort((a, b) => a.rank - b.rank || a.entry.path.length - b.entry.path.length);
@@ -83,7 +90,7 @@ export const filterEntries = (entries: ReadonlyArray<MentionEntry>, query: strin
 };
 
 /** Replaces the typed `@query` with `@path ` (quoted when the path has spaces) and puts the caret after it. */
-export const applyMention = (text: string, caret: number, context: MentionContext, entry: MentionEntry) => {
+export const applyMention = (text: string, caret: number, context: MentionContext, entry: Mention) => {
   const rest = text.slice(caret).replace(/^ /, '');
   const reference = /\s/.test(entry.path) ? `@"${entry.path}" ` : `@${entry.path} `;
   return { text: text.slice(0, context.start) + reference + rest, caret: context.start + reference.length };

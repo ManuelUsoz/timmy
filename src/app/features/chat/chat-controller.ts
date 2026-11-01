@@ -3,7 +3,7 @@ import type { PermissionMode, SessionOptions } from '../../../shared/chat/sessio
 import type { SelectOption } from '../../shared/ui/select/select.types';
 import { I18n } from '../../core/i18n';
 import { pillView } from '../shell/pill-view';
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { Effort, ModelInfo } from '../../../shared/chat/provider.model';
 import { Cause, Effect, Exit, Stream } from 'effect';
@@ -54,6 +54,8 @@ export class ChatController {
   /** Files the `@` popup offers; loaded the first time the user types `@` in the Session's folder. */
   readonly files = signal<FilesState>({ status: 'idle' });
   private filesCwd: string | undefined;
+  /** Bumped per file-list request and per invalidation, so an out-of-date response is dropped. */
+  private filesLoad = 0;
 
   private readonly models = signal<ReadonlyArray<ModelInfo>>([]);
   readonly selectedModel = signal<string | null>(null);
@@ -114,6 +116,10 @@ export class ChatController {
       },
     );
     void this.call((desktop) => desktop['Chat.models'](), (models) => this.models.set(models));
+    // Files edited outside Timmy show up in the next `@`.
+    const onFocus = () => this.invalidateFiles();
+    window.addEventListener('focus', onFocus);
+    inject(DestroyRef).onDestroy(() => window.removeEventListener('focus', onFocus));
 
     this.modelControl.valueChanges.pipe(takeUntilDestroyed()).subscribe((id) => {
       this.selectedModel.set(id);
@@ -186,12 +192,28 @@ export class ChatController {
     const cwd = this.resumeCwd ?? this.info()?.cwd;
     if (cwd === undefined || (this.filesCwd === cwd && this.files().status !== 'idle')) return;
     this.filesCwd = cwd;
+    const load = ++this.filesLoad;
     this.files.set({ status: 'loading' });
     void this.call(
-      (desktop) => desktop['Files.list']({ cwd }),
-      (list) => this.files.set({ status: 'ready', entries: entriesFromPaths(list.paths), truncated: list.truncated }),
-      (cause) => this.files.set({ status: 'failed', detail: Cause.pretty(cause) }),
+      // Keep the error's detail: the popup shows it instead of an opaque trace.
+      (desktop) =>
+        desktop['Files.list']({ cwd }).pipe(
+          Effect.map((list): FilesState => ({ status: 'ready', entries: entriesFromPaths(list.paths), truncated: list.truncated })),
+          Effect.catchTag('FilesError', (error) => Effect.succeed<FilesState>({ status: 'failed', detail: error.detail })),
+        ),
+      (state) => {
+        if (load === this.filesLoad) this.files.set(state);
+      },
+      (cause) => {
+        if (load === this.filesLoad) this.files.set({ status: 'failed', detail: Cause.pretty(cause) });
+      },
     );
+  }
+
+  /** Drops the file list so the next `@` fetches a fresh one. There is no file watcher. */
+  private invalidateFiles(): void {
+    this.filesLoad++;
+    this.files.set({ status: 'idle' });
   }
 
   private resetSession(): void {
@@ -216,7 +238,12 @@ export class ChatController {
     this.now.set(Date.now());
     this.chat.update((state) => ({ ...addUserMessage(state, text), running: true }));
 
-    const apply = (event: ChatEvent) => Effect.sync(() => this.chat.update((state) => reduceChat(state, event)));
+    const apply = (event: ChatEvent) =>
+      Effect.sync(() => {
+        this.chat.update((state) => reduceChat(state, event));
+        // The agent may have created files during the Turn.
+        if (event._tag === 'TurnFinished') this.invalidateFiles();
+      });
     const known = this.sessionId;
     const resume = this.resumeFrom;
     const model = this.modelControl.value;

@@ -35,6 +35,8 @@ export interface ChatState {
   readonly running: boolean;
   /** Set when the last turn did not complete. */
   readonly failure: string | undefined;
+  /** Set when Timmy cut mentioned content out of the prompt; cleared on the next message. */
+  readonly notice: string | undefined;
   /** True while showing a stored transcript; cleared when a new message is sent. */
   readonly stored: boolean;
 }
@@ -47,6 +49,7 @@ export const initialChatState: ChatState = {
   context: undefined,
   running: false,
   failure: undefined,
+  notice: undefined,
   stored: false,
 };
 
@@ -54,6 +57,7 @@ export const addUserMessage = (state: ChatState, text: string): ChatState => ({
   ...state,
   items: [...state.items, { kind: 'User', text }],
   failure: undefined,
+  notice: undefined,
   stored: false,
 });
 
@@ -113,6 +117,8 @@ export const reduceChat = (state: ChatState, event: ChatEvent): ChatState => {
         : [...state.items, { kind: 'Tool', call: event.call } as const];
       return { ...state, items };
     }
+    case 'MentionsTrimmed':
+      return { ...state, notice: event.detail };
     case 'PermissionRequested':
       return { ...state, permission: event.request };
     case 'PermissionResolved':

@@ -54,6 +54,9 @@
         }
       </ul>
     }
+    @if (state.status === 'ready' && state.truncated) {
+      <p class="status" role="status">refina la búsqueda</p>
+    }
   </div>
 }
 <textarea

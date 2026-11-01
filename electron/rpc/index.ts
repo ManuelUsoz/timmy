@@ -20,9 +20,11 @@ import { layerWindowService } from '../window/window-service';
 /** `npm run e2e` runs the app against a scripted adapter, so no network or login is needed. */
 const isE2e = process.env['TIMMY_E2E'] === '1';
 
+const layerProjectFilesLive = layerProjectFiles();
+
 /** The services chat and sessions share. Built once, so both see the same open sessions. */
 const layerChatServices = layerChatRpc.pipe(
-  Layer.provideMerge(Layer.mergeAll(isE2e ? layerMockSdkAdapterRegistry : layerSdkAdapterRegistry, layerProjectResolver, layerSessionObserver, layerProjectFiles())),
+  Layer.provideMerge(Layer.mergeAll(isE2e ? layerMockSdkAdapterRegistry : layerSdkAdapterRegistry, layerProjectResolver, layerSessionObserver, layerProjectFilesLive)),
 );
 
 const layerSessionHandlers = layerSessionsHandlers.pipe(Layer.provide(layerSessionsService));
@@ -33,7 +35,7 @@ const layerProjectsHandlersLive = layerProjectsHandlers.pipe(
   Layer.provide(layerProjectFolders),
 );
 
-const layerFilesHandlersLive = layerFilesHandlers.pipe(Layer.provide(layerProjectFiles()));
+const layerFilesHandlersLive = layerFilesHandlers.pipe(Layer.provide(layerProjectFilesLive));
 
 const layerWindowHandlersLive = layerWindowHandlers.pipe(Layer.provide(layerWindowService));
 

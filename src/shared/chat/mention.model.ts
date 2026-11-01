@@ -47,3 +47,34 @@ export const parseMentions = (
   }
   return { mentions: [...found.values()], invalid };
 };
+
+/** A piece of a message text: plain text, or a Mention written as `@path` / `@"path"`. */
+export type MentionSegment =
+  | { readonly kind: 'Text'; readonly text: string }
+  | { readonly kind: 'Mention'; readonly path: string; readonly raw: string };
+
+/**
+ * Splits a sent message into text and Mention segments for display, without touching the file system. The same
+ * `@` rule as the parser applies, so `correo@dominio.com` stays text; trailing punctuation after an unquoted
+ * Mention stays in the text.
+ */
+export const splitMentionText = (text: string): ReadonlyArray<MentionSegment> => {
+  const segments: MentionSegment[] = [];
+  let cursor = 0;
+  const pushText = (end: number): void => {
+    if (end > cursor) segments.push({ kind: 'Text', text: text.slice(cursor, end) });
+  };
+  for (const match of text.matchAll(MENTION_PATTERN)) {
+    const quoted = match[1];
+    const unquoted = match[2] ?? '';
+    const path = quoted ?? unquoted.replace(TRAILING_PUNCTUATION, '');
+    if (path === '') continue;
+    const start = match.index;
+    const end = quoted !== undefined ? start + match[0].length : start + 1 + path.length;
+    pushText(start);
+    segments.push({ kind: 'Mention', path, raw: text.slice(start, end) });
+    cursor = end;
+  }
+  pushText(text.length);
+  return segments;
+};

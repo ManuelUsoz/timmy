@@ -306,10 +306,9 @@ export const makeClaudeAgentSdkAdapter = (adapterOptions: ClaudeAdapterOptions =
           yield* Ref.set(runtime.interrupted, false);
           const turnId = TurnId.make(randomUUID());
           const started = yield* Ref.get(runtime.started);
-          const prompt = message.text;
           const options = queryOptions(runtime, started, abortController, makeCanUseTool(sessionId, runtime, queue));
-          yield* Effect.logInfo(`[claude] -> query ${show({ prompt, options: loggableOptions(options) })}`);
-          const claudeQuery = sdkQuery({ prompt, options });
+          yield* Effect.logInfo(`[claude] -> query ${show({ prompt: message.text, options: loggableOptions(options) })}`);
+          const claudeQuery = sdkQuery({ prompt: message.text, options });
 
           yield* Effect.addFinalizer(() =>
             Effect.sync(() => {

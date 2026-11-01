@@ -22,6 +22,7 @@ import { TagComponent } from '../../shared/ui/tag/tag';
 import { ProviderIconComponent } from '../../shared/ui/provider-icon/provider-icon';
 import { AskRowComponent } from '../../shared/ui/ask-row/ask-row';
 import { I18n } from '../../core/i18n';
+import { baseName } from './file-mentions';
 import type { MessageKey } from '../../core/i18n-dictionaries';
 import { sessionStateOf, stateTone } from '../workspace/session-state';
 import { StateComponent } from '../../shared/ui/state/state';
@@ -31,10 +32,15 @@ import { ComposerInputComponent } from './composer-input';
 import { permissionAnswer } from './permission-answer';
 import type { PermissionRequest } from '../../../shared/chat/permission.model';
 import { MarkdownPipe } from './markdown.pipe';
+import { ChipComponent } from '../../shared/ui/chip/chip';
+import { TooltipComponent } from '../../shared/ui/tooltip/tooltip';
+import { splitMentionText } from '../../../shared/chat/mention.model';
 
 @Component({
   imports: [
     MessageComponent,
+    ChipComponent,
+    TooltipComponent,
     ChipStripComponent,
     TreeViewComponent,
     MarkdownPipe,
@@ -83,6 +89,9 @@ export class ChatViewComponent {
   protected readonly effortControl = this.controller.effortControl;
   protected readonly permissionOptions = this.controller.permissionOptions;
   protected readonly permissionControl = this.controller.permissionControl;
+  protected readonly segmentsOf = splitMentionText;
+  /** The chip shows the file or folder name; the full path is its tooltip. */
+  protected readonly mentionName = baseName;
   protected readonly blocks = this.controller.blocks;
   protected readonly sessionChips = this.controller.sessionChips;
   protected readonly selectedSessionId = this.controller.selectedSessionId;

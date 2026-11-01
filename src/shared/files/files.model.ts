@@ -12,3 +12,14 @@ export const FileList = Schema.Struct({
   truncated: Schema.Boolean,
 }).annotate({ identifier: 'FileList' });
 export type FileList = typeof FileList.Type;
+
+/** Every folder that holds at least one of `paths`: each proper prefix ending before a `/`. */
+export const foldersOf = (paths: ReadonlyArray<string>): ReadonlySet<string> => {
+  const folders = new Set<string>();
+  for (const file of paths) {
+    for (let slash = file.indexOf('/'); slash !== -1; slash = file.indexOf('/', slash + 1)) {
+      folders.add(file.slice(0, slash));
+    }
+  }
+  return folders;
+};
