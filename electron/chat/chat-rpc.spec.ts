@@ -288,15 +288,14 @@ describe('ChatRpc mentions', () => {
 
   it.effect('hands the adapter the resolved mentions, once each, with the text untouched', () => {
     const root = makeRepo();
-    const text = 'look at @src/a.ts, then @"mi carpeta/a b.ts" and @src/a.ts and @src and @new.ts. mail me@x.com';
+    const text = 'look at @src/a.ts, then @"mi carpeta/a b.ts" and @src/a.ts and @new.ts. mail me@x.com';
     return Effect.gen(function* () {
       const { sent } = yield* sendIn(root, text);
       expect(sent[0]?.text).toBe(text);
       expect(sent[0]?.mentions).toEqual([
-        { path: 'src/a.ts', kind: 'file' },
-        { path: 'mi carpeta/a b.ts', kind: 'file' },
-        { path: 'src', kind: 'folder' },
-        { path: 'new.ts', kind: 'file' },
+        { path: 'src/a.ts' },
+        { path: 'mi carpeta/a b.ts' },
+        { path: 'new.ts' },
       ]);
     });
   });
@@ -313,6 +312,19 @@ describe('ChatRpc mentions', () => {
       expect(error?.detail).toContain('.env');
       expect(sent.map((m) => m.text)).toEqual(['still here']);
       expect(usable).toBeGreaterThan(0);
+    });
+  });
+
+  it.effect('fails with InvalidMention when a mention points at a folder', () => {
+    const root = makeRepo();
+    return Effect.gen(function* () {
+      const { result, sent } = yield* sendIn(root, 'see @src and @"mi carpeta"');
+      expect(result._tag).toBe('Failure');
+      const error = result._tag === 'Failure' ? result.failure : undefined;
+      expect(error?.reason).toBe('InvalidMention');
+      expect(error?.detail).toContain('src');
+      expect(error?.detail).toContain('mi carpeta');
+      expect(sent.map((m) => m.text)).toEqual(['still here']);
     });
   });
 
@@ -386,31 +398,6 @@ describe('ChatRpc mentions on an adapter without native support', () => {
       const { prompt, events } = yield* sendWith(root, 'read @big.txt');
       expect(prompt).toContain('[Truncated: showing 65536 of 71680 bytes.]');
       expect(prompt.length).toBeLessThan(70 * 1024);
-      expect(trimmed(events)).toBe(true);
-    });
-  });
-
-  it.effect('lists a folder recursively without ignored files', () => {
-    const root = makeRepo();
-    write(root, 'lib/x.ts');
-    write(root, 'lib/deep/y.ts');
-    write(root, 'lib/.env', 'SECRET=1');
-    return Effect.gen(function* () {
-      const { prompt } = yield* sendWith(root, 'see @lib');
-      expect(prompt).toContain('lib/x.ts');
-      expect(prompt).toContain('lib/deep/y.ts');
-      expect(prompt).not.toContain('SECRET');
-    });
-  });
-
-  it.effect('cuts a folder listing at 200 entries', () => {
-    const root = makeRepo();
-    for (let i = 0; i < 205; i++) write(root, `many/f${String(i).padStart(3, '0')}.ts`);
-    return Effect.gen(function* () {
-      const { prompt, events } = yield* sendWith(root, 'see @many');
-      expect(prompt).toContain('many/f199.ts');
-      expect(prompt).not.toContain('many/f200.ts');
-      expect(prompt).toContain('Listing cut at 200 of 205 entries');
       expect(trimmed(events)).toBe(true);
     });
   });

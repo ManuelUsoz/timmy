@@ -11,7 +11,7 @@ _Avoid_: thread, conversation.
 The view where the user converses with the open Session: its transcript and the composer. It is a surface, not an entity; the thing it shows is the Session.
 
 **Mention**
-A reference to a file or folder of the Session's working directory, written as `@path` inside a message. Timmy defines and validates it; the Adapter decides how the provider receives it.
+A reference to a file of the Session's working directory, written as `@path` inside a message. Timmy defines and validates it; the Adapter decides how the provider receives it.
 
 **Provider Session**
 The id by which a provider's SDK knows a Session. One Session maps to exactly one Provider Session.
