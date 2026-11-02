@@ -513,21 +513,21 @@ describe('OpenCodeAdapter', () => {
       Effect.gen(function* () {
         const rules = yield* rulesFor('Default');
         expect(effectOf(rules, 'edit')).toBe('ask');
-        expect(effectOf(rules, 'bash')).toBe('ask');
+        expect(effectOf(rules, 'shell')).toBe('ask');
       }));
 
     itRepo('AutoAccept allows edits and still asks for shell commands', () =>
       Effect.gen(function* () {
         const rules = yield* rulesFor('AutoAccept');
         expect(effectOf(rules, 'edit')).toBe('allow');
-        expect(effectOf(rules, 'bash')).toBe('ask');
+        expect(effectOf(rules, 'shell')).toBe('ask');
       }));
 
     itRepo('Auto allows everything', () =>
       Effect.gen(function* () {
         const rules = yield* rulesFor('Auto');
         expect(effectOf(rules, 'edit')).toBe('allow');
-        expect(effectOf(rules, 'bash')).toBe('allow');
+        expect(effectOf(rules, 'shell')).toBe('allow');
         expect(effectOf(rules, 'anything-else')).toBe('allow');
       }));
 

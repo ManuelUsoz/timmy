@@ -133,8 +133,8 @@ export const rulesFor = (mode: Exclude<PermissionMode, 'Plan'>): ReadonlyArray<O
     case 'Auto':
       return [rule('*', 'allow')];
     case 'AutoAccept':
-      return [rule('edit', 'allow'), rule('bash', 'ask')];
+      return [rule('edit', 'allow'), rule('shell', 'ask')];
     case 'Default':
-      return [rule('edit', 'ask'), rule('bash', 'ask')];
+      return [rule('edit', 'ask'), rule('shell', 'ask')];
   }
 };
