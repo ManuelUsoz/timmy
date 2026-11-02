@@ -7,9 +7,11 @@ import { AdapterCapabilities, type ModelInfo } from '../../src/shared/chat/provi
 import type { SessionOptions, UserMessage } from '../../src/shared/chat/session.model';
 import { type HistoryItem, ProviderSessionId } from '../../src/shared/sessions/sessions.model';
 import { SessionRepo, type TranscriptEntry } from '../sessions/session-repo';
-import { rootAgentId, zeroUsage } from './claude-event-mapper';
+import { zeroUsage } from './claude-event-mapper';
+import { addUsage, agentIdOf } from './opencode-usage';
 import { OpenCodeBackend, type OpenCodeClient } from './opencode-backend';
 import { buildAsk, describeTool, effortsOf, optionFor, replyFor, rulesFor, variantFor } from './opencode-mapper';
+import type { Usage } from '../../src/shared/chat/usage.model';
 import type { ToolCall } from '../../src/shared/chat/tool-call.model';
 import type { SdkAdapter } from './sdk-adapter';
 import { makeSessionOps } from './session-ops';
@@ -23,12 +25,12 @@ import { makeSessionOps } from './session-ops';
  */
 const openCodeCapabilities: AdapterCapabilities = {
   provider: 'OpenCode',
-  subagents: false,
+  subagents: true,
   toolCalls: true,
   permissions: true,
   permissionModes: ['Auto', 'AutoAccept', 'Default'],
   questions: false,
-  thinking: false,
+  thinking: true,
   resume: false,
   mentions: 'none',
   images: false,
@@ -170,6 +172,16 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
     const failure = yield* Ref.make<string | undefined>(undefined);
     const finished = yield* Ref.make(false);
     const tools = yield* Ref.make<ReadonlyMap<string, ToolCall>>(new Map());
+    const usages = yield* Ref.make<ReadonlyMap<string, Usage>>(new Map());
+    const total = yield* Ref.make<Usage>(zeroUsage);
+    const messageIds = new Map<string, MessageId>();
+    const messageIdOf = (agent: string | undefined) => {
+      const key = agent ?? '';
+      const known = messageIds.get(key) ?? (agent === undefined ? messageId : MessageId.make(randomUUID()));
+      messageIds.set(key, known);
+      return known;
+    };
+    const contextWindow = (yield* client.models).find((m) => m.id === runtime.options.model)?.contextWindow;
 
     yield* Ref.set(runtime.interrupted, false);
     yield* Ref.set(runtime.waiting, new Set());
@@ -201,7 +213,7 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
           turnId,
           outcome: cancelled ? 'Cancelled' : detail === undefined ? 'Completed' : 'Failed',
           ...(detail === undefined ? {} : { detail }),
-          usage: zeroUsage,
+          usage: yield* Ref.get(total),
         } satisfies ChatEvent,
       ];
     });
@@ -216,14 +228,14 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
           }
           if (event._tag === 'Idle') return [];
           if (event._tag === 'Tool') {
-            const call = describeTool(rootAgentId, event.tool);
+            const call = describeTool(agentIdOf(event.agent), event.tool);
             const known = (yield* Ref.get(tools)).has(event.tool.id);
             yield* Ref.update(tools, (all) => new Map(all).set(event.tool.id, call));
             return [{ _tag: known ? 'ToolCallUpdated' : 'ToolCallStarted', sessionId, call } satisfies ChatEvent];
           }
           if (event._tag === 'PermissionAsked') {
             const known = event.toolCallId === undefined ? undefined : (yield* Ref.get(tools)).get(event.toolCallId);
-            const request = buildAsk(event, rootAgentId, known);
+            const request = buildAsk(event, agentIdOf(undefined), known);
             yield* Ref.update(runtime.waiting, (all) => new Set(all).add(request.id));
             return [{ _tag: 'PermissionRequested', sessionId, request } satisfies ChatEvent];
           }
@@ -233,14 +245,42 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
             const response = { _tag: 'Selected', requestId, optionId: optionFor(event.reply) } as const;
             return [{ _tag: 'PermissionResolved', sessionId, requestId, response } satisfies ChatEvent];
           }
+          if (event._tag === 'AgentStarted') {
+            const agent = { id: agentIdOf(event.id), parentId: agentIdOf(event.parentId), name: event.name, ...(event.task === undefined ? {} : { task: event.task }) };
+            return [{ _tag: 'AgentSpawned', sessionId, agent } satisfies ChatEvent];
+          }
+          if (event._tag === 'AgentEnded') {
+            const usage = (yield* Ref.get(usages)).get(event.id);
+            return [
+              { _tag: 'AgentFinished', sessionId, agentId: agentIdOf(event.id), outcome: event.outcome, ...(usage === undefined ? {} : { usage }) } satisfies ChatEvent,
+            ];
+          }
+          if (event._tag === 'StepEnded') {
+            const key = event.agent ?? '';
+            const agentTotal = addUsage((yield* Ref.get(usages)).get(key) ?? zeroUsage, event.usage);
+            yield* Ref.update(usages, (all) => new Map(all).set(key, agentTotal));
+            const sessionTotal = addUsage(yield* Ref.get(total), event.usage);
+            yield* Ref.set(total, sessionTotal);
+            const usedTokens = event.usage.inputTokens + event.usage.outputTokens + (event.usage.cacheReadTokens ?? 0);
+            const context = event.agent === undefined && contextWindow !== undefined ? { context: { usedTokens, maxTokens: contextWindow } } : {};
+            return [
+              { _tag: 'UsageUpdated', sessionId, agentId: agentIdOf(event.agent), usage: agentTotal } satisfies ChatEvent,
+              { _tag: 'UsageUpdated', sessionId, usage: sessionTotal, ...context } satisfies ChatEvent,
+            ];
+          }
+          if (event._tag === 'ReasoningDelta') {
+            return [
+              { _tag: 'MessageDelta', sessionId, agentId: agentIdOf(event.agent), messageId: messageIdOf(event.agent), channel: 'Thinking', text: event.text } satisfies ChatEvent,
+            ];
+          }
           if (event._tag !== 'TextDelta') return [];
-          yield* Ref.update(text, (all) => all + event.text);
+          if (event.agent === undefined) yield* Ref.update(text, (all) => all + event.text);
           return [
             {
               _tag: 'MessageDelta',
               sessionId,
-              agentId: rootAgentId,
-              messageId,
+              agentId: agentIdOf(event.agent),
+              messageId: messageIdOf(event.agent),
               channel: 'Text',
               text: event.text,
             } satisfies ChatEvent,
