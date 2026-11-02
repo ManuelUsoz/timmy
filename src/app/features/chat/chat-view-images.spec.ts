@@ -5,7 +5,9 @@ import { AppInfoRpcs } from '../../../shared/app-info/app-info.rpc';
 import { AttachmentId } from '../../../shared/attachments/attachment.model';
 import { AttachmentsError } from '../../../shared/attachments/attachments-error.model';
 import { AttachmentsRpcs } from '../../../shared/attachments/attachments.rpc';
+import { ChatError } from '../../../shared/chat/chat-error.model';
 import { ChatRpcs } from '../../../shared/chat/chat.rpc';
+import type { ModelInfo } from '../../../shared/chat/provider.model';
 import { SessionId } from '../../../shared/chat/ids.model';
 import type { UserMessage } from '../../../shared/chat/session.model';
 import { SessionsRpcs } from '../../../shared/sessions/sessions.rpc';
@@ -24,7 +26,15 @@ const unused = () => Effect.die('not under test');
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 const pngFile = () => new File([PNG], 'shot.png', { type: 'image/png' });
 
-const setup = async () => {
+interface SetupOptions {
+  /** What the adapter declares for every model. */
+  readonly images?: boolean;
+  readonly models?: ReadonlyArray<ModelInfo>;
+  /** Makes Chat.send fail the way main does for a text-only model. */
+  readonly refuseImages?: boolean;
+}
+
+const setup = async ({ images = true, models = [], refuseImages = false }: SetupOptions = {}) => {
   const sent: UserMessage[] = [];
   const added: Uint8Array[] = [];
   const removed: string[] = [];
@@ -36,12 +46,26 @@ const setup = async () => {
         Effect.succeed({ name: 't', version: '1', electron: '1', chrome: '1', node: '1', platform: 'win32', cwd: '/work' }),
     }),
     ChatRpcs.toLayer({
-      'Chat.capabilities': unused,
-      'Chat.models': () => Effect.succeed([]),
+      'Chat.capabilities': () =>
+        Effect.succeed({
+          provider: 'Claude' as const,
+          subagents: true,
+          toolCalls: true,
+          permissions: true,
+          questions: true,
+          thinking: true,
+          resume: true,
+          images,
+          mentions: 'native' as const,
+        }),
+      'Chat.models': () => Effect.succeed(models),
       'Chat.commands': () => Effect.succeed([]),
       'Chat.changeAdapter': unused,
       'Chat.startSession': () => Effect.succeed(sessionId),
       'Chat.send': (message) => {
+        if (refuseImages && message.attachments.length > 0) {
+          return Stream.fail(new ChatError({ reason: 'ImagesUnsupported', detail: 'no images' }));
+        }
         sent.push(message);
         return Stream.empty;
       },
@@ -115,7 +139,11 @@ const setup = async () => {
     input.dispatchEvent(new Event('change', { bubbles: true }));
     await settle();
   };
-  return { el, settle, sent, added, removed, paste, drop, pick };
+  const chooseModel = async (id: string) => {
+    fixture.componentInstance['modelControl'].setValue(id);
+    await settle();
+  };
+  return { el, settle, sent, added, removed, paste, drop, pick, chooseModel };
 };
 
 describe('ChatViewComponent images', () => {
@@ -317,5 +345,78 @@ describe('ChatViewComponent images', () => {
 
     expect(added).toEqual([]);
     expect(el.querySelector('[role="dialog"]')?.textContent).toContain('5 MB');
+  });
+
+  describe('on a model that takes no images', () => {
+    const models: ModelInfo[] = [
+      { id: 'text', efforts: ['Default'], images: false },
+      { id: 'vision', efforts: ['Default'], images: true },
+    ];
+    const submit = (el: HTMLElement) => el.querySelector('button[type="submit"]') as HTMLButtonElement;
+
+    it('disables the attach button with the reason as its hint, and refuses paste and drop with a modal', async () => {
+      const { el, added, paste, drop, settle } = await setup({ images: false });
+      expect((el.querySelector('button.attach') as HTMLButtonElement).disabled).toBe(true);
+      el.querySelector('ui-tooltip.attach-tip')!.dispatchEvent(new Event('mouseenter'));
+      await settle();
+      expect(el.querySelector('[role="tooltip"]')?.textContent).toMatch(/no admite im|does not take images/i);
+
+      await paste([pngFile()]);
+      expect(el.querySelector('[role="dialog"]')?.textContent).toMatch(/no admite im|does not take images/i);
+      (el.querySelector('[role="dialog"] .actions button') as HTMLButtonElement).click();
+      await settle();
+      await drop([pngFile()]);
+      expect(added).toEqual([]);
+      expect(el.querySelector('.images')).toBeNull();
+    });
+
+    it('keeps the pending images when the model changes, blocks Send with a reason, and unblocks on a model with vision', async () => {
+      const { el, paste, chooseModel } = await setup({ models });
+      await paste([pngFile()]);
+      expect(submit(el).disabled).toBe(false);
+
+      await chooseModel('text');
+      expect(el.querySelectorAll('.images img')).toHaveLength(1);
+      expect(submit(el).disabled).toBe(true);
+      expect(el.querySelector('.images-blocked')?.textContent).toMatch(/no admite im|does not take images/i);
+
+      await chooseModel('vision');
+      expect(submit(el).disabled).toBe(false);
+      expect(el.querySelector('.images-blocked')).toBeNull();
+    });
+
+    it('sends again once the images are removed', async () => {
+      const { el, sent, paste, chooseModel, settle } = await setup({ models });
+      await paste([pngFile()]);
+      await chooseModel('text');
+      const box = el.querySelector('textarea') as HTMLTextAreaElement;
+      box.value = 'hello';
+      box.dispatchEvent(new Event('input'));
+      await settle();
+      expect(submit(el).disabled).toBe(true);
+
+      (el.querySelector('.image-remove') as HTMLButtonElement).click();
+      await settle();
+      expect(submit(el).disabled).toBe(false);
+      el.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+      await settle();
+      expect(sent[0]).toMatchObject({ text: 'hello', attachments: [] });
+    });
+
+    it('keeps the draft and the thumbnails when main answers ImagesUnsupported', async () => {
+      const { el, sent, paste, settle } = await setup({ refuseImages: true });
+      await paste([pngFile()]);
+      const box = el.querySelector('textarea') as HTMLTextAreaElement;
+      box.value = 'look at this';
+      box.dispatchEvent(new Event('input'));
+      await settle();
+      el.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+      await settle();
+
+      expect(sent).toEqual([]);
+      expect((el.querySelector('textarea') as HTMLTextAreaElement).value).toBe('look at this');
+      expect(el.querySelectorAll('.images img')).toHaveLength(1);
+      expect(el.textContent).toMatch(/no admite im|does not take images/i);
+    });
   });
 });

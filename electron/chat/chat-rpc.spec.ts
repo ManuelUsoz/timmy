@@ -8,7 +8,7 @@ import { AttachmentId } from '../../src/shared/attachments/attachment.model';
 import { ChatError } from '../../src/shared/chat/chat-error.model';
 import { ChatEvent } from '../../src/shared/chat/event.model';
 import { SessionId, TurnId } from '../../src/shared/chat/ids.model';
-import { ProviderId } from '../../src/shared/chat/provider.model';
+import { ModelInfo, ProviderId } from '../../src/shared/chat/provider.model';
 import { SessionOptions } from '../../src/shared/chat/session.model';
 import { ProviderSessionId } from '../../src/shared/sessions/sessions.model';
 import { layerProjectFiles } from '../files/project-files';
@@ -35,7 +35,13 @@ interface Calls {
 }
 
 /** Test double for the SDK boundary: counts lifecycle calls and replays one scripted turn. */
-const makeFakeAdapter = (provider: ProviderId, calls: Calls, mentions: 'native' | 'none' = 'native'): SdkAdapter => {
+const makeFakeAdapter = (
+  provider: ProviderId,
+  calls: Calls,
+  mentions: 'native' | 'none' = 'native',
+  images = true,
+  models: ReadonlyArray<ModelInfo> = [{ id: `${provider}-model`, efforts: ['Default'] }],
+): SdkAdapter => {
   const unused = Effect.void;
   return {
     capabilities: {
@@ -47,11 +53,11 @@ const makeFakeAdapter = (provider: ProviderId, calls: Calls, mentions: 'native' 
       thinking: false,
       resume: true,
       mentions,
-      images: true,
+      images,
     },
     startup: Ref.update(calls.startups, (n) => n + 1),
     shutdown: Ref.update(calls.shutdowns, (n) => n + 1),
-    models: Effect.succeed([{ id: `${provider}-model`, efforts: ['Default'] }]),
+    models: Effect.succeed(models),
     listCommands: ({ cwd }) =>
       Effect.succeed([{ name: `${provider}-cmd`, description: cwd, argumentHint: '' }]),
     startSession: (_options, ids) =>
@@ -73,7 +79,11 @@ const makeFakeAdapter = (provider: ProviderId, calls: Calls, mentions: 'native' 
   };
 };
 
-const makeHarnessWith = (mentions: 'native' | 'none') => Effect.gen(function* () {
+const makeHarnessWith = (
+  mentions: 'native' | 'none',
+  images = true,
+  models?: ReadonlyArray<ModelInfo>,
+) => Effect.gen(function* () {
   const calls: Calls = {
     startups: yield* Ref.make(0),
     closed: yield* Ref.make<ReadonlyArray<SessionId>>([]),
@@ -83,7 +93,7 @@ const makeHarnessWith = (mentions: 'native' | 'none') => Effect.gen(function* ()
   };
   const layerRegistry = Layer.succeed(SdkAdapterRegistry, {
     defaultProvider: 'Claude',
-    get: (provider) => Effect.succeed(makeFakeAdapter(provider, calls, mentions)),
+    get: (provider) => Effect.succeed(makeFakeAdapter(provider, calls, mentions, images, models)),
   });
   const layerServices = Layer.mergeAll(layerProjectResolver, layerSessionObserver, layerProjectFiles()).pipe(
     Layer.provideMerge(layerSessionRepo(':memory:')),
@@ -150,6 +160,50 @@ describe('ChatRpc', () => {
       const sent = yield* Ref.get(calls.sent);
       expect(sent[0]?.attachments).toEqual([{ id }]);
     }));
+
+  describe('images', () => {
+    const id = AttachmentId.make('11111111-1111-4111-8111-111111111111');
+    const withImage = (sessionId: SessionId, text = 'look') => ({ sessionId, text, mentions: [], attachments: [{ id }] });
+
+    it.effect('fails with ImagesUnsupported before any turn when the adapter takes no images, and keeps the session open', () =>
+      Effect.gen(function* () {
+        const { calls, layer } = yield* makeHarnessWith('native', false);
+        const outcome = yield* Effect.gen(function* () {
+          const chat = yield* ChatRpc;
+          const sessionId = yield* chat.startSession(options('Claude'));
+          const error = yield* Stream.runCollect(chat.send(withImage(sessionId))).pipe(Effect.flip);
+          const text = yield* Stream.runCollect(chat.send({ sessionId, text: 'still here', mentions: [], attachments: [] }));
+          return { error, tags: text.map((e) => e._tag), open: yield* chat.isOpen(sessionId) };
+        }).pipe(Effect.provide(layer));
+        expect(outcome.error.reason).toBe('ImagesUnsupported');
+        expect(outcome.tags).toEqual(['TurnStarted', 'TurnFinished']);
+        expect(outcome.open).toBe(true);
+        expect((yield* Ref.get(calls.sent)).map((m) => m.text)).toEqual(['still here']);
+      }));
+
+    it.effect('lets a model that declares images override an adapter that does not', () =>
+      Effect.gen(function* () {
+        const { calls, layer } = yield* makeHarnessWith('native', false, [{ id: 'vision', efforts: ['Default'], images: true }]);
+        yield* Effect.gen(function* () {
+          const chat = yield* ChatRpc;
+          const sessionId = yield* chat.startSession({ ...options('Claude'), model: 'vision' });
+          yield* Stream.runCollect(chat.send(withImage(sessionId)));
+        }).pipe(Effect.provide(layer));
+        expect(yield* Ref.get(calls.sent)).toHaveLength(1);
+      }));
+
+    it.effect('lets a model that declares no images override an adapter that takes them', () =>
+      Effect.gen(function* () {
+        const { calls, layer } = yield* makeHarnessWith('native', true, [{ id: 'blind', efforts: ['Default'], images: false }]);
+        const error = yield* Effect.gen(function* () {
+          const chat = yield* ChatRpc;
+          const sessionId = yield* chat.startSession({ ...options('Claude'), model: 'blind' });
+          return yield* Stream.runCollect(chat.send(withImage(sessionId))).pipe(Effect.flip);
+        }).pipe(Effect.provide(layer));
+        expect(error.reason).toBe('ImagesUnsupported');
+        expect(yield* Ref.get(calls.sent)).toEqual([]);
+      }));
+  });
 
   it.effect('rejects send on an unknown session', () =>
     Effect.gen(function* () {

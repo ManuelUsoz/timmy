@@ -464,3 +464,11 @@ pre {
   color: var(--text-disabled, var(--text-helper));
   cursor: not-allowed;
 }
+
+/* Pending images the chosen model cannot take: said where the user is looking when Send is off. */
+.images-blocked {
+  margin: 0;
+  padding: var(--spacing-03) var(--spacing-04) 0;
+  color: var(--text-error);
+  font: var(--text-helper-text-01, var(--text-body-01));
+}

@@ -5,7 +5,7 @@ import { I18n } from '../../core/i18n';
 import { pillView } from '../shell/pill-view';
 import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import type { Effort, ModelInfo } from '../../../shared/chat/provider.model';
+import type { AdapterCapabilities, Effort, ModelInfo } from '../../../shared/chat/provider.model';
 import { Cause, Effect, Exit, Stream } from 'effect';
 import type { AppInfo } from '../../../shared/app-info/app-info.rpc';
 import type { ChatEvent } from '../../../shared/chat/event.model';
@@ -74,6 +74,16 @@ export class ChatController {
   private filesLoad = 0;
 
   private readonly models = signal<ReadonlyArray<ModelInfo>>([]);
+  private readonly capabilities = signal<AdapterCapabilities | undefined>(undefined);
+  /**
+   * Whether the chosen model takes images: its own `images` wins over the adapter's. Until the answer is known
+   * it is assumed so; main refuses a send that should not have gone through.
+   */
+  readonly imagesAllowed = computed(
+    () => this.models().find((m) => m.id === this.selectedModel())?.images ?? this.capabilities()?.images ?? true,
+  );
+  /** Images are waiting in the draft that the chosen model cannot take: Send is blocked until they go. */
+  readonly imagesBlocked = computed(() => !this.imagesAllowed() && this.images().length > 0);
   readonly selectedModel = signal<string | null>(null);
   /** Mirrors `effortControl` for views that draw it (the control itself is not reactive). */
   readonly selectedEffort = signal<Effort>('Default');
@@ -132,6 +142,7 @@ export class ChatController {
       },
     );
     void this.call((desktop) => desktop['Chat.models'](), (models) => this.models.set(models));
+    void this.call((desktop) => desktop['Chat.capabilities'](), (capabilities) => this.capabilities.set(capabilities), () => undefined);
     // Files edited outside Timmy show up in the next `@`.
     const onFocus = () => this.invalidateFiles();
     window.addEventListener('focus', onFocus);
@@ -262,6 +273,10 @@ export class ChatController {
    */
   addImages(files: ReadonlyArray<Blob>): void {
     if (files.length === 0) return;
+    if (!this.imagesAllowed()) {
+      this.failAttach('chat.imagesUnsupported');
+      return;
+    }
     if (files.length > MAX_IMAGES - this.images().length - this.storing) {
       this.failAttach('chat.attachTooMany');
       return;
@@ -308,7 +323,7 @@ export class ChatController {
     const text = draft.trim();
     const cwd = this.resumeCwd ?? this.info()?.cwd;
     const sentImages = this.images();
-    if ((text === '' && sentImages.length === 0) || cwd === undefined || this.chat().running) return;
+    if ((text === '' && sentImages.length === 0) || cwd === undefined || this.chat().running || this.imagesBlocked()) return;
 
     const before = this.chat();
     this.draft.set('');
@@ -334,6 +349,7 @@ export class ChatController {
         this.selectedSessionId.set(resume ?? id);
       });
 
+    const imagesUnsupported = this.i18n.t('chat.imagesUnsupported');
     let restored = false;
     // No Turn started: take the message back out of the transcript and give the draft back.
     const rejectMentions = (detail: string) =>
@@ -360,7 +376,11 @@ export class ChatController {
       yield* remember(sessionId);
       yield* Stream.runForEach(desktop['Chat.send']({ sessionId, text, mentions: [], attachments: sentImages.map(({ id }) => ({ id })) }), apply).pipe(
         Effect.catchTag('ChatError', (error) =>
-          error.reason === 'InvalidMention' ? rejectMentions(error.detail) : Effect.fail(error),
+          error.reason === 'InvalidMention'
+            ? rejectMentions(error.detail)
+            : error.reason === 'ImagesUnsupported'
+              ? rejectMentions(imagesUnsupported)
+              : Effect.fail(error),
         ),
       );
     });

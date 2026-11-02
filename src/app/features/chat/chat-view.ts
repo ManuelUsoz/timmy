@@ -94,6 +94,8 @@ export class ChatViewComponent {
   protected readonly images = this.controller.images;
   protected readonly addImages = (files: ReadonlyArray<File>) => this.controller.addImages(files);
   protected readonly attachErrors = this.controller.attachErrors;
+  protected readonly imagesAllowed = this.controller.imagesAllowed;
+  protected readonly imagesBlocked = this.controller.imagesBlocked;
   protected readonly dismissAttachErrors = () => this.controller.dismissAttachErrors();
   private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
   protected readonly attachMenuOpen = signal(false);

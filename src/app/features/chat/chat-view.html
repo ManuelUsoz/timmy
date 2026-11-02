@@ -160,6 +160,9 @@
       }
     </ul>
   }
+  @if (imagesBlocked()) {
+    <p class="images-blocked" role="status">{{ i18n.t('chat.imagesUnsupported') }}</p>
+  }
   <app-composer-input [(draft)]="draft" [commands]="commands()" [files]="files()" (mentionOpened)="requestFiles()" (imagesPasted)="addImages($event)" (submitted)="send()" />
   <div class="composer-bar">
     <button
@@ -200,7 +203,7 @@
     />
     <input #picker type="file" class="picker" multiple accept="image/png,image/jpeg,image/gif,image/webp" tabindex="-1" (change)="onPicked(picker)" />
     <span class="attach-wrap">
-      <ui-tooltip class="attach-tip" [text]="attachMenuOpen() ? '' : i18n.t('chat.attachHint')" placement="top">
+      <ui-tooltip class="attach-tip" [text]="attachMenuOpen() ? '' : imagesAllowed() ? i18n.t('chat.attachHint') : i18n.t('chat.imagesUnsupported')" placement="top">
         <button
           type="button"
           uiButton
@@ -208,6 +211,7 @@
           size="sm"
           iconOnly
           class="attach"
+          [disabled]="!imagesAllowed()"
           aria-haspopup="menu"
           [attr.aria-expanded]="attachMenuOpen()"
           [attr.aria-label]="i18n.t('chat.attach')"
@@ -251,7 +255,7 @@
         iconOnly
         type="submit"
         aria-label="Send"
-        [disabled]="(draft().trim() === '' && images().length === 0) || info() === null"
+        [disabled]="(draft().trim() === '' && images().length === 0) || info() === null || imagesBlocked()"
       >
         <svg
           width="16"

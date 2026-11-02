@@ -70,6 +70,16 @@ export const layerChatRpc = Layer.effect(
     const initial = yield* registry.get(registry.defaultProvider).pipe(Effect.flatMap(makeActive), Effect.orDie);
     const state = yield* Ref.make<State>({ active: initial, sessions: new Set<SessionId>() });
     const swapLock = yield* Semaphore.make(1);
+    /** The model each open session was started with (undefined: the provider's default). */
+    const sessionModels = yield* Ref.make<ReadonlyMap<SessionId, string | undefined>>(new Map());
+
+    /** A model's own `images` wins over what the adapter declares for all of them. */
+    const takesImages = Effect.fn('ChatRpc.takesImages')(function* (adapter: SdkAdapter, sessionId: SessionId) {
+      const model = (yield* Ref.get(sessionModels)).get(sessionId);
+      if (model === undefined) return adapter.capabilities.images;
+      const info = (yield* adapter.models).find((candidate) => candidate.id === model);
+      return info?.images ?? adapter.capabilities.images;
+    });
 
     const ready = Effect.gen(function* () {
       const { active } = yield* Ref.get(state);
@@ -163,6 +173,7 @@ export const layerChatRpc = Layer.effect(
         });
       }
       yield* Ref.update(state, (s) => ({ ...s, sessions: new Set(s.sessions).add(sessionId) }));
+      yield* Ref.update(sessionModels, (models) => new Map(models).set(sessionId, options.model));
       return sessionId;
     });
 
@@ -170,6 +181,11 @@ export const layerChatRpc = Layer.effect(
       const adapter = yield* requireSession(sessionId);
       yield* adapter.closeSession(sessionId);
       yield* observer.forget(sessionId);
+      yield* Ref.update(sessionModels, (models) => {
+        const next = new Map(models);
+        next.delete(sessionId);
+        return next;
+      });
       yield* Ref.update(state, (s) => {
         const sessions = new Set(s.sessions);
         sessions.delete(sessionId);
@@ -188,6 +204,13 @@ export const layerChatRpc = Layer.effect(
         Stream.unwrap(
           Effect.gen(function* () {
             const adapter = yield* requireSession(message.sessionId);
+            // Before anything is recorded or any Turn starts: the draft stays on the caller's side.
+            if (message.attachments.length > 0 && !(yield* takesImages(adapter, message.sessionId))) {
+              return yield* new ChatError({
+                reason: 'ImagesUnsupported',
+                detail: 'The model of this session does not accept images',
+              });
+            }
             const prepared = yield* prepareMessage(adapter, message);
             yield* observer.userMessage(prepared.message);
             const notice: ReadonlyArray<ChatEvent> =
