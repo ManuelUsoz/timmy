@@ -15,6 +15,7 @@ import { ModalComponent } from './modal';
         stateLabel="Info"
         [tone]="tone()"
         [size]="size()"
+        dismissLabel="Not now"
         [primaryDisabled]="disabled()"
         (primary)="primaries = primaries + 1"
         (closed)="closes = closes + 1"
@@ -27,7 +28,7 @@ import { ModalComponent } from './modal';
 class Host {
   open = signal(false);
   tone = signal<'info' | 'error'>('info');
-  size = signal<'md' | 'sm'>('md');
+  size = signal<'md' | 'sm' | 'lg'>('md');
   disabled = signal(false);
   primaries = 0;
   closes = 0;
@@ -87,6 +88,15 @@ describe('ModalComponent', () => {
     expect(el(f, '.dialog').getAttribute('role')).toBe('alertdialog');
     expect(el(f, '.dialog').classList).toContain('error');
     expect(el(f, '.dialog').classList).toContain('sm');
+  });
+
+  it('can label the footer Close apart from the cross, and widens to lg', async () => {
+    const f = await open();
+    expect(el(f, '.close').getAttribute('aria-label')).toBe('Close');
+    expect(el(f, '.actions .dismiss').textContent?.trim()).toBe('Not now');
+    f.componentInstance.size.set('lg');
+    TestBed.inject(ApplicationRef).tick();
+    expect(el(f, '.dialog').classList).toContain('lg');
   });
 
   it('disables the primary action without blocking Close', async () => {

@@ -15,7 +15,7 @@ import { ButtonComponent } from '../button/button';
 let nextId = 0;
 
 export type ModalTone = 'info' | 'error';
-export type ModalSize = 'md' | 'sm';
+export type ModalSize = 'md' | 'sm' | 'lg';
 
 const focusable = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -39,6 +39,7 @@ const focusable = 'button:not([disabled]), [href], input:not([disabled]), select
       [class.info]="tone() === 'info'"
       [class.error]="tone() === 'error'"
       [class.sm]="size() === 'sm'"
+      [class.lg]="size() === 'lg'"
       [attr.role]="tone() === 'error' ? 'alertdialog' : 'dialog'"
       aria-modal="true"
       [attr.aria-labelledby]="titleId"
@@ -53,7 +54,7 @@ const focusable = 'button:not([disabled]), [href], input:not([disabled]), select
       </button>
       <div #body class="body"><ng-content /></div>
       <div class="actions">
-        <button #dismissButton uiButton kind="secondary" type="button" class="dismiss" (click)="closed.emit()">{{ closeLabel() }}</button>
+        <button #dismissButton uiButton kind="secondary" type="button" class="dismiss" (click)="closed.emit()">{{ dismissLabel() ?? closeLabel() }}</button>
         <button #primaryButton uiButton kind="primary" type="button" class="primary" [disabled]="primaryDisabled()" (click)="primary.emit()">{{ primaryLabel() }}</button>
       </div>
     </div>
@@ -66,6 +67,8 @@ export class ModalComponent {
   readonly heading = input.required<string>();
   readonly primaryLabel = input.required<string>();
   readonly closeLabel = input.required<string>();
+  /** The text of the footer Close button when it should differ from the cross's label, so the two do not share a name. */
+  readonly dismissLabel = input<string>();
   readonly stateLabel = input.required<string>();
   readonly tone = input<ModalTone>('info');
   readonly size = input<ModalSize>('md');

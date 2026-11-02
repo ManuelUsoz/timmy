@@ -24,7 +24,6 @@
   box-sizing: border-box;
   width: min(448px, 100%);
   max-height: 100%;
-  overflow-y: auto;
   background: var(--layer-02);
   color: var(--text-primary);
   box-shadow: var(--shadow-overlay);
@@ -32,6 +31,10 @@
 
 .dialog.error {
   --tone: var(--support-error);
+}
+
+.dialog.lg {
+  width: min(560px, 100%);
 }
 
 .dialog.sm {
@@ -76,6 +79,8 @@ h2 {
 }
 
 .body {
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-04);
@@ -84,11 +89,8 @@ h2 {
   color: var(--text-secondary);
 }
 
-.body ::ng-deep p {
-  margin: 0;
-}
-
 .actions {
+  flex: none;
   display: grid;
   grid-template-columns: 1fr 1fr;
 }

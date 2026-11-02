@@ -80,9 +80,6 @@ export class NewProjectDialog {
     return info !== undefined && info.branch !== null && info.existingName === null && !this.busy();
   });
 
-  /** Whether the dialog shows an error note: the folder is already a project, or the last action failed. */
-  protected readonly hasNote = computed(() => this.existingName() !== null || this.failureText() !== null);
-
   /** The text of a failure: the translated reason, and what git said when git refused. */
   protected readonly failureText = computed(() => {
     const failure = this.failure();
@@ -101,6 +98,12 @@ export class NewProjectDialog {
       case 'GitInitFailed':
         return this.i18n.t('projectsError.GitInitFailed');
     }
+  });
+
+  /** The one note the dialog shows: the folder is already a project, or why the last action failed. */
+  protected readonly noteText = computed(() => {
+    const existing = this.existingName();
+    return existing === null ? this.failureText() : this.i18n.t('newProject.duplicate', { name: existing });
   });
 
   /** Runs a Projects call and turns its typed failure into data. `null` means the call itself broke (a defect, or no bridge). */
