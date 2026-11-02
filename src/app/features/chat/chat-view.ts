@@ -101,6 +101,18 @@ export class ChatViewComponent {
   protected readonly imagesBlocked = this.controller.imagesBlocked;
   protected readonly dismissAttachErrors = () => this.controller.dismissAttachErrors();
   private readonly element = inject<ElementRef<HTMLElement>>(ElementRef);
+  protected readonly confirmingImageOnly = this.controller.confirmingImageOnly;
+  protected readonly confirmImageOnly = () => {
+    this.controller.confirmedSend();
+    this.focusComposer();
+  };
+  protected readonly cancelImageOnly = () => {
+    this.controller.cancelImageOnly();
+    this.focusComposer();
+  };
+  private focusComposer(): void {
+    this.element.nativeElement.querySelector('textarea')?.focus();
+  }
   protected readonly attachMenuOpen = signal(false);
   /** Files are being dragged over the chat: the composer invites the user to drop them. */
   protected readonly dragging = signal(false);

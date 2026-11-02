@@ -197,15 +197,71 @@ describe('ChatViewComponent images', () => {
     expect(el.querySelector('.images')).toBeNull();
   });
 
-  it('can send an image with no text', async () => {
+  const submit = async (el: HTMLElement, settle: () => Promise<void>) => {
+    el.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await settle();
+  };
+  const dialog = (el: HTMLElement) => el.querySelector('[role="dialog"]');
+
+  it('asks before sending an image with no text, and sends nothing yet', async () => {
     const { el, sent, paste, settle } = await setup();
     await paste([pngFile()]);
-    const submit = el.querySelector('button[type="submit"]') as HTMLButtonElement;
-    expect(submit.disabled).toBe(false);
-    el.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await submit(el, settle);
+
+    expect(sent).toHaveLength(0);
+    expect(dialog(el)?.textContent).toContain('¿Enviar sin texto?');
+    expect(dialog(el)?.textContent).toContain('Tu mensaje solo tiene imágenes.');
+    expect(el.querySelectorAll('.images img')).toHaveLength(1);
+  });
+
+  it('sends the images when confirmed', async () => {
+    const { el, sent, paste, settle } = await setup();
+    await paste([pngFile()]);
+    await submit(el, settle);
+    (el.querySelector('[role="dialog"] .actions button') as HTMLButtonElement).click();
     await settle();
 
     expect(sent[0]).toMatchObject({ text: '', attachments: [{ id: 'a1' }] });
+    expect(dialog(el)).toBeNull();
+    expect(el.querySelector('.images')).toBeNull();
+  });
+
+  it.each([
+    ['the close button', (el: HTMLElement) => (el.querySelector('[role="dialog"] .close') as HTMLButtonElement).click()],
+    ['Esc', () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))],
+    ['the backdrop', (el: HTMLElement) => (el.querySelector('.backdrop') as HTMLElement).click()],
+  ])('keeps the draft untouched and refocuses the composer on %s', async (_name, dismiss) => {
+    const { el, sent, paste, settle } = await setup();
+    await paste([pngFile()]);
+    await submit(el, settle);
+    dismiss(el);
+    await settle();
+
+    expect(sent).toHaveLength(0);
+    expect(dialog(el)).toBeNull();
+    expect(el.querySelectorAll('.images img')).toHaveLength(1);
+    expect(document.activeElement).toBe(el.querySelector('textarea'));
+  });
+
+  it('never asks when there is text', async () => {
+    const { el, sent, paste, settle } = await setup();
+    await paste([pngFile()]);
+    const box = el.querySelector('textarea') as HTMLTextAreaElement;
+    box.value = 'hi';
+    box.dispatchEvent(new Event('input'));
+    await settle();
+    await submit(el, settle);
+
+    expect(dialog(el)).toBeNull();
+    expect(sent).toHaveLength(1);
+  });
+
+  it('never asks when there are no images (an empty draft sends nothing)', async () => {
+    const { el, sent, settle } = await setup();
+    await submit(el, settle);
+
+    expect(dialog(el)).toBeNull();
+    expect(sent).toHaveLength(0);
   });
 
   it('tells why in a modal, and shows no thumbnail, when main refuses the file', async () => {
@@ -422,6 +478,10 @@ describe('ChatViewComponent images', () => {
 
   const sendWithImage = async (ctx: Awaited<ReturnType<typeof setup>>) => {
     await ctx.paste([pngFile()]);
+    const box = ctx.el.querySelector('textarea') as HTMLTextAreaElement;
+    box.value = 'look';
+    box.dispatchEvent(new Event('input'));
+    await ctx.settle();
     ctx.el.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
     await ctx.settle();
   };
