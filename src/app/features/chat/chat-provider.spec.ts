@@ -40,6 +40,7 @@ const MODELS = {
 
 const setup = async (unavailable?: string) => {
   const started: SessionOptions[] = [];
+  const removed: SessionId[] = [];
   let active: ProviderId = 'Claude';
   const handlers = Layer.mergeAll(
     AppInfoRpcs.toLayer({
@@ -60,13 +61,13 @@ const setup = async (unavailable?: string) => {
       'Chat.startSession': (options) =>
         Effect.sync(() => {
           started.push(options);
-          return SessionId.make('s1');
+          return options.adopt ?? SessionId.make('s1');
         }),
       'Chat.send': () => Stream.empty,
       'Chat.resolvePermission': unused,
       'Chat.answerQuestion': unused,
       'Chat.interrupt': unused,
-      'Chat.closeSession': () => Effect.void,
+      'Chat.closeSession': ({ sessionId }) => Effect.sync(() => void removed.push(sessionId)),
     }),
     AttachmentsRpcs.toLayer({ 'Attachments.add': unused, 'Attachments.remove': () => Effect.void }),
     SessionsRpcs.toLayer({
@@ -74,7 +75,7 @@ const setup = async (unavailable?: string) => {
       'Sessions.history': () => Effect.succeed([]),
       'Sessions.listSubagents': () => Effect.succeed([]),
       'Sessions.rename': unused,
-      'Sessions.delete': () => Effect.void,
+      'Sessions.delete': ({ sessionId }) => Effect.sync(() => void removed.push(sessionId)),
       'Sessions.changes': () => Stream.empty,
     }),
     layerWindowUnused,
@@ -94,7 +95,7 @@ const setup = async (unavailable?: string) => {
   const controller = TestBed.inject(ChatController);
   const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
   await settle();
-  return { controller, started, settle };
+  return { controller, started, removed, settle };
 };
 
 describe('ChatController provider', () => {
@@ -131,6 +132,20 @@ describe('ChatController provider', () => {
     expect(controller.providerError()).toBe('OpenCode is not installed.');
     expect(controller.provider()).toBe('Claude');
     expect(controller.modelOptions().map((o) => o.value)).toEqual(['claude-opus-5-5']);
+  });
+
+  it('keeps the empty Session when the new Provider is unavailable', async () => {
+    const { controller, started, removed, settle } = await setup('OpenCode is not installed.');
+    await controller.startNewSession('/work');
+    TestBed.tick();
+
+    controller.setProvider('OpenCode');
+    await settle();
+
+    expect(controller.providerError()).toBe('OpenCode is not installed.');
+    expect(controller.selectedSessionId()).toBe('s1');
+    expect(started.length).toBe(1);
+    expect(removed).toEqual([]);
   });
 
   it('cannot change Provider once a Session is open', async () => {

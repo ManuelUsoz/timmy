@@ -130,6 +130,41 @@ describe('ChatRpc', () => {
       expect(yield* Ref.get(calls.startups)).toBe(1);
     }));
 
+  it.effect('moves an empty stored session to another Provider keeping its id', () =>
+    Effect.gen(function* () {
+      const { calls, layer } = yield* makeHarness;
+      const result = yield* Effect.gen(function* () {
+        const chat = yield* ChatRpc;
+        const repo = yield* SessionRepo;
+        const sessionId = yield* chat.startSession(options('Claude'));
+        yield* chat.changeAdapter('OpenCode');
+        const adopted = yield* chat.startSession({ ...options('OpenCode'), adopt: sessionId });
+        const stored = Option.getOrThrow(yield* repo.get(sessionId));
+        const projectSessions = yield* repo.list(stored.projectId);
+        return { sessionId, adopted, stored, count: projectSessions.length, open: yield* chat.isOpen(sessionId) };
+      }).pipe(Effect.provide(layer));
+      expect(result.adopted).toBe(result.sessionId);
+      expect(result.stored).toMatchObject({ provider: 'OpenCode', providerSessionId: 'OpenCode-native' });
+      expect(result.count).toBe(1);
+      expect(result.open).toBe(true);
+      expect((yield* Ref.get(calls.started)).map((s) => s.sessionId)).toEqual([result.sessionId, result.sessionId]);
+    }));
+
+  it.effect('refuses to move a session that has messages to another Provider', () =>
+    Effect.gen(function* () {
+      const { layer } = yield* makeHarness;
+      const failure = yield* Effect.gen(function* () {
+        const chat = yield* ChatRpc;
+        const repo = yield* SessionRepo;
+        const sessionId = yield* chat.startSession(options('Claude'));
+        const stored = Option.getOrThrow(yield* repo.get(sessionId));
+        yield* repo.append({ projectId: stored.projectId, sessionId }, [{ kind: 'user', native: { text: 'hi' } }]);
+        yield* chat.changeAdapter('OpenCode');
+        return yield* chat.startSession({ ...options('OpenCode'), adopt: sessionId }).pipe(Effect.flip);
+      }).pipe(Effect.provide(layer));
+      expect(failure.reason).toBe('Unsupported');
+    }));
+
   it.effect('lists the models of the active adapter', () =>
     Effect.gen(function* () {
       const { layer } = yield* makeHarness;

@@ -213,25 +213,50 @@ export class ChatController {
     else void this.replaceEmptySession(cwd, provider);
   }
 
-  /** An empty Session belongs to the old Provider: drop it, switch, and start the same folder's Session again. */
+  /**
+   * An empty Session belongs to the old Provider: switch, and start the same Session again on the new one. It keeps
+   * its id, so its tab, its route and its place in the list stay.
+   */
   private async replaceEmptySession(cwd: string, provider: ProviderId): Promise<void> {
-    const old = this.sessionId ?? this.resumeFrom ?? this.selectedSessionId();
-    this.sessionId = undefined;
-    this.resumeFrom = undefined;
-    this.selectedSessionId.set(undefined);
-    if (old !== undefined) {
-      await this.runtime.run(
-        Effect.flatMap(DesktopApi, (desktop) =>
-          desktop['Chat.closeSession']({ sessionId: old }).pipe(
-            Effect.andThen(desktop['Sessions.delete']({ sessionId: old })),
-            Effect.ignore,
-          ),
-        ),
-      );
+    const adopt = this.sessionId ?? this.resumeFrom ?? this.selectedSessionId();
+    if (adopt === undefined) return;
+    this.switching = true;
+    try {
+      await this.moveSession(adopt, cwd, provider);
+    } finally {
+      this.switching = false;
     }
+  }
+
+  /** True while an empty Session moves to another Provider: a message sent now would start a second Session. */
+  private switching = false;
+
+  private async moveSession(adopt: SessionId, cwd: string, provider: ProviderId): Promise<void> {
     await this.switchProvider(provider);
-    // The new Provider is not available: the Session goes on with the one that is.
-    await this.startNewSession(cwd);
+    // The new Provider is not available: the Session goes on, untouched, with the one that is.
+    if (this.provider() !== provider) return;
+    // Switching closed the old Adapter's sessions in main.
+    this.sessionId = undefined;
+    this.resumeFrom = adopt;
+    const model = this.modelControl.value;
+    const options: SessionOptions = {
+      provider,
+      cwd,
+      ...(model !== null ? { model } : {}),
+      effort: this.effortControl.value,
+      permissionMode: this.permissionControl.value,
+      adopt,
+    };
+    const exit = await this.runtime.run(Effect.flatMap(DesktopApi, (desktop) => desktop['Chat.startSession'](options)));
+    if (Exit.isFailure(exit)) {
+      // The old Adapter is closed and the stored Session still names it: resuming it would be refused.
+      this.resumeFrom = undefined;
+      this.providerError.set(Cause.pretty(exit.cause));
+      return;
+    }
+    this.sessionId = exit.value;
+    this.resumeFrom = undefined;
+    this.resumeCwd = cwd;
   }
 
   private async switchProvider(provider: ProviderId): Promise<void> {
@@ -430,7 +455,7 @@ export class ChatController {
     const text = draft.trim();
     const cwd = this.resumeCwd ?? this.info()?.cwd;
     const sentImages = this.images();
-    if ((text === '' && sentImages.length === 0) || cwd === undefined || this.chat().running || this.imagesBlocked()) return;
+    if ((text === '' && sentImages.length === 0) || cwd === undefined || this.chat().running || this.switching || this.imagesBlocked()) return;
     if (text === '' && !confirmed) {
       this.confirmingImageOnly.set(true);
       return;

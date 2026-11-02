@@ -18,6 +18,11 @@ export const SessionOptions = Schema.Struct({
   permissionMode: PermissionMode,
   /** Continue a previous session; only honored when `capabilities.resume`. */
   resume: Schema.optionalKey(SessionId),
+  /**
+   * Move this stored Session, which has no messages, to `provider`: it keeps its id and its place in the list, and
+   * is started again on the active Adapter. Refused when it has messages.
+   */
+  adopt: Schema.optionalKey(SessionId),
 }).annotate({ identifier: 'SessionOptions' });
 export type SessionOptions = typeof SessionOptions.Type;
 

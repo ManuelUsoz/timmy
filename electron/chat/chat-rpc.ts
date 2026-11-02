@@ -146,6 +146,19 @@ export const layerChatRpc = Layer.effect(
       return stored.value;
     });
 
+    /** The stored session `adopt` points at: it must exist and have nothing said in it. */
+    const findAdoptable = Effect.fn('ChatRpc.findAdoptable')(function* (adopt: SessionId) {
+      const stored = yield* repo.get(adopt);
+      if (Option.isNone(stored)) {
+        return yield* new ChatError({ reason: 'SessionNotFound', detail: `No stored session ${adopt}` });
+      }
+      const transcript = yield* repo.load({ projectId: stored.value.projectId, sessionId: adopt });
+      if (Option.isSome(transcript)) {
+        return yield* new ChatError({ reason: 'Unsupported', detail: `Session ${adopt} has messages; its Provider cannot change` });
+      }
+      return stored.value;
+    });
+
     const startSession = Effect.fn('ChatRpc.startSession')(function* (options: SessionOptions) {
       const adapter = yield* ready;
       if (options.provider !== adapter.capabilities.provider) {
@@ -154,8 +167,12 @@ export const layerChatRpc = Layer.effect(
           detail: `Active adapter is ${adapter.capabilities.provider}, not ${options.provider}; call changeAdapter first`,
         });
       }
+      if (options.adopt !== undefined && options.resume !== undefined) {
+        return yield* new ChatError({ reason: 'Unsupported', detail: 'A session cannot be adopted and resumed at once' });
+      }
+      const adopted = options.adopt === undefined ? undefined : yield* findAdoptable(options.adopt);
       const resumed = options.resume === undefined ? undefined : yield* findResumable(adapter, options.resume);
-      const sessionId = resumed?.sessionId ?? SessionId.make(randomUUID());
+      const sessionId = adopted?.sessionId ?? resumed?.sessionId ?? SessionId.make(randomUUID());
       // Starting it again would replace the live runtime and orphan its pending requests.
       if (resumed !== undefined && (yield* Ref.get(state)).sessions.has(sessionId)) {
         return sessionId;
@@ -164,7 +181,9 @@ export const layerChatRpc = Layer.effect(
         sessionId,
         ...(resumed === undefined ? {} : { resumeProviderSessionId: resumed.providerSessionId }),
       });
-      if (resumed === undefined) {
+      if (adopted !== undefined) {
+        yield* repo.reassign(sessionId, options.provider, providerSessionId);
+      } else if (resumed === undefined) {
         const projectId = yield* resolver.resolveByCwd(options.cwd);
         yield* repo.createSession({
           sessionId,

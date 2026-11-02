@@ -1,4 +1,5 @@
 import { _electron as electron, expect, test as base, type ElectronApplication, type Page } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -95,11 +96,16 @@ export const test = base.extend<{ timmy: Timmy; language: Language; openCode: 'r
     mkdirSync(fixtureCwd, { recursive: true });
     const userData = mkdtempSync(path.join(tmpdir(), 'timmy-e2e-'));
     writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ language }));
+    // The folder the (undrivable) native picker "chooses" when a spec adds a project: a git repository of its own.
+    const projectRoot = mkdtempSync(path.join(tmpdir(), 'timmy-e2e-project-'));
+    const projectDir = path.join(projectRoot, 'demo-project');
+    mkdirSync(projectDir);
+    execFileSync('git', ['init', '-b', 'main'], { cwd: projectDir });
     const app = await electron.launch({
       executablePath: electronPath,
       args: [root],
       cwd: fixtureCwd,
-      env: { ...process.env, TIMMY_E2E: '1', TIMMY_E2E_OPENCODE: openCode, TIMMY_USER_DATA: userData, ELECTRON_RENDERER_URL: '' },
+      env: { ...process.env, TIMMY_E2E: '1', TIMMY_E2E_OPENCODE: openCode, TIMMY_E2E_PICK_FOLDER: projectDir, TIMMY_USER_DATA: userData, ELECTRON_RENDERER_URL: '' },
     });
     const page = await app.firstWindow();
     const errors: string[] = [];
@@ -112,6 +118,7 @@ export const test = base.extend<{ timmy: Timmy; language: Language; openCode: 'r
 
     await app.close().catch(() => {});
     rmSync(userData, { recursive: true, force: true });
+    rmSync(projectRoot, { recursive: true, force: true });
     expect(errors, 'renderer console errors').toEqual([]);
   },
 });

@@ -72,6 +72,12 @@ export class SessionRepo extends Context.Service<
     readonly setAutoTitle: (sessionId: SessionId, title: string) => Effect.Effect<void>;
     readonly rename: (sessionId: SessionId, title: string) => Effect.Effect<void>;
     readonly touch: (sessionId: SessionId) => Effect.Effect<void>;
+    /** Hands the session to another provider, keeping its id, title and place in the list. */
+    readonly reassign: (
+      sessionId: SessionId,
+      provider: ProviderId,
+      providerSessionId: ProviderSessionId,
+    ) => Effect.Effect<void>;
     /** Removes the session with all its transcripts. */
     readonly remove: (sessionId: SessionId) => Effect.Effect<void>;
     /** Emits whenever a session is created, titled, touched or removed. Bursts may collapse into one emission. */
@@ -316,6 +322,13 @@ export const layerSessionRepo = (path: string) =>
         touch: (sessionId) =>
           Clock.currentTimeMillis.pipe(
             Effect.flatMap((now) => mutate('UPDATE sessions SET updated_at = ? WHERE id = ?', now, sessionId)),
+          ),
+        reassign: (sessionId, provider, providerSessionId) =>
+          mutate(
+            'UPDATE sessions SET provider = ?, provider_session_id = ? WHERE id = ?',
+            provider,
+            providerSessionId,
+            sessionId,
           ),
         remove: (sessionId) => mutate('DELETE FROM sessions WHERE id = ?', sessionId),
         changes: Stream.fromPubSub(changed),
