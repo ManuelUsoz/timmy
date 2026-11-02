@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import type { OpenCodeClient as ServerClient, OpenCodeEvent as ServerEvent } from '@opencode/client';
 import { Deferred, Effect, Layer, Ref, Stream } from 'effect';
 import { ChatError } from '../../src/shared/chat/chat-error.model';
-import { OpenCodeBackend, type OpenCodeClient, type OpenCodeEvent, type OpenCodeToolStatus } from './opencode-backend';
+import { OpenCodeBackend, type OpenCodeClient, type OpenCodeEvent, type OpenCodeImage, type OpenCodeToolStatus } from './opencode-backend';
 
 const MINIMUM_MAJOR = 2;
 const START_TIMEOUT = '30 seconds';
@@ -236,6 +236,17 @@ const translate = (
   }
 };
 
+/** Images travel as `data:` URIs in the prompt's files; absent when there are none. */
+const filesOf = (images: ReadonlyArray<OpenCodeImage> | undefined) =>
+  images === undefined || images.length === 0
+    ? {}
+    : {
+        files: images.map((image, index) => ({
+          uri: `data:${image.mediaType};base64,${Buffer.from(image.bytes).toString('base64')}`,
+          name: `image-${index + 1}`,
+        })),
+      };
+
 const none: ReadonlyArray<OpenCodeEvent> = [];
 
 const makeClient = (server: ServerClient): OpenCodeClient => ({
@@ -247,6 +258,7 @@ const makeClient = (server: ServerClient): OpenCodeClient => ({
       id: `${model.providerID}/${model.id}`,
       variants: model.variants.map((variant) => String(variant.id)),
       contextWindow: model.limit.context,
+      images: model.capabilities.input.includes('image'),
     }))),
   ),
   createSession: ({ cwd, model, variant, permissions }) =>
@@ -262,7 +274,7 @@ const makeClient = (server: ServerClient): OpenCodeClient => ({
       });
       return session.id;
     }),
-  turn: ({ sessionId, text }) =>
+  turn: ({ sessionId, text, images }) =>
     Stream.unwrap(
       Effect.gen(function* () {
         const abort = new AbortController();
@@ -282,7 +294,7 @@ const makeClient = (server: ServerClient): OpenCodeClient => ({
         const prompt = Deferred.await(connected).pipe(
           Effect.timeout(CONNECT_TIMEOUT),
           Effect.andThen(
-            Effect.tryPromise({ try: () => server.session.prompt({ sessionID: sessionId, text }), catch: (cause) => cause }),
+            Effect.tryPromise({ try: () => server.session.prompt({ sessionID: sessionId, text, ...filesOf(images) }), catch: (cause) => cause }),
           ),
           Effect.as(none),
           Effect.catch((cause) =>

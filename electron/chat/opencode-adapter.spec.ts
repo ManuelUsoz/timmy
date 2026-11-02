@@ -8,12 +8,18 @@ import type { PermissionRequest } from '../../src/shared/chat/permission.model';
 import type { PermissionMode } from '../../src/shared/chat/provider.model';
 import type { SessionOptions } from '../../src/shared/chat/session.model';
 import { ProjectId, ProviderSessionId } from '../../src/shared/sessions/sessions.model';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { AttachmentStore, layerAttachmentStore } from '../attachments/attachment-store';
+import { layerImageResizerTest } from '../attachments/image-resizer';
 import { layerSessionRepo, SessionRepo } from '../sessions/session-repo';
 import { makeOpenCodeAdapter } from './opencode-adapter';
 import {
   OpenCodeBackend,
   type OpenCodeClient,
   type OpenCodeEvent,
+  type OpenCodeImage,
   type OpenCodeModel,
   type OpenCodePermissionRule,
   type PermissionReply,
@@ -69,8 +75,19 @@ const layerMissingBinary = Layer.succeed(
 );
 
 /** `it.effect` with an in-memory `SessionRepo`, which the adapter needs for its stored sessions. */
-const itRepo = <E>(name: string, body: () => Effect.Effect<void, E, SessionRepo | Scope.Scope>) =>
-  it.effect(name, () => body().pipe(Effect.provide(layerSessionRepo(':memory:'))));
+const itRepo = <E>(name: string, body: () => Effect.Effect<void, E, SessionRepo | AttachmentStore | Scope.Scope>) =>
+  it.effect(name, () =>
+    body().pipe(
+      Effect.provide(layerSessionRepo(':memory:')),
+      Effect.provide(
+        layerAttachmentStore(path.join(mkdtempSync(path.join(tmpdir(), 'timmy-opencode-')), 'attachments')).pipe(
+          Layer.provide(layerImageResizerTest),
+        ),
+      ),
+    ),
+  );
+
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 
 const projectId = ProjectId.make('p1');
 const options: SessionOptions = { provider: 'OpenCode', cwd: '/work', permissionMode: 'Default' };
@@ -105,12 +122,12 @@ describe('OpenCodeAdapter', () => {
   itRepo('runs one server for its lifetime, lists its models as vendor/model, and stops it on shutdown', () =>
     Effect.gen(function* () {
       const log = yield* makeServerLog;
-      const models = [{ id: 'anthropic/claude-opus-5-5', variants: ['low', 'high', 'max', 'xhigh'] }, { id: 'opencode/big-pickle', variants: [] }];
+      const models = [{ id: 'anthropic/claude-opus-5-5', variants: ['low', 'high', 'max', 'xhigh'], images: true }, { id: 'opencode/big-pickle', variants: [] }];
       const adapter = yield* makeOpenCodeAdapter.pipe(Effect.provide(layerBackend(log, fakeClient(models))));
       yield* adapter.startup;
       expect(yield* adapter.models).toEqual([
-        { id: 'anthropic/claude-opus-5-5', efforts: ['Default', 'Low', 'High', 'XHigh'] },
-        { id: 'opencode/big-pickle', efforts: ['Default'] },
+        { id: 'anthropic/claude-opus-5-5', efforts: ['Default', 'Low', 'High', 'XHigh'], images: true },
+        { id: 'opencode/big-pickle', efforts: ['Default'], images: false },
       ]);
       expect(yield* Ref.get(log.started)).toBe(1);
       expect(yield* Ref.get(log.stopped)).toBe(0);
@@ -284,9 +301,36 @@ describe('OpenCodeAdapter', () => {
         questions: false,
         thinking: true,
         resume: false,
-        images: false,
+        images: true,
         mentions: 'none',
       });
+    }));
+
+  itRepo('AC 2: sends the image content of an Attachment to OpenCode with the prompt', () =>
+    Effect.gen(function* () {
+      const log = yield* makeServerLog;
+      const seen = yield* Ref.make<ReadonlyArray<OpenCodeImage>>([]);
+      const client = fakeClient([{ id: 'anthropic/claude-opus-5-5', variants: [], images: true }], (o) =>
+        Stream.fromEffect(Ref.set(seen, o.images ?? [])).pipe(Stream.flatMap(() => Stream.make<OpenCodeEvent[]>({ _tag: 'Idle' }))),
+      );
+      const { adapter, sessionId } = yield* readySession(log, client);
+      const stored = yield* (yield* AttachmentStore).add(PNG);
+      yield* Stream.runDrain(adapter.send({ sessionId, text: 'what is this?', mentions: [], attachments: [{ id: stored.id }] }));
+      expect(yield* Ref.get(seen)).toEqual([{ mediaType: 'image/png', bytes: PNG }]);
+    }));
+
+  itRepo('AC 3: a model without the image modality is declared as not taking images, so the composer blocks them', () =>
+    Effect.gen(function* () {
+      const log = yield* makeServerLog;
+      const client = fakeClient([
+        { id: 'anthropic/claude-opus-5-5', variants: [], images: true },
+        { id: 'opencode/text-only', variants: [], images: false },
+        { id: 'opencode/unknown', variants: [] },
+      ]);
+      const { adapter } = yield* readySession(log, client);
+      expect(adapter.capabilities.images).toBe(true);
+      const byId = new Map((yield* adapter.models).map((m) => [m.id, m.images]));
+      expect([byId.get('anthropic/claude-opus-5-5'), byId.get('opencode/text-only'), byId.get('opencode/unknown')]).toEqual([true, false, false]);
     }));
 
   itRepo('keeps the partial answer when the consumer stops listening mid-turn', () =>

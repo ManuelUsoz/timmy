@@ -6,8 +6,9 @@ import { MessageId, PermissionRequestId, type SessionId, TurnId } from '../../sr
 import { AdapterCapabilities, type ModelInfo } from '../../src/shared/chat/provider.model';
 import type { SessionOptions, UserMessage } from '../../src/shared/chat/session.model';
 import { type HistoryItem, ProviderSessionId } from '../../src/shared/sessions/sessions.model';
+import { AttachmentStore } from '../attachments/attachment-store';
 import { SessionRepo, type TranscriptEntry } from '../sessions/session-repo';
-import { zeroUsage } from './claude-event-mapper';
+import { rootAgentId, zeroUsage } from './claude-event-mapper';
 import { addUsage, agentIdOf } from './opencode-usage';
 import { OpenCodeBackend, type OpenCodeClient } from './opencode-backend';
 import { buildAsk, describeTool, effortsOf, optionFor, replyFor, rulesFor, variantFor } from './opencode-mapper';
@@ -33,7 +34,8 @@ const openCodeCapabilities: AdapterCapabilities = {
   thinking: true,
   resume: false,
   mentions: 'none',
-  images: false,
+  // Images are declared per model (see `models`): a model without the `image` input modality blocks them in the composer.
+  images: true,
 };
 
 interface Started {
@@ -84,6 +86,7 @@ const historyOf = (entries: ReadonlyArray<TranscriptEntry>): ReadonlyArray<Histo
 export const makeOpenCodeAdapter = Effect.gen(function* () {
   const backend = yield* OpenCodeBackend;
   const repo = yield* SessionRepo;
+  const attachments = yield* AttachmentStore;
   const sessionOps = yield* makeSessionOps('OpenCode');
   const started = yield* Ref.make<Started | undefined>(undefined);
   const sessions = yield* Ref.make<ReadonlyMap<SessionId, SessionRuntime>>(new Map());
@@ -158,6 +161,14 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
     },
   );
 
+  /** The stored bytes of the message's Attachments, in order; a file that is gone fails the send. */
+  const readImages = (message: UserMessage) =>
+    Effect.forEach(message.attachments, (attachment) =>
+      attachments.read(attachment.id).pipe(
+        Effect.mapError((error) => new ChatError({ reason: 'AttachmentNotFound', detail: error.detail })),
+      ),
+    );
+
   const runTurn = Effect.fn('OpenCodeAdapter.runTurn')(function* (client: OpenCodeClient, message: UserMessage) {
     const runtime = yield* requireRuntime(message.sessionId);
     const stored = yield* repo.get(message.sessionId);
@@ -218,7 +229,8 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
       ];
     });
 
-    const body = client.turn({ sessionId: runtime.providerSessionId, cwd: runtime.options.cwd, text: message.text }).pipe(
+    const images = yield* readImages(message);
+    const body = client.turn({ sessionId: runtime.providerSessionId, cwd: runtime.options.cwd, text: message.text, images }).pipe(
       Stream.takeUntil((event) => event._tag === 'Idle' || event._tag === 'Failed'),
       Stream.mapEffect(
         Effect.fnUntraced(function* (event): Effect.fn.Return<ReadonlyArray<ChatEvent>> {
@@ -331,7 +343,9 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
     shutdown: stop,
     models: requireClient.pipe(
       Effect.flatMap((client) => client.models),
-      Effect.map((models) => models.map(({ id, variants }): ModelInfo => ({ id, efforts: effortsOf(variants) }))),
+      Effect.map((models) =>
+        models.map(({ id, variants, images }): ModelInfo => ({ id, efforts: effortsOf(variants), images: images === true })),
+      ),
     ),
     listCommands: () => Effect.succeed([]),
     startSession,
