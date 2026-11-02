@@ -2,6 +2,7 @@ import { describe, expect, it } from '@effect/vitest';
 import { Effect, Fiber, Layer, Option, Stream } from 'effect';
 import { AgentId, SessionId } from '../../src/shared/chat/ids.model';
 import { ProviderSessionId, type TranscriptRef } from '../../src/shared/sessions/sessions.model';
+import { AttachmentStore } from '../attachments/attachment-store';
 import { ChatRpc } from '../chat/chat-rpc';
 import { claudeHistory } from '../chat/claude-history-mapper';
 import { SdkAdapter, SdkAdapterRegistry } from '../chat/sdk-adapter';
@@ -30,9 +31,22 @@ const layerRegistry = Layer.effect(
 const layerChat = (open: ReadonlySet<SessionId>) =>
   Layer.succeed(ChatRpc, { isOpen: (id: SessionId) => Effect.succeed(open.has(id)) } as ChatRpc['Service']);
 
+/** Sessions whose Attachment files were removed. */
+const removedAttachments: SessionId[] = [];
+const layerStore = Layer.succeed(
+  AttachmentStore,
+  AttachmentStore.of({
+    add: () => Effect.die('unused'),
+    remove: () => Effect.void,
+    read: () => Effect.die('unused'),
+    markSent: () => Effect.void,
+    removeSession: (sessionId) => Effect.sync(() => void removedAttachments.push(sessionId)),
+  }),
+);
+
 const makeLayer = (open: ReadonlySet<SessionId> = new Set()) =>
   layerSessionsService.pipe(
-    Layer.provideMerge(Layer.mergeAll(layerProjectResolver, layerRegistry, layerChat(open))),
+    Layer.provideMerge(Layer.mergeAll(layerProjectResolver, layerRegistry, layerChat(open), layerStore)),
     Layer.provideMerge(layerSessionRepo(':memory:')),
   );
 
@@ -82,6 +96,24 @@ describe('SessionsService', () => {
       yield* sessions.delete(sessionId);
       expect(yield* sessions.list('/work')).toEqual([]);
     }).pipe(Effect.provide(makeLayer())));
+
+  it.effect('removes the Attachment files of a deleted session, but not of one that stays open', () =>
+    Effect.gen(function* () {
+      removedAttachments.length = 0;
+      const { sessionId } = yield* seeded;
+      const sessions = yield* SessionsService;
+      yield* sessions.delete(sessionId);
+      expect(removedAttachments).toEqual([sessionId]);
+    }).pipe(Effect.provide(makeLayer())));
+
+  it.effect('keeps the Attachment files when the delete is refused', () =>
+    Effect.gen(function* () {
+      removedAttachments.length = 0;
+      const { sessionId } = yield* seeded;
+      const sessions = yield* SessionsService;
+      yield* sessions.delete(sessionId).pipe(Effect.flip);
+      expect(removedAttachments).toEqual([]);
+    }).pipe(Effect.provide(makeLayer(new Set([SessionId.make('s1')])))));
 
   it.effect('pushes a change when a session is renamed', () =>
     Effect.gen(function* () {

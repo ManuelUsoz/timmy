@@ -11,6 +11,7 @@ import { SessionId, TurnId } from '../../src/shared/chat/ids.model';
 import { ModelInfo, ProviderId } from '../../src/shared/chat/provider.model';
 import { SessionOptions } from '../../src/shared/chat/session.model';
 import { ProviderSessionId } from '../../src/shared/sessions/sessions.model';
+import { AttachmentStore } from '../attachments/attachment-store';
 import { layerProjectFiles } from '../files/project-files';
 import { UserMessage } from '../../src/shared/chat/session.model';
 import { layerProjectResolver } from '../sessions/project-resolver';
@@ -32,6 +33,8 @@ interface Calls {
   readonly shutdowns: Ref.Ref<number>;
   readonly started: Ref.Ref<ReadonlyArray<StartedSession>>;
   readonly sent: Ref.Ref<ReadonlyArray<UserMessage>>;
+  /** Attachments handed to the store as sent, per session. */
+  readonly marked: Ref.Ref<ReadonlyArray<{ readonly sessionId: SessionId; readonly ids: ReadonlyArray<AttachmentId> }>>;
 }
 
 /** Test double for the SDK boundary: counts lifecycle calls and replays one scripted turn. */
@@ -90,12 +93,23 @@ const makeHarnessWith = (
     shutdowns: yield* Ref.make(0),
     started: yield* Ref.make<ReadonlyArray<StartedSession>>([]),
     sent: yield* Ref.make<ReadonlyArray<UserMessage>>([]),
+    marked: yield* Ref.make<Calls['marked'] extends Ref.Ref<infer A> ? A : never>([]),
   };
+  const layerStore = Layer.succeed(
+    AttachmentStore,
+    AttachmentStore.of({
+      add: () => Effect.die('unused'),
+      remove: () => Effect.void,
+      read: () => Effect.die('unused'),
+      markSent: (sessionId, ids) => Ref.update(calls.marked, (all) => [...all, { sessionId, ids }]),
+      removeSession: () => Effect.void,
+    }),
+  );
   const layerRegistry = Layer.succeed(SdkAdapterRegistry, {
     defaultProvider: 'Claude',
     get: (provider) => Effect.succeed(makeFakeAdapter(provider, calls, mentions, images, models)),
   });
-  const layerServices = Layer.mergeAll(layerProjectResolver, layerSessionObserver, layerProjectFiles()).pipe(
+  const layerServices = Layer.mergeAll(layerProjectResolver, layerSessionObserver, layerProjectFiles(), layerStore).pipe(
     Layer.provideMerge(layerSessionRepo(':memory:')),
   );
   return { calls, layer: layerChatRpc.pipe(Layer.provideMerge(Layer.merge(layerRegistry, layerServices))) };
@@ -159,6 +173,20 @@ describe('ChatRpc', () => {
       }).pipe(Effect.provide(layer));
       const sent = yield* Ref.get(calls.sent);
       expect(sent[0]?.attachments).toEqual([{ id }]);
+    }));
+
+  it.effect('hands the attachments of a sent message to the store as belonging to that session', () =>
+    Effect.gen(function* () {
+      const { calls, layer } = yield* makeHarness;
+      const id = AttachmentId.make('11111111-1111-4111-8111-111111111111');
+      const sessionId = yield* Effect.gen(function* () {
+        const chat = yield* ChatRpc;
+        const sessionId = yield* chat.startSession(options('Claude'));
+        yield* Stream.runCollect(chat.send({ sessionId, text: 'plain', mentions: [], attachments: [] }));
+        yield* Stream.runCollect(chat.send({ sessionId, text: 'look', mentions: [], attachments: [{ id }] }));
+        return sessionId;
+      }).pipe(Effect.provide(layer));
+      expect(yield* Ref.get(calls.marked)).toEqual([{ sessionId, ids: [id] }]);
     }));
 
   describe('images', () => {
