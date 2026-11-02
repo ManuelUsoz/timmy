@@ -9,7 +9,7 @@ import { type HistoryItem, ProviderSessionId } from '../../src/shared/sessions/s
 import { AttachmentStore } from '../attachments/attachment-store';
 import { SessionRepo, type TranscriptEntry } from '../sessions/session-repo';
 import { rootAgentId, zeroUsage } from './claude-event-mapper';
-import { addUsage, agentIdOf } from './opencode-usage';
+import { addUsage, agentIdOf, agentKey } from './opencode-usage';
 import { OpenCodeBackend, type OpenCodeClient } from './opencode-backend';
 import { buildAsk, describeTool, effortsOf, optionFor, replyFor, rulesFor, variantFor } from './opencode-mapper';
 import type { Usage } from '../../src/shared/chat/usage.model';
@@ -185,14 +185,17 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
     const tools = yield* Ref.make<ReadonlyMap<string, ToolCall>>(new Map());
     const usages = yield* Ref.make<ReadonlyMap<string, Usage>>(new Map());
     const total = yield* Ref.make<Usage>(zeroUsage);
-    const messageIds = new Map<string, MessageId>();
-    const messageIdOf = (agent: string | undefined) => {
-      const key = agent ?? '';
-      const known = messageIds.get(key) ?? (agent === undefined ? messageId : MessageId.make(randomUUID()));
-      messageIds.set(key, known);
-      return known;
-    };
-    const contextWindow = (yield* client.models).find((m) => m.id === runtime.options.model)?.contextWindow;
+    const messageIds = yield* Ref.make<ReadonlyMap<string, MessageId>>(new Map());
+    const messageIdOf = Effect.fnUntraced(function* (agent: string | undefined) {
+      const existing = (yield* Ref.get(messageIds)).get(agentKey(agent));
+      if (existing !== undefined) return existing;
+      const created = agent === undefined ? messageId : MessageId.make(randomUUID());
+      yield* Ref.update(messageIds, (all) => new Map(all).set(agentKey(agent), created));
+      return created;
+    });
+    // The context window is a nicety: a failed model lookup must not fail the Turn.
+    const configured = yield* client.models.pipe(Effect.orElseSucceed(() => []));
+    const contextWindow = configured.find((m) => m.id === runtime.options.model)?.contextWindow;
 
     yield* Ref.set(runtime.interrupted, false);
     yield* Ref.set(runtime.waiting, new Set());
@@ -247,7 +250,7 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
           }
           if (event._tag === 'PermissionAsked') {
             const known = event.toolCallId === undefined ? undefined : (yield* Ref.get(tools)).get(event.toolCallId);
-            const request = buildAsk(event, agentIdOf(undefined), known);
+            const request = buildAsk(event, agentIdOf(event.agent), known);
             yield* Ref.update(runtime.waiting, (all) => new Set(all).add(request.id));
             return [{ _tag: 'PermissionRequested', sessionId, request } satisfies ChatEvent];
           }
@@ -268,21 +271,23 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
             ];
           }
           if (event._tag === 'StepEnded') {
-            const key = event.agent ?? '';
-            const agentTotal = addUsage((yield* Ref.get(usages)).get(key) ?? zeroUsage, event.usage);
+            const key = agentKey(event.agent);
+            const previous = (yield* Ref.get(usages)).get(key) ?? zeroUsage;
+            const agentTotal = addUsage(previous, event.usage);
             yield* Ref.update(usages, (all) => new Map(all).set(key, agentTotal));
-            const sessionTotal = addUsage(yield* Ref.get(total), event.usage);
+            const sessionBefore = yield* Ref.get(total);
+            const sessionTotal = addUsage(sessionBefore, event.usage);
             yield* Ref.set(total, sessionTotal);
             const usedTokens = event.usage.inputTokens + event.usage.outputTokens + (event.usage.cacheReadTokens ?? 0);
-            const context = event.agent === undefined && contextWindow !== undefined ? { context: { usedTokens, maxTokens: contextWindow } } : {};
+            const context = contextWindow === undefined ? {} : { context: { usedTokens, maxTokens: contextWindow } };
             return [
-              { _tag: 'UsageUpdated', sessionId, agentId: agentIdOf(event.agent), usage: agentTotal } satisfies ChatEvent,
-              { _tag: 'UsageUpdated', sessionId, usage: sessionTotal, ...context } satisfies ChatEvent,
+              { _tag: 'UsageUpdated', sessionId, agentId: agentIdOf(event.agent), usage: agentTotal, ...context } satisfies ChatEvent,
+              { _tag: 'UsageUpdated', sessionId, usage: sessionTotal, ...(event.agent === undefined ? context : {}) } satisfies ChatEvent,
             ];
           }
           if (event._tag === 'ReasoningDelta') {
             return [
-              { _tag: 'MessageDelta', sessionId, agentId: agentIdOf(event.agent), messageId: messageIdOf(event.agent), channel: 'Thinking', text: event.text } satisfies ChatEvent,
+              { _tag: 'MessageDelta', sessionId, agentId: agentIdOf(event.agent), messageId: yield* messageIdOf(event.agent), channel: 'Thinking', text: event.text } satisfies ChatEvent,
             ];
           }
           if (event._tag !== 'TextDelta') return [];
@@ -292,7 +297,7 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
               _tag: 'MessageDelta',
               sessionId,
               agentId: agentIdOf(event.agent),
-              messageId: messageIdOf(event.agent),
+              messageId: yield* messageIdOf(event.agent),
               channel: 'Text',
               text: event.text,
             } satisfies ChatEvent,

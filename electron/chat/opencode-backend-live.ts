@@ -143,7 +143,7 @@ const textOf = (content: ReadonlyArray<{ readonly type: string; readonly text?: 
  * What one OpenCode event means for a Turn of `sessionId`; events of other sessions mean nothing here.
  * `tools` remembers each tool's name and last input, which its later events do not repeat.
  */
-const translate = (
+export const translate = (
   sessionId: string,
   tools: Map<string, { readonly name: string; readonly input: Readonly<Record<string, unknown>> }>,
   /** Child sessions of this Turn (started through the task tool) by id, with the session that started each. */
@@ -218,6 +218,7 @@ const translate = (
         {
           _tag: 'PermissionAsked',
           id: event.data.id,
+          ...route,
           action: event.data.action,
           resources: event.data.resources,
           ...(event.data.source?.type === 'tool' ? { toolCallId: event.data.source.id } : {}),

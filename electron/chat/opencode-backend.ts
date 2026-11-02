@@ -49,6 +49,8 @@ export type OpenCodeEvent =
       readonly action: string;
       readonly resources: ReadonlyArray<string>;
       readonly toolCallId?: string;
+      /** The child session that asks; absent means the root session. */
+      readonly agent?: string;
     }
   | { readonly _tag: 'PermissionReplied'; readonly id: string; readonly reply: PermissionReply }
   | { readonly _tag: 'Failed'; readonly detail: string }

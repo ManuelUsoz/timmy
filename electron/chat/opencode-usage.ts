@@ -1,9 +1,12 @@
 import { AgentId } from '../../src/shared/chat/ids.model';
 import type { Usage } from '../../src/shared/chat/usage.model';
-import { rootAgentId, zeroUsage } from './claude-event-mapper';
+import { rootAgentId } from './claude-event-mapper';
 
 /** OpenCode names a child by its session id; the root agent is the session itself. */
 export const agentIdOf = (agent: string | undefined): AgentId => (agent === undefined ? rootAgentId : AgentId.make(agent));
+
+/** The key per-agent state is kept under; the root agent has none of its own. */
+export const agentKey = (agent: string | undefined): string => agent ?? '';
 
 const sum = (a: number | undefined, b: number | undefined): number | undefined =>
   a === undefined && b === undefined ? undefined : (a ?? 0) + (b ?? 0);
@@ -23,5 +26,3 @@ export const addUsage = (total: Usage, step: Usage): Usage => {
     ...(costUsd === undefined ? {} : { costUsd }),
   };
 };
-
-export { zeroUsage };
