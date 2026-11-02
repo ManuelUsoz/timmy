@@ -358,6 +358,19 @@ describe('ChatRpc', () => {
       ]);
     }));
 
+  it.effect('refuses to resume a stored session under another Provider', () =>
+    Effect.gen(function* () {
+      const { layer } = yield* makeHarness;
+      const error = yield* Effect.gen(function* () {
+        const chat = yield* ChatRpc;
+        const first = yield* chat.startSession(options('Claude'));
+        yield* chat.closeSession(first);
+        yield* chat.changeAdapter('OpenCode');
+        return yield* chat.startSession({ ...options('OpenCode'), resume: first }).pipe(Effect.flip);
+      }).pipe(Effect.provide(layer));
+      expect(error.reason).toBe('Unsupported');
+    }));
+
   it.effect('refuses to resume a session that was never stored', () =>
     Effect.gen(function* () {
       const { layer } = yield* makeHarness;
