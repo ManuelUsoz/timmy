@@ -201,7 +201,7 @@ describe('ChatViewComponent images', () => {
     el.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
     await settle();
   };
-  const dialog = (el: HTMLElement) => el.querySelector('[role="dialog"]');
+  const dialog = (el: HTMLElement) => el.querySelector('[aria-modal="true"]');
 
   it('asks before sending an image with no text, and sends nothing yet', async () => {
     const { el, sent, paste, settle } = await setup();
@@ -218,7 +218,7 @@ describe('ChatViewComponent images', () => {
     const { el, sent, paste, settle } = await setup();
     await paste([pngFile()]);
     await submit(el, settle);
-    (el.querySelector('[role="dialog"] .actions button') as HTMLButtonElement).click();
+    (el.querySelector('[aria-modal="true"] .actions .primary') as HTMLButtonElement).click();
     await settle();
 
     expect(sent[0]).toMatchObject({ text: '', attachments: [{ id: 'a1' }] });
@@ -227,7 +227,7 @@ describe('ChatViewComponent images', () => {
   });
 
   it.each([
-    ['the close button', (el: HTMLElement) => (el.querySelector('[role="dialog"] .close') as HTMLButtonElement).click()],
+    ['the close button', (el: HTMLElement) => (el.querySelector('[aria-modal="true"] .close') as HTMLButtonElement).click()],
     ['Esc', () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))],
     ['the backdrop', (el: HTMLElement) => (el.querySelector('.backdrop') as HTMLElement).click()],
   ])('keeps the draft untouched and refocuses the composer on %s', async (_name, dismiss) => {
@@ -269,17 +269,17 @@ describe('ChatViewComponent images', () => {
     await paste([new File([new Uint8Array([1, 2, 3])], 'x.png', { type: 'image/png' })]);
 
     expect(el.querySelector('.images')).toBeNull();
-    expect(el.querySelector('.error')).toBeNull();
-    expect(el.querySelector('[role="dialog"]')?.textContent).toContain('PNG');
+    expect(el.querySelector('p.error')).toBeNull();
+    expect(el.querySelector('[aria-modal="true"]')?.textContent).toContain('PNG');
   });
 
   it('closes the error modal with its button, and keeps working', async () => {
     const { el, paste, drop, settle } = await setup();
     await paste([new File([new Uint8Array([1, 2, 3])], 'x.png', { type: 'image/png' })]);
-    (el.querySelector('[role="dialog"] .actions button') as HTMLButtonElement).click();
+    (el.querySelector('[aria-modal="true"] .actions .primary') as HTMLButtonElement).click();
     await settle();
 
-    expect(el.querySelector('[role="dialog"]')).toBeNull();
+    expect(el.querySelector('[aria-modal="true"]')).toBeNull();
     await drop([pngFile()]);
     expect(el.querySelectorAll('.images img')).toHaveLength(1);
   });
@@ -353,8 +353,8 @@ describe('ChatViewComponent images', () => {
 
     expect(added).toHaveLength(5);
     expect(el.querySelectorAll('.images img')).toHaveLength(5);
-    expect(el.querySelector('[role="dialog"]')?.textContent).toContain('5');
-    expect(el.querySelector('.error')).toBeNull();
+    expect(el.querySelector('[aria-modal="true"]')?.textContent).toContain('5');
+    expect(el.querySelector('p.error')).toBeNull();
   });
 
   it('attaches none of a batch that would pass five, and says so in a modal', async () => {
@@ -363,7 +363,7 @@ describe('ChatViewComponent images', () => {
 
     expect(added).toEqual([]);
     expect(el.querySelector('.images')).toBeNull();
-    expect(el.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(el.querySelector('[aria-modal="true"]')).not.toBeNull();
   });
 
   it('says an image is too large when main refuses it for its size', async () => {
@@ -371,7 +371,7 @@ describe('ChatViewComponent images', () => {
     await drop([new File([new Uint8Array([0, 1])], 'huge.png', { type: 'image/png' })]);
 
     expect(el.querySelector('.images')).toBeNull();
-    expect(el.querySelector('[role="dialog"]')?.textContent).toContain('5 MB');
+    expect(el.querySelector('[aria-modal="true"]')?.textContent).toContain('5 MB');
   });
 
   it('rejects a dropped file that is not an image', async () => {
@@ -379,7 +379,7 @@ describe('ChatViewComponent images', () => {
     await drop([new File([new Uint8Array([1, 2, 3])], 'notes.txt', { type: 'text/plain' })]);
 
     expect(el.querySelector('.images')).toBeNull();
-    expect(el.querySelector('[role="dialog"]')?.textContent).toContain('PNG');
+    expect(el.querySelector('[aria-modal="true"]')?.textContent).toContain('PNG');
   });
 
   it('takes a file dropped anywhere on the chat, so the window never navigates to it', async () => {
@@ -400,7 +400,7 @@ describe('ChatViewComponent images', () => {
     await drop([huge]);
 
     expect(added).toEqual([]);
-    expect(el.querySelector('[role="dialog"]')?.textContent).toContain('5 MB');
+    expect(el.querySelector('[aria-modal="true"]')?.textContent).toContain('5 MB');
   });
 
   describe('on a model that takes no images', () => {
@@ -418,8 +418,8 @@ describe('ChatViewComponent images', () => {
       expect(el.querySelector('[role="tooltip"]')?.textContent).toMatch(/no admite im|does not take images/i);
 
       await paste([pngFile()]);
-      expect(el.querySelector('[role="dialog"]')?.textContent).toMatch(/no admite im|does not take images/i);
-      (el.querySelector('[role="dialog"] .actions button') as HTMLButtonElement).click();
+      expect(el.querySelector('[aria-modal="true"]')?.textContent).toMatch(/no admite im|does not take images/i);
+      (el.querySelector('[aria-modal="true"] .actions .primary') as HTMLButtonElement).click();
       await settle();
       await drop([pngFile()]);
       expect(added).toEqual([]);

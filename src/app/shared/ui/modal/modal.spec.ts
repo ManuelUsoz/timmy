@@ -8,7 +8,17 @@ import { ModalComponent } from './modal';
   template: `
     <button id="opener" type="button">open</button>
     @if (open()) {
-      <ui-modal heading="Send without text?" primaryLabel="Send anyway" closeLabel="Close" (primary)="primaries = primaries + 1" (closed)="closes = closes + 1">
+      <ui-modal
+        heading="Send without text?"
+        primaryLabel="Send anyway"
+        closeLabel="Close"
+        stateLabel="Info"
+        [tone]="tone()"
+        [size]="size()"
+        [primaryDisabled]="disabled()"
+        (primary)="primaries = primaries + 1"
+        (closed)="closes = closes + 1"
+      >
         Your message has only images.
       </ui-modal>
     }
@@ -16,6 +26,9 @@ import { ModalComponent } from './modal';
 })
 class Host {
   open = signal(false);
+  tone = signal<'info' | 'error'>('info');
+  size = signal<'md' | 'sm'>('md');
+  disabled = signal(false);
   primaries = 0;
   closes = 0;
 }
@@ -42,30 +55,52 @@ describe('ModalComponent', () => {
   });
 
   it('focuses the primary button first', async () => {
-    const f = await open();
+    await open();
     expect(document.activeElement?.textContent?.trim()).toBe('Send anyway');
   });
 
   it('emits primary from the primary button', async () => {
     const f = await open();
-    el(f, '.actions button').click();
+    el(f, '.actions .primary').click();
     expect(f.componentInstance.primaries).toBe(1);
     expect(f.componentInstance.closes).toBe(0);
   });
 
-  it('closes from the close button, the backdrop and Esc', async () => {
+  it('closes from the cross, the Close button, the backdrop and Esc', async () => {
     const f = await open();
     el(f, '.close').click();
+    el(f, '.actions .dismiss').click();
     el(f, '.backdrop').click();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    expect(f.componentInstance.closes).toBe(3);
+    expect(f.componentInstance.closes).toBe(4);
     expect(f.componentInstance.primaries).toBe(0);
+  });
+
+  it('shows the state word and sets role, tone and size', async () => {
+    const f = await open();
+    expect(el(f, '.state').textContent?.trim()).toBe('Info');
+    expect(el(f, '.dialog').getAttribute('role')).toBe('dialog');
+    expect(el(f, '.dialog').classList).toContain('info');
+    f.componentInstance.tone.set('error');
+    f.componentInstance.size.set('sm');
+    TestBed.inject(ApplicationRef).tick();
+    expect(el(f, '.dialog').getAttribute('role')).toBe('alertdialog');
+    expect(el(f, '.dialog').classList).toContain('error');
+    expect(el(f, '.dialog').classList).toContain('sm');
+  });
+
+  it('disables the primary action without blocking Close', async () => {
+    const f = await open();
+    f.componentInstance.disabled.set(true);
+    TestBed.inject(ApplicationRef).tick();
+    expect(el(f, '.actions .primary').hasAttribute('disabled')).toBe(true);
+    expect(el(f, '.actions .dismiss').hasAttribute('disabled')).toBe(false);
   });
 
   it('keeps Tab inside the dialog', async () => {
     const f = await open();
     const close = el(f, '.close');
-    const primary = el(f, '.actions button');
+    const primary = el(f, '.actions .primary');
     primary.focus();
     primary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
     expect(document.activeElement).toBe(close);
