@@ -71,10 +71,10 @@ const setup = async (unavailable?: string) => {
     AttachmentsRpcs.toLayer({ 'Attachments.add': unused, 'Attachments.remove': () => Effect.void }),
     SessionsRpcs.toLayer({
       'Sessions.list': () => Effect.succeed([]),
-      'Sessions.history': unused,
+      'Sessions.history': () => Effect.succeed([]),
       'Sessions.listSubagents': () => Effect.succeed([]),
       'Sessions.rename': unused,
-      'Sessions.delete': unused,
+      'Sessions.delete': () => Effect.void,
       'Sessions.changes': () => Stream.empty,
     }),
     layerWindowUnused,
@@ -140,6 +140,39 @@ describe('ChatController provider', () => {
     await settle();
     TestBed.tick();
 
+    expect(controller.providerLocked()).toBe(true);
+  });
+
+  it('lets a Session that was just started and is still empty change Provider, replacing it', async () => {
+    const { controller, started, settle } = await setup();
+    await controller.startNewSession('/work');
+    TestBed.tick();
+    expect(controller.providerLocked()).toBe(false);
+
+    controller.setProvider('OpenCode');
+    await settle();
+    TestBed.tick();
+
+    expect(started.map((o) => o.provider)).toEqual(['Claude', 'OpenCode']);
+    expect(controller.provider()).toBe('OpenCode');
+    expect(controller.providerLocked()).toBe(false);
+  });
+
+  it('also lets an empty stored Session change Provider, but not one that has messages', async () => {
+    const { controller, started, settle } = await setup();
+    controller.showTranscript({ projectId: 'p' as never, sessionId: SessionId.make('old') }, '/work');
+    await settle();
+    TestBed.tick();
+    expect(controller.providerLocked()).toBe(false);
+
+    controller.setProvider('OpenCode');
+    await settle();
+
+    expect(started.map((o) => o.provider)).toEqual(['OpenCode']);
+    controller.draft.set('hello');
+    controller.send();
+    await settle();
+    TestBed.tick();
     expect(controller.providerLocked()).toBe(true);
   });
 });

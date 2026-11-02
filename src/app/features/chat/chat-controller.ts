@@ -113,7 +113,16 @@ export class ChatController {
     { value: 'OpenCode', label: 'OpenCode' },
   ];
   /** A Session never changes Provider: once one is open (or a Turn runs), only a new chat can pick another. */
-  readonly providerLocked = computed(() => this.running() || this.selectedSessionId() !== undefined);
+  readonly providerLocked = computed(() => this.running() || (this.selectedSessionId() !== undefined && !this.hasNothingSaid()));
+  /** False while a stored transcript is still loading: what is on screen is not that Session's yet. */
+  private readonly transcriptReady = signal(true);
+  /** The open Session is a main one; a subagent transcript is read-only and belongs to its parent. */
+  private readonly replaceable = signal(true);
+  /** The open Session has no messages, however it was opened: nothing is bound to its Provider yet. */
+  private readonly hasNothingSaid = computed(() => {
+    const chat = this.chat();
+    return this.replaceable() && this.transcriptReady() && chat.items.length === 0 && !chat.failure && !chat.running;
+  });
   /** Why the chosen Provider cannot be used (not installed, not signed in); the previous Provider stays active. */
   readonly providerError = signal<string | null>(null);
   readonly tree = computed(() => groupByOwner(this.chat()));
@@ -197,7 +206,32 @@ export class ChatController {
    */
   /** The user picked a Provider for the next Session. Ignored while one is open. */
   setProvider(provider: ProviderId): void {
-    if (!this.providerLocked()) void this.switchProvider(provider);
+    if (this.providerLocked() || provider === this.provider()) return;
+    const cwd = this.resumeCwd ?? this.info()?.cwd;
+    // A Session with nothing said is replaced; with none open the next one simply starts on the new Provider.
+    if (this.selectedSessionId() === undefined || cwd === undefined) void this.switchProvider(provider);
+    else void this.replaceEmptySession(cwd, provider);
+  }
+
+  /** An empty Session belongs to the old Provider: drop it, switch, and start the same folder's Session again. */
+  private async replaceEmptySession(cwd: string, provider: ProviderId): Promise<void> {
+    const old = this.sessionId ?? this.resumeFrom ?? this.selectedSessionId();
+    this.sessionId = undefined;
+    this.resumeFrom = undefined;
+    this.selectedSessionId.set(undefined);
+    if (old !== undefined) {
+      await this.runtime.run(
+        Effect.flatMap(DesktopApi, (desktop) =>
+          desktop['Chat.closeSession']({ sessionId: old }).pipe(
+            Effect.andThen(desktop['Sessions.delete']({ sessionId: old })),
+            Effect.ignore,
+          ),
+        ),
+      );
+    }
+    await this.switchProvider(provider);
+    // The new Provider is not available: the Session goes on with the one that is.
+    await this.startNewSession(cwd);
   }
 
   private async switchProvider(provider: ProviderId): Promise<void> {
@@ -476,6 +510,8 @@ export class ChatController {
   showTranscript(ref: TranscriptRef, cwd?: string, provider?: ProviderId): boolean {
     if (this.chat().running) return false;
     const load = ++this.transcriptLoad;
+    this.transcriptReady.set(false);
+    this.replaceable.set(ref.subagent === undefined);
     this.resetSession();
     // A Session keeps the Provider it was created with, so its next message goes to that Provider's Adapter.
     if (provider !== undefined && provider !== this.provider()) void this.switchProvider(provider);
@@ -484,8 +520,16 @@ export class ChatController {
     this.resumeCwd = ref.subagent === undefined ? cwd : undefined;
     void this.call(
       (desktop) => desktop['Sessions.history']({ ref }),
-      (history) => load === this.transcriptLoad && this.chat.set(chatStateFromHistory(history)),
-      (cause) => load === this.transcriptLoad && this.chat.set({ ...initialChatState, failure: Cause.pretty(cause) }),
+      (history) => {
+        if (load !== this.transcriptLoad) return;
+        this.chat.set(chatStateFromHistory(history));
+        this.transcriptReady.set(true);
+      },
+      (cause) => {
+        if (load !== this.transcriptLoad) return;
+        this.chat.set({ ...initialChatState, failure: Cause.pretty(cause) });
+        this.transcriptReady.set(true);
+      },
     );
     return true;
   }
@@ -517,6 +561,8 @@ export class ChatController {
       return { status: 'busy' };
     }
     this.transcriptLoad++;
+    this.transcriptReady.set(true);
+    this.replaceable.set(true);
     this.resetSession();
     this.sessionId = sessionId;
     this.selectedSessionId.set(sessionId);
@@ -535,6 +581,7 @@ export class ChatController {
   }
 
   clearChat(): void {
+    this.transcriptReady.set(true);
     this.transcriptLoad++;
     this.resetSession();
     this.selectedSessionId.set(undefined);
