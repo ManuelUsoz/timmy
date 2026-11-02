@@ -602,7 +602,7 @@ describe('Projects screen', () => {
       const { el, router, click, rowTitles, settle } = await setup({ backend });
       await click('Nuevo proyecto');
       expect(el.querySelector('[role=dialog]')).not.toBeNull();
-      expect(el.querySelector<HTMLButtonElement>('.footer-button:last-child')!.disabled).toBe(true);
+      expect(el.querySelector<HTMLButtonElement>('.actions .primary')!.disabled).toBe(true);
       await click('Examinar');
       expect(el.querySelector<HTMLInputElement>('#new-project-folder')!.value).toBe('/work/new');
       expect(el.querySelector('.detect')?.textContent).toContain('Repositorio detectado en la rama main.');
@@ -631,7 +631,7 @@ describe('Projects screen', () => {
       expect(el.querySelector('.dialog .note')?.textContent).toContain('Esa carpeta ya está en tu lista como timmy');
       expect(el.querySelector('.dialog .help.bad')?.textContent).toBe('Esta carpeta ya es un proyecto.');
       expect(el.querySelector('app-toast-host .toast')).toBeNull();
-      expect(el.querySelector<HTMLButtonElement>('.footer-button:last-child')!.disabled).toBe(true);
+      expect(el.querySelector<HTMLButtonElement>('.actions .primary')!.disabled).toBe(true);
     });
 
     it('offers to initialize git in a folder without it, and only then allows creating', async () => {
@@ -640,7 +640,7 @@ describe('Projects screen', () => {
       await click('Nuevo proyecto');
       await click('Examinar');
       expect(el.querySelector('.detect')?.textContent).toContain('no es un repositorio git');
-      expect(el.querySelector<HTMLButtonElement>('.footer-button:last-child')!.disabled).toBe(true);
+      expect(el.querySelector<HTMLButtonElement>('.actions .primary')!.disabled).toBe(true);
       await click('Inicializar git');
       expect(backend.calls).toContain('Projects.initGit:/work/plain');
       expect(el.querySelector('.detect')?.textContent).toContain('Repositorio detectado en la rama master.');
@@ -667,7 +667,7 @@ describe('Projects screen', () => {
       await click('Inicializar git');
       expect(el.querySelector('.dialog .note')?.textContent).toContain('Git no está instalado');
       expect(el.querySelector('app-toast-host .toast')).toBeNull();
-      expect(el.querySelector<HTMLButtonElement>('.footer-button:last-child')!.disabled).toBe(true);
+      expect(el.querySelector<HTMLButtonElement>('.actions .primary')!.disabled).toBe(true);
     });
 
     it('keeps the dialog as it was when the user cancels the folder picker, and closes with Cancelar', async () => {
@@ -682,7 +682,7 @@ describe('Projects screen', () => {
     it('closes with Escape', async () => {
       const { el, click, settle } = await setup();
       await click('Nuevo proyecto');
-      el.querySelector('app-new-project-dialog')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
       await settle();
       expect(el.querySelector('[role=dialog]')).toBeNull();
     });

@@ -93,7 +93,7 @@ const drop = (page: Page, files: Fixture[]) => dispatch(page, 'drop', files);
 
 const thumbs = (t: Timmy) => t.page.locator('ul.images li.image');
 const sendButton = (t: Timmy) => t.page.getByRole('button', { name: 'Send' });
-const errorModal = (t: Timmy) => t.page.getByRole('dialog', { name: 'Could not attach' });
+const errorModal = (t: Timmy) => t.page.getByRole('alertdialog', { name: 'Could not attach' });
 const attachButton = (t: Timmy) => t.page.getByRole('button', { name: 'Attach' });
 const BLOCKED = 'This model does not take images. Remove the images or choose another model.';
 
@@ -220,7 +220,7 @@ test('an unsupported file type is rejected with a modal', async ({ timmy }) => {
   // look: "Could not attach" modal saying to use PNG, JPEG, GIF or WebP.
   await timmy.shot('attachments-error-unsupported');
 
-  await timmy.page.getByRole('button', { name: 'Close', exact: true }).click();
+  await timmy.page.getByRole('button', { name: 'Close', exact: true }).first().click();
   await expect(errorModal(timmy)).toBeHidden();
 });
 
@@ -345,7 +345,7 @@ test.fixme('cancelling the image-only confirmation keeps the draft (Close, Esc, 
     await sendButton(timmy).click();
     const modal = timmy.page.getByRole('dialog', { name: 'Send without text?' });
     await expect(modal).toBeVisible();
-    if (cancel === 'close') await timmy.page.getByRole('button', { name: 'Close', exact: true }).click();
+    if (cancel === 'close') await timmy.page.getByRole('button', { name: 'Close', exact: true }).first().click();
     else if (cancel === 'escape') await timmy.page.keyboard.press('Escape');
     else await timmy.page.locator('ui-modal .backdrop').click({ position: { x: 4, y: 4 }, force: true });
     await expect(modal).toBeHidden();
@@ -420,10 +420,4 @@ test.fixme('removed and unsent attachments are cleaned up', async ({ timmy }) =>
   // attachments dir in app data holds no files for it. Needs a fixture hook to restart the app.
   await timmy.openPanel();
   await paste(timmy.page, [image(0)]);
-});
-
-// ---- NXY-81: chore (not implemented yet) -------------------------------------------------------
-
-test.fixme('NXY-81 chore: placeholder until the ticket defines user-visible behavior', async ({ timmy }) => {
-  await timmy.openPanel();
 });

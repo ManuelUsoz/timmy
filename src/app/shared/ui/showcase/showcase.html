@@ -422,7 +422,7 @@
     <button uiButton kind="secondary" type="button" (click)="modalOpen.set(true)">Open modal</button>
   </div>
   @if (modalOpen()) {
-    <ui-modal heading="Send without text?" primaryLabel="Send anyway" closeLabel="Close" (primary)="modalOpen.set(false)" (closed)="modalOpen.set(false)">
+    <ui-modal heading="Send without text?" primaryLabel="Send anyway" closeLabel="Close" stateLabel="Info" (primary)="modalOpen.set(false)" (closed)="modalOpen.set(false)">
       Your message has only images.
     </ui-modal>
   }

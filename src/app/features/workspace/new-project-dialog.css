@@ -1,64 +1,5 @@
-:host {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 120px;
-}
-
-.overlay {
-  position: absolute;
-  inset: 0;
-  background: var(--overlay);
-}
-
-.dialog {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-  width: min(560px, calc(100vw - 2 * var(--spacing-05)));
-  max-height: calc(100vh - 2 * var(--spacing-05));
-  overflow-y: auto;
-  background: var(--layer-02);
-  box-shadow: var(--shadow-overlay);
-}
-
-.header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: var(--spacing-06) var(--spacing-03) 0 var(--spacing-07);
-}
-
-h2 {
+.detail {
   margin: 0;
-  font: var(--text-heading-03);
-  letter-spacing: 0;
-}
-
-.header p {
-  max-width: 440px;
-  margin: var(--spacing-03) 0 0;
-  font: var(--text-body-01);
-  color: var(--text-secondary);
-}
-
-.close {
-  flex: none;
-  width: var(--control-lg);
-  height: var(--control-lg);
-  margin-top: calc(-1 * var(--spacing-03));
-  color: var(--text-primary);
-}
-
-.body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-06);
-  padding: var(--spacing-07);
 }
 
 .field {
@@ -151,7 +92,6 @@ h2 {
   gap: var(--spacing-04);
   padding: var(--spacing-04);
   border: 1px solid var(--support-error);
-  border-inline-start-width: 3px;
   background: var(--layer-01);
 }
 
@@ -177,15 +117,4 @@ h2 {
   font: var(--text-helper-text-01);
   letter-spacing: 0.32px;
   color: var(--text-secondary);
-}
-
-.footer {
-  display: flex;
-  height: 64px;
-}
-
-.footer-button {
-  flex: 1;
-  height: 64px;
-  justify-content: flex-start;
 }

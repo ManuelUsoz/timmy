@@ -4,6 +4,7 @@ import {
   DestroyRef,
   ElementRef,
   afterNextRender,
+  booleanAttribute,
   inject,
   input,
   output,
@@ -13,30 +14,48 @@ import { ButtonComponent } from '../button/button';
 
 let nextId = 0;
 
+export type ModalTone = 'info' | 'error';
+export type ModalSize = 'md' | 'sm' | 'lg';
+
 const focusable = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
- * A confirmation surface laid over the window's content: the backdrop dims and blurs what is behind it.
- * It is presentational. The caller owns whether it is open (render it with `@if`) and supplies the
- * already-translated texts. Esc, the close button and a click on the backdrop all emit `closed`; the
- * primary button emits `primary`. Focus starts on the primary button, stays inside, and goes back to
- * where it was when the modal closes.
+ * A blocking dialog laid over the window's content: the backdrop dims and blurs what is behind it. It asks for
+ * one decision or reports one thing, with the state word (`stateLabel`, so colour is never the only cue) over the
+ * title, the content as the body, and exactly two buttons: Close on the left, one primary action on the right.
+ * `tone="error"` is an alert dialog. It is presentational. The caller owns whether it is open (render it with
+ * `@if`) and supplies the already-translated texts. Esc, the cross, Close and a click on the backdrop all emit
+ * `closed`; the primary button emits `primary`. Focus starts on the primary button (or, while it is disabled, on
+ * the first button of the body), stays inside, and goes back to where it was when the modal closes.
  */
 @Component({
   selector: 'ui-modal',
   imports: [ButtonComponent],
   template: `
     <div class="backdrop" aria-hidden="true" (click)="closed.emit()"></div>
-    <div #dialog class="dialog" role="dialog" aria-modal="true" [attr.aria-labelledby]="titleId" (keydown)="onKeydown($event)">
+    <div
+      #dialog
+      class="dialog"
+      [class.info]="tone() === 'info'"
+      [class.error]="tone() === 'error'"
+      [class.sm]="size() === 'sm'"
+      [class.lg]="size() === 'lg'"
+      [attr.role]="tone() === 'error' ? 'alertdialog' : 'dialog'"
+      aria-modal="true"
+      [attr.aria-labelledby]="titleId"
+      (keydown)="onKeydown($event)"
+    >
       <div class="header">
+        <span class="state"><i class="dot"></i>{{ stateLabel() }}</span>
         <h2 [id]="titleId">{{ heading() }}</h2>
-        <button uiButton kind="ghost" iconOnly type="button" class="close" [attr.aria-label]="closeLabel()" (click)="closed.emit()">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
-        </button>
       </div>
-      <div class="body"><ng-content /></div>
+      <button uiButton kind="ghost" neutral iconOnly type="button" class="close" [attr.aria-label]="closeLabel()" (click)="closed.emit()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+      </button>
+      <div #body class="body"><ng-content /></div>
       <div class="actions">
-        <button #primaryButton uiButton kind="primary" type="button" (click)="primary.emit()">{{ primaryLabel() }}</button>
+        <button #dismissButton uiButton kind="secondary" type="button" class="dismiss" (click)="closed.emit()">{{ dismissLabel() ?? closeLabel() }}</button>
+        <button #primaryButton uiButton kind="primary" type="button" class="primary" [disabled]="primaryDisabled()" (click)="primary.emit()">{{ primaryLabel() }}</button>
       </div>
     </div>
   `,
@@ -48,6 +67,12 @@ export class ModalComponent {
   readonly heading = input.required<string>();
   readonly primaryLabel = input.required<string>();
   readonly closeLabel = input.required<string>();
+  /** The text of the footer Close button when it should differ from the cross's label, so the two do not share a name. */
+  readonly dismissLabel = input<string>();
+  readonly stateLabel = input.required<string>();
+  readonly tone = input<ModalTone>('info');
+  readonly size = input<ModalSize>('md');
+  readonly primaryDisabled = input(false, { transform: booleanAttribute });
 
   readonly primary = output<void>();
   readonly closed = output<void>();
@@ -55,12 +80,24 @@ export class ModalComponent {
   protected readonly titleId = `ui-modal-title-${nextId++}`;
 
   private readonly dialog = viewChild.required<ElementRef<HTMLElement>>('dialog');
+  private readonly body = viewChild.required<ElementRef<HTMLElement>>('body');
   private readonly primaryButton = viewChild.required('primaryButton', { read: ElementRef<HTMLButtonElement> });
+  private readonly dismissButton = viewChild.required('dismissButton', { read: ElementRef<HTMLButtonElement> });
   private readonly opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
   constructor() {
-    afterNextRender(() => this.primaryButton().nativeElement.focus());
+    afterNextRender(() => this.focusFirst());
     inject(DestroyRef).onDestroy(() => this.opener?.focus());
+  }
+
+  private focusFirst(): void {
+    const primary = this.primaryButton().nativeElement;
+    if (!primary.disabled) {
+      primary.focus();
+      return;
+    }
+    const body = this.body().nativeElement;
+    (body.querySelector<HTMLElement>('button:not([disabled])') ?? body.querySelector<HTMLElement>(focusable) ?? this.dismissButton().nativeElement).focus();
   }
 
   protected onEscape(event: Event): void {

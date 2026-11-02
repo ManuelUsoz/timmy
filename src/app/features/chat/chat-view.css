@@ -604,3 +604,7 @@ pre {
   text-align: center;
   cursor: default;
 }
+
+ui-modal p {
+  margin: 0;
+}

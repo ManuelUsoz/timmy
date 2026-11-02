@@ -17,45 +17,87 @@
 }
 
 .dialog {
+  --tone: var(--support-info);
   position: relative;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  width: min(400px, 100%);
+  width: min(448px, 100%);
   max-height: 100%;
-  overflow-y: auto;
   background: var(--layer-02);
+  color: var(--text-primary);
   box-shadow: var(--shadow-overlay);
+}
+
+.dialog.error {
+  --tone: var(--support-error);
+}
+
+.dialog.lg {
+  width: min(560px, 100%);
+}
+
+.dialog.sm {
+  width: min(320px, 100%);
 }
 
 .header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: var(--spacing-05) var(--spacing-03) 0 var(--spacing-05);
+  flex-direction: column;
+  gap: var(--spacing-02);
+  padding: var(--spacing-05) calc(var(--control-md) + var(--spacing-03)) 0 var(--spacing-05);
+}
+
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 11px/16px var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--tone);
 }
 
 h2 {
-  margin: var(--spacing-02) 0 0;
-  font: var(--text-heading-03);
+  margin: 0;
+  font: 600 16px/22px var(--font-sans);
   letter-spacing: 0;
 }
 
 .close {
-  flex: none;
-  width: var(--control-lg);
-  height: var(--control-lg);
-  color: var(--text-primary);
+  position: absolute;
+  top: 0;
+  right: 0;
 }
 
 .body {
-  padding: var(--spacing-03) var(--spacing-05) var(--spacing-05);
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-04);
+  padding: var(--spacing-04) var(--spacing-05) var(--spacing-07);
   font: var(--text-body-01);
   color: var(--text-secondary);
 }
 
 .actions {
-  display: flex;
-  justify-content: flex-end;
-  padding: 0 var(--spacing-05) var(--spacing-05);
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.actions .as-btn {
+  align-items: flex-start;
+  justify-content: flex-start;
+  height: 64px;
+  padding: var(--spacing-05);
 }

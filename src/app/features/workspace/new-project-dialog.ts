@@ -1,13 +1,10 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  ElementRef,
-  afterNextRender,
   computed,
   inject,
   output,
   signal,
-  viewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Effect, Exit } from 'effect';
@@ -19,6 +16,7 @@ import { EffectRuntime } from '../../core/effect-runtime';
 import { I18n } from '../../core/i18n';
 import { ToastService } from '../../core/toast';
 import { ButtonComponent } from '../../shared/ui/button/button';
+import { ModalComponent } from '../../shared/ui/modal/modal';
 import { StateComponent } from '../../shared/ui/state/state';
 import { TextInputComponent } from '../../shared/ui/text-input/text-input';
 
@@ -46,11 +44,10 @@ const folderName = (folder: string): string => folder.split(/[\\/]/).filter(Bool
  */
 @Component({
   selector: 'app-new-project-dialog',
-  imports: [FormsModule, ButtonComponent, StateComponent, TextInputComponent],
+  imports: [FormsModule, ButtonComponent, ModalComponent, StateComponent, TextInputComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './new-project-dialog.html',
   styleUrl: './new-project-dialog.css',
-  host: { '(keydown.escape)': 'closed.emit()' },
 })
 export class NewProjectDialog {
   private readonly runtime = inject(EffectRuntime);
@@ -59,8 +56,6 @@ export class NewProjectDialog {
 
   readonly closed = output<void>();
   readonly created = output<Project>();
-
-  private readonly browseEl = viewChild('browseButton', { read: ElementRef<HTMLButtonElement> });
 
   protected readonly inspection = signal<Inspection>({ status: 'idle' });
   protected readonly name = signal('');
@@ -105,9 +100,11 @@ export class NewProjectDialog {
     }
   });
 
-  constructor() {
-    afterNextRender(() => this.browseEl()?.nativeElement.focus());
-  }
+  /** The one note the dialog shows: the folder is already a project, or why the last action failed. */
+  protected readonly noteText = computed(() => {
+    const existing = this.existingName();
+    return existing === null ? this.failureText() : this.i18n.t('newProject.duplicate', { name: existing });
+  });
 
   /** Runs a Projects call and turns its typed failure into data. `null` means the call itself broke (a defect, or no bridge). */
   private attempt<A>(
