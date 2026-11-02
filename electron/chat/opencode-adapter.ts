@@ -9,7 +9,7 @@ import { type HistoryItem, ProviderSessionId } from '../../src/shared/sessions/s
 import { SessionRepo, type TranscriptEntry } from '../sessions/session-repo';
 import { rootAgentId, zeroUsage } from './claude-event-mapper';
 import { OpenCodeBackend, type OpenCodeClient } from './opencode-backend';
-import { buildAsk, describeTool, optionFor, replyFor, rulesFor } from './opencode-mapper';
+import { buildAsk, describeTool, effortsOf, optionFor, replyFor, rulesFor, variantFor } from './opencode-mapper';
 import type { ToolCall } from '../../src/shared/chat/tool-call.model';
 import type { SdkAdapter } from './sdk-adapter';
 import { makeSessionOps } from './session-ops';
@@ -128,13 +128,24 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
     function* (options, ids) {
       const client = yield* requireClient;
       const mode = options.permissionMode;
+      const variant = variantFor(options.effort);
       if (mode === 'Plan') {
         return yield* new ChatError({ reason: 'Unsupported', detail: 'OpenCode has no plan agent, so Plan mode is not available' });
+      }
+      if (variant !== undefined) {
+        const offered = effortsOf((yield* client.models).find((m) => m.id === options.model)?.variants ?? []);
+        if (!offered.includes(options.effort ?? 'Default')) {
+          return yield* new ChatError({
+            reason: 'Unsupported',
+            detail: `${options.model ?? 'OpenCode'} does not offer effort ${options.effort}`,
+          });
+        }
       }
       const providerSessionId = ProviderSessionId.make(
         yield* client.createSession({
           cwd: options.cwd,
           ...(options.model === undefined ? {} : { model: options.model }),
+          ...(variant === undefined ? {} : { variant }),
           permissions: rulesFor(mode),
         }),
       );
@@ -280,7 +291,7 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
     shutdown: stop,
     models: requireClient.pipe(
       Effect.flatMap((client) => client.models),
-      Effect.map((models) => models.map(({ id }): ModelInfo => ({ id, efforts: ['Default'] }))),
+      Effect.map((models) => models.map(({ id, variants }): ModelInfo => ({ id, efforts: effortsOf(variants) }))),
     ),
     listCommands: () => Effect.succeed([]),
     startSession,

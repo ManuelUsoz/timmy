@@ -203,15 +203,18 @@ const makeClient = (server: ServerClient): OpenCodeClient => ({
     try: () => server.model.list({ location: { directory: MODEL_LIST_DIRECTORY } }),
     catch: (cause) => unreachable(`OpenCode could not list its models: ${String(cause)}`),
   }).pipe(
-    Effect.map(({ data }) => data.filter((model) => model.enabled).map((model) => ({ id: `${model.providerID}/${model.id}` }))),
+    Effect.map(({ data }) => data.filter((model) => model.enabled).map((model) => ({
+      id: `${model.providerID}/${model.id}`,
+      variants: model.variants.map((variant) => String(variant.id)),
+    }))),
   ),
-  createSession: ({ cwd, model, permissions }) =>
+  createSession: ({ cwd, model, variant, permissions }) =>
     Effect.gen(function* () {
       const ref = model === undefined ? undefined : yield* modelRef(model);
       const session = yield* Effect.tryPromise({
         try: () => server.session.create({
             location: { directory: cwd },
-            ...(ref === undefined ? {} : { model: ref }),
+            ...(ref === undefined ? {} : { model: variant === undefined ? ref : { ...ref, variant } }),
             permissions: [...permissions],
           }),
         catch: (cause) => unreachable(`OpenCode could not open a session: ${String(cause)}`),

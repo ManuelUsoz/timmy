@@ -105,11 +105,11 @@ describe('OpenCodeAdapter', () => {
   itRepo('runs one server for its lifetime, lists its models as vendor/model, and stops it on shutdown', () =>
     Effect.gen(function* () {
       const log = yield* makeServerLog;
-      const models = [{ id: 'anthropic/claude-opus-5-5' }, { id: 'opencode/big-pickle' }];
+      const models = [{ id: 'anthropic/claude-opus-5-5', variants: ['low', 'high', 'max', 'xhigh'] }, { id: 'opencode/big-pickle', variants: [] }];
       const adapter = yield* makeOpenCodeAdapter.pipe(Effect.provide(layerBackend(log, fakeClient(models))));
       yield* adapter.startup;
       expect(yield* adapter.models).toEqual([
-        { id: 'anthropic/claude-opus-5-5', efforts: ['Default'] },
+        { id: 'anthropic/claude-opus-5-5', efforts: ['Default', 'Low', 'High', 'XHigh'] },
         { id: 'opencode/big-pickle', efforts: ['Default'] },
       ]);
       expect(yield* Ref.get(log.started)).toBe(1);
@@ -118,10 +118,38 @@ describe('OpenCodeAdapter', () => {
       expect(yield* Ref.get(log.stopped)).toBe(1);
     }));
 
+  itRepo('opens the session with the variant that matches the chosen effort', () =>
+    Effect.gen(function* () {
+      const log = yield* makeServerLog;
+      const seen = yield* Ref.make<ReadonlyArray<string | undefined>>([]);
+      const client = fakeClient([{ id: 'opencode/big-pickle', variants: ['high'] }], undefined, undefined, undefined, (o) =>
+        Ref.modify(seen, (all) => [`oc-${all.length}`, [...all, o.variant]]),
+      );
+      yield* readySession(log, client, { ...options, model: 'opencode/big-pickle', effort: 'High' });
+      yield* readySession(log, client, { ...options, model: 'opencode/big-pickle', effort: 'Default' });
+      expect(yield* Ref.get(seen)).toEqual(['high', undefined]);
+    }));
+
+  itRepo('refuses an effort the model does not offer instead of opening the session', () =>
+    Effect.gen(function* () {
+      const log = yield* makeServerLog;
+      const opened = yield* Ref.make(0);
+      const client = fakeClient([{ id: 'opencode/big-pickle', variants: ['high'] }], undefined, undefined, undefined, () =>
+        Ref.update(opened, (n) => n + 1).pipe(Effect.as('oc-session')),
+      );
+      const adapter = yield* makeOpenCodeAdapter.pipe(Effect.provide(layerBackend(log, client)));
+      yield* adapter.startup;
+      const error = yield* adapter
+        .startSession({ ...options, model: 'opencode/big-pickle', effort: 'XHigh' }, { sessionId: SessionId.make(randomUUID()) })
+        .pipe(Effect.flip);
+      expect(error).toMatchObject({ reason: 'Unsupported', detail: 'opencode/big-pickle does not offer effort XHigh' });
+      expect(yield* Ref.get(opened)).toBe(0);
+    }));
+
   itRepo('has no models before it is started', () =>
     Effect.gen(function* () {
       const log = yield* makeServerLog;
-      const adapter = yield* makeOpenCodeAdapter.pipe(Effect.provide(layerBackend(log, fakeClient([{ id: 'a/b' }]))));
+      const adapter = yield* makeOpenCodeAdapter.pipe(Effect.provide(layerBackend(log, fakeClient([{ id: 'a/b', variants: [] }]))));
       const error = yield* adapter.models.pipe(Effect.flip);
       expect(error.reason).toBe('AdapterNotReady');
     }));
@@ -146,7 +174,7 @@ describe('OpenCodeAdapter', () => {
     Effect.gen(function* () {
       const log = yield* makeServerLog;
       const client = fakeClient(
-        [{ id: 'opencode/big-pickle' }],
+        [{ id: 'opencode/big-pickle', variants: [] }],
         script({ _tag: 'TextDelta', text: 'Hel' }, { _tag: 'TextDelta', text: 'lo' }, { _tag: 'Idle' }),
       );
       const { adapter, sessionId, providerSessionId } = yield* readySession(log, client);
@@ -170,7 +198,7 @@ describe('OpenCodeAdapter', () => {
     Effect.gen(function* () {
       const log = yield* makeServerLog;
       const client = fakeClient(
-        [{ id: 'opencode/big-pickle' }],
+        [{ id: 'opencode/big-pickle', variants: [] }],
         script({ _tag: 'TextDelta', text: 'Par' }, { _tag: 'Failed', detail: 'Rate limit reached' }),
       );
       const { adapter, sessionId } = yield* readySession(log, client);
@@ -192,7 +220,7 @@ describe('OpenCodeAdapter', () => {
       const speaking = yield* Deferred.make<void>();
       const interrupted = yield* Ref.make<ReadonlyArray<string>>([]);
       const client = fakeClient(
-        [{ id: 'opencode/big-pickle' }],
+        [{ id: 'opencode/big-pickle', variants: [] }],
         () =>
           Stream.make<OpenCodeEvent[]>({ _tag: 'TextDelta', text: 'Thinking...' }).pipe(
             Stream.tap(() => Deferred.succeed(speaking, undefined)),
@@ -265,7 +293,7 @@ describe('OpenCodeAdapter', () => {
     Effect.gen(function* () {
       const log = yield* makeServerLog;
       const speaking = yield* Deferred.make<void>();
-      const client = fakeClient([{ id: 'opencode/big-pickle' }], () =>
+      const client = fakeClient([{ id: 'opencode/big-pickle', variants: [] }], () =>
         Stream.make<OpenCodeEvent[]>({ _tag: 'TextDelta', text: 'Half an ans' }).pipe(Stream.concat(Stream.never)),
       );
       const { adapter, sessionId } = yield* readySession(log, client);
@@ -289,7 +317,7 @@ describe('OpenCodeAdapter', () => {
   itRepo('forgets its open sessions when it starts again, since the new server does not know them', () =>
     Effect.gen(function* () {
       const log = yield* makeServerLog;
-      const { adapter, sessionId } = yield* readySession(log, fakeClient([{ id: 'opencode/big-pickle' }]));
+      const { adapter, sessionId } = yield* readySession(log, fakeClient([{ id: 'opencode/big-pickle', variants: [] }]));
 
       yield* adapter.startup;
 
@@ -302,7 +330,7 @@ describe('OpenCodeAdapter', () => {
       Effect.gen(function* () {
         const log = yield* makeServerLog;
         const client = fakeClient(
-          [{ id: 'opencode/big-pickle' }],
+          [{ id: 'opencode/big-pickle', variants: [] }],
           script(
             { _tag: 'Tool', tool: { id: 't1', name: 'bash', input: {}, status: 'Pending' } },
             { _tag: 'Tool', tool: { id: 't1', name: 'bash', input: { command: 'ls' }, status: 'Running' } },
@@ -320,14 +348,14 @@ describe('OpenCodeAdapter', () => {
         );
         expect(calls.map((call) => call.status)).toEqual(['Pending', 'Running', 'Completed']);
         expect(new Set(calls.map((call) => call.id)).size).toBe(1);
-        expect(calls.at(-1)).toMatchObject({ name: 'bash', kind: 'Execute', title: 'Run ls', output: 'a.txt' });
+        expect(calls.at(-1)).toMatchObject({ name: 'Shell', kind: 'Execute', title: 'Shell ls', output: 'a.txt' });
       }));
 
     itRepo('shows a failed tool call as Failed with what OpenCode said', () =>
       Effect.gen(function* () {
         const log = yield* makeServerLog;
         const client = fakeClient(
-          [{ id: 'opencode/big-pickle' }],
+          [{ id: 'opencode/big-pickle', variants: [] }],
           script(
             { _tag: 'Tool', tool: { id: 't1', name: 'read', input: { filePath: '/work/x.ts' }, status: 'Running' } },
             { _tag: 'Tool', tool: { id: 't1', name: 'read', input: { filePath: '/work/x.ts' }, status: 'Failed', output: 'no such file' } },
@@ -347,12 +375,34 @@ describe('OpenCodeAdapter', () => {
         });
       }));
 
+    itRepo('names known tools like Claude does and keeps the native name of any other', () =>
+      Effect.gen(function* () {
+        const log = yield* makeServerLog;
+        const client = fakeClient(
+          [{ id: 'opencode/big-pickle', variants: [] }],
+          script(
+            { _tag: 'Tool', tool: { id: 't1', name: 'read', input: { filePath: '/work/x.ts' }, status: 'Running' } },
+            { _tag: 'Tool', tool: { id: 't2', name: 'github_search', input: {}, status: 'Running' } },
+            { _tag: 'Idle' },
+          ),
+        );
+        const { adapter, sessionId } = yield* readySession(log, client);
+
+        const events = yield* say(adapter, sessionId, 'go');
+
+        const calls = events.flatMap((event) => (event._tag === 'ToolCallStarted' ? [event.call] : []));
+        expect(calls).toMatchObject([
+          { name: 'Read', kind: 'Read', title: 'Read /work/x.ts' },
+          { name: 'github_search', kind: 'Other', title: 'github_search' },
+        ]);
+      }));
+
     itRepo('carries the diff of an edit', () =>
       Effect.gen(function* () {
         const log = yield* makeServerLog;
         const input = { filePath: '/work/a.ts', oldString: 'let a', newString: 'const a' };
         const client = fakeClient(
-          [{ id: 'opencode/big-pickle' }],
+          [{ id: 'opencode/big-pickle', variants: [] }],
           script({ _tag: 'Tool', tool: { id: 't1', name: 'edit', input, status: 'Running' } }, { _tag: 'Idle' }),
         );
         const { adapter, sessionId } = yield* readySession(log, client);
@@ -371,7 +421,7 @@ describe('OpenCodeAdapter', () => {
     /** A turn that asks once, waits for the reply, and finishes; the fake server echoes the reply back as OpenCode does. */
     const askingClient = (replies: Ref.Ref<ReadonlyArray<string>>, reply: Deferred.Deferred<PermissionReply>) =>
       fakeClient(
-        [{ id: 'opencode/big-pickle' }],
+        [{ id: 'opencode/big-pickle', variants: [] }],
         () =>
           Stream.make<OpenCodeEvent[]>(
             { _tag: 'Tool', tool: { id: 't1', name: 'bash', input: { command: 'rm x' }, status: 'Pending' } },
@@ -419,7 +469,7 @@ describe('OpenCodeAdapter', () => {
 
         expect(request).toMatchObject({
           id: 'p1',
-          toolCall: { id: 't1', kind: 'Execute', name: 'bash' },
+          toolCall: { id: 't1', kind: 'Execute', name: 'Shell' },
           options: [{ kind: 'AllowOnce' }, { kind: 'RejectOnce' }],
         });
         expect(request.options.map((option) => option.kind)).toEqual(['AllowOnce', 'RejectOnce']);
@@ -453,7 +503,7 @@ describe('OpenCodeAdapter', () => {
     itRepo('refuses an answer to an Ask that is not waiting', () =>
       Effect.gen(function* () {
         const log = yield* makeServerLog;
-        const { adapter, sessionId } = yield* readySession(log, fakeClient([{ id: 'opencode/big-pickle' }]));
+        const { adapter, sessionId } = yield* readySession(log, fakeClient([{ id: 'opencode/big-pickle', variants: [] }]));
         const error = yield* adapter
           .resolvePermission(sessionId, { _tag: 'Cancelled', requestId: PermissionRequestId.make('nope') })
           .pipe(Effect.flip);
@@ -466,7 +516,7 @@ describe('OpenCodeAdapter', () => {
         const gate = yield* Deferred.make<void>();
         const asked = yield* Deferred.make<void>();
         const client = fakeClient(
-          [{ id: 'opencode/big-pickle' }],
+          [{ id: 'opencode/big-pickle', variants: [] }],
           () =>
             Stream.make<OpenCodeEvent[]>({ _tag: 'PermissionAsked', id: 'p1', action: 'bash', resources: ['rm x'] }).pipe(
               Stream.tap(() => Deferred.succeed(asked, undefined)),
@@ -499,7 +549,7 @@ describe('OpenCodeAdapter', () => {
       Effect.gen(function* () {
         const log = yield* makeServerLog;
         const opened = yield* Ref.make<ReadonlyArray<OpenCodePermissionRule>>([]);
-        const client = fakeClient([{ id: 'opencode/big-pickle' }], undefined, undefined, undefined, ({ permissions }) =>
+        const client = fakeClient([{ id: 'opencode/big-pickle', variants: [] }], undefined, undefined, undefined, ({ permissions }) =>
           Ref.set(opened, permissions).pipe(Effect.as('oc-session')),
         );
         yield* readySession(log, client, { ...options, permissionMode: mode });
@@ -534,7 +584,7 @@ describe('OpenCodeAdapter', () => {
     itRepo('refuses Plan, which is not offered because OpenCode 2 has no plan agent to run it faithfully', () =>
       Effect.gen(function* () {
         const log = yield* makeServerLog;
-        const adapter = yield* makeOpenCodeAdapter.pipe(Effect.provide(layerBackend(log, fakeClient([{ id: 'a/b' }]))));
+        const adapter = yield* makeOpenCodeAdapter.pipe(Effect.provide(layerBackend(log, fakeClient([{ id: 'a/b', variants: [] }]))));
         yield* adapter.startup;
         expect(adapter.capabilities.permissionModes).not.toContain('Plan');
         const error = yield* adapter

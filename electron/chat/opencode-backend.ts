@@ -4,6 +4,8 @@ import { ChatError } from '../../src/shared/chat/chat-error.model';
 /** A model the user has configured in OpenCode. `id` is `vendor/model`. */
 export interface OpenCodeModel {
   readonly id: string;
+  /** The names of the variants OpenCode offers for this model (its reasoning levels); empty when it has none. */
+  readonly variants: ReadonlyArray<string>;
 }
 
 /** Where a tool call is in OpenCode's own lifecycle. */
@@ -51,6 +53,8 @@ export interface OpenCodeClient {
   readonly createSession: (options: {
     readonly cwd: string;
     readonly model?: string;
+    /** One of the model's variants; absent means the model's own default. */
+    readonly variant?: string;
     readonly permissions: ReadonlyArray<OpenCodePermissionRule>;
   }) => Effect.Effect<string, ChatError>;
   /** Subscribes to the session's events, then sends the prompt. The stream ends after `Idle` or `Failed`. */

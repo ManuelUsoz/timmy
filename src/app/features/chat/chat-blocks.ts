@@ -24,6 +24,10 @@ const targetOf = (call: ToolCall): string => {
   return /^(?:[A-Za-z]:)?[\\/]\S*$/.test(rest) ? (rest.split(/[\\/]/).filter(Boolean).at(-1) ?? rest) : rest;
 };
 
+/** What an Ask says it is about: the title already starts with the tool name, so the name is not said twice. */
+export const askTitleOf = (call: ToolCall): string =>
+  call.title.startsWith(call.name) ? call.title : `${call.name} ${call.title}`;
+
 const toolNode = (call: ToolCall): TreeNode => ({
   id: call.id,
   label: call.name,

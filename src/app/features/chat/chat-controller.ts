@@ -20,6 +20,7 @@ import type { CommandsState } from './slash-commands';
 import { entriesFromPaths, type FilesState } from './file-mentions';
 import { chatStateFromHistory } from '../sessions/history-state';
 import type { SessionSummary, TranscriptRef } from '../../../shared/sessions/sessions.model';
+import { describeCause } from '../../core/describe-cause';
 import { chatBlocks, sessionChips } from './chat-blocks';
 import { addUserMessage, groupByOwner, initialChatState, reduceChat, type ChatState } from './chat-state';
 
@@ -532,7 +533,7 @@ export class ChatController {
 
     void this.runtime.run(program).then((exit) => {
       if (Exit.isFailure(exit)) {
-        this.chat.update((state) => ({ ...state, running: false, failure: Cause.pretty(exit.cause) }));
+        this.chat.update((state) => ({ ...state, running: false, failure: describeCause(exit.cause) }));
       }
     });
   }

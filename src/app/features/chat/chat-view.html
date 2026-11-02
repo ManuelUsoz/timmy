@@ -173,7 +173,7 @@
 
 @if (chat().permission; as request) {
   <ui-ask-row
-    [title]="request.toolCall.name + ' ' + request.toolCall.title"
+    [title]="askTitleOf(request.toolCall)"
     (allow)="answer(request, 'Allow')"
     (deny)="answer(request, 'Deny')"
   />
