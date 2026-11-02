@@ -16,14 +16,16 @@ import { ChipStripComponent } from '../../shared/ui/chip-strip/chip-strip';
 import { MessageComponent } from '../../shared/ui/message/message';
 import { TreeViewComponent } from '../../shared/ui/tree-view/tree-view';
 import { SelectComponent } from '../../shared/ui/select/select';
+import { MenuComponent } from '../../shared/ui/menu/menu';
+import { OptionComponent } from '../../shared/ui/menu/option';
 import { ModelPickerComponent } from '../../shared/ui/model-picker/model-picker';
 import type { AttachmentId } from '../../../shared/attachments/attachment.model';
-import type { Effort } from '../../../shared/chat/provider.model';
+import type { Effort, ProviderId } from '../../../shared/chat/provider.model';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { TagComponent } from '../../shared/ui/tag/tag';
 import { ModalComponent } from '../../shared/ui/modal/modal';
 import { LightboxComponent } from '../../shared/ui/lightbox/lightbox';
-import { ProviderIconComponent } from '../../shared/ui/provider-icon/provider-icon';
+import { ProviderIconComponent, type Provider } from '../../shared/ui/provider-icon/provider-icon';
 import { AskRowComponent } from '../../shared/ui/ask-row/ask-row';
 import { I18n } from '../../core/i18n';
 import { baseName } from './file-mentions';
@@ -52,6 +54,8 @@ import { splitMentionText } from '../../../shared/chat/mention.model';
     ReactiveFormsModule,
     SelectComponent,
     ModelPickerComponent,
+    MenuComponent,
+    OptionComponent,
     ButtonComponent,
     TagComponent,
     StateComponent,
@@ -73,7 +77,7 @@ import { splitMentionText } from '../../../shared/chat/mention.model';
     '(drop)': 'onDrop($event)',
     '(dragend)': 'endDrag()',
     '(document:click)': 'onDocumentClick($event)',
-    '(keydown.escape)': 'attachMenuOpen.set(false)',
+    '(keydown.escape)': 'attachMenuOpen.set(false); providerMenuOpen.set(false)',
   },
 })
 export class ChatViewComponent {
@@ -151,8 +155,11 @@ export class ChatViewComponent {
   }
 
   protected onDocumentClick(event: Event): void {
-    if (!this.attachMenuOpen()) return;
     const target = event.target as Node | null;
+    if (this.providerMenuOpen() && !(target !== null && this.element.nativeElement.querySelector('.provider-wrap')?.contains(target))) {
+      this.providerMenuOpen.set(false);
+    }
+    if (!this.attachMenuOpen()) return;
     if (target !== null && this.element.nativeElement.querySelector('.attach-wrap')?.contains(target)) return;
     this.attachMenuOpen.set(false);
   }
@@ -183,6 +190,18 @@ export class ChatViewComponent {
   protected readonly effortControl = this.controller.effortControl;
   protected readonly permissionOptions = this.controller.permissionOptions;
   protected readonly permissionControl = this.controller.permissionControl;
+  protected readonly providerOptions = this.controller.providerOptions;
+  protected readonly providerError = this.controller.providerError;
+  protected readonly providerLocked = this.controller.providerLocked;
+  protected readonly provider = this.controller.provider;
+  protected readonly providerMenuOpen = signal(false);
+  protected readonly iconOf = (id: ProviderId): Provider => (id === 'OpenCode' ? 'opencode' : 'claude');
+  protected readonly providerIcon = computed(() => this.iconOf(this.controller.provider()));
+  protected readonly providerName = computed(() => this.providerOptions.find((o) => o.value === this.controller.provider())?.label ?? '');
+  protected pickProvider(id: unknown): void {
+    this.providerMenuOpen.set(false);
+    this.controller.setProvider(id as ProviderId);
+  }
   protected readonly segmentsOf = splitMentionText;
   /** The chip shows the file name; the full path is its tooltip. */
   protected readonly mentionName = baseName;
