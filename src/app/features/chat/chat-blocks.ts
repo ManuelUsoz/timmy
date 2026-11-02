@@ -3,7 +3,7 @@ import type { ToolCall } from '../../../shared/chat/tool-call.model';
 import type { SessionSummary } from '../../../shared/sessions/sessions.model';
 import type { ChipStripItem } from '../../shared/ui/chip-strip/chip-strip';
 import type { TreeNode } from '../../shared/ui/tree-view/tree-view.types';
-import type { ChatItem, ChatState } from './chat-state';
+import type { ChatItem, ChatState, TranscriptImage } from './chat-state';
 
 /** What the agent said or did, in order, inside one reply. */
 export type AgentPart =
@@ -12,7 +12,7 @@ export type AgentPart =
   | { readonly kind: 'Activity'; readonly nodes: ReadonlyArray<TreeNode> };
 
 export type ChatBlock =
-  | { readonly kind: 'User'; readonly text: string }
+  | { readonly kind: 'User'; readonly text: string; readonly images?: ReadonlyArray<TranscriptImage> }
   /** Everything the agent did between two user messages: one box, with its tools inside. */
   | { readonly kind: 'Agent'; readonly parts: ReadonlyArray<AgentPart> };
 
@@ -112,7 +112,7 @@ export const chatBlocks = (state: ChatState, groups: Groups): ReadonlyArray<Chat
       run.push(item);
     } else if (item.kind === 'User') {
       flushAgent();
-      blocks.push({ kind: 'User', text: item.text });
+      blocks.push({ kind: 'User', text: item.text, ...(item.images !== undefined ? { images: item.images } : {}) });
     } else {
       flushRun();
       parts.push({ kind: 'Text', text: item.text, thinking: item.thinking });

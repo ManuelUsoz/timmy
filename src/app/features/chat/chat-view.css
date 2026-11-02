@@ -437,7 +437,9 @@ pre {
 .attach-menu {
   position: absolute;
   bottom: calc(100% + var(--spacing-02));
-  left: 0;
+  /* Grows leftwards from the button: the button sits at the right end of the bar, so anchoring the left edge
+     pushed the menu past the window and made the Panel scroll sideways. */
+  right: 0;
   z-index: 3;
   display: flex;
   flex-direction: column;
@@ -471,4 +473,134 @@ pre {
   padding: var(--spacing-03) var(--spacing-04) 0;
   color: var(--text-error);
   font: var(--text-helper-text-01, var(--text-body-01));
+}
+
+/* The bar never scrolls sideways: it is a size container, so the model picker can drop its effort text and
+   ellipsize the model name when the Panel is narrow. */
+.composer-bar {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.composer-bar > ui-model-picker {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* The button that enlarges a draft thumbnail. */
+.image-open {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: zoom-in;
+}
+
+.image-open:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* Images of a sent message, above its text. */
+.message-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-03);
+  margin: 0 0 var(--spacing-03);
+  padding: 0;
+  list-style: none;
+}
+
+.message-image {
+  display: block;
+  width: 72px;
+  height: 72px;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--border-strong);
+  cursor: zoom-in;
+}
+
+.message-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.message-image:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.message-image-missing {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  padding: var(--spacing-02);
+  color: var(--text-secondary);
+  font: var(--text-label-01);
+  text-align: center;
+  cursor: default;
+}
+
+/* The button that enlarges a draft thumbnail. */
+.image-open {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: zoom-in;
+}
+
+.image-open:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* Images of a sent message, above its text. */
+.message-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-03);
+  margin: 0 0 var(--spacing-03);
+  padding: 0;
+  list-style: none;
+}
+
+.message-image {
+  display: block;
+  width: 72px;
+  height: 72px;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--border-strong);
+  cursor: zoom-in;
+}
+
+.message-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.message-image:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.message-image-missing {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  padding: var(--spacing-02);
+  color: var(--text-secondary);
+  font: var(--text-label-01);
+  text-align: center;
+  cursor: default;
 }

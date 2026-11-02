@@ -48,6 +48,9 @@ const ANSWER = [
 const EDIT_OLD = "export const startupMode: WindowMode = 'Pill';\n";
 const EDIT_NEW = "export const startupMode: WindowMode = 'Panel';\n";
 
+/** A 1x1 PNG, so the seeded history has a real image block to show. */
+const ONE_PIXEL_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
 /** Past conversations shown in the session strip. Newest first. */
 export const seededSessions: ReadonlyArray<{ readonly title: string; readonly items: ReadonlyArray<HistoryItem> }> = [
   {
@@ -68,7 +71,13 @@ export const seededSessions: ReadonlyArray<{ readonly title: string; readonly it
   {
     title: 'Why is the pill clipped?',
     items: [
-      { _tag: 'Message', role: 'User', text: 'Why is the pill clipped?' },
+      {
+        _tag: 'Message',
+        role: 'User',
+        text: 'Why is the pill clipped?',
+        // One image that is still in the transcript and one that could not be restored.
+        images: [{ _tag: 'Image', mediaType: 'image/png', data: ONE_PIXEL_PNG }, { _tag: 'Missing' }],
+      },
       { _tag: 'Message', role: 'Assistant', text: 'The menu was rendered inside the 40px window.' },
     ],
   },
@@ -88,6 +97,8 @@ export const makeMockSdkAdapter = Effect.gen(function* () {
     models: Effect.succeed([
       { id: MODEL, efforts: ['Default', 'Low', 'Medium', 'High'] },
       { id: 'mock-opus', efforts: ['Default', 'High', 'XHigh'] },
+      // Text-only model, used by the attachments e2e specs to exercise the image gate.
+      { id: 'mock-text', efforts: ['Default'], images: false },
     ]),
     listCommands: () =>
       Effect.succeed([

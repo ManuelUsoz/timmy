@@ -51,4 +51,62 @@ describe('claudeHistory', () => {
     ]);
     expect(history).toEqual([]);
   });
+
+  it('AC 3: rebuilds the images of a user message from the recorded image blocks', () => {
+    const history = claudeHistory([
+      entry({
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'look' },
+            { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } },
+            { type: 'image', source: { type: 'base64', media_type: 'image/webp', data: 'BBBB' } },
+          ],
+        },
+      }),
+    ]);
+    expect(history).toEqual([
+      {
+        _tag: 'Message',
+        role: 'User',
+        text: 'look',
+        images: [
+          { _tag: 'Image', mediaType: 'image/png', data: 'AAAA' },
+          { _tag: 'Image', mediaType: 'image/webp', data: 'BBBB' },
+        ],
+      },
+    ]);
+  });
+
+  it('AC 3: an image-only message keeps its images with empty text', () => {
+    const history = claudeHistory([
+      entry({
+        type: 'user',
+        message: { role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/gif', data: 'CCCC' } }] },
+      }),
+    ]);
+    expect(history).toEqual([{ _tag: 'Message', role: 'User', text: '', images: [{ _tag: 'Image', mediaType: 'image/gif', data: 'CCCC' }] }]);
+  });
+
+  it('AC 4: a bad image block becomes a placeholder and the rest of the history loads', () => {
+    const history = claudeHistory([
+      entry({
+        type: 'user',
+        message: {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'broken' },
+            { type: 'image', source: { type: 'url', url: 'https://x/y.png' } },
+            { type: 'image', source: { type: 'base64', media_type: 'image/bmp', data: 'DDDD' } },
+          ],
+        },
+      }),
+      entry({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'ok' }] } }),
+    ]);
+    expect(history).toEqual([
+      { _tag: 'Message', role: 'User', text: 'broken', images: [{ _tag: 'Missing' }, { _tag: 'Missing' }] },
+      { _tag: 'Message', role: 'Assistant', text: 'ok' },
+    ]);
+  });
 });

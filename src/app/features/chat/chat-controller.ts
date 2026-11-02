@@ -309,6 +309,9 @@ export class ChatController {
     }
   }
 
+  /** The image shown enlarged, if any. */
+  readonly lightbox = signal<string | undefined>(undefined);
+
   /** Takes the image out of the draft and deletes its stored file. */
   removeImage(id: AttachmentId): void {
     const image = this.images().find((candidate) => candidate.id === id);
@@ -330,7 +333,7 @@ export class ChatController {
     this.images.set([]);
     this.turnStartedAt.set(Date.now());
     this.now.set(Date.now());
-    this.chat.update((state) => ({ ...addUserMessage(state, text), running: true }));
+    this.chat.update((state) => ({ ...addUserMessage(state, text, sentImages.map(({ url }) => ({ url }))), running: true }));
 
     const apply = (event: ChatEvent) =>
       Effect.sync(() => {
@@ -350,7 +353,6 @@ export class ChatController {
       });
 
     const imagesUnsupported = this.i18n.t('chat.imagesUnsupported');
-    let restored = false;
     // No Turn started: take the message back out of the transcript and give the draft back.
     const rejectMentions = (detail: string) =>
       Effect.sync(() => {
@@ -358,7 +360,7 @@ export class ChatController {
         if (this.draft() === '') this.draft.set(draft);
         // The images are still stored, so they go back to the draft as they were.
         if (this.images().length === 0) this.images.set(sentImages);
-        restored = true;
+        else for (const image of sentImages) URL.revokeObjectURL(image.url);
       });
 
     const program = Effect.gen(function* () {
@@ -386,8 +388,6 @@ export class ChatController {
     });
 
     void this.runtime.run(program).then((exit) => {
-      // The thumbnails are done with unless they went back to the draft.
-      if (!restored) for (const image of sentImages) URL.revokeObjectURL(image.url);
       if (Exit.isFailure(exit)) {
         this.chat.update((state) => ({ ...state, running: false, failure: Cause.pretty(exit.cause) }));
       }

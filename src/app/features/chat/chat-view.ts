@@ -22,6 +22,7 @@ import type { Effort } from '../../../shared/chat/provider.model';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { TagComponent } from '../../shared/ui/tag/tag';
 import { ModalComponent } from '../../shared/ui/modal/modal';
+import { LightboxComponent } from '../../shared/ui/lightbox/lightbox';
 import { ProviderIconComponent } from '../../shared/ui/provider-icon/provider-icon';
 import { AskRowComponent } from '../../shared/ui/ask-row/ask-row';
 import { I18n } from '../../core/i18n';
@@ -58,6 +59,7 @@ import { splitMentionText } from '../../../shared/chat/mention.model';
     AskRowComponent,
     ChatStopped,
     ModalComponent,
+    LightboxComponent,
   ],
   selector: 'app-chat-view',
   templateUrl: './chat-view.html',
@@ -92,6 +94,7 @@ export class ChatViewComponent {
   protected readonly chat = this.controller.chat;
   protected readonly draft = this.controller.draft;
   protected readonly images = this.controller.images;
+  protected readonly lightbox = this.controller.lightbox;
   protected readonly addImages = (files: ReadonlyArray<File>) => this.controller.addImages(files);
   protected readonly attachErrors = this.controller.attachErrors;
   protected readonly imagesAllowed = this.controller.imagesAllowed;

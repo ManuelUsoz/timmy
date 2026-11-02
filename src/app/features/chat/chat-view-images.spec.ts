@@ -419,4 +419,53 @@ describe('ChatViewComponent images', () => {
       expect(el.textContent).toMatch(/no admite im|does not take images/i);
     });
   });
+
+  const sendWithImage = async (ctx: Awaited<ReturnType<typeof setup>>) => {
+    await ctx.paste([pngFile()]);
+    ctx.el.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await ctx.settle();
+  };
+
+  it('AC 1: shows the sent images as thumbnails in the transcript', async () => {
+    const ctx = await setup();
+    await sendWithImage(ctx);
+
+    expect(ctx.el.querySelectorAll('.log .message-image img')).toHaveLength(1);
+    expect(ctx.el.querySelector('.images')).toBeNull();
+  });
+
+  it('AC 2: clicking a transcript thumbnail opens the lightbox, which closes with its button, Esc and the backdrop', async () => {
+    const ctx = await setup();
+    await sendWithImage(ctx);
+    const open = async () => {
+      (ctx.el.querySelector('.log .message-image') as HTMLButtonElement).click();
+      await ctx.settle();
+      expect(ctx.el.querySelector('.lightbox img')).not.toBeNull();
+    };
+
+    await open();
+    (ctx.el.querySelector('.lightbox .lightbox-close') as HTMLButtonElement).click();
+    await ctx.settle();
+    expect(ctx.el.querySelector('.lightbox')).toBeNull();
+
+    await open();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await ctx.settle();
+    expect(ctx.el.querySelector('.lightbox')).toBeNull();
+
+    await open();
+    (ctx.el.querySelector('.lightbox-backdrop') as HTMLElement).click();
+    await ctx.settle();
+    expect(ctx.el.querySelector('.lightbox')).toBeNull();
+  });
+
+  it('AC 2: clicking a composer thumbnail opens the lightbox', async () => {
+    const ctx = await setup();
+    await ctx.paste([pngFile()]);
+    (ctx.el.querySelector('.images .image-open') as HTMLButtonElement).click();
+    await ctx.settle();
+
+    expect(ctx.el.querySelector('.lightbox img')).not.toBeNull();
+    expect(ctx.removed).toEqual([]);
+  });
 });

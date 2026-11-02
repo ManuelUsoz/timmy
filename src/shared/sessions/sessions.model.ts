@@ -1,4 +1,5 @@
 import { Schema } from 'effect';
+import { AttachmentMediaType } from '../attachments/attachment.model';
 import { AgentId, SessionId } from '../chat/ids.model';
 import { ProviderId } from '../chat/provider.model';
 
@@ -36,12 +37,24 @@ export const SessionSummary = Schema.Struct({
 }).annotate({ identifier: 'SessionSummary' });
 export type SessionSummary = typeof SessionSummary.Type;
 
+/**
+ * An image of a stored user message, rebuilt from what the provider recorded (ADR 0007), so it does not
+ * depend on Timmy's app-data copy. `Missing` stands for a block that could not be restored.
+ */
+export const HistoryImage = Schema.Union([
+  Schema.Struct({ _tag: Schema.Literal('Image'), mediaType: AttachmentMediaType, data: Schema.String.annotate({ description: 'base64' }) }),
+  Schema.Struct({ _tag: Schema.Literal('Missing') }),
+]).annotate({ identifier: 'HistoryImage' });
+export type HistoryImage = typeof HistoryImage.Type;
+
 /** One line of a stored conversation, already decoded from the provider's native format. */
 export const HistoryItem = Schema.Union([
   Schema.Struct({
     _tag: Schema.Literal('Message'),
     role: Schema.Literals(['User', 'Assistant']),
     text: Schema.String,
+    /** Images of a user message, in order. */
+    images: Schema.optionalKey(Schema.Array(HistoryImage)),
     timestamp: Schema.optionalKey(Schema.String),
   }),
   Schema.Struct({

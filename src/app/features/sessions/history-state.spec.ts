@@ -24,4 +24,16 @@ describe('chatStateFromHistory', () => {
     const ids = items.flatMap((i) => (i.kind === 'Assistant' ? [i.messageId] : []));
     expect(new Set(ids).size).toBe(2);
   });
+
+  it('AC 3: shows the recorded images of a user message, and a placeholder for one that could not be restored', () => {
+    const { items } = chatStateFromHistory([
+      {
+        _tag: 'Message',
+        role: 'User',
+        text: 'look',
+        images: [{ _tag: 'Image', mediaType: 'image/png', data: 'AAAA' }, { _tag: 'Missing' }],
+      },
+    ]);
+    expect(items[0]).toEqual({ kind: 'User', text: 'look', images: [{ url: 'data:image/png;base64,AAAA' }, { url: undefined }] });
+  });
 });

@@ -5,8 +5,13 @@ import type { PermissionRequest } from '../../../shared/chat/permission.model';
 import type { ToolCall } from '../../../shared/chat/tool-call.model';
 import type { ContextWindow, Usage } from '../../../shared/chat/usage.model';
 
+/** An image of a user message. No `url` is a placeholder: the image could not be restored. */
+export interface TranscriptImage {
+  readonly url: string | undefined;
+}
+
 export type ChatItem =
-  | { readonly kind: 'User'; readonly text: string }
+  | { readonly kind: 'User'; readonly text: string; readonly images?: ReadonlyArray<TranscriptImage> }
   | {
       readonly kind: 'Assistant';
       readonly agentId: AgentId;
@@ -53,9 +58,9 @@ export const initialChatState: ChatState = {
   stored: false,
 };
 
-export const addUserMessage = (state: ChatState, text: string): ChatState => ({
+export const addUserMessage = (state: ChatState, text: string, images: ReadonlyArray<TranscriptImage> = []): ChatState => ({
   ...state,
-  items: [...state.items, { kind: 'User', text }],
+  items: [...state.items, { kind: 'User', text, ...(images.length > 0 ? { images } : {}) }],
   failure: undefined,
   notice: undefined,
   stored: false,

@@ -9,7 +9,13 @@ const toItem = (item: HistoryItem, index: number): ChatItem => {
   switch (item._tag) {
     case 'Message':
       return item.role === 'User'
-        ? { kind: 'User', text: item.text }
+        ? {
+            kind: 'User',
+            text: item.text,
+            ...(item.images !== undefined
+              ? { images: item.images.map((image) => ({ url: image._tag === 'Image' ? `data:${image.mediaType};base64,${image.data}` : undefined })) }
+              : {}),
+          }
         : { kind: 'Assistant', agentId: owner, messageId: MessageId.make(`history-${index}`), text: item.text, thinking: '' };
     case 'ToolCall':
       return {

@@ -50,11 +50,30 @@
   }
 </div>
 
+@if (lightbox(); as src) {
+  <ui-lightbox [src]="src" [label]="i18n.t('chat.image')" [closeLabel]="i18n.t('chat.closeImage')" (closed)="lightbox.set(undefined)" />
+}
+
 <section #log class="log" aria-label="Conversation" (scroll)="onScroll()">
   @for (block of blocks(); track $index) {
     @switch (block.kind) {
       @case ('User') {
         <ui-message [role]="'user'">
+          @if (block.images; as shown) {
+            <ul class="message-images">
+              @for (image of shown; track $index) {
+                <li>
+                  @if (image.url; as url) {
+                    <button type="button" class="message-image" [attr.aria-label]="i18n.t('chat.openImage')" (click)="lightbox.set(url)">
+                      <img [src]="url" [alt]="i18n.t('chat.image')" />
+                    </button>
+                  } @else {
+                    <span class="message-image message-image-missing">{{ i18n.t('chat.imageMissing') }}</span>
+                  }
+                </li>
+              }
+            </ul>
+          }
           @for (segment of segmentsOf(block.text); track $index) {
             @if (segment.kind === 'Mention') {
               <ui-tooltip [text]="segment.path" placement="bottom">
@@ -150,7 +169,9 @@
     <ul class="images" [attr.aria-label]="i18n.t('chat.images')">
       @for (image of images(); track image.id) {
         <li class="image">
-          <img [src]="image.url" [alt]="i18n.t('chat.image')" />
+          <button type="button" class="image-open" [attr.aria-label]="i18n.t('chat.openImage')" (click)="lightbox.set(image.url)">
+            <img [src]="image.url" [alt]="i18n.t('chat.image')" />
+          </button>
           <button type="button" class="image-remove" [attr.aria-label]="i18n.t('chat.removeImage')" (click)="removeImage(image.id)">
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
               <path d="M2 2l6 6M8 2L2 8" />
@@ -203,7 +224,7 @@
     />
     <input #picker type="file" class="picker" multiple accept="image/png,image/jpeg,image/gif,image/webp" tabindex="-1" (change)="onPicked(picker)" />
     <span class="attach-wrap">
-      <ui-tooltip class="attach-tip" [text]="attachMenuOpen() ? '' : imagesAllowed() ? i18n.t('chat.attachHint') : i18n.t('chat.imagesUnsupported')" placement="top">
+      <ui-tooltip class="attach-tip" [text]="attachMenuOpen() ? '' : imagesAllowed() ? i18n.t('chat.attachHint') : i18n.t('chat.imagesUnsupported')" placement="top" align="end">
         <button
           type="button"
           uiButton

@@ -129,4 +129,10 @@ describe('sessionChips', () => {
   it('falls back to a placeholder for empty titles', () => {
     expect(sessionChips([summary('a', '')], undefined)[0].label).toBe('Untitled');
   });
+
+  it('AC 1: carries the images of a user message into its block', () => {
+    const images = [{ url: 'blob:a' }];
+    const blocks = chatBlocks(stateOf([{ kind: 'User', text: 'hi', images }]), groupByOwner(stateOf([{ kind: 'User', text: 'hi', images }])));
+    expect(blocks).toEqual([{ kind: 'User', text: 'hi', images }]);
+  });
 });
