@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Context, Effect, Layer } from 'effect';
 import {
@@ -7,6 +7,7 @@ import {
   type AttachmentMediaType,
   type IngestedAttachment,
 } from '../../src/shared/attachments/attachment.model';
+import type { SessionId } from '../../src/shared/chat/ids.model';
 import { AttachmentsError } from '../../src/shared/attachments/attachments-error.model';
 import { extensionOf, sniffImageType } from './image-type';
 import { ImageResizer } from './image-resizer';
@@ -30,6 +31,10 @@ export class AttachmentStore extends Context.Service<
     readonly remove: (id: AttachmentId) => Effect.Effect<void>;
     /** The stored image, for the Adapter to build the provider payload. Fails with `NotFound`. */
     readonly read: (id: AttachmentId) => Effect.Effect<StoredImage, AttachmentsError>;
+    /** Files of a sent message leave the drafts: they now belong to the session and survive the startup sweep. */
+    readonly markSent: (sessionId: SessionId, ids: ReadonlyArray<AttachmentId>) => Effect.Effect<void>;
+    /** Deletes every sent file of the session. An unknown session is ignored. */
+    readonly removeSession: (sessionId: SessionId) => Effect.Effect<void>;
   }
 >()('attachments/AttachmentStore') {}
 
@@ -37,6 +42,10 @@ export class AttachmentStore extends Context.Service<
 export const MAX_BYTES = 5 * 1024 * 1024;
 
 const MEDIA_TYPES = Object.keys(extensionOf) as ReadonlyArray<AttachmentMediaType>;
+
+/** Session ids name a folder, so only plain names are accepted. */
+const SAFE_NAME = /^[A-Za-z0-9_-]+$/;
+const SENT = 'sent';
 
 /** Ids are ours (UUIDs). Anything else from the renderer never reaches the file system, so no path can be injected. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -46,7 +55,17 @@ export const layerAttachmentStore = (dir: string): Layer.Layer<AttachmentStore, 
     AttachmentStore,
     Effect.gen(function* () {
       const resizer = yield* ImageResizer;
-      const fileOf = (id: string, mediaType: AttachmentMediaType) => path.join(dir, `${id}.${extensionOf[mediaType]}`);
+      const fileOf = (id: string, mediaType: AttachmentMediaType, folder = dir) =>
+        path.join(folder, `${id}.${extensionOf[mediaType]}`);
+      const sentDir = path.join(dir, SENT);
+
+      // Whatever is still loose in the folder was never sent: the previous run left it behind.
+      yield* Effect.tryPromise(async () => {
+        const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+        await Promise.all(
+          entries.filter((entry) => entry.isFile()).map((entry) => rm(path.join(dir, entry.name), { force: true })),
+        );
+      }).pipe(Effect.orDie);
 
       const add = Effect.fn('AttachmentStore.add')(function* (bytes: Uint8Array) {
         const sniffed = sniffImageType(bytes);
@@ -70,24 +89,65 @@ export const layerAttachmentStore = (dir: string): Layer.Layer<AttachmentStore, 
 
       const remove = Effect.fn('AttachmentStore.remove')(function* (id: AttachmentId) {
         if (!UUID.test(id)) return;
+        const sessions = yield* Effect.tryPromise(() => readdir(sentDir)).pipe(
+          Effect.catch(() => Effect.succeed([] as string[])),
+        );
+        const folders = [dir, ...sessions.map((name) => path.join(sentDir, name))];
         yield* Effect.tryPromise(() =>
-          Promise.all(MEDIA_TYPES.map((mediaType) => rm(fileOf(id, mediaType), { force: true }))),
+          Promise.all(
+            folders.flatMap((folder) => MEDIA_TYPES.map((mediaType) => rm(fileOf(id, mediaType, folder), { force: true }))),
+          ),
         ).pipe(Effect.orDie);
       });
 
       const read = Effect.fn('AttachmentStore.read')(function* (id: AttachmentId) {
         const missing = new AttachmentsError({ reason: 'NotFound', detail: `No stored image ${id}` });
         if (!UUID.test(id)) return yield* missing;
-        for (const mediaType of MEDIA_TYPES) {
-          const found = yield* Effect.tryPromise(() => readFile(fileOf(id, mediaType))).pipe(
-            Effect.map((buffer): StoredImage => ({ mediaType, bytes: new Uint8Array(buffer) })),
-            Effect.catch(() => Effect.succeed(undefined)),
-          );
-          if (found !== undefined) return found;
+        const folders = [
+          dir,
+          ...(yield* Effect.tryPromise(() => readdir(sentDir)).pipe(
+            Effect.map((names) => names.map((name) => path.join(sentDir, name))),
+            Effect.catch(() => Effect.succeed([] as string[])),
+          )),
+        ];
+        for (const folder of folders) {
+          for (const mediaType of MEDIA_TYPES) {
+            const found = yield* Effect.tryPromise(() => readFile(fileOf(id, mediaType, folder))).pipe(
+              Effect.map((buffer): StoredImage => ({ mediaType, bytes: new Uint8Array(buffer) })),
+              Effect.catch(() => Effect.succeed(undefined)),
+            );
+            if (found !== undefined) return found;
+          }
         }
         return yield* missing;
       });
 
-      return AttachmentStore.of({ add, remove, read });
+      const markSent = Effect.fn('AttachmentStore.markSent')(function* (
+        sessionId: SessionId,
+        ids: ReadonlyArray<AttachmentId>,
+      ) {
+        const valid = ids.filter((id) => UUID.test(id));
+        if (!SAFE_NAME.test(sessionId) || valid.length === 0) return;
+        const folder = path.join(sentDir, sessionId);
+        yield* Effect.tryPromise(async () => {
+          await mkdir(folder, { recursive: true });
+          await Promise.all(
+            valid.flatMap((id) =>
+              MEDIA_TYPES.map((mediaType) =>
+                rename(fileOf(id, mediaType), fileOf(id, mediaType, folder)).catch(() => undefined),
+              ),
+            ),
+          );
+        }).pipe(Effect.orDie);
+      });
+
+      const removeSession = Effect.fn('AttachmentStore.removeSession')(function* (sessionId: SessionId) {
+        if (!SAFE_NAME.test(sessionId)) return;
+        yield* Effect.tryPromise(() => rm(path.join(sentDir, sessionId), { recursive: true, force: true })).pipe(
+          Effect.orDie,
+        );
+      });
+
+      return AttachmentStore.of({ add, remove, read, markSent, removeSession });
     }),
   );

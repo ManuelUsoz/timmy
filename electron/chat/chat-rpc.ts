@@ -8,6 +8,7 @@ import { PermissionResponse } from '../../src/shared/chat/permission.model';
 import { AdapterCapabilities, ModelInfo, ProviderId } from '../../src/shared/chat/provider.model';
 import { QuestionResponse } from '../../src/shared/chat/question.model';
 import { SessionOptions, UserMessage } from '../../src/shared/chat/session.model';
+import { AttachmentStore } from '../attachments/attachment-store';
 import { ProjectFiles } from '../files/project-files';
 import { ProjectResolver } from '../sessions/project-resolver';
 import { SessionObserver } from '../sessions/session-observer';
@@ -67,6 +68,7 @@ export const layerChatRpc = Layer.effect(
     const resolver = yield* ProjectResolver;
     const observer = yield* SessionObserver;
     const projectFiles = yield* ProjectFiles;
+    const attachments = yield* AttachmentStore;
     const initial = yield* registry.get(registry.defaultProvider).pipe(Effect.flatMap(makeActive), Effect.orDie);
     const state = yield* Ref.make<State>({ active: initial, sessions: new Set<SessionId>() });
     const swapLock = yield* Semaphore.make(1);
@@ -210,6 +212,10 @@ export const layerChatRpc = Layer.effect(
                 reason: 'ImagesUnsupported',
                 detail: 'The model of this session does not accept images',
               });
+            }
+            // From here the files belong to the session, not to the draft: the startup sweep leaves them alone.
+            if (message.attachments.length > 0) {
+              yield* attachments.markSent(message.sessionId, message.attachments.map(({ id }) => id));
             }
             const prepared = yield* prepareMessage(adapter, message);
             yield* observer.userMessage(prepared.message);

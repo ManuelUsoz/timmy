@@ -2,6 +2,7 @@ import { Context, Effect, Layer, Option, Stream } from 'effect';
 import { AgentId, SessionId } from '../../src/shared/chat/ids.model';
 import { HistoryItem, SessionSummary, TranscriptRef } from '../../src/shared/sessions/sessions.model';
 import { SessionsError } from '../../src/shared/sessions/sessions-error.model';
+import { AttachmentStore } from '../attachments/attachment-store';
 import { ChatRpc } from '../chat/chat-rpc';
 import { SdkAdapterRegistry } from '../chat/sdk-adapter';
 import { ProjectResolver } from './project-resolver';
@@ -28,6 +29,7 @@ export const layerSessionsService = Layer.effect(
     const resolver = yield* ProjectResolver;
     const registry = yield* SdkAdapterRegistry;
     const chat = yield* ChatRpc;
+    const attachments = yield* AttachmentStore;
 
     const requireSession = Effect.fn('SessionsService.requireSession')(function* (sessionId: SessionId) {
       const session = yield* repo.get(sessionId);
@@ -63,6 +65,7 @@ export const layerSessionsService = Layer.effect(
           return yield* new SessionsError({ reason: 'SessionActive', detail: `Session ${sessionId} is open` });
         }
         yield* adapter.delete(sessionId);
+        yield* attachments.removeSession(sessionId);
       }),
     });
   }),

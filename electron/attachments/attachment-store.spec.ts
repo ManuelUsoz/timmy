@@ -1,8 +1,9 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
+import { SessionId } from '../../src/shared/chat/ids.model';
 import { AttachmentId } from '../../src/shared/attachments/attachment.model';
 import { AttachmentStore, layerAttachmentStore } from './attachment-store';
 import { ImageResizer, layerImageResizerTest } from './image-resizer';
@@ -76,6 +77,84 @@ describe('AttachmentStore', () => {
         layerAttachmentStore(tempDir()).pipe(Layer.provide(sized(5 * 1024 * 1024))),
       );
       expect(ok.mediaType).toBe('image/png');
+    });
+  });
+
+  describe('cleanup', () => {
+    const layerAt = (dir: string) => layerAttachmentStore(dir).pipe(Layer.provide(layerImageResizerTest));
+    const files = (dir: string) => (existsSync(dir) ? readdirSync(dir) : []);
+    const s1 = SessionId.make('s1');
+    const s2 = SessionId.make('s2');
+
+    it.effect('removing a draft deletes its file', () => {
+      const dir = tempDir();
+      return Effect.gen(function* () {
+        const store = yield* AttachmentStore;
+        const { id } = yield* store.add(PNG);
+        expect(files(dir)).toHaveLength(1);
+        yield* store.remove(id);
+        expect(files(dir)).toEqual([]);
+      }).pipe(Effect.provide(layerAt(dir)));
+    });
+
+    it.effect('removing a draft whose send failed after it was marked sent still deletes it', () => {
+      const dir = tempDir();
+      return Effect.gen(function* () {
+        const store = yield* AttachmentStore;
+        const { id } = yield* store.add(PNG);
+        yield* store.markSent(s1, [id]);
+        yield* store.remove(id);
+        expect((yield* store.read(id).pipe(Effect.flip)).reason).toBe('NotFound');
+      }).pipe(Effect.provide(layerAt(dir)));
+    });
+
+    it.effect('sweeps unsent drafts on start and keeps sent ones readable', () => {
+      const dir = tempDir();
+      return Effect.gen(function* () {
+        const first = yield* Effect.provide(
+          Effect.gen(function* () {
+            const store = yield* AttachmentStore;
+            const sent = yield* store.add(PNG);
+            const draft = yield* store.add(PNG);
+            yield* store.markSent(s1, [sent.id]);
+            return { sent: sent.id, draft: draft.id };
+          }),
+          layerAt(dir),
+        );
+        // A new start of the app.
+        yield* Effect.provide(
+          Effect.gen(function* () {
+            const store = yield* AttachmentStore;
+            expect((yield* store.read(first.draft).pipe(Effect.flip)).reason).toBe('NotFound');
+            expect((yield* store.read(first.sent)).bytes).toEqual(PNG);
+          }),
+          layerAt(dir),
+        );
+      });
+    });
+
+    it.effect('deleting a session removes only its sent files', () => {
+      const dir = tempDir();
+      return Effect.gen(function* () {
+        const store = yield* AttachmentStore;
+        const a = yield* store.add(PNG);
+        const b = yield* store.add(PNG);
+        yield* store.markSent(s1, [a.id]);
+        yield* store.markSent(s2, [b.id]);
+        yield* store.removeSession(s1);
+        expect((yield* store.read(a.id).pipe(Effect.flip)).reason).toBe('NotFound');
+        expect((yield* store.read(b.id)).bytes).toEqual(PNG);
+        yield* store.removeSession(SessionId.make('unknown'));
+      }).pipe(Effect.provide(layerAt(dir)));
+    });
+
+    it.effect('ignores ids and sessions that are not its own', () => {
+      const dir = tempDir();
+      return Effect.gen(function* () {
+        const store = yield* AttachmentStore;
+        yield* store.markSent(s1, [AttachmentId.make('../secret'), AttachmentId.make('00000000-0000-4000-8000-000000000000')]);
+        yield* store.removeSession(SessionId.make('../..'));
+      }).pipe(Effect.provide(layerAt(dir)));
     });
   });
 });
