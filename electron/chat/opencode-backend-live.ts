@@ -146,10 +146,30 @@ const textOf = (content: ReadonlyArray<{ readonly type: string; readonly text?: 
 const translate = (
   sessionId: string,
   tools: Map<string, { readonly name: string; readonly input: Readonly<Record<string, unknown>> }>,
+  /** Child sessions of this Turn (started through the task tool) by id, with the session that started each. */
+  children: Map<string, string>,
   event: ServerEvent,
 ): ReadonlyArray<OpenCodeEvent> => {
   const data: unknown = 'data' in event ? event.data : undefined;
-  if (typeof data !== 'object' || data === null || !('sessionID' in data) || data.sessionID !== sessionId) return [];
+  if (typeof data !== 'object' || data === null || !('sessionID' in data) || typeof data.sessionID !== 'string') return [];
+  const source = data.sessionID;
+  if (event.type === 'session.created') {
+    const parent = event.data.parentID;
+    if (parent === undefined || (parent !== sessionId && !children.has(parent))) return [];
+    children.set(source, parent);
+    return [
+      {
+        _tag: 'AgentStarted',
+        id: source,
+        ...(parent === sessionId ? {} : { parentId: parent }),
+        name: event.data.agent ?? 'subagent',
+        ...(event.data.title === undefined ? {} : { task: event.data.title }),
+      },
+    ];
+  }
+  const root = source === sessionId;
+  if (!root && !children.has(source)) return [];
+  const route = root ? {} : { agent: source };
   const tool = (
     id: string,
     status: OpenCodeToolStatus,
@@ -160,11 +180,30 @@ const translate = (
     const name = known?.name ?? 'tool';
     const latest = input ?? known?.input ?? {};
     tools.set(id, { name, input: latest });
-    return { _tag: 'Tool', tool: { id, name, input: latest, status, ...(output === undefined ? {} : { output }) } };
+    return { _tag: 'Tool', ...route, tool: { id, name, input: latest, status, ...(output === undefined ? {} : { output }) } };
   };
   switch (event.type) {
     case 'session.text.delta':
-      return [{ _tag: 'TextDelta', text: event.data.delta }];
+      return [{ _tag: 'TextDelta', text: event.data.delta, ...route }];
+    case 'session.reasoning.delta':
+      return [{ _tag: 'ReasoningDelta', text: event.data.delta, ...route }];
+    case 'session.step.ended': {
+      const { tokens, cost } = event.data;
+      return [
+        {
+          _tag: 'StepEnded',
+          ...route,
+          usage: {
+            inputTokens: Math.round(tokens.input),
+            outputTokens: Math.round(tokens.output),
+            cacheReadTokens: Math.round(tokens.cache.read),
+            cacheWriteTokens: Math.round(tokens.cache.write),
+            reasoningTokens: Math.round(tokens.reasoning),
+            costUsd: cost,
+          },
+        },
+      ];
+    }
     case 'session.tool.input.started':
       tools.set(event.data.id, { name: event.data.name, input: {} });
       return [tool(event.data.id, 'Pending')];
@@ -187,10 +226,11 @@ const translate = (
     case 'permission.replied':
       return [{ _tag: 'PermissionReplied', id: event.data.requestID, reply: event.data.reply === 'reject' ? 'reject' : 'once' }];
     case 'session.execution.succeeded':
+      return root ? [{ _tag: 'Idle' }] : [{ _tag: 'AgentEnded', id: source, outcome: 'Completed' }];
     case 'session.execution.interrupted':
-      return [{ _tag: 'Idle' }];
+      return root ? [{ _tag: 'Idle' }] : [{ _tag: 'AgentEnded', id: source, outcome: 'Cancelled' }];
     case 'session.execution.failed':
-      return [{ _tag: 'Failed', detail: event.data.error.message }];
+      return root ? [{ _tag: 'Failed', detail: event.data.error.message }] : [{ _tag: 'AgentEnded', id: source, outcome: 'Failed' }];
     default:
       return [];
   }
@@ -206,6 +246,7 @@ const makeClient = (server: ServerClient): OpenCodeClient => ({
     Effect.map(({ data }) => data.filter((model) => model.enabled).map((model) => ({
       id: `${model.providerID}/${model.id}`,
       variants: model.variants.map((variant) => String(variant.id)),
+      contextWindow: model.limit.context,
     }))),
   ),
   createSession: ({ cwd, model, variant, permissions }) =>
@@ -227,13 +268,14 @@ const makeClient = (server: ServerClient): OpenCodeClient => ({
         const abort = new AbortController();
         const connected = yield* Deferred.make<void>();
         const ended = yield* Ref.make(false);
+        const children = new Map<string, string>();
         const toolNames = new Map<string, { readonly name: string; readonly input: Readonly<Record<string, unknown>> }>();
         // Subscribe before prompting: the stream is not replayed, so an early event would be lost.
         const events = Stream.fromAsyncIterable(server.event.subscribe({ signal: abort.signal }), (cause) => cause).pipe(
           Stream.mapEffect((event) =>
             event.type === 'server.connected'
               ? Deferred.succeed(connected, undefined).pipe(Effect.as(none))
-              : Effect.succeed(translate(sessionId, toolNames, event)),
+              : Effect.succeed(translate(sessionId, toolNames, children, event)),
           ),
           Stream.flattenIterable,
         );

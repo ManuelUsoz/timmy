@@ -276,13 +276,13 @@ describe('OpenCodeAdapter', () => {
       const adapter = yield* makeOpenCodeAdapter.pipe(Effect.provide(layerBackend(log, fakeClient([]))));
       expect(adapter.capabilities).toEqual({
         provider: 'OpenCode',
-        subagents: false,
+        subagents: true,
         toolCalls: true,
         permissions: true,
         // OpenCode 2 ships no plan agent, so Plan could only be faked: it is not offered.
         permissionModes: ['Auto', 'AutoAccept', 'Default'],
         questions: false,
-        thinking: false,
+        thinking: true,
         resume: false,
         images: false,
         mentions: 'none',
@@ -593,4 +593,75 @@ describe('OpenCodeAdapter', () => {
         expect(error.reason).toBe('Unsupported');
       }));
   });
+});
+
+describe('OpenCodeAdapter subagents, thinking and usage', () => {
+  const model = { id: 'opencode/big-pickle', variants: [], contextWindow: 200_000 };
+  const step = (inputTokens: number, outputTokens: number, agent?: string): OpenCodeEvent => ({
+    _tag: 'StepEnded',
+    ...(agent === undefined ? {} : { agent }),
+    usage: { inputTokens, outputTokens },
+  });
+  const run = (...events: ReadonlyArray<OpenCodeEvent>) =>
+    Effect.gen(function* () {
+      const log = yield* makeServerLog;
+      const { adapter, sessionId } = yield* readySession(log, fakeClient([model], script(...events, { _tag: 'Idle' })), { ...options, model: model.id });
+      return { adapter, events: yield* say(adapter, sessionId, 'go') };
+    });
+
+  itRepo('AC 1: reasoning streams as Thinking deltas, separate from the answer text', () =>
+    Effect.gen(function* () {
+      const { adapter, events } = yield* run({ _tag: 'ReasoningDelta', text: 'hmm' }, { _tag: 'TextDelta', text: 'answer' });
+      const deltas = events.flatMap((e) => (e._tag === 'MessageDelta' ? [[e.channel, e.text]] : []));
+      expect(deltas).toEqual([['Thinking', 'hmm'], ['Text', 'answer']]);
+      expect(adapter.capabilities).toMatchObject({ thinking: true, subagents: true });
+    }));
+
+  itRepo('AC 2: a child session is its own agent with its own messages and tool calls, finished with usage', () =>
+    Effect.gen(function* () {
+      const { events } = yield* run(
+        { _tag: 'AgentStarted', id: 'child1', name: 'explore', task: 'find it' },
+        { _tag: 'TextDelta', text: 'child says', agent: 'child1' },
+        { _tag: 'Tool', agent: 'child1', tool: { id: 't9', name: 'read', input: { filePath: '/a' }, status: 'Running' } },
+        step(10, 5, 'child1'),
+        { _tag: 'AgentEnded', id: 'child1', outcome: 'Completed' },
+        { _tag: 'TextDelta', text: 'root says' },
+      );
+      expect(events.find((e) => e._tag === 'AgentSpawned')).toMatchObject({
+        agent: { id: 'child1', name: 'explore', task: 'find it' },
+      });
+      expect(events.find((e) => e._tag === 'MessageDelta' && e.text === 'child says')).toMatchObject({ agentId: 'child1' });
+      const root = events.find((e) => e._tag === 'MessageDelta' && e.text === 'root says');
+      expect(root?._tag === 'MessageDelta' ? root.agentId : 'child1').not.toBe('child1');
+      expect(events.find((e) => e._tag === 'ToolCallStarted')).toMatchObject({ call: { agentId: 'child1' } });
+      expect(events.find((e) => e._tag === 'AgentFinished')).toMatchObject({
+        agentId: 'child1',
+        outcome: 'Completed',
+        usage: { inputTokens: 10, outputTokens: 5 },
+      });
+    }));
+
+  itRepo('AC 3: a subagent that fails or is cancelled reports that outcome', () =>
+    Effect.gen(function* () {
+      const { events } = yield* run(
+        { _tag: 'AgentStarted', id: 'a', name: 'x' },
+        { _tag: 'AgentStarted', id: 'b', name: 'y' },
+        { _tag: 'AgentEnded', id: 'a', outcome: 'Failed' },
+        { _tag: 'AgentEnded', id: 'b', outcome: 'Cancelled' },
+      );
+      const outcomes = events.flatMap((e) => (e._tag === 'AgentFinished' ? [[e.agentId, e.outcome]] : []));
+      expect(outcomes).toEqual([['a', 'Failed'], ['b', 'Cancelled']]);
+    }));
+
+  itRepo('AC 4: usage is cumulative for the session and per agent, with the context window when known', () =>
+    Effect.gen(function* () {
+      const { events } = yield* run(step(100, 10), { _tag: 'AgentStarted', id: 'c', name: 'x' }, step(7, 3, 'c'), step(50, 5));
+      const updates = events.flatMap((e) => (e._tag === 'UsageUpdated' ? [e] : []));
+      const session = updates.filter((u) => u.agentId === undefined);
+      expect(session.map((u) => u.usage.inputTokens)).toEqual([100, 107, 157]);
+      expect(session.at(-1)?.context).toEqual({ usedTokens: 55, maxTokens: 200_000 });
+      expect(updates.filter((u) => u.agentId === 'c').map((u) => u.usage.outputTokens)).toEqual([3]);
+      const finished = events.at(-1);
+      expect(finished?._tag === 'TurnFinished' ? finished.usage.inputTokens : 0).toBe(157);
+    }));
 });

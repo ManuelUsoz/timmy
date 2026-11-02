@@ -1,11 +1,15 @@
 import { Context, Effect, Scope, Stream } from 'effect';
+import type { AgentOutcome } from '../../src/shared/chat/agent.model';
 import { ChatError } from '../../src/shared/chat/chat-error.model';
+import type { Usage } from '../../src/shared/chat/usage.model';
 
 /** A model the user has configured in OpenCode. `id` is `vendor/model`. */
 export interface OpenCodeModel {
   readonly id: string;
   /** The names of the variants OpenCode offers for this model (its reasoning levels); empty when it has none. */
   readonly variants: ReadonlyArray<string>;
+  /** The model's context window in tokens, when OpenCode reports it. */
+  readonly contextWindow?: number;
 }
 
 /** Where a tool call is in OpenCode's own lifecycle. */
@@ -22,8 +26,14 @@ export interface OpenCodeTool {
 
 /** What one OpenCode Turn reports, reduced to what Timmy maps. `Idle` and `Failed` end the Turn. */
 export type OpenCodeEvent =
-  | { readonly _tag: 'TextDelta'; readonly text: string }
-  | { readonly _tag: 'Tool'; readonly tool: OpenCodeTool }
+  | { readonly _tag: 'TextDelta'; readonly text: string; readonly agent?: string }
+  | { readonly _tag: 'ReasoningDelta'; readonly text: string; readonly agent?: string }
+  | { readonly _tag: 'Tool'; readonly tool: OpenCodeTool; readonly agent?: string }
+  /** A child session started through the task tool. `id` is the child session's id; `parentId` the session that started it (absent: the root). */
+  | { readonly _tag: 'AgentStarted'; readonly id: string; readonly parentId?: string; readonly name: string; readonly task?: string }
+  | { readonly _tag: 'AgentEnded'; readonly id: string; readonly outcome: AgentOutcome }
+  /** What one model step of the session (`agent` absent) or of a child cost. Steps add up. */
+  | { readonly _tag: 'StepEnded'; readonly agent?: string; readonly usage: Usage }
   | {
       /** The agent waits for the user. `toolCallId` names the tool call it is about, when OpenCode says. */
       readonly _tag: 'PermissionAsked';
