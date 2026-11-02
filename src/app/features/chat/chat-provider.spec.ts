@@ -102,7 +102,7 @@ describe('ChatController provider', () => {
     const { controller, settle } = await setup();
     expect(controller.modelOptions().map((o) => o.value)).toEqual(['claude-opus-5-5']);
 
-    controller.providerControl.setValue('OpenCode');
+    controller.setProvider('OpenCode');
     await settle();
 
     expect(controller.provider()).toBe('OpenCode');
@@ -112,7 +112,7 @@ describe('ChatController provider', () => {
 
   it('starts the Session with the chosen Provider', async () => {
     const { controller, started, settle } = await setup();
-    controller.providerControl.setValue('OpenCode');
+    controller.setProvider('OpenCode');
     await settle();
 
     controller.draft.set('hello');
@@ -125,12 +125,11 @@ describe('ChatController provider', () => {
   it('shows the Adapter\'s error and keeps the previous Provider when the new one is unavailable', async () => {
     const { controller, settle } = await setup('OpenCode is not installed.');
 
-    controller.providerControl.setValue('OpenCode');
+    controller.setProvider('OpenCode');
     await settle();
 
     expect(controller.providerError()).toBe('OpenCode is not installed.');
     expect(controller.provider()).toBe('Claude');
-    expect(controller.providerControl.value).toBe('Claude');
     expect(controller.modelOptions().map((o) => o.value)).toEqual(['claude-opus-5-5']);
   });
 
@@ -141,6 +140,6 @@ describe('ChatController provider', () => {
     await settle();
     TestBed.tick();
 
-    expect(controller.providerControl.disabled).toBe(true);
+    expect(controller.providerLocked()).toBe(true);
   });
 });

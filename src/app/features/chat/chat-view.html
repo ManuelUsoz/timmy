@@ -141,13 +141,6 @@
         </svg>
         {{ project() }}
       </span>
-      <ui-select
-        variant="inline"
-        size="sm"
-        [label]="i18n.t('chat.provider')"
-        [options]="providerOptions"
-        [formControl]="providerControl"
-      />
     </div>
   }
   @if (providerError(); as providerFailure) {
@@ -211,7 +204,33 @@
   }
   <app-composer-input [(draft)]="draft" [commands]="commands()" [files]="files()" (mentionOpened)="requestFiles()" (imagesPasted)="addImages($event)" (submitted)="send()" />
   <div class="composer-bar">
-    <span class="provider" aria-hidden="true"><ui-provider-icon [provider]="providerIcon()" /></span>
+    <span class="provider-wrap">
+      <button
+        type="button"
+        uiButton
+        kind="ghost"
+        size="sm"
+        iconOnly
+        class="provider"
+        [disabled]="providerLocked()"
+        aria-haspopup="listbox"
+        [attr.aria-expanded]="providerMenuOpen()"
+        [attr.aria-label]="i18n.t('chat.provider') + ': ' + providerName()"
+        [title]="providerLocked() ? i18n.t('chat.providerLocked') : providerName()"
+        (click)="providerMenuOpen.set(!providerMenuOpen())"
+      >
+        <ui-provider-icon [provider]="providerIcon()" />
+      </button>
+      @if (providerMenuOpen()) {
+        <ui-menu class="provider-menu" [ariaLabel]="i18n.t('chat.provider')" (selectionChange)="pickProvider($event)">
+          @for (option of providerOptions; track option.value) {
+            <ui-option [value]="option.value" [selected]="option.value === provider()">
+              <span class="provider-option"><ui-provider-icon [provider]="iconOf(option.value)" />{{ option.label }}</span>
+            </ui-option>
+          }
+        </ui-menu>
+      }
+    </span>
     <ui-model-picker
       [models]="modelOptions()"
       [efforts]="effortOptions()"

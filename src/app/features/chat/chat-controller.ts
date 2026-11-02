@@ -112,7 +112,8 @@ export class ChatController {
     { value: 'Claude', label: 'Claude' },
     { value: 'OpenCode', label: 'OpenCode' },
   ];
-  readonly providerControl = new FormControl<ProviderId>('Claude', { nonNullable: true });
+  /** A Session never changes Provider: once one is open (or a Turn runs), only a new chat can pick another. */
+  readonly providerLocked = computed(() => this.running() || this.selectedSessionId() !== undefined);
   /** Why the chosen Provider cannot be used (not installed, not signed in); the previous Provider stays active. */
   readonly providerError = signal<string | null>(null);
   readonly tree = computed(() => groupByOwner(this.chat()));
@@ -170,9 +171,6 @@ export class ChatController {
       this.resetSession();
     });
     this.permissionControl.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.resetSession());
-    this.providerControl.valueChanges.pipe(takeUntilDestroyed()).subscribe((provider) => {
-      void this.switchProvider(provider);
-    });
 
     // Elapsed time on the Pill: tick once a second while a Turn runs.
     effect((onCleanup) => {
@@ -191,22 +189,19 @@ export class ChatController {
         else control.enable({ emitEvent: false });
       }
     });
-    // A Session never changes Provider: once one is open, only a new chat can pick another.
-    effect(() => {
-      if (this.running() || this.selectedSessionId() !== undefined) this.providerControl.disable({ emitEvent: false });
-      else this.providerControl.enable({ emitEvent: false });
-    });
   }
 
   /**
    * Makes `provider` the active one in main and shows its models. On failure (not installed, not signed in) the
    * Adapter's own error is shown and the previous Provider stays chosen.
    */
+  /** The user picked a Provider for the next Session. Ignored while one is open. */
+  setProvider(provider: ProviderId): void {
+    if (!this.providerLocked()) void this.switchProvider(provider);
+  }
+
   private async switchProvider(provider: ProviderId): Promise<void> {
-    if (provider === this.provider() || this.chat().running) {
-      this.providerControl.setValue(this.provider(), { emitEvent: false });
-      return;
-    }
+    if (provider === this.provider() || this.chat().running) return;
     const exit = await this.runtime.run(
       Effect.gen(function* () {
         const desktop = yield* DesktopApi;
@@ -219,18 +214,15 @@ export class ChatController {
       }),
     );
     if (Exit.isFailure(exit)) {
-      this.providerControl.setValue(this.provider(), { emitEvent: false });
       this.providerError.set(Cause.pretty(exit.cause));
       return;
     }
     if (typeof exit.value === 'string') {
-      this.providerControl.setValue(this.provider(), { emitEvent: false });
       this.providerError.set(exit.value);
       return;
     }
     this.providerError.set(null);
     this.provider.set(provider);
-    this.providerControl.setValue(provider, { emitEvent: false });
     this.capabilities.set(exit.value.capabilities);
     this.models.set(exit.value.models);
     // The other Provider's model ids mean nothing here.

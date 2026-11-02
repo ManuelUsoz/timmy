@@ -2,12 +2,12 @@ import { expect, test } from '../fixtures';
 
 test.use({ language: 'en' });
 
-const providerSelect = (t: { page: import('@playwright/test').Page }) => t.page.getByRole('button', { name: 'Provider' });
+const providerButton = (t: { page: import('@playwright/test').Page }) => t.page.getByRole('button', { name: /Provider/ });
 
 test('a new Session can start with either Provider, and shows that Provider\'s models', async ({ timmy }) => {
   await timmy.openPanel();
 
-  await providerSelect(timmy).click();
+  await providerButton(timmy).click();
   // Both Providers on offer.
   await expect(timmy.page.getByRole('option', { name: 'Claude' })).toBeVisible();
   await expect(timmy.page.getByRole('option', { name: 'OpenCode' })).toBeVisible();
@@ -23,12 +23,12 @@ test('a new Session can start with either Provider, and shows that Provider\'s m
 
 test('a Session keeps its Provider: it cannot be changed once the Session exists', async ({ timmy }) => {
   await timmy.openPanel();
-  await providerSelect(timmy).click();
+  await providerButton(timmy).click();
   await timmy.page.getByRole('option', { name: 'OpenCode' }).click();
   await timmy.send('hello');
   await timmy.text('Here is what I found.');
-  // The choice is only offered before the first message; after it the Session is fixed to its Provider.
-  await expect(providerSelect(timmy)).toHaveCount(0);
+  // After the first message the Session is fixed to its Provider.
+  await expect(providerButton(timmy)).toBeDisabled();
 });
 
 test.describe('unavailable', () => {
@@ -36,10 +36,10 @@ test.describe('unavailable', () => {
 
   test('an unavailable Provider shows the Adapter\'s error and the previous Provider stays', async ({ timmy }) => {
     await timmy.openPanel();
-    await providerSelect(timmy).click();
+    await providerButton(timmy).click();
     await timmy.page.getByRole('option', { name: 'OpenCode' }).click();
     await expect(timmy.page.getByRole('alert')).toContainText('OpenCode is not installed');
-    await expect(providerSelect(timmy)).toContainText('Claude');
+    await expect(providerButton(timmy)).toHaveAccessibleName('Provider: Claude');
     await timmy.shot('provider-unavailable');
   });
 });

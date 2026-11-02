@@ -615,3 +615,22 @@ ui-modal p {
   color: var(--text-error, #da1e28);
   font: var(--text-label-01);
 }
+
+.provider-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.provider-menu {
+  position: absolute;
+  bottom: calc(100% + var(--spacing-02));
+  left: 0;
+  z-index: 3;
+  width: 160px;
+}
+
+.provider-option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-03);
+}
