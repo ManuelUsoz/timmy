@@ -7,6 +7,7 @@ export class ChatError extends Schema.TaggedError<ChatError>()('ChatError', {
     'RequestNotFound',
     'AdapterNotReady',
     'AuthMissing',
+    'ProviderNotInstalled',
     'Unsupported',
     'InvalidMention',
     'ImagesUnsupported',
