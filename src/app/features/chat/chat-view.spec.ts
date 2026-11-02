@@ -37,7 +37,8 @@ describe('ChatViewComponent', () => {
     expect(permissions).toHaveLength(1);
     expect(permissions[0].querySelector('.as-field__label')?.textContent?.trim()).toBe('Permisos');
     expect(permissions[0].querySelector('[data-variant="inline"]')).not.toBeNull();
-    expect(compiled.querySelectorAll('ui-select')).toHaveLength(1);
+    // The other one is the Provider choice of a new Session, in the empty chat above the composer.
+    expect(compiled.querySelectorAll('ui-select')).toHaveLength(2);
   });
 
   it('shows an icon for each permission mode', async () => {

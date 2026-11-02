@@ -87,9 +87,11 @@ export class Timmy {
 export type Language = 'es' | 'en';
 
 /** `test.use({ language: 'en' })` in a spec file pins the UI language; the default is the app's own (es). */
-export const test = base.extend<{ timmy: Timmy; language: Language }>({
+export const test = base.extend<{ timmy: Timmy; language: Language; openCode: 'ready' | 'missing' }>({
   language: ['es', { option: true }],
-  timmy: async ({ language }, use) => {
+  /** `test.use({ openCode: 'missing' })` makes the mock OpenCode fail to start, as when it is not installed. */
+  openCode: ['ready', { option: true }],
+  timmy: async ({ language, openCode }, use) => {
     mkdirSync(fixtureCwd, { recursive: true });
     const userData = mkdtempSync(path.join(tmpdir(), 'timmy-e2e-'));
     writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ language }));
@@ -97,7 +99,7 @@ export const test = base.extend<{ timmy: Timmy; language: Language }>({
       executablePath: electronPath,
       args: [root],
       cwd: fixtureCwd,
-      env: { ...process.env, TIMMY_E2E: '1', TIMMY_USER_DATA: userData, ELECTRON_RENDERER_URL: '' },
+      env: { ...process.env, TIMMY_E2E: '1', TIMMY_E2E_OPENCODE: openCode, TIMMY_USER_DATA: userData, ELECTRON_RENDERER_URL: '' },
     });
     const page = await app.firstWindow();
     const errors: string[] = [];

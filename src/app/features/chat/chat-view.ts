@@ -23,7 +23,7 @@ import { ButtonComponent } from '../../shared/ui/button/button';
 import { TagComponent } from '../../shared/ui/tag/tag';
 import { ModalComponent } from '../../shared/ui/modal/modal';
 import { LightboxComponent } from '../../shared/ui/lightbox/lightbox';
-import { ProviderIconComponent } from '../../shared/ui/provider-icon/provider-icon';
+import { ProviderIconComponent, type Provider } from '../../shared/ui/provider-icon/provider-icon';
 import { AskRowComponent } from '../../shared/ui/ask-row/ask-row';
 import { I18n } from '../../core/i18n';
 import { baseName } from './file-mentions';
@@ -183,6 +183,10 @@ export class ChatViewComponent {
   protected readonly effortControl = this.controller.effortControl;
   protected readonly permissionOptions = this.controller.permissionOptions;
   protected readonly permissionControl = this.controller.permissionControl;
+  protected readonly providerOptions = this.controller.providerOptions;
+  protected readonly providerControl = this.controller.providerControl;
+  protected readonly providerError = this.controller.providerError;
+  protected readonly providerIcon = computed<Provider>(() => (this.controller.provider() === 'OpenCode' ? 'opencode' : 'claude'));
   protected readonly segmentsOf = splitMentionText;
   /** The chip shows the file name; the full path is its tooltip. */
   protected readonly mentionName = baseName;

@@ -608,3 +608,10 @@ pre {
 ui-modal p {
   margin: 0;
 }
+
+.provider-error {
+  margin: 0;
+  padding: 0 var(--space-3, 12px);
+  color: var(--text-error, #da1e28);
+  font: var(--text-label-01);
+}

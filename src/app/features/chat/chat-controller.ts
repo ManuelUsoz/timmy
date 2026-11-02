@@ -5,7 +5,7 @@ import { I18n } from '../../core/i18n';
 import { pillView } from '../shell/pill-view';
 import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import type { AdapterCapabilities, Effort, ModelInfo } from '../../../shared/chat/provider.model';
+import type { AdapterCapabilities, Effort, ModelInfo, ProviderId } from '../../../shared/chat/provider.model';
 import { Cause, Effect, Exit, Stream } from 'effect';
 import type { AppInfo } from '../../../shared/app-info/app-info.rpc';
 import type { ChatEvent } from '../../../shared/chat/event.model';
@@ -106,6 +106,15 @@ export class ChatController {
     { value: 'Plan', label: 'Plan', icon: 'M3 3h10v10H3zM5.5 6h5M5.5 8.5h5M5.5 11h3' },
   ];
   readonly permissionControl = new FormControl<PermissionMode>('Default', { nonNullable: true });
+  /** The Provider the next Session starts with; an open Session keeps the one it was created with. */
+  readonly provider = signal<ProviderId>('Claude');
+  readonly providerOptions: SelectOption<ProviderId>[] = [
+    { value: 'Claude', label: 'Claude' },
+    { value: 'OpenCode', label: 'OpenCode' },
+  ];
+  readonly providerControl = new FormControl<ProviderId>('Claude', { nonNullable: true });
+  /** Why the chosen Provider cannot be used (not installed, not signed in); the previous Provider stays active. */
+  readonly providerError = signal<string | null>(null);
   readonly tree = computed(() => groupByOwner(this.chat()));
   readonly blocks = computed(() => chatBlocks(this.chat(), this.tree()));
 
@@ -161,6 +170,9 @@ export class ChatController {
       this.resetSession();
     });
     this.permissionControl.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.resetSession());
+    this.providerControl.valueChanges.pipe(takeUntilDestroyed()).subscribe((provider) => {
+      void this.switchProvider(provider);
+    });
 
     // Elapsed time on the Pill: tick once a second while a Turn runs.
     effect((onCleanup) => {
@@ -179,6 +191,55 @@ export class ChatController {
         else control.enable({ emitEvent: false });
       }
     });
+    // A Session never changes Provider: once one is open, only a new chat can pick another.
+    effect(() => {
+      if (this.running() || this.selectedSessionId() !== undefined) this.providerControl.disable({ emitEvent: false });
+      else this.providerControl.enable({ emitEvent: false });
+    });
+  }
+
+  /**
+   * Makes `provider` the active one in main and shows its models. On failure (not installed, not signed in) the
+   * Adapter's own error is shown and the previous Provider stays chosen.
+   */
+  private async switchProvider(provider: ProviderId): Promise<void> {
+    if (provider === this.provider() || this.chat().running) {
+      this.providerControl.setValue(this.provider(), { emitEvent: false });
+      return;
+    }
+    const exit = await this.runtime.run(
+      Effect.gen(function* () {
+        const desktop = yield* DesktopApi;
+        const capabilities = yield* desktop['Chat.changeAdapter']({ provider }).pipe(
+          Effect.catchTag('ChatError', (error) => Effect.succeed(error.detail)),
+        );
+        if (typeof capabilities === 'string') return capabilities;
+        const models = yield* desktop['Chat.models']().pipe(Effect.catchTag('ChatError', () => Effect.succeed([])));
+        return { capabilities, models };
+      }),
+    );
+    if (Exit.isFailure(exit)) {
+      this.providerControl.setValue(this.provider(), { emitEvent: false });
+      this.providerError.set(Cause.pretty(exit.cause));
+      return;
+    }
+    if (typeof exit.value === 'string') {
+      this.providerControl.setValue(this.provider(), { emitEvent: false });
+      this.providerError.set(exit.value);
+      return;
+    }
+    this.providerError.set(null);
+    this.provider.set(provider);
+    this.providerControl.setValue(provider, { emitEvent: false });
+    this.capabilities.set(exit.value.capabilities);
+    this.models.set(exit.value.models);
+    // The other Provider's model ids mean nothing here.
+    this.modelControl.setValue(null, { emitEvent: false });
+    this.selectedModel.set(null);
+    this.effortControl.setValue('Default', { emitEvent: false });
+    this.selectedEffort.set('Default');
+    const cwd = this.resumeCwd ?? this.info()?.cwd;
+    if (cwd !== undefined) this.loadCommands(cwd);
   }
 
   private effortsOf(modelId: string | null): ReadonlyArray<Effort> {
@@ -363,6 +424,7 @@ export class ChatController {
         if (event._tag === 'TurnFinished') this.invalidateFiles();
       });
     const known = this.sessionId;
+    const provider = this.provider();
     const resume = this.resumeFrom;
     const model = this.modelControl.value;
     const permissionMode = this.permissionControl.value;
@@ -389,7 +451,7 @@ export class ChatController {
       const sessionId =
         known ??
         (yield* desktop['Chat.startSession']({
-          provider: 'Claude',
+          provider,
           cwd,
           ...(resume !== undefined ? { resume } : {}),
           ...(model !== null ? { model } : {}),
@@ -419,10 +481,12 @@ export class ChatController {
    * Shows a stored transcript. The next message continues that session, in `cwd` when the session belongs to
    * another folder than the app's; a subagent transcript is read-only. Does nothing, and says so, while a Turn runs.
    */
-  showTranscript(ref: TranscriptRef, cwd?: string): boolean {
+  showTranscript(ref: TranscriptRef, cwd?: string, provider?: ProviderId): boolean {
     if (this.chat().running) return false;
     const load = ++this.transcriptLoad;
     this.resetSession();
+    // A Session keeps the Provider it was created with, so its next message goes to that Provider's Adapter.
+    if (provider !== undefined && provider !== this.provider()) void this.switchProvider(provider);
     this.selectedSessionId.set(ref.sessionId);
     this.resumeFrom = ref.subagent === undefined ? ref.sessionId : undefined;
     this.resumeCwd = ref.subagent === undefined ? cwd : undefined;
@@ -436,7 +500,7 @@ export class ChatController {
 
   /** Opens a stored session of any project in the chat. False while a Turn runs, which cannot be switched away from. */
   openStoredSession(session: SessionSummary): boolean {
-    return this.showTranscript({ projectId: session.projectId, sessionId: session.sessionId }, session.cwd);
+    return this.showTranscript({ projectId: session.projectId, sessionId: session.sessionId }, session.cwd, session.provider);
   }
 
   /**
@@ -447,7 +511,7 @@ export class ChatController {
     if (this.chat().running) return { status: 'busy' };
     const model = this.modelControl.value;
     const options: SessionOptions = {
-      provider: 'Claude',
+      provider: this.provider(),
       cwd,
       ...(model !== null ? { model } : {}),
       effort: this.effortControl.value,
@@ -473,7 +537,9 @@ export class ChatController {
   /** A Session chip was picked: show its main transcript. */
   openSession(id: string): void {
     const session = this.sessions().find((s) => s.sessionId === id);
-    if (session !== undefined) this.showTranscript({ projectId: session.projectId, sessionId: session.sessionId });
+    if (session !== undefined) {
+      this.showTranscript({ projectId: session.projectId, sessionId: session.sessionId }, undefined, session.provider);
+    }
   }
 
   clearChat(): void {

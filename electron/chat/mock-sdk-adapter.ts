@@ -4,7 +4,7 @@ import { ChatError } from '../../src/shared/chat/chat-error.model';
 import { ChatEvent } from '../../src/shared/chat/event.model';
 import { AgentId, MessageId, OptionId, PermissionRequestId, SessionId, ToolCallId, TurnId } from '../../src/shared/chat/ids.model';
 import { PermissionResponse } from '../../src/shared/chat/permission.model';
-import { AdapterCapabilities } from '../../src/shared/chat/provider.model';
+import { AdapterCapabilities, ModelInfo } from '../../src/shared/chat/provider.model';
 import { HistoryItem, ProviderSessionId, SessionSummary } from '../../src/shared/sessions/sessions.model';
 import { projectIdOfCwd } from '../sessions/project-id';
 import { SessionRepo } from '../sessions/session-repo';
@@ -26,7 +26,7 @@ const AGENT = AgentId.make('root');
 const MODEL = 'mock-sonnet';
 const STEP_MS = 60;
 
-const capabilities: AdapterCapabilities = {
+const claudeCapabilities: AdapterCapabilities = {
   provider: 'Claude',
   subagents: true,
   toolCalls: true,
@@ -37,6 +37,40 @@ const capabilities: AdapterCapabilities = {
   mentions: 'native',
   images: true,
 };
+
+/** What the real OpenCode adapter declares today, so the UI hides what it lacks. */
+const openCodeCapabilities: AdapterCapabilities = {
+  provider: 'OpenCode',
+  subagents: false,
+  toolCalls: false,
+  permissions: false,
+  questions: false,
+  thinking: false,
+  resume: false,
+  mentions: 'none',
+  images: false,
+};
+
+const claudeModels: ReadonlyArray<ModelInfo> = [
+  { id: MODEL, efforts: ['Default', 'Low', 'Medium', 'High'] },
+  { id: 'mock-opus', efforts: ['Default', 'High', 'XHigh'] },
+  // Text-only model, used by the attachments e2e specs to exercise the image gate.
+  { id: 'mock-text', efforts: ['Default'], images: false },
+];
+
+const openCodeModels: ReadonlyArray<ModelInfo> = [
+  { id: 'anthropic/claude-sonnet-5-5', efforts: ['Default'] },
+  { id: 'opencode/big-pickle', efforts: ['Default'] },
+];
+
+/** What the mock adapter of one provider declares. `startup` fails when the provider is "not installed". */
+interface MockProvider {
+  readonly capabilities: AdapterCapabilities;
+  readonly models: ReadonlyArray<ModelInfo>;
+  readonly startup: Effect.Effect<void, ChatError>;
+}
+
+const claudeProvider: MockProvider = { capabilities: claudeCapabilities, models: claudeModels, startup: Effect.void };
 
 const ANSWER = [
   'Here is what I found.\n\n',
@@ -85,21 +119,16 @@ export const seededSessions: ReadonlyArray<{ readonly title: string; readonly it
 
 const decodeHistory = Schema.decodeUnknownSync(HistoryItem);
 
-export const makeMockSdkAdapter = Effect.gen(function* () {
+export const makeMockSdkAdapter = (provider: MockProvider = claudeProvider) => Effect.gen(function* () {
   const repo = yield* SessionRepo;
   const interrupts = yield* Ref.make<ReadonlyMap<SessionId, Deferred.Deferred<void>>>(new Map());
   const permissions = yield* Ref.make<ReadonlyMap<PermissionRequestId, Deferred.Deferred<PermissionResponse>>>(new Map());
 
   const adapter: SdkAdapter = {
-    capabilities,
-    startup: Effect.void,
+    capabilities: provider.capabilities,
+    startup: provider.startup,
     shutdown: Effect.void,
-    models: Effect.succeed([
-      { id: MODEL, efforts: ['Default', 'Low', 'Medium', 'High'] },
-      { id: 'mock-opus', efforts: ['Default', 'High', 'XHigh'] },
-      // Text-only model, used by the attachments e2e specs to exercise the image gate.
-      { id: 'mock-text', efforts: ['Default'], images: false },
-    ]),
+    models: Effect.succeed(provider.models),
     listCommands: () =>
       Effect.succeed([
         { name: 'compact', description: 'Summarize the conversation', argumentHint: '' },
@@ -261,18 +290,36 @@ export const seedSessions = (cwd: string) =>
     }
   });
 
-/** Registry with only the mock adapter; seeds the demo sessions once. */
+/** `TIMMY_E2E_OPENCODE=missing` makes the mock OpenCode behave as if `opencode` were not installed. */
+const openCodeStartup: Effect.Effect<void, ChatError> =
+  process.env['TIMMY_E2E_OPENCODE'] === 'missing'
+    ? Effect.fail(
+        new ChatError({
+          reason: 'ProviderNotInstalled',
+          detail: 'OpenCode is not installed. Install it from opencode.ai and try again.',
+        }),
+      )
+    : Effect.void;
+
+/** Registry with a mock adapter per provider; seeds the demo sessions once. */
 export const layerMockSdkAdapterRegistry = Layer.effect(
   SdkAdapterRegistry,
   Effect.gen(function* () {
-    const mock = yield* makeMockSdkAdapter;
+    const mock = yield* makeMockSdkAdapter();
+    const openCode = yield* makeMockSdkAdapter({
+      capabilities: openCodeCapabilities,
+      models: openCodeModels,
+      startup: openCodeStartup,
+    });
     yield* seedSessions(process.cwd());
     return SdkAdapterRegistry.of({
       defaultProvider: 'Claude',
       get: (provider) =>
         provider === 'Claude'
           ? Effect.succeed(mock)
-          : Effect.fail(new ChatError({ reason: 'Unsupported', detail: `No mock adapter for ${provider}` })),
+          : provider === 'OpenCode'
+            ? Effect.succeed(openCode)
+            : Effect.fail(new ChatError({ reason: 'Unsupported', detail: `No mock adapter for ${provider}` })),
     });
   }),
 );
