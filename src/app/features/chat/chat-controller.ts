@@ -321,12 +321,33 @@ export class ChatController {
     void this.call((desktop) => desktop['Attachments.remove']({ id }), () => undefined);
   }
 
+  /** Whether the "send without text?" question is open. */
+  readonly confirmingImageOnly = signal(false);
+
+  /** Sends the draft. Images with no text ask first; `confirmedSend` is the answer. */
   send(): void {
+    this.sendDraft(false);
+  }
+
+  confirmedSend(): void {
+    this.confirmingImageOnly.set(false);
+    this.sendDraft(true);
+  }
+
+  cancelImageOnly(): void {
+    this.confirmingImageOnly.set(false);
+  }
+
+  private sendDraft(confirmed: boolean): void {
     const draft = this.draft();
     const text = draft.trim();
     const cwd = this.resumeCwd ?? this.info()?.cwd;
     const sentImages = this.images();
     if ((text === '' && sentImages.length === 0) || cwd === undefined || this.chat().running || this.imagesBlocked()) return;
+    if (text === '' && !confirmed) {
+      this.confirmingImageOnly.set(true);
+      return;
+    }
 
     const before = this.chat();
     this.draft.set('');

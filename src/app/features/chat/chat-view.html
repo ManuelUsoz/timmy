@@ -16,6 +16,18 @@
   </ui-modal>
 }
 
+@if (confirmingImageOnly()) {
+  <ui-modal
+    [heading]="i18n.t('chat.imageOnlyTitle')"
+    [primaryLabel]="i18n.t('chat.imageOnlySend')"
+    [closeLabel]="i18n.t('chat.imageOnlyClose')"
+    (primary)="confirmImageOnly()"
+    (closed)="cancelImageOnly()"
+  >
+    <p>{{ i18n.t('chat.imageOnlyBody') }}</p>
+  </ui-modal>
+}
+
 @if (!embedded() && sessionChips().length > 0) {
   <ui-chip-strip
     [label]="project()"
