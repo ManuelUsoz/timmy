@@ -17,7 +17,7 @@ import { SdkAdapter, SdkAdapterRegistry } from './sdk-adapter';
  * - `edit` / `fix`: reads a file, then asks permission to edit it (Allow applies, Deny declines).
  * - `slow` / `long`: a turn that keeps "working" until Stop is pressed.
  * - `think`: streams a thinking block before the answer.
- * - `agent`: spawns a subagent that runs a search.
+ * - `agent`: spawns a subagent that runs a search (with `broken`, the subagent fails and says why).
  * - `error` / `fail`: the turn fails.
  * - anything else: a short markdown answer.
  */
@@ -174,7 +174,11 @@ export const makeMockSdkAdapter = (provider: MockProvider = claudeProvider) => E
               yield* emit({ _tag: 'ToolCallStarted', sessionId, call });
               yield* pause;
               yield* emit({ _tag: 'ToolCallUpdated', sessionId, call: { ...call, status: 'Completed', output: '3 matches' } });
-              yield* emit({ _tag: 'AgentFinished', sessionId, agentId: child, outcome: 'Completed' });
+              yield* emit(
+                text.includes('broken')
+                  ? { _tag: 'AgentFinished', sessionId, agentId: child, outcome: 'Failed', detail: 'Mock subagent failure: search index missing' }
+                  : { _tag: 'AgentFinished', sessionId, agentId: child, outcome: 'Completed' },
+              );
             }
 
             if (text.includes('slow') || text.includes('long')) {

@@ -39,7 +39,7 @@ export type OpenCodeEvent =
   | { readonly _tag: 'Tool'; readonly tool: OpenCodeTool; readonly agent?: string }
   /** A child session started through the task tool. `id` is the child session's id; `parentId` the session that started it (absent: the root). */
   | { readonly _tag: 'AgentStarted'; readonly id: string; readonly parentId?: string; readonly name: string; readonly task?: string }
-  | { readonly _tag: 'AgentEnded'; readonly id: string; readonly outcome: AgentOutcome }
+  | { readonly _tag: 'AgentEnded'; readonly id: string; readonly outcome: AgentOutcome; readonly detail?: string }
   /** What one model step of the session (`agent` absent) or of a child cost. Steps add up. */
   | { readonly _tag: 'StepEnded'; readonly agent?: string; readonly usage: Usage }
   | {

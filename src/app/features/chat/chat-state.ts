@@ -26,6 +26,8 @@ export type ChatItem =
 export interface AgentView {
   readonly info: AgentInfo;
   readonly status: 'Running' | AgentOutcome;
+  /** Why the agent failed, when its Provider said. */
+  readonly detail?: string;
   readonly usage: Usage | undefined;
 }
 
@@ -140,6 +142,7 @@ export const reduceChat = (state: ChatState, event: ChatEvent): ChatState => {
       return updateAgent(state, event.agentId, (agent) => ({
         ...agent,
         status: event.outcome,
+        ...(event.detail === undefined ? {} : { detail: event.detail }),
         usage: event.usage ?? agent.usage,
       }));
     case 'UsageUpdated':

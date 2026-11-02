@@ -74,6 +74,15 @@ describe('reduceChat', () => {
     expect(state.agents.get(child)).toMatchObject({ status: 'Completed', usage });
   });
 
+  it('keeps why a subagent failed', () => {
+    const child = AgentId.make('tu-agent');
+    const state = run([
+      { _tag: 'AgentSpawned', sessionId, agent: { id: child, parentId: agentId, name: 'explore' } },
+      { _tag: 'AgentFinished', sessionId, agentId: child, outcome: 'Failed', detail: 'boom' },
+    ]);
+    expect(state.agents.get(child)).toMatchObject({ status: 'Failed', detail: 'boom' });
+  });
+
   it('does not list the root agent as a nested block', () => {
     const state = run([{ _tag: 'AgentSpawned', sessionId, agent: { id: agentId, name: 'Claude' } }, delta('hi')]);
     expect(state.agents.size).toBe(0);

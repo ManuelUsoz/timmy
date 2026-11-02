@@ -52,7 +52,7 @@ describe('translate: child sessions', () => {
     expect(ended('session.execution.succeeded')).toEqual([{ _tag: 'AgentEnded', id: CHILD, outcome: 'Completed' }]);
     expect(ended('session.execution.interrupted')).toEqual([{ _tag: 'AgentEnded', id: CHILD, outcome: 'Cancelled' }]);
     expect(ended('session.execution.failed', { error: { message: 'boom' } })).toEqual([
-      { _tag: 'AgentEnded', id: CHILD, outcome: 'Failed' },
+      { _tag: 'AgentEnded', id: CHILD, outcome: 'Failed', detail: 'boom' },
     ]);
   });
 

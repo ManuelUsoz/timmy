@@ -267,7 +267,7 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
           if (event._tag === 'AgentEnded') {
             const usage = (yield* Ref.get(usages)).get(event.id);
             return [
-              { _tag: 'AgentFinished', sessionId, agentId: agentIdOf(event.id), outcome: event.outcome, ...(usage === undefined ? {} : { usage }) } satisfies ChatEvent,
+              { _tag: 'AgentFinished', sessionId, agentId: agentIdOf(event.id), outcome: event.outcome, ...(event.detail === undefined ? {} : { detail: event.detail }), ...(usage === undefined ? {} : { usage }) } satisfies ChatEvent,
             ];
           }
           if (event._tag === 'StepEnded') {

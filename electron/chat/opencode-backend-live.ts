@@ -231,7 +231,7 @@ export const translate = (
     case 'session.execution.interrupted':
       return root ? [{ _tag: 'Idle' }] : [{ _tag: 'AgentEnded', id: source, outcome: 'Cancelled' }];
     case 'session.execution.failed':
-      return root ? [{ _tag: 'Failed', detail: event.data.error.message }] : [{ _tag: 'AgentEnded', id: source, outcome: 'Failed' }];
+      return root ? [{ _tag: 'Failed', detail: event.data.error.message }] : [{ _tag: 'AgentEnded', id: source, outcome: 'Failed', detail: event.data.error.message }];
     default:
       return [];
   }

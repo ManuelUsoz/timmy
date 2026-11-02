@@ -24,6 +24,14 @@ test('Thinking blocks and subagent activity render', async ({ timmy }) => {
   await timmy.shot('thinking-and-agent-done');
 });
 
+test('A failed subagent shows why it failed', async ({ timmy }) => {
+  await timmy.openPanel();
+  await timmy.send('use a broken agent to search');
+  await timmy.text('Here is what I found.', 12000);
+  await test.step('failure reason shown', () => timmy.text('search index missing'));
+  await timmy.shot('subagent-failed');
+});
+
 test('A failed turn shows an error and leaves the chat usable', async ({ timmy }) => {
   await timmy.openPanel();
   await timmy.send('make it fail with an error');

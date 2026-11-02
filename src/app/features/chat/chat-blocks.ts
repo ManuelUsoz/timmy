@@ -79,7 +79,7 @@ const agentNode = (state: ChatState, groups: Groups, agentId: AgentId): TreeNode
         : agent.status === 'Completed'
           ? { label: 'Done', tone: 'idle' }
           : { label: 'Failed', tone: 'error' },
-    ...(agent.info.task !== undefined ? { meta: agent.info.task } : {}),
+    ...(agent.detail !== undefined ? { meta: agent.detail } : agent.info.task !== undefined ? { meta: agent.info.task } : {}),
     ...(children.length > 0 ? { children } : {}),
   };
 };

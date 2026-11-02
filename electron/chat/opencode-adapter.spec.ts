@@ -690,11 +690,13 @@ describe('OpenCodeAdapter subagents, thinking and usage', () => {
       const { events } = yield* run(
         { _tag: 'AgentStarted', id: 'a', name: 'x' },
         { _tag: 'AgentStarted', id: 'b', name: 'y' },
-        { _tag: 'AgentEnded', id: 'a', outcome: 'Failed' },
+        { _tag: 'AgentEnded', id: 'a', outcome: 'Failed', detail: 'it broke' },
         { _tag: 'AgentEnded', id: 'b', outcome: 'Cancelled' },
       );
-      const outcomes = events.flatMap((e) => (e._tag === 'AgentFinished' ? [[e.agentId, e.outcome]] : []));
-      expect(outcomes).toEqual([['a', 'Failed'], ['b', 'Cancelled']]);
+      const finished = events.flatMap((e) => (e._tag === 'AgentFinished' ? [e] : []));
+      expect(finished.map((e) => [e.agentId, e.outcome])).toEqual([['a', 'Failed'], ['b', 'Cancelled']]);
+      expect(finished[0]?.detail).toBe('it broke');
+      expect(finished[1]?.detail).toBeUndefined();
     }));
 
   itRepo('AC 4: usage is cumulative for the session and per agent, with the context window when known', () =>

@@ -36,6 +36,8 @@ export const ChatEvent = Schema.Union([
     ...sessionFields,
     agentId: AgentId,
     outcome: AgentOutcome,
+    /** Why the agent failed, when its Provider says. */
+    detail: Schema.optionalKey(Schema.String),
     usage: Schema.optionalKey(Usage),
   }),
   Schema.TaggedStruct('ToolCallStarted', { ...sessionFields, call: ToolCall }),
