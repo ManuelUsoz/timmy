@@ -37,6 +37,7 @@ import { ChatStopped } from './chat-stopped';
 import { ComposerInputComponent } from './composer-input';
 import { permissionAnswer } from './permission-answer';
 import type { PermissionRequest } from '../../../shared/chat/permission.model';
+import { askTitleOf } from './chat-blocks';
 import { MarkdownPipe } from './markdown.pipe';
 import { ChipComponent } from '../../shared/ui/chip/chip';
 import { TooltipComponent } from '../../shared/ui/tooltip/tooltip';
@@ -240,6 +241,7 @@ export class ChatViewComponent {
   }
 
   protected setModel = (id: string | null) => this.modelControl.setValue(id);
+  protected readonly askTitleOf = askTitleOf;
   protected setEffort = (effort: string) => this.effortControl.setValue(effort as Effort);
   protected send = () => this.controller.send();
   protected stop = () => this.controller.stop();

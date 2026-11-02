@@ -5,6 +5,11 @@ export const ProviderId = Schema.Literals(['Claude', 'OpenAI', 'OpenCode', 'Grok
 });
 export type ProviderId = typeof ProviderId.Type;
 
+export const PermissionMode = Schema.Literals(['Auto', 'AutoAccept', 'Default', 'Plan']).annotate({
+  identifier: 'PermissionMode',
+});
+export type PermissionMode = typeof PermissionMode.Type;
+
 export const Effort = Schema.Literals(['Default', 'Low', 'Medium', 'High', 'XHigh']).annotate({
   identifier: 'Effort',
 });
@@ -24,6 +29,8 @@ export const AdapterCapabilities = Schema.Struct({
   subagents: Schema.Boolean,
   toolCalls: Schema.Boolean,
   permissions: Schema.Boolean,
+  /** The Permission modes this provider can honour faithfully; the UI offers only these. */
+  permissionModes: Schema.Array(PermissionMode),
   questions: Schema.Boolean,
   thinking: Schema.Boolean,
   resume: Schema.Boolean,

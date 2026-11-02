@@ -2,26 +2,31 @@ import { randomUUID } from 'node:crypto';
 import { Effect, Exit, Option, Ref, Schema, Scope, Semaphore, Stream } from 'effect';
 import { ChatError } from '../../src/shared/chat/chat-error.model';
 import type { ChatEvent } from '../../src/shared/chat/event.model';
-import { MessageId, type SessionId, TurnId } from '../../src/shared/chat/ids.model';
+import { MessageId, PermissionRequestId, type SessionId, TurnId } from '../../src/shared/chat/ids.model';
 import { AdapterCapabilities, type ModelInfo } from '../../src/shared/chat/provider.model';
 import type { SessionOptions, UserMessage } from '../../src/shared/chat/session.model';
 import { type HistoryItem, ProviderSessionId } from '../../src/shared/sessions/sessions.model';
 import { SessionRepo, type TranscriptEntry } from '../sessions/session-repo';
 import { rootAgentId, zeroUsage } from './claude-event-mapper';
 import { OpenCodeBackend, type OpenCodeClient } from './opencode-backend';
+import { buildAsk, describeTool, effortsOf, optionFor, replyFor, rulesFor, variantFor } from './opencode-mapper';
+import type { ToolCall } from '../../src/shared/chat/tool-call.model';
 import type { SdkAdapter } from './sdk-adapter';
 import { makeSessionOps } from './session-ops';
 
 /**
  * Only what the Adapter does today. The UI shows what is declared here, so a flag set early would offer
- * something that silently does nothing (images dropped, a permission prompt nobody answers). Each later
- * ticket turns its own flag on: tool calls and permissions, subagents and thinking, images, resume.
+ * something that silently does nothing (images dropped, a question nobody answers). Each later ticket turns
+ * its own flag on: subagents and thinking, images, resume.
+ *
+ * Plan is not a Permission mode here: OpenCode 2 ships no plan agent, so Plan could only be imitated.
  */
 const openCodeCapabilities: AdapterCapabilities = {
   provider: 'OpenCode',
   subagents: false,
-  toolCalls: false,
-  permissions: false,
+  toolCalls: true,
+  permissions: true,
+  permissionModes: ['Auto', 'AutoAccept', 'Default'],
   questions: false,
   thinking: false,
   resume: false,
@@ -39,6 +44,8 @@ interface SessionRuntime {
   readonly providerSessionId: ProviderSessionId;
   /** Set by `interrupt`, cleared when a Turn starts; a Turn that ends while it is set was cancelled. */
   readonly interrupted: Ref.Ref<boolean>;
+  /** Asks the user has not answered yet; an interrupt cancels them. */
+  readonly waiting: Ref.Ref<ReadonlySet<PermissionRequestId>>;
 }
 
 const noUsableModel = new ChatError({
@@ -120,11 +127,31 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
   const startSession: SdkAdapter['startSession'] = Effect.fn('OpenCodeAdapter.startSession')(
     function* (options, ids) {
       const client = yield* requireClient;
+      const mode = options.permissionMode;
+      const variant = variantFor(options.effort);
+      if (mode === 'Plan') {
+        return yield* new ChatError({ reason: 'Unsupported', detail: 'OpenCode has no plan agent, so Plan mode is not available' });
+      }
+      if (variant !== undefined) {
+        const offered = effortsOf((yield* client.models).find((m) => m.id === options.model)?.variants ?? []);
+        if (!offered.includes(options.effort ?? 'Default')) {
+          return yield* new ChatError({
+            reason: 'Unsupported',
+            detail: `${options.model ?? 'OpenCode'} does not offer effort ${options.effort}`,
+          });
+        }
+      }
       const providerSessionId = ProviderSessionId.make(
-        yield* client.createSession({ cwd: options.cwd, ...(options.model === undefined ? {} : { model: options.model }) }),
+        yield* client.createSession({
+          cwd: options.cwd,
+          ...(options.model === undefined ? {} : { model: options.model }),
+          ...(variant === undefined ? {} : { variant }),
+          permissions: rulesFor(mode),
+        }),
       );
       const interrupted = yield* Ref.make(false);
-      yield* Ref.update(sessions, (m) => new Map(m).set(ids.sessionId, { options, providerSessionId, interrupted }));
+      const waiting = yield* Ref.make<ReadonlySet<PermissionRequestId>>(new Set());
+      yield* Ref.update(sessions, (m) => new Map(m).set(ids.sessionId, { options, providerSessionId, interrupted, waiting }));
       return providerSessionId;
     },
   );
@@ -142,8 +169,10 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
     const text = yield* Ref.make('');
     const failure = yield* Ref.make<string | undefined>(undefined);
     const finished = yield* Ref.make(false);
+    const tools = yield* Ref.make<ReadonlyMap<string, ToolCall>>(new Map());
 
     yield* Ref.set(runtime.interrupted, false);
+    yield* Ref.set(runtime.waiting, new Set());
     yield* repo.append(ref, [storedEntry('user', message.text)]);
 
     const saveAnswer = Effect.gen(function* () {
@@ -154,23 +183,31 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
     /** A consumer that stops listening still leaves what the agent said so far in the transcript. */
     const savePartial = Ref.get(finished).pipe(Effect.flatMap((done) => (done ? Effect.void : saveAnswer)));
 
-    const finish = Effect.gen(function* () {
+    const finish = Effect.gen(function* (): Effect.fn.Return<ReadonlyArray<ChatEvent>> {
       yield* Ref.set(finished, true);
       yield* saveAnswer;
       const cancelled = yield* Ref.get(runtime.interrupted);
       const detail = cancelled ? undefined : yield* Ref.get(failure);
-      return {
-        _tag: 'TurnFinished',
-        sessionId,
-        turnId,
-        outcome: cancelled ? 'Cancelled' : detail === undefined ? 'Completed' : 'Failed',
-        ...(detail === undefined ? {} : { detail }),
-        usage: zeroUsage,
-      } satisfies ChatEvent;
+      // An Ask nobody answered cannot stay open once its Turn is over.
+      const unanswered = yield* Ref.getAndSet(runtime.waiting, new Set());
+      const closed = [...unanswered].map(
+        (requestId): ChatEvent => ({ _tag: 'PermissionResolved', sessionId, requestId, response: { _tag: 'Cancelled', requestId } }),
+      );
+      return [
+        ...closed,
+        {
+          _tag: 'TurnFinished',
+          sessionId,
+          turnId,
+          outcome: cancelled ? 'Cancelled' : detail === undefined ? 'Completed' : 'Failed',
+          ...(detail === undefined ? {} : { detail }),
+          usage: zeroUsage,
+        } satisfies ChatEvent,
+      ];
     });
 
     const body = client.turn({ sessionId: runtime.providerSessionId, cwd: runtime.options.cwd, text: message.text }).pipe(
-      Stream.takeUntil((event) => event._tag !== 'TextDelta'),
+      Stream.takeUntil((event) => event._tag === 'Idle' || event._tag === 'Failed'),
       Stream.mapEffect(
         Effect.fnUntraced(function* (event): Effect.fn.Return<ReadonlyArray<ChatEvent>> {
           if (event._tag === 'Failed') {
@@ -178,6 +215,25 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
             return [];
           }
           if (event._tag === 'Idle') return [];
+          if (event._tag === 'Tool') {
+            const call = describeTool(rootAgentId, event.tool);
+            const known = (yield* Ref.get(tools)).has(event.tool.id);
+            yield* Ref.update(tools, (all) => new Map(all).set(event.tool.id, call));
+            return [{ _tag: known ? 'ToolCallUpdated' : 'ToolCallStarted', sessionId, call } satisfies ChatEvent];
+          }
+          if (event._tag === 'PermissionAsked') {
+            const known = event.toolCallId === undefined ? undefined : (yield* Ref.get(tools)).get(event.toolCallId);
+            const request = buildAsk(event, rootAgentId, known);
+            yield* Ref.update(runtime.waiting, (all) => new Set(all).add(request.id));
+            return [{ _tag: 'PermissionRequested', sessionId, request } satisfies ChatEvent];
+          }
+          if (event._tag === 'PermissionReplied') {
+            const requestId = PermissionRequestId.make(event.id);
+            yield* Ref.update(runtime.waiting, (all) => new Set([...all].filter((id) => id !== requestId)));
+            const response = { _tag: 'Selected', requestId, optionId: optionFor(event.reply) } as const;
+            return [{ _tag: 'PermissionResolved', sessionId, requestId, response } satisfies ChatEvent];
+          }
+          if (event._tag !== 'TextDelta') return [];
           yield* Ref.update(text, (all) => all + event.text);
           return [
             {
@@ -196,7 +252,7 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
 
     return Stream.make<ChatEvent[]>({ _tag: 'TurnStarted', sessionId, turnId }).pipe(
       Stream.concat(body),
-      Stream.concat(Stream.fromEffect(finish)),
+      Stream.concat(Stream.fromEffect(finish).pipe(Stream.flattenIterable)),
       Stream.ensuring(savePartial),
     );
   });
@@ -205,8 +261,29 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
     const runtime = yield* requireRuntime(sessionId);
     const client = yield* requireClient;
     yield* Ref.set(runtime.interrupted, true);
+    // OpenCode must not be left holding an Ask the UI already shows as cancelled.
+    yield* Effect.forEach(
+      yield* Ref.get(runtime.waiting),
+      (requestId) => client.replyPermission({ sessionId: runtime.providerSessionId, requestId, reply: 'reject' }),
+      { discard: true },
+    );
     yield* client.interrupt(runtime.providerSessionId);
   });
+
+  const resolvePermission: SdkAdapter['resolvePermission'] = Effect.fn('OpenCodeAdapter.resolvePermission')(
+    function* (sessionId, response) {
+      const runtime = yield* requireRuntime(sessionId);
+      const client = yield* requireClient;
+      const { requestId } = response;
+      if (!(yield* Ref.get(runtime.waiting)).has(requestId)) {
+        return yield* new ChatError({ reason: 'RequestNotFound', detail: `No pending permission ${requestId}` });
+      }
+      // Only an explicit allow lets the tool run; cancelling the Ask rejects it.
+      const reply = response._tag === 'Selected' ? replyFor(response.optionId) : 'reject';
+      yield* client.replyPermission({ sessionId: runtime.providerSessionId, requestId, reply });
+      yield* Ref.update(runtime.waiting, (all) => new Set([...all].filter((id) => id !== requestId)));
+    },
+  );
 
   const adapter: SdkAdapter = {
     capabilities: openCodeCapabilities,
@@ -214,13 +291,13 @@ export const makeOpenCodeAdapter = Effect.gen(function* () {
     shutdown: stop,
     models: requireClient.pipe(
       Effect.flatMap((client) => client.models),
-      Effect.map((models) => models.map(({ id }): ModelInfo => ({ id, efforts: ['Default'] }))),
+      Effect.map((models) => models.map(({ id, variants }): ModelInfo => ({ id, efforts: effortsOf(variants) }))),
     ),
     listCommands: () => Effect.succeed([]),
     startSession,
     send: (message) =>
       Stream.unwrap(requireClient.pipe(Effect.flatMap((client) => runTurn(client, message)))),
-    resolvePermission: () => Effect.void,
+    resolvePermission,
     answerQuestion: () => Effect.void,
     interrupt,
     closeSession: () => Effect.void,

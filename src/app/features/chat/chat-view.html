@@ -173,7 +173,7 @@
 
 @if (chat().permission; as request) {
   <ui-ask-row
-    [title]="request.toolCall.name + ' ' + request.toolCall.title"
+    [title]="askTitleOf(request.toolCall)"
     (allow)="answer(request, 'Allow')"
     (deny)="answer(request, 'Deny')"
   />
@@ -252,7 +252,7 @@
       size="sm"
       placement="above"
       [label]="i18n.t('chat.permissions')"
-      [options]="permissionOptions"
+      [options]="permissionOptions()"
       [formControl]="permissionControl"
     />
     <input #picker type="file" class="picker" multiple accept="image/png,image/jpeg,image/gif,image/webp" tabindex="-1" (change)="onPicked(picker)" />

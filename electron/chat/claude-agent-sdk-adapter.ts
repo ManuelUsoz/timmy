@@ -15,7 +15,8 @@ import { PermissionRequestId, QuestionRequestId, SessionId, TurnId } from '../..
 import { PermissionResponse } from '../../src/shared/chat/permission.model';
 import { AdapterCapabilities, Effort, ModelInfo } from '../../src/shared/chat/provider.model';
 import { QuestionResponse } from '../../src/shared/chat/question.model';
-import { PermissionMode, SessionOptions, UserMessage } from '../../src/shared/chat/session.model';
+import type { PermissionMode } from '../../src/shared/chat/provider.model';
+import { SessionOptions, UserMessage } from '../../src/shared/chat/session.model';
 import { ToolCall } from '../../src/shared/chat/tool-call.model';
 import { ProviderSessionId } from '../../src/shared/sessions/sessions.model';
 import { AttachmentStore } from '../attachments/attachment-store';
@@ -52,6 +53,7 @@ const claudeCapabilities: AdapterCapabilities = {
   subagents: true,
   toolCalls: true,
   permissions: true,
+  permissionModes: ['Auto', 'AutoAccept', 'Default', 'Plan'],
   questions: true,
   thinking: true,
   resume: true,

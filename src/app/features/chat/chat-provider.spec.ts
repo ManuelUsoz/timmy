@@ -26,6 +26,7 @@ const capabilities = (provider: ProviderId): AdapterCapabilities => ({
   subagents: false,
   toolCalls: true,
   permissions: true,
+  permissionModes: provider === 'OpenCode' ? ['Auto', 'AutoAccept', 'Default'] : ['Auto', 'AutoAccept', 'Default', 'Plan'],
   questions: false,
   thinking: false,
   resume: true,
@@ -109,6 +110,26 @@ describe('ChatController provider', () => {
     expect(controller.provider()).toBe('OpenCode');
     expect(controller.modelOptions().map((o) => o.value)).toEqual(['opencode/big-pickle']);
     expect(controller.providerError()).toBeNull();
+  });
+
+  it('offers only the Permission modes the chosen Provider can honour', async () => {
+    const { controller, settle } = await setup();
+    expect(controller.permissionOptions().map((o) => o.value)).toContain('Plan');
+
+    controller.setProvider('OpenCode');
+    await settle();
+
+    expect(controller.permissionOptions().map((o) => o.value)).toEqual(['Auto', 'AutoAccept', 'Default']);
+  });
+
+  it('falls back to Default when the chosen Permission mode is not offered by the new Provider', async () => {
+    const { controller, settle } = await setup();
+    controller.permissionControl.setValue('Plan');
+
+    controller.setProvider('OpenCode');
+    await settle();
+
+    expect(controller.permissionControl.value).toBe('Default');
   });
 
   it('starts the Session with the chosen Provider', async () => {

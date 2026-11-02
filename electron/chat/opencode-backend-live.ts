@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import type { OpenCodeClient as ServerClient, OpenCodeEvent as ServerEvent } from '@opencode/client';
 import { Deferred, Effect, Layer, Ref, Stream } from 'effect';
 import { ChatError } from '../../src/shared/chat/chat-error.model';
-import { OpenCodeBackend, type OpenCodeClient, type OpenCodeEvent } from './opencode-backend';
+import { OpenCodeBackend, type OpenCodeClient, type OpenCodeEvent, type OpenCodeToolStatus } from './opencode-backend';
 
 const MINIMUM_MAJOR = 2;
 const START_TIMEOUT = '30 seconds';
@@ -133,13 +133,59 @@ const modelRef = (model: string) => {
     : Effect.succeed({ providerID: model.slice(0, slash), id: model.slice(slash + 1) });
 };
 
-/** What one OpenCode event means for a Turn of `sessionId`; events of other sessions mean nothing here. */
-const translate = (sessionId: string, event: ServerEvent): ReadonlyArray<OpenCodeEvent> => {
+/** The text of a tool's result; files and other content have no place in a one-line output. */
+const textOf = (content: ReadonlyArray<{ readonly type: string; readonly text?: string }> | undefined): string | undefined => {
+  const joined = (content ?? []).flatMap((part) => (part.type === 'text' && part.text !== undefined ? [part.text] : [])).join('\n');
+  return joined === '' ? undefined : joined;
+};
+
+/**
+ * What one OpenCode event means for a Turn of `sessionId`; events of other sessions mean nothing here.
+ * `tools` remembers each tool's name and last input, which its later events do not repeat.
+ */
+const translate = (
+  sessionId: string,
+  tools: Map<string, { readonly name: string; readonly input: Readonly<Record<string, unknown>> }>,
+  event: ServerEvent,
+): ReadonlyArray<OpenCodeEvent> => {
   const data: unknown = 'data' in event ? event.data : undefined;
   if (typeof data !== 'object' || data === null || !('sessionID' in data) || data.sessionID !== sessionId) return [];
+  const tool = (
+    id: string,
+    status: OpenCodeToolStatus,
+    input?: Readonly<Record<string, unknown>>,
+    output?: string,
+  ): OpenCodeEvent => {
+    const known = tools.get(id);
+    const name = known?.name ?? 'tool';
+    const latest = input ?? known?.input ?? {};
+    tools.set(id, { name, input: latest });
+    return { _tag: 'Tool', tool: { id, name, input: latest, status, ...(output === undefined ? {} : { output }) } };
+  };
   switch (event.type) {
     case 'session.text.delta':
       return [{ _tag: 'TextDelta', text: event.data.delta }];
+    case 'session.tool.input.started':
+      tools.set(event.data.id, { name: event.data.name, input: {} });
+      return [tool(event.data.id, 'Pending')];
+    case 'session.tool.called':
+      return [tool(event.data.id, 'Running', event.data.input)];
+    case 'session.tool.success':
+      return [tool(event.data.id, 'Completed', undefined, textOf(event.data.content))];
+    case 'session.tool.failed':
+      return [tool(event.data.id, 'Failed', undefined, textOf(event.data.content) ?? event.data.error.message)];
+    case 'permission.asked':
+      return [
+        {
+          _tag: 'PermissionAsked',
+          id: event.data.id,
+          action: event.data.action,
+          resources: event.data.resources,
+          ...(event.data.source?.type === 'tool' ? { toolCallId: event.data.source.id } : {}),
+        },
+      ];
+    case 'permission.replied':
+      return [{ _tag: 'PermissionReplied', id: event.data.requestID, reply: event.data.reply === 'reject' ? 'reject' : 'once' }];
     case 'session.execution.succeeded':
     case 'session.execution.interrupted':
       return [{ _tag: 'Idle' }];
@@ -157,13 +203,20 @@ const makeClient = (server: ServerClient): OpenCodeClient => ({
     try: () => server.model.list({ location: { directory: MODEL_LIST_DIRECTORY } }),
     catch: (cause) => unreachable(`OpenCode could not list its models: ${String(cause)}`),
   }).pipe(
-    Effect.map(({ data }) => data.filter((model) => model.enabled).map((model) => ({ id: `${model.providerID}/${model.id}` }))),
+    Effect.map(({ data }) => data.filter((model) => model.enabled).map((model) => ({
+      id: `${model.providerID}/${model.id}`,
+      variants: model.variants.map((variant) => String(variant.id)),
+    }))),
   ),
-  createSession: ({ cwd, model }) =>
+  createSession: ({ cwd, model, variant, permissions }) =>
     Effect.gen(function* () {
       const ref = model === undefined ? undefined : yield* modelRef(model);
       const session = yield* Effect.tryPromise({
-        try: () => server.session.create({ location: { directory: cwd }, ...(ref === undefined ? {} : { model: ref }) }),
+        try: () => server.session.create({
+            location: { directory: cwd },
+            ...(ref === undefined ? {} : { model: variant === undefined ? ref : { ...ref, variant } }),
+            permissions: [...permissions],
+          }),
         catch: (cause) => unreachable(`OpenCode could not open a session: ${String(cause)}`),
       });
       return session.id;
@@ -174,12 +227,13 @@ const makeClient = (server: ServerClient): OpenCodeClient => ({
         const abort = new AbortController();
         const connected = yield* Deferred.make<void>();
         const ended = yield* Ref.make(false);
+        const toolNames = new Map<string, { readonly name: string; readonly input: Readonly<Record<string, unknown>> }>();
         // Subscribe before prompting: the stream is not replayed, so an early event would be lost.
         const events = Stream.fromAsyncIterable(server.event.subscribe({ signal: abort.signal }), (cause) => cause).pipe(
           Stream.mapEffect((event) =>
             event.type === 'server.connected'
               ? Deferred.succeed(connected, undefined).pipe(Effect.as(none))
-              : Effect.succeed(translate(sessionId, event)),
+              : Effect.succeed(translate(sessionId, toolNames, event)),
           ),
           Stream.flattenIterable,
         );
@@ -205,14 +259,19 @@ const makeClient = (server: ServerClient): OpenCodeClient => ({
           ),
         );
         return Stream.merge(events, prompt).pipe(
-          Stream.tap((event) => (event._tag === 'TextDelta' ? Effect.void : Ref.set(ended, true))),
-          Stream.takeUntil((event) => event._tag !== 'TextDelta'),
+          Stream.tap((event) => (event._tag === 'Idle' || event._tag === 'Failed' ? Ref.set(ended, true) : Effect.void)),
+          Stream.takeUntil((event) => event._tag === 'Idle' || event._tag === 'Failed'),
           Stream.catchCause(() => Stream.empty),
           Stream.concat(lost),
           Stream.ensuring(Effect.sync(() => abort.abort())),
         );
       }),
     ),
+  replyPermission: ({ sessionId, requestId, reply }) =>
+    Effect.tryPromise({
+      try: () => server.permission.reply({ sessionID: sessionId, requestID: requestId, decision: reply }),
+      catch: (cause) => cause,
+    }).pipe(Effect.orDie),
   interrupt: (sessionId) =>
     Effect.tryPromise({ try: () => server.session.interrupt({ sessionID: sessionId }), catch: (cause) => cause }).pipe(
       Effect.asVoid,

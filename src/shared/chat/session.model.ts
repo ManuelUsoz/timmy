@@ -2,12 +2,7 @@ import { Schema } from 'effect';
 import { Attachment } from '../attachments/attachment.model';
 import { SessionId } from './ids.model';
 import { Mention } from './mention.model';
-import { Effort, ProviderId } from './provider.model';
-
-export const PermissionMode = Schema.Literals(['Auto', 'AutoAccept', 'Default', 'Plan']).annotate({
-  identifier: 'PermissionMode',
-});
-export type PermissionMode = typeof PermissionMode.Type;
+import { Effort, PermissionMode, ProviderId } from './provider.model';
 
 export const SessionOptions = Schema.Struct({
   provider: ProviderId,

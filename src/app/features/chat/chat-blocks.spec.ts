@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AgentId, MessageId, SessionId, ToolCallId } from '../../../shared/chat/ids.model';
 import type { ToolCall } from '../../../shared/chat/tool-call.model';
 import { ProjectId, ProviderSessionId, type SessionSummary } from '../../../shared/sessions/sessions.model';
-import { chatBlocks, sessionChips } from './chat-blocks';
+import { askTitleOf, chatBlocks, sessionChips } from './chat-blocks';
 import { groupByOwner, initialChatState, type ChatItem, type ChatState } from './chat-state';
 
 const root = AgentId.make('root');
@@ -134,5 +134,26 @@ describe('sessionChips', () => {
     const images = [{ url: 'blob:a' }];
     const blocks = chatBlocks(stateOf([{ kind: 'User', text: 'hi', images }]), groupByOwner(stateOf([{ kind: 'User', text: 'hi', images }])));
     expect(blocks).toEqual([{ kind: 'User', text: 'hi', images }]);
+  });
+});
+
+describe('askTitleOf', () => {
+  const call = (name: string, title: string): ToolCall => ({
+    id: ToolCallId.make('t'),
+    agentId: root,
+    name,
+    kind: 'Write',
+    title,
+    status: 'Pending',
+    locations: [],
+    diffs: [],
+  });
+
+  it('does not say the tool name twice', () => {
+    expect(askTitleOf(call('Write', 'Write C:\work\a.md'))).toBe('Write C:\work\a.md');
+  });
+
+  it('adds the name when the title does not start with it', () => {
+    expect(askTitleOf(call('Shell', 'ls -la'))).toBe('Shell ls -la');
   });
 });
