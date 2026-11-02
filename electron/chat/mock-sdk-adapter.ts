@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Deferred, Effect, Layer, Option, Queue, Ref, Schema, Stream } from 'effect';
 import { ChatError } from '../../src/shared/chat/chat-error.model';
+import { SlashCommand } from '../../src/shared/chat/command.model';
 import { ChatEvent } from '../../src/shared/chat/event.model';
 import { AgentId, MessageId, OptionId, PermissionRequestId, SessionId, ToolCallId, TurnId } from '../../src/shared/chat/ids.model';
 import { PermissionResponse } from '../../src/shared/chat/permission.model';
@@ -46,9 +47,9 @@ const openCodeCapabilities: AdapterCapabilities = {
   toolCalls: true,
   permissions: true,
   permissionModes: ['Auto', 'AutoAccept', 'Default'],
-  questions: false,
+  questions: true,
   thinking: false,
-  resume: false,
+  resume: true,
   mentions: 'none',
   images: false,
 };
@@ -70,7 +71,22 @@ interface MockProvider {
   readonly capabilities: AdapterCapabilities;
   readonly models: ReadonlyArray<ModelInfo>;
   readonly startup: Effect.Effect<void, ChatError>;
+  /** Slash commands on offer; Claude's list when absent. */
+  readonly commands?: ReadonlyArray<SlashCommand>;
 }
+
+const claudeCommands: ReadonlyArray<SlashCommand> = [
+  { name: 'compact', description: 'Summarize the conversation', argumentHint: '' },
+  { name: 'review', description: 'Review the current changes', argumentHint: '<branch>' },
+  { name: 'init', description: 'Create a CLAUDE.md', argumentHint: '' },
+];
+
+/** OpenCode's own built-ins and one the project defines, so the menu visibly differs from Claude's. */
+const openCodeCommands: ReadonlyArray<SlashCommand> = [
+  { name: 'init', description: 'Create AGENTS.md', argumentHint: '' },
+  { name: 'review', description: 'Review changes', argumentHint: '' },
+  { name: 'ship', description: 'Project command: build and publish', argumentHint: '' },
+];
 
 const claudeProvider: MockProvider = { capabilities: claudeCapabilities, models: claudeModels, startup: Effect.void };
 
@@ -131,12 +147,7 @@ export const makeMockSdkAdapter = (provider: MockProvider = claudeProvider) => E
     startup: provider.startup,
     shutdown: Effect.void,
     models: Effect.succeed(provider.models),
-    listCommands: () =>
-      Effect.succeed([
-        { name: 'compact', description: 'Summarize the conversation', argumentHint: '' },
-        { name: 'review', description: 'Review the current changes', argumentHint: '<branch>' },
-        { name: 'init', description: 'Create a CLAUDE.md', argumentHint: '' },
-      ]),
+    listCommands: () => Effect.succeed(provider.commands ?? claudeCommands),
     startSession: (_options, ids) =>
       Effect.gen(function* () {
         const interrupted = yield* Deferred.make<void>();
@@ -316,6 +327,7 @@ export const layerMockSdkAdapterRegistry = Layer.effect(
       capabilities: openCodeCapabilities,
       models: openCodeModels,
       startup: openCodeStartup,
+      commands: openCodeCommands,
     });
     yield* seedSessions(process.cwd());
     return SdkAdapterRegistry.of({

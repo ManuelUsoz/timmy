@@ -32,6 +32,31 @@ export interface OpenCodeTool {
   readonly output?: string;
 }
 
+/** A slash command OpenCode offers: built-in, or defined by the user or the project. */
+export interface OpenCodeCommand {
+  readonly name: string;
+  readonly description?: string;
+}
+
+/** One question of a form the agent shows the user. A field that is not a choice cannot be asked and is never mapped. */
+export interface OpenCodeQuestion {
+  readonly key: string;
+  readonly header?: string;
+  readonly prompt: string;
+  readonly options: ReadonlyArray<{ readonly value: string; readonly label: string; readonly description?: string }>;
+  readonly multiple: boolean;
+  readonly custom: boolean;
+}
+
+/** The user's answer to one question: the chosen option values and/or free text. */
+export interface OpenCodeAnswer {
+  readonly key: string;
+  /** The question allows several choices, so the answer is always a list. */
+  readonly multiple: boolean;
+  readonly selected: ReadonlyArray<string>;
+  readonly custom?: string;
+}
+
 /** What one OpenCode Turn reports, reduced to what Timmy maps. `Idle` and `Failed` end the Turn. */
 export type OpenCodeEvent =
   | { readonly _tag: 'TextDelta'; readonly text: string; readonly agent?: string }
@@ -53,6 +78,10 @@ export type OpenCodeEvent =
       readonly agent?: string;
     }
   | { readonly _tag: 'PermissionReplied'; readonly id: string; readonly reply: PermissionReply }
+  /** The agent asks the user questions through a form and waits. `agent` is the child session that asks; absent: the root. */
+  | { readonly _tag: 'QuestionAsked'; readonly id: string; readonly questions: ReadonlyArray<OpenCodeQuestion>; readonly agent?: string }
+  /** The form is over: answered, or cancelled by whoever. */
+  | { readonly _tag: 'QuestionClosed'; readonly id: string; readonly answered: boolean }
   | { readonly _tag: 'Failed'; readonly detail: string }
   | { readonly _tag: 'Idle' };
 
@@ -69,6 +98,18 @@ export interface OpenCodePermissionRule {
 /** A running OpenCode server, as the Adapter uses it. Failures the user can act on are `ChatError`s; the rest are defects. */
 export interface OpenCodeClient {
   readonly models: Effect.Effect<ReadonlyArray<OpenCodeModel>, ChatError>;
+  /** Slash commands (built-in and the project's own) for `cwd`. No session is needed. */
+  readonly commands: (options: { readonly cwd: string }) => Effect.Effect<ReadonlyArray<OpenCodeCommand>, ChatError>;
+  /**
+   * Brings a stored OpenCode session back under the given settings: fails with `SessionNotFound` when the
+   * server does not know it, otherwise replaces its permission rules and model. Its history stays.
+   */
+  readonly resumeSession: (options: {
+    readonly sessionId: string;
+    readonly model?: string;
+    readonly variant?: string;
+    readonly permissions: ReadonlyArray<OpenCodePermissionRule>;
+  }) => Effect.Effect<void, ChatError>;
   /** Opens an OpenCode session working in `cwd` under `permissions`; returns the id OpenCode knows it by. */
   readonly createSession: (options: {
     readonly cwd: string;
@@ -83,12 +124,20 @@ export interface OpenCodeClient {
     readonly cwd: string;
     readonly text: string;
     readonly images?: ReadonlyArray<OpenCodeImage>;
+    /** Run this slash command (with `text` as its arguments) instead of sending `text` as a prompt. */
+    readonly command?: string;
   }) => Stream.Stream<OpenCodeEvent>;
   /** Answers a `PermissionAsked`. OpenCode then reports `PermissionReplied` on the Turn's stream. */
   readonly replyPermission: (options: {
     readonly sessionId: string;
     readonly requestId: string;
     readonly reply: PermissionReply;
+  }) => Effect.Effect<void>;
+  /** Answers a `QuestionAsked`; `undefined` cancels it. OpenCode then reports `QuestionClosed` on the Turn's stream. */
+  readonly replyQuestion: (options: {
+    readonly sessionId: string;
+    readonly requestId: string;
+    readonly answers: ReadonlyArray<OpenCodeAnswer> | undefined;
   }) => Effect.Effect<void>;
   readonly interrupt: (sessionId: string) => Effect.Effect<void>;
 }

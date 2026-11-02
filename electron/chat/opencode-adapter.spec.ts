@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { Deferred, Effect, Fiber, Layer, Ref, Stream, type Scope } from 'effect';
 import { ChatError } from '../../src/shared/chat/chat-error.model';
 import type { ChatEvent } from '../../src/shared/chat/event.model';
-import { PermissionRequestId, SessionId } from '../../src/shared/chat/ids.model';
+import { OptionId, PermissionRequestId, QuestionId, QuestionRequestId, SessionId } from '../../src/shared/chat/ids.model';
+import type { QuestionRequest, QuestionResponse } from '../../src/shared/chat/question.model';
 import type { PermissionRequest } from '../../src/shared/chat/permission.model';
 import type { PermissionMode } from '../../src/shared/chat/provider.model';
 import type { SessionOptions } from '../../src/shared/chat/session.model';
@@ -17,6 +18,7 @@ import { layerSessionRepo, SessionRepo } from '../sessions/session-repo';
 import { makeOpenCodeAdapter } from './opencode-adapter';
 import {
   OpenCodeBackend,
+  type OpenCodeAnswer,
   type OpenCodeClient,
   type OpenCodeEvent,
   type OpenCodeImage,
@@ -42,12 +44,17 @@ const fakeClient = (
   interrupt: OpenCodeClient['interrupt'] = () => Effect.void,
   replyPermission: OpenCodeClient['replyPermission'] = () => Effect.void,
   createSession: OpenCodeClient['createSession'] = () => Effect.succeed('oc-session'),
+  extra: Partial<OpenCodeClient> = {},
 ): OpenCodeClient => ({
   models: Effect.succeed(models),
+  commands: () => Effect.succeed([]),
+  resumeSession: () => Effect.void,
   createSession,
   turn,
   replyPermission,
+  replyQuestion: () => Effect.void,
   interrupt,
+  ...extra,
 });
 
 /** A backend whose binary is present and whose server serves `client`; every start and stop is logged. */
@@ -298,9 +305,9 @@ describe('OpenCodeAdapter', () => {
         permissions: true,
         // OpenCode 2 ships no plan agent, so Plan could only be faked: it is not offered.
         permissionModes: ['Auto', 'AutoAccept', 'Default'],
-        questions: false,
+        questions: true,
         thinking: true,
-        resume: false,
+        resume: true,
         images: true,
         mentions: 'none',
       });
@@ -709,5 +716,258 @@ describe('OpenCodeAdapter subagents, thinking and usage', () => {
       expect(updates.filter((u) => u.agentId === 'c').map((u) => u.usage.outputTokens)).toEqual([3]);
       const finished = events.at(-1);
       expect(finished?._tag === 'TurnFinished' ? finished.usage.inputTokens : 0).toBe(157);
+    }));
+});
+
+describe('OpenCodeAdapter slash commands (NXY-87)', () => {
+  itRepo('listCommands returns OpenCode commands for a folder with no session', () =>
+    Effect.gen(function* () {
+      const log = yield* makeServerLog;
+      const asked: string[] = [];
+      const client = fakeClient([{ id: 'opencode/big-pickle', variants: [] }], undefined, undefined, undefined, undefined, {
+        commands: ({ cwd }) => {
+          asked.push(cwd);
+          return Effect.succeed([{ name: 'init', description: 'Create AGENTS.md' }, { name: 'ship' }]);
+        },
+      });
+      const adapter = yield* makeOpenCodeAdapter.pipe(Effect.provide(layerBackend(log, client)));
+      yield* adapter.startup;
+      expect(yield* adapter.listCommands({ cwd: '/proj' })).toEqual([
+        { name: 'init', description: 'Create AGENTS.md', argumentHint: '' },
+        { name: 'ship', description: '', argumentHint: '' },
+      ]);
+      expect(asked).toEqual(['/proj']);
+    }));
+
+  const sent = (text: string) =>
+    Effect.gen(function* () {
+      const log = yield* makeServerLog;
+      const turns: Array<{ text: string; command?: string }> = [];
+      const client = fakeClient(
+        [{ id: 'opencode/big-pickle', variants: [] }],
+        ({ text: body, command }) => {
+          turns.push({ text: body, ...(command === undefined ? {} : { command }) });
+          return Stream.make<OpenCodeEvent[]>({ _tag: 'Idle' });
+        },
+        undefined,
+        undefined,
+        undefined,
+        { commands: () => Effect.succeed([{ name: 'init' }]) },
+      );
+      const { adapter, sessionId } = yield* readySession(log, client);
+      yield* say(adapter, sessionId, text);
+      return turns;
+    });
+
+  itRepo('running a known command sends it to OpenCode as a command with its arguments', () =>
+    Effect.gen(function* () {
+      expect(yield* sent('/init  the whole repo')).toEqual([{ text: 'the whole repo', command: 'init' }]);
+    }));
+
+  itRepo('text that only looks like a command stays an ordinary prompt', () =>
+    Effect.gen(function* () {
+      expect(yield* sent('/usr/bin is where it lives')).toEqual([{ text: '/usr/bin is where it lives' }]);
+    }));
+
+  itRepo('the expanded prompt of a Mention reaches OpenCode untouched', () =>
+    Effect.gen(function* () {
+      const prompt = 'Read this:\n<file path="a.ts">const a = 1</file>';
+      expect(yield* sent(prompt)).toEqual([{ text: prompt }]);
+    }));
+});
+
+describe('OpenCodeAdapter resume (NXY-90)', () => {
+  itRepo('resuming keeps the OpenCode session and applies the new permission rules', () =>
+    Effect.gen(function* () {
+      const log = yield* makeServerLog;
+      const resumed: Array<{ sessionId: string; permissions: ReadonlyArray<OpenCodePermissionRule> }> = [];
+      const prompted: string[] = [];
+      let created = 0;
+      const client = fakeClient(
+        [{ id: 'opencode/big-pickle', variants: [] }],
+        ({ sessionId }) => {
+          prompted.push(sessionId);
+          return Stream.make<OpenCodeEvent[]>({ _tag: 'Idle' });
+        },
+        undefined,
+        undefined,
+        () => Effect.succeed(`oc-${++created}`),
+        { resumeSession: (o) => Effect.sync(() => void resumed.push(o)) },
+      );
+      const repo = yield* SessionRepo;
+      const adapter = yield* makeOpenCodeAdapter.pipe(Effect.provide(layerBackend(log, client)));
+      yield* adapter.startup;
+      const sessionId = SessionId.make('s1');
+      const first = yield* adapter.startSession(options, { sessionId });
+      yield* repo.ensureProject(projectId, options.cwd);
+      yield* repo.createSession({ sessionId, projectId, cwd: '/work', provider: 'OpenCode', providerSessionId: first });
+
+      yield* adapter.closeSession(sessionId);
+      const again = yield* adapter.startSession(
+        { ...options, permissionMode: 'Auto' },
+        { sessionId, resumeProviderSessionId: first },
+      );
+      yield* say(adapter, sessionId, 'go');
+
+      expect(again).toBe(first);
+      expect(created).toBe(1);
+      expect(resumed).toEqual([{ sessionId: first, permissions: [{ action: '*', resource: '*', effect: 'allow' }] }]);
+      expect(prompted).toEqual([first]);
+    }));
+
+  itRepo('a session OpenCode no longer knows fails the resume with SessionNotFound', () =>
+    Effect.gen(function* () {
+      const log = yield* makeServerLog;
+      const client = fakeClient([{ id: 'opencode/big-pickle', variants: [] }], undefined, undefined, undefined, undefined, {
+        resumeSession: () => Effect.fail(new ChatError({ reason: 'SessionNotFound', detail: 'gone' })),
+      });
+      const adapter = yield* makeOpenCodeAdapter.pipe(Effect.provide(layerBackend(log, client)));
+      yield* adapter.startup;
+      const error = yield* adapter
+        .startSession(options, { sessionId: SessionId.make('s1'), resumeProviderSessionId: ProviderSessionId.make('x') })
+        .pipe(Effect.flip);
+      expect(error.reason).toBe('SessionNotFound');
+    }));
+
+  itRepo('reopening a stored session shows its history, and deleting it removes the transcript', () =>
+    Effect.gen(function* () {
+      const log = yield* makeServerLog;
+      const client = fakeClient(
+        [{ id: 'opencode/big-pickle', variants: [] }],
+        script({ _tag: 'TextDelta', text: 'hi there' }, { _tag: 'Idle' }),
+      );
+      const { adapter, sessionId } = yield* readySession(log, client);
+      yield* say(adapter, sessionId, 'hello');
+      const ref = { projectId, sessionId };
+      expect((yield* adapter.load(ref)).map((item) => (item._tag === 'Message' ? item.text : ''))).toEqual(['hello', 'hi there']);
+
+      yield* adapter.delete(sessionId);
+
+      expect(yield* adapter.load(ref)).toEqual([]);
+      expect(yield* adapter.listSessions(projectId)).toEqual([]);
+    }));
+});
+
+describe('OpenCodeAdapter questions (NXY-91)', () => {
+  const form = {
+    key: 'db',
+    header: 'Database',
+    prompt: 'Which database?',
+    options: [
+      { value: 'pg', label: 'Postgres' },
+      { value: 'sqlite', label: 'SQLite' },
+    ],
+    multiple: false,
+    custom: true,
+  } as const;
+
+  type Given = ReadonlyArray<OpenCodeAnswer> | undefined;
+
+  const questioningClient = (answers: Ref.Ref<ReadonlyArray<Given>>, closed: Deferred.Deferred<boolean>) =>
+    fakeClient(
+      [{ id: 'opencode/big-pickle', variants: [] }],
+      () =>
+        Stream.make<OpenCodeEvent[]>({ _tag: 'QuestionAsked', id: 'q1', questions: [form] }).pipe(
+          Stream.concat(
+            Stream.fromEffect(Deferred.await(closed)).pipe(
+              Stream.flatMap((answered) =>
+                Stream.make<OpenCodeEvent[]>({ _tag: 'QuestionClosed', id: 'q1', answered }, { _tag: 'Idle' }),
+              ),
+            ),
+          ),
+        ),
+      undefined,
+      undefined,
+      undefined,
+      {
+        replyQuestion: ({ answers: given }) =>
+          Ref.update(answers, (all) => [...all, given]).pipe(Effect.andThen(Deferred.succeed(closed, given !== undefined))),
+      },
+    );
+
+  const ask = (respond: (request: QuestionRequest) => QuestionResponse) =>
+    Effect.gen(function* () {
+      const log = yield* makeServerLog;
+      const answers = yield* Ref.make<ReadonlyArray<Given>>([]);
+      const closed = yield* Deferred.make<boolean>();
+      const { adapter, sessionId } = yield* readySession(log, questioningClient(answers, closed));
+      const asked = yield* Deferred.make<QuestionRequest>();
+      const turn = yield* Effect.forkChild(
+        adapter.send({ sessionId, text: 'go', mentions: [], attachments: [] }).pipe(
+          Stream.tap((event) => (event._tag === 'QuestionAsked' ? Deferred.succeed(asked, event.request) : Effect.void)),
+          Stream.runCollect,
+          Effect.map((events) => [...events]),
+        ),
+      );
+      const request = yield* Deferred.await(asked);
+      yield* adapter.answerQuestion(sessionId, respond(request));
+      return { request, events: yield* Fiber.join(turn), answers: yield* Ref.get(answers) };
+    });
+
+  itRepo('a form from the agent becomes a question and the answer goes back to OpenCode', () =>
+    Effect.gen(function* () {
+      const { request, events, answers } = yield* ask((r) => ({
+        _tag: 'Answered',
+        requestId: r.id,
+        answers: [{ questionId: QuestionId.make('db'), selected: [OptionId.make('pg')] }],
+      }));
+
+      expect(request).toMatchObject({
+        id: 'q1',
+        questions: [{ id: 'db', header: 'Database', prompt: 'Which database?', multiple: false, allowCustom: true }],
+      });
+      expect(request.questions[0].options.map((o) => [o.id, o.label])).toEqual([
+        ['pg', 'Postgres'],
+        ['sqlite', 'SQLite'],
+      ]);
+      expect(answers).toEqual([[{ key: 'db', multiple: false, selected: ['pg'] }]]);
+      expect(tags(events)).toEqual(['TurnStarted', 'QuestionAsked', 'QuestionResolved', 'TurnFinished']);
+      expect(events.find((e) => e._tag === 'QuestionResolved')).toMatchObject({
+        requestId: 'q1',
+        response: { _tag: 'Answered' },
+      });
+    }));
+
+  itRepo('dismissing the question cancels the form in OpenCode', () =>
+    Effect.gen(function* () {
+      const { events, answers } = yield* ask((r) => ({ _tag: 'Dismissed', requestId: r.id }));
+      expect(answers).toEqual([undefined]);
+      expect(events.find((e) => e._tag === 'QuestionResolved')).toMatchObject({ response: { _tag: 'Dismissed' } });
+    }));
+
+  itRepo('interrupting a Turn that waits on a question ends it as cancelled and cancels the form', () =>
+    Effect.gen(function* () {
+      const log = yield* makeServerLog;
+      const answers = yield* Ref.make<ReadonlyArray<Given>>([]);
+      const closed = yield* Deferred.make<boolean>();
+      const base = questioningClient(answers, closed);
+      const client: OpenCodeClient = { ...base, interrupt: () => Deferred.succeed(closed, false).pipe(Effect.asVoid) };
+      const { adapter, sessionId } = yield* readySession(log, client);
+      const asked = yield* Deferred.make<void>();
+      const turn = yield* Effect.forkChild(
+        adapter.send({ sessionId, text: 'go', mentions: [], attachments: [] }).pipe(
+          Stream.tap((event) => (event._tag === 'QuestionAsked' ? Deferred.succeed(asked, undefined) : Effect.void)),
+          Stream.runCollect,
+          Effect.map((events) => [...events]),
+        ),
+      );
+      yield* Deferred.await(asked);
+      yield* adapter.interrupt(sessionId);
+      const events = yield* Fiber.join(turn);
+
+      expect(yield* Ref.get(answers)).toEqual([undefined]);
+      const finished = events.at(-1);
+      expect(finished?._tag === 'TurnFinished' ? finished.outcome : undefined).toBe('Cancelled');
+      expect(tags(events)).toContain('QuestionResolved');
+    }));
+
+  itRepo('answering a question nobody asked fails with RequestNotFound', () =>
+    Effect.gen(function* () {
+      const log = yield* makeServerLog;
+      const { adapter, sessionId } = yield* readySession(log, fakeClient([{ id: 'opencode/big-pickle', variants: [] }]));
+      const error = yield* adapter
+        .answerQuestion(sessionId, { _tag: 'Dismissed', requestId: QuestionRequestId.make('nope') })
+        .pipe(Effect.flip);
+      expect(error.reason).toBe('RequestNotFound');
     }));
 });

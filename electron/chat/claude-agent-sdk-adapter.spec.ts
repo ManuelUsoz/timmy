@@ -7,7 +7,7 @@ import { AttachmentId } from '../../src/shared/attachments/attachment.model';
 import { ChatEvent } from '../../src/shared/chat/event.model';
 import { OptionId, PermissionRequestId, QuestionId, SessionId } from '../../src/shared/chat/ids.model';
 import { SessionOptions } from '../../src/shared/chat/session.model';
-import { ProviderSessionId } from '../../src/shared/sessions/sessions.model';
+import { ProjectId, ProviderSessionId } from '../../src/shared/sessions/sessions.model';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -161,6 +161,45 @@ describe('ClaudeAgentSdkAdapter', () => {
       yield* Stream.runCollect(adapter.send({ sessionId, text: 'hi', mentions: [], attachments: [] }));
       expect(providerSessionId).toBe(stored);
       expect(runs[0]?.options).toMatchObject({ resume: stored });
+    }));
+
+  itRepo('changing the permission mode, model and effort mid-session keeps the Session and applies on the next Turn', () =>
+    Effect.gen(function* () {
+      const runs: FakeRun[] = [];
+      scriptSdk(async function* () {
+        yield init;
+        yield success;
+      }, runs);
+      const adapter = yield* makeClaudeAgentSdkAdapter();
+      yield* adapter.startup;
+      const sessionId = SessionId.make(randomUUID());
+      const providerSessionId = yield* adapter.startSession(options, { sessionId });
+      yield* Stream.runCollect(adapter.send({ sessionId, text: 'one', mentions: [], attachments: [] }));
+      // The SDK mirrors its transcript into the repo; the fake does not, so the spec stores what the first Turn left.
+      const repo = yield* SessionRepo;
+      const projectId = ProjectId.make('p1');
+      yield* repo.ensureProject(projectId, '/work');
+      yield* repo.createSession({ sessionId, projectId, cwd: '/work', provider: 'Claude', providerSessionId });
+      yield* repo.append({ projectId, sessionId }, [
+        { kind: 'user', uuid: randomUUID(), timestamp: new Date().toISOString(), native: { type: 'user' } },
+      ]);
+
+      // What the app does on an option change: close the live session, then open the same one again.
+      yield* adapter.closeSession(sessionId);
+      const again = yield* adapter.startSession(
+        { ...options, permissionMode: 'Auto', model: 'mock-opus', effort: 'High' },
+        { sessionId, resumeProviderSessionId: providerSessionId },
+      );
+      yield* Stream.runCollect(adapter.send({ sessionId, text: 'two', mentions: [], attachments: [] }));
+
+      expect(again).toBe(providerSessionId);
+      expect(runs[0]?.options).toMatchObject({ permissionMode: 'default' });
+      expect(runs[1]?.options).toMatchObject({
+        resume: providerSessionId,
+        permissionMode: 'auto',
+        model: 'mock-opus',
+        effort: 'high',
+      });
     }));
 
   itRepo('maps the Auto permission mode to the SDK auto mode', () =>

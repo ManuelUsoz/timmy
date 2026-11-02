@@ -4,7 +4,15 @@ import { homedir } from 'node:os';
 import type { OpenCodeClient as ServerClient, OpenCodeEvent as ServerEvent } from '@opencode/client';
 import { Deferred, Effect, Layer, Ref, Stream } from 'effect';
 import { ChatError } from '../../src/shared/chat/chat-error.model';
-import { OpenCodeBackend, type OpenCodeClient, type OpenCodeEvent, type OpenCodeImage, type OpenCodeToolStatus } from './opencode-backend';
+import {
+  OpenCodeBackend,
+  type OpenCodeAnswer,
+  type OpenCodeClient,
+  type OpenCodeEvent,
+  type OpenCodeImage,
+  type OpenCodeQuestion,
+  type OpenCodeToolStatus,
+} from './opencode-backend';
 
 const MINIMUM_MAJOR = 2;
 const START_TIMEOUT = '30 seconds';
@@ -139,6 +147,40 @@ const textOf = (content: ReadonlyArray<{ readonly type: string; readonly text?: 
   return joined === '' ? undefined : joined;
 };
 
+interface FormField {
+  readonly key: string;
+  readonly type: string;
+  readonly title?: string;
+  readonly description?: string;
+  readonly options?: ReadonlyArray<{ readonly value: string; readonly label: string; readonly description?: string }>;
+  readonly custom?: boolean;
+}
+
+/**
+ * The agent's question tool arrives as a form. Only choice fields (a string or multiselect with options) can be
+ * shown as a question; a form with any other field is not askable and `undefined` says so.
+ */
+export const questionsOf = (fields: ReadonlyArray<FormField>): ReadonlyArray<OpenCodeQuestion> | undefined => {
+  const questions: OpenCodeQuestion[] = [];
+  for (const field of fields) {
+    const choice = field.type === 'string' || field.type === 'multiselect';
+    if (!choice || field.options === undefined || field.options.length === 0) return undefined;
+    questions.push({
+      key: field.key,
+      ...(field.title === undefined ? {} : { header: field.title }),
+      prompt: field.description ?? field.title ?? field.key,
+      options: field.options.map(({ value, label, description }) => ({
+        value,
+        label,
+        ...(description === undefined ? {} : { description }),
+      })),
+      multiple: field.type === 'multiselect',
+      custom: field.custom === true,
+    });
+  }
+  return questions.length === 0 ? undefined : questions;
+};
+
 /**
  * What one OpenCode event means for a Turn of `sessionId`; events of other sessions mean nothing here.
  * `tools` remembers each tool's name and last input, which its later events do not repeat.
@@ -150,6 +192,14 @@ export const translate = (
   children: Map<string, string>,
   event: ServerEvent,
 ): ReadonlyArray<OpenCodeEvent> => {
+  if (event.type === 'form.created') {
+    const { form } = event.data;
+    const owner = form.sessionID;
+    if (owner !== sessionId && !children.has(owner)) return [];
+    const questions = questionsOf(form.fields);
+    if (questions === undefined) return [];
+    return [{ _tag: 'QuestionAsked', id: form.id, questions, ...(owner === sessionId ? {} : { agent: owner }) }];
+  }
   const data: unknown = 'data' in event ? event.data : undefined;
   if (typeof data !== 'object' || data === null || !('sessionID' in data) || typeof data.sessionID !== 'string') return [];
   const source = data.sessionID;
@@ -226,6 +276,10 @@ export const translate = (
       ];
     case 'permission.replied':
       return [{ _tag: 'PermissionReplied', id: event.data.requestID, reply: event.data.reply === 'reject' ? 'reject' : 'once' }];
+    case 'form.replied':
+      return [{ _tag: 'QuestionClosed', id: event.data.id, answered: true }];
+    case 'form.cancelled':
+      return [{ _tag: 'QuestionClosed', id: event.data.id, answered: false }];
     case 'session.execution.succeeded':
       return root ? [{ _tag: 'Idle' }] : [{ _tag: 'AgentEnded', id: source, outcome: 'Completed' }];
     case 'session.execution.interrupted':
@@ -250,6 +304,15 @@ const filesOf = (images: ReadonlyArray<OpenCodeImage> | undefined) =>
 
 const none: ReadonlyArray<OpenCodeEvent> = [];
 
+/** A form answer: several choices become a list, one its value; typed text counts as a choice. */
+const answerOf = (answers: ReadonlyArray<OpenCodeAnswer>): Record<string, string | ReadonlyArray<string>> =>
+  Object.fromEntries(
+    answers.map(({ key, multiple, selected, custom }) => {
+      const all = custom === undefined || custom === '' ? selected : [...selected, custom];
+      return [key, multiple || all.length > 1 ? all : (all[0] ?? '')] as const;
+    }),
+  );
+
 const makeClient = (server: ServerClient): OpenCodeClient => ({
   models: Effect.tryPromise({
     try: () => server.model.list({ location: { directory: MODEL_LIST_DIRECTORY } }),
@@ -262,6 +325,33 @@ const makeClient = (server: ServerClient): OpenCodeClient => ({
       images: model.capabilities.input.includes('image'),
     }))),
   ),
+  commands: ({ cwd }) =>
+    Effect.tryPromise({
+      try: () => server.command.list({ location: { directory: cwd } }),
+      catch: (cause) => unreachable(`OpenCode could not list its commands: ${String(cause)}`),
+    }).pipe(
+      Effect.map(({ data }) =>
+        data.map(({ name, description }) => ({ name, ...(description === undefined ? {} : { description }) })),
+      ),
+    ),
+  resumeSession: ({ sessionId, model, variant, permissions }) =>
+    Effect.gen(function* () {
+      yield* Effect.tryPromise({ try: () => server.session.get({ sessionID: sessionId }), catch: (cause) => cause }).pipe(
+        Effect.mapError(
+          () => new ChatError({ reason: 'SessionNotFound', detail: `OpenCode no longer has session ${sessionId}` }),
+        ),
+      );
+      const ref = model === undefined ? undefined : yield* modelRef(model);
+      yield* Effect.tryPromise({
+        try: async () => {
+          await server.session.update({ sessionID: sessionId, permissions: [...permissions] });
+          if (ref !== undefined) {
+            await server.session.switchModel({ sessionID: sessionId, model: variant === undefined ? ref : { ...ref, variant } });
+          }
+        },
+        catch: (cause) => unreachable(`OpenCode could not resume session ${sessionId}: ${String(cause)}`),
+      });
+    }),
   createSession: ({ cwd, model, variant, permissions }) =>
     Effect.gen(function* () {
       const ref = model === undefined ? undefined : yield* modelRef(model);
@@ -275,7 +365,7 @@ const makeClient = (server: ServerClient): OpenCodeClient => ({
       });
       return session.id;
     }),
-  turn: ({ sessionId, text, images }) =>
+  turn: ({ sessionId, text, images, command }) =>
     Stream.unwrap(
       Effect.gen(function* () {
         const abort = new AbortController();
@@ -285,17 +375,39 @@ const makeClient = (server: ServerClient): OpenCodeClient => ({
         const toolNames = new Map<string, { readonly name: string; readonly input: Readonly<Record<string, unknown>> }>();
         // Subscribe before prompting: the stream is not replayed, so an early event would be lost.
         const events = Stream.fromAsyncIterable(server.event.subscribe({ signal: abort.signal }), (cause) => cause).pipe(
-          Stream.mapEffect((event) =>
-            event.type === 'server.connected'
-              ? Deferred.succeed(connected, undefined).pipe(Effect.as(none))
-              : Effect.succeed(translate(sessionId, toolNames, children, event)),
-          ),
+          Stream.mapEffect((event) => {
+            if (event.type === 'server.connected') return Deferred.succeed(connected, undefined).pipe(Effect.as(none));
+            const translated = translate(sessionId, toolNames, children, event);
+            // A form with a field Timmy cannot show would wait forever: tell the agent nobody can answer it.
+            if (
+              event.type === 'form.created' &&
+              translated.length === 0 &&
+              (event.data.form.sessionID === sessionId || children.has(event.data.form.sessionID))
+            ) {
+              return Effect.tryPromise({
+                try: () =>
+                  server.session.form.cancel({
+                    sessionID: event.data.form.sessionID,
+                    formID: event.data.form.id,
+                    message: 'The user interface cannot show this question. Continue with reasonable assumptions.',
+                  }),
+                catch: (cause) => cause,
+              }).pipe(Effect.ignore, Effect.as(none));
+            }
+            return Effect.succeed(translated);
+          }),
           Stream.flattenIterable,
         );
         const prompt = Deferred.await(connected).pipe(
           Effect.timeout(CONNECT_TIMEOUT),
           Effect.andThen(
-            Effect.tryPromise({ try: () => server.session.prompt({ sessionID: sessionId, text, ...filesOf(images) }), catch: (cause) => cause }),
+            Effect.tryPromise({
+              try: async () => {
+                if (command === undefined) await server.session.prompt({ sessionID: sessionId, text, ...filesOf(images) });
+                else await server.session.command({ sessionID: sessionId, name: command, text, ...filesOf(images) });
+              },
+              catch: (cause: unknown) => cause,
+            }),
           ),
           Effect.as(none),
           Effect.catch((cause) =>
@@ -325,6 +437,14 @@ const makeClient = (server: ServerClient): OpenCodeClient => ({
   replyPermission: ({ sessionId, requestId, reply }) =>
     Effect.tryPromise({
       try: () => server.permission.reply({ sessionID: sessionId, requestID: requestId, decision: reply }),
+      catch: (cause) => cause,
+    }).pipe(Effect.orDie),
+  replyQuestion: ({ sessionId, requestId, answers }) =>
+    Effect.tryPromise({
+      try: () =>
+        answers === undefined
+          ? server.session.form.cancel({ sessionID: sessionId, formID: requestId })
+          : server.session.form.reply({ sessionID: sessionId, formID: requestId, answer: answerOf(answers) }),
       catch: (cause) => cause,
     }).pipe(Effect.orDie),
   interrupt: (sessionId) =>

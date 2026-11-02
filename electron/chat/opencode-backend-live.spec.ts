@@ -73,3 +73,55 @@ describe('translate: child sessions', () => {
     expect(run([spawn, asked]).at(-1)).toMatchObject({ _tag: 'PermissionAsked', id: 'per_1', agent: CHILD });
   });
 });
+
+describe('translate: questions (forms)', () => {
+  const choice = {
+    key: 'db',
+    type: 'string',
+    title: 'Database',
+    description: 'Which database?',
+    options: [{ value: 'pg', label: 'Postgres', description: 'the usual' }, { value: 'lite', label: 'SQLite' }],
+    custom: true,
+  };
+  const created = (sessionID: string, fields: ReadonlyArray<unknown>) =>
+    event('form.created', { form: { id: 'form_1', sessionID, title: 'Question', fields } });
+
+  it('turns a choice form into a question, and a multiselect into a multiple one', () => {
+    expect(run([created(ROOT, [choice, { key: 'x', type: 'multiselect', options: [{ value: 'a', label: 'A' }] }])])).toEqual([
+      {
+        _tag: 'QuestionAsked',
+        id: 'form_1',
+        questions: [
+          {
+            key: 'db',
+            header: 'Database',
+            prompt: 'Which database?',
+            options: [{ value: 'pg', label: 'Postgres', description: 'the usual' }, { value: 'lite', label: 'SQLite' }],
+            multiple: false,
+            custom: true,
+          },
+          { key: 'x', prompt: 'x', options: [{ value: 'a', label: 'A' }], multiple: true, custom: false },
+        ],
+      },
+    ]);
+  });
+
+  it('attributes a form of a child to the child, and ignores one of a stranger', () => {
+    expect(run([spawn, created(CHILD, [choice])]).at(-1)).toMatchObject({ _tag: 'QuestionAsked', agent: CHILD });
+    expect(run([created('ses_x', [choice])])).toEqual([]);
+  });
+
+  it('does not show a form with a field that is not a choice', () => {
+    expect(run([created(ROOT, [choice, { key: 'n', type: 'number' }])])).toEqual([]);
+    expect(run([created(ROOT, [{ key: 'free', type: 'string' }])])).toEqual([]);
+  });
+
+  it('reports a form answered or cancelled as closed', () => {
+    expect(run([event('form.replied', { sessionID: ROOT, id: 'form_1', answer: {} })])).toEqual([
+      { _tag: 'QuestionClosed', id: 'form_1', answered: true },
+    ]);
+    expect(run([event('form.cancelled', { sessionID: ROOT, id: 'form_1' })])).toEqual([
+      { _tag: 'QuestionClosed', id: 'form_1', answered: false },
+    ]);
+  });
+});
