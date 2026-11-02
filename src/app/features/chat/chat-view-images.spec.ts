@@ -52,6 +52,7 @@ const setup = async ({ images = true, models = [], refuseImages = false }: Setup
           subagents: true,
           toolCalls: true,
           permissions: true,
+          permissionModes: ['Auto', 'AutoAccept', 'Default', 'Plan'],
           questions: true,
           thinking: true,
           resume: true,

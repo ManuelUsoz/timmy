@@ -52,6 +52,7 @@ const makeFakeAdapter = (
       subagents: true,
       toolCalls: true,
       permissions: true,
+      permissionModes: ['Auto', 'AutoAccept', 'Default', 'Plan'],
       questions: true,
       thinking: false,
       resume: true,

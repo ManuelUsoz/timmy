@@ -1,5 +1,6 @@
 import { FormControl } from '@angular/forms';
-import type { PermissionMode, SessionOptions } from '../../../shared/chat/session.model';
+import type { PermissionMode } from '../../../shared/chat/provider.model';
+import type { SessionOptions } from '../../../shared/chat/session.model';
 import type { SelectOption } from '../../shared/ui/select/select.types';
 import { I18n } from '../../core/i18n';
 import { pillView } from '../shell/pill-view';
@@ -99,12 +100,17 @@ export class ChatController {
   );
   readonly effortControl = new FormControl<Effort>('Default', { nonNullable: true });
   /** Icons are 16x16 stroke paths: bolt, double check, lock, checklist. */
-  readonly permissionOptions: SelectOption<PermissionMode>[] = [
+  private readonly allPermissionOptions: SelectOption<PermissionMode>[] = [
     { value: 'Auto', label: 'Auto mode', icon: 'M9 2L4 9h4l-1 5 5-7H8z' },
     { value: 'AutoAccept', label: 'Auto accept', icon: 'M1.5 8.5l3 3L10 6M7 11.5l1 1L14.5 6' },
     { value: 'Default', label: 'Default', icon: 'M4 7h8v6H4zM6 7V5a2 2 0 0 1 4 0v2' },
     { value: 'Plan', label: 'Plan', icon: 'M3 3h10v10H3zM5.5 6h5M5.5 8.5h5M5.5 11h3' },
   ];
+  /** The Permission modes the active Provider can honour; all of them until its Adapter has said. */
+  readonly permissionOptions = computed((): SelectOption<PermissionMode>[] => {
+    const modes = this.capabilities()?.permissionModes;
+    return modes === undefined ? this.allPermissionOptions : this.allPermissionOptions.filter((o) => modes.includes(o.value));
+  });
   readonly permissionControl = new FormControl<PermissionMode>('Default', { nonNullable: true });
   /** The Provider the next Session starts with; an open Session keeps the one it was created with. */
   readonly provider = signal<ProviderId>('Claude');
@@ -284,6 +290,9 @@ export class ChatController {
     this.provider.set(provider);
     this.capabilities.set(exit.value.capabilities);
     this.models.set(exit.value.models);
+    if (!exit.value.capabilities.permissionModes.includes(this.permissionControl.value)) {
+      this.permissionControl.setValue('Default', { emitEvent: false });
+    }
     // The other Provider's model ids mean nothing here.
     this.modelControl.setValue(null, { emitEvent: false });
     this.selectedModel.set(null);
