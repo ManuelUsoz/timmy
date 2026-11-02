@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { TooltipComponent } from './tooltip';
 
@@ -7,6 +7,14 @@ import { TooltipComponent } from './tooltip';
   template: `<ui-tooltip text="src/app/main.ts"><button>main.ts</button></ui-tooltip>`,
 })
 class Host {}
+
+@Component({
+  imports: [TooltipComponent],
+  template: `<ui-tooltip [text]="text()" align="end"><button>x</button></ui-tooltip>`,
+})
+class EndHost {
+  readonly text = signal('long reason');
+}
 
 describe('TooltipComponent', () => {
   async function render() {
@@ -59,5 +67,23 @@ describe('TooltipComponent placement', () => {
     const hosts = fixture.nativeElement.querySelectorAll('ui-tooltip');
     expect(hosts[0].dataset['placement']).toBe('bottom');
     expect(hosts[1].dataset['placement']).toBe('top');
+  });
+
+  it('aligns to the end edge and shows nothing once its text is empty', async () => {
+    await TestBed.configureTestingModule({ imports: [EndHost] }).compileComponents();
+    const fixture = TestBed.createComponent(EndHost);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+    const popup = (root: HTMLElement) => root.querySelector('[role="tooltip"]');
+    const tip = el.querySelector('ui-tooltip')!;
+    expect(tip.getAttribute('data-align')).toBe('end');
+
+    tip.dispatchEvent(new Event('mouseenter'));
+    await fixture.whenStable();
+    expect(popup(el)?.textContent).toBe('long reason');
+
+    fixture.componentInstance.text.set('');
+    await fixture.whenStable();
+    expect(popup(el)).toBeNull();
   });
 });

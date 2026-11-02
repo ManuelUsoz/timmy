@@ -170,3 +170,27 @@
   font: 400 12px/16px var(--ff-mono);
   letter-spacing: 0.32px;
 }
+
+/* In a toolbar that is a size container (the composer bar) the trigger gives way instead of overflowing:
+   the effort text goes first (the bars and the aria-label still say it), then the model name is cut with an
+   ellipsis. Without a container ancestor the query never matches and nothing changes. */
+:host {
+  min-width: 0;
+}
+
+.mp-trigger {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.mp-model {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@container (max-width: 480px) {
+  .mp-code {
+    display: none;
+  }
+}

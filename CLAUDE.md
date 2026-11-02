@@ -85,8 +85,20 @@ it.effect('gets app info', () =>
 - Sandboxed preload cannot pass ports through contextBridge; the port arrives via
   `window.postMessage(RPC_PORT_MESSAGE)`. Check origin on receipt.
 
+## E2E and visual regression
+
+`@playwright/test` drives the real Electron app against the mock chat adapter (`TIMMY_E2E=1`).
+Config: `playwright.config.ts`. Fixture and helpers (`Timmy`: openPanel, send, switchMode, shot): `e2e/fixtures.ts`.
+Specs live in `e2e/<area>/<name>.spec.ts`; baselines in `__screenshots__/` next to them (committed).
+
+- Add a spec per user-visible flow; call `timmy.shot('<flow>-<state>')` for each visual state.
+- Mask volatile UI (dates, durations) with `timmy.shot(name, { mask: [...] })`.
+- After an intentional UI change run `npm run e2e:update`, then review the PNG diffs in git.
+- Failures: `e2e-output/report/index.html` (traces, diffs). Baselines are machine dependent; generate them on the same OS that runs the suite.
+
 ## Commands
 
+- `npm run e2e`: build + Playwright suite (`e2e:fast` skips the build, `e2e:update` regenerates baselines)
 - `npm run dev`: renderer (ng serve :4200) + electron
 - `npm run build`: renderer + electron; `build:renderer`, `build:electron` separately
 - `npm run typecheck`: electron tsc

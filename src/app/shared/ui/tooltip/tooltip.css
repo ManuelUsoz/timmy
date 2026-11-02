@@ -29,6 +29,10 @@
   --from: translateY(4px);
   animation: as-tooltip-in 0.11s ease-out;
 }
+:host([data-align='end']) .as-tooltip__popup {
+  left: auto;
+  right: 0;
+}
 :host([data-placement='bottom']) .as-tooltip__popup {
   --from: translateY(-4px);
   top: calc(100% + var(--spacing-02));

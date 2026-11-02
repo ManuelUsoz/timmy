@@ -14,7 +14,7 @@ let nextId = 0;
     <span class="as-tooltip__trigger" [attr.aria-describedby]="visible() ? id : null">
       <ng-content />
     </span>
-    @if (visible()) {
+    @if (visible() && text()) {
       <span class="as-tooltip__popup" role="tooltip" [id]="id">{{ text() }}</span>
     }
   `,
@@ -23,6 +23,7 @@ let nextId = 0;
   host: {
     class: 'as-tooltip',
     '[attr.data-placement]': 'placement()',
+    '[attr.data-align]': 'align()',
     '(mouseenter)': 'show()',
     '(mouseleave)': 'hide()',
     '(focusin)': 'show()',
@@ -34,6 +35,8 @@ export class TooltipComponent {
   readonly text = input.required<string>();
   /** Which side of the content the popup opens on. */
   readonly placement = input<TooltipPlacement>('top');
+  /** Which edge of the content the popup lines up with (top and bottom only). Use `end` for content at the right edge of its container, so the popup grows inwards instead of past the window. */
+  readonly align = input<'start' | 'end'>('start');
 
   protected readonly id = `ui-tooltip-${nextId++}`;
   protected readonly visible = signal(false);
