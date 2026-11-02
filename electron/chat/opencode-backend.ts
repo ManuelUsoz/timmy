@@ -6,6 +6,14 @@ export interface OpenCodeModel {
   readonly id: string;
   /** The names of the variants OpenCode offers for this model (its reasoning levels); empty when it has none. */
   readonly variants: ReadonlyArray<string>;
+  /** OpenCode lists `image` among the model's input modalities. Absent means unknown, which counts as no. */
+  readonly images?: boolean;
+}
+
+/** An image sent along with a prompt: its type and raw bytes. */
+export interface OpenCodeImage {
+  readonly mediaType: string;
+  readonly bytes: Uint8Array;
 }
 
 /** Where a tool call is in OpenCode's own lifecycle. */
@@ -62,6 +70,7 @@ export interface OpenCodeClient {
     readonly sessionId: string;
     readonly cwd: string;
     readonly text: string;
+    readonly images?: ReadonlyArray<OpenCodeImage>;
   }) => Stream.Stream<OpenCodeEvent>;
   /** Answers a `PermissionAsked`. OpenCode then reports `PermissionReplied` on the Turn's stream. */
   readonly replyPermission: (options: {
