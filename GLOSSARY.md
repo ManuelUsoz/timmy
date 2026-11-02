@@ -21,7 +21,11 @@ _Avoid_: upload, file (for a Mention).
 The id by which a provider's SDK knows a Session. One Session maps to exactly one Provider Session.
 
 **Provider**
-An LLM vendor Timmy can talk to (Claude, OpenAI, OpenCode, Grok). Timmy supports several.
+An agent backend Timmy can drive (Claude, OpenAI, OpenCode, Grok). Timmy supports several. Timmy does not supply or resell models or tokens: the user installs the Provider's own tooling and signs in to it themselves.
+
+**Model vendor**
+A company whose models a Provider serves (Anthropic, OpenAI, and so on). A Provider like OpenCode fronts several Model vendors; Claude fronts one.
+_Avoid_: provider (for a Model vendor).
 
 **Adapter**
 The only place that knows a Provider's SDK. It translates between the SDK and Timmy's provider-neutral domain, and declares what its Provider can do.
