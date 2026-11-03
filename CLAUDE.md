@@ -109,7 +109,7 @@ Specs live in `e2e/<area>/<name>.spec.ts`; baselines in `__screenshots__/` next 
 
 ### Issue tracker
 
-Issues live in Linear, team `NXY`, via the Linear MCP tools. See `docs/agents/issue-tracker.md`.
+Issues live as GitHub issues in `ManuelUsoz/timmy`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
