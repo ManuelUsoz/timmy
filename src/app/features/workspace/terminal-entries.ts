@@ -1,8 +1,8 @@
-import { Schema } from 'effect';
+import { TerminalId } from '../../../shared/terminal/terminal.model';
 import type { ProjectId } from '../../../shared/sessions/sessions.model';
 
-export const TerminalId = Schema.String.pipe(Schema.brand('TerminalId'));
-export type TerminalId = typeof TerminalId.Type;
+export { TerminalId } from '../../../shared/terminal/terminal.model';
+export type { TerminalEvent } from '../../../shared/terminal/terminal.model';
 
 /** What a terminal row says it is doing. Only `Idle` can happen until there is a process behind them. */
 export type TerminalState = 'Live' | 'Done' | 'Idle' | 'Error';
@@ -14,6 +14,8 @@ export interface TerminalEntry {
   /** Its position among the terminals the project has had, which names it ("Terminal 2"). */
   readonly number: number;
   readonly state: TerminalState;
+  /** Output received from main, retained only for this app run so switching terminals is lossless. */
+  readonly output: string;
 }
 
 /** The terminals of one project, in the order they were opened. */
@@ -23,8 +25,11 @@ export const terminalsOf = (entries: ReadonlyArray<TerminalEntry>, projectId: Pr
 /** A new, Idle terminal for the project, numbered after the last one it has. */
 export const addTerminal = (entries: ReadonlyArray<TerminalEntry>, projectId: ProjectId, id: TerminalId): ReadonlyArray<TerminalEntry> => {
   const last = terminalsOf(entries, projectId).reduce((max, entry) => Math.max(max, entry.number), 0);
-  return [...entries, { id, projectId, number: last + 1, state: 'Idle' }];
+  return [...entries, { id, projectId, number: last + 1, state: 'Idle', output: '' }];
 };
 
 export const withState = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, state: TerminalState): ReadonlyArray<TerminalEntry> =>
   entries.map((entry) => (entry.id === id ? { ...entry, state } : entry));
+
+export const withOutput = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, data: string): ReadonlyArray<TerminalEntry> =>
+  entries.map((entry) => (entry.id === id ? { ...entry, output: `${entry.output}${data}`.slice(-200_000) } : entry));

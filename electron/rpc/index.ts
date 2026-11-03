@@ -15,8 +15,10 @@ import { layerFilesHandlers } from './files';
 import { layerProjectsHandlers } from './projects';
 import { layerSessionsHandlers } from './sessions';
 import { layerSettingsHandlers } from './settings';
+import { layerTerminalHandlers } from './terminal';
 import { layerWindowHandlers } from './window';
 import { layerWindowService } from '../window/window-service';
+import { layerTerminalService } from '../terminal/terminal-service';
 
 /** `npm run e2e` runs the app against a scripted adapter, so no network or login is needed. */
 const isE2e = process.env['TIMMY_E2E'] === '1';
@@ -53,4 +55,5 @@ export const layerDesktopHandlers = Layer.mergeAll(
   layerProjectsHandlersLive,
   layerFilesHandlersLive,
   layerAttachmentsHandlers,
+  layerTerminalHandlers.pipe(Layer.provide(layerTerminalService)),
 ).pipe(Layer.provide(layerChatServices));

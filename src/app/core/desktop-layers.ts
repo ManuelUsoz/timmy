@@ -7,6 +7,7 @@ import { DesktopRpcs } from '../../shared/rpc/desktop-rpcs';
 import { ProjectsRpcs } from '../../shared/projects/projects.rpc';
 import { SessionsRpcs } from '../../shared/sessions/sessions.rpc';
 import { SettingsRpcs } from '../../shared/settings/settings.rpc';
+import { TerminalRpcs } from '../../shared/terminal/terminal.rpc';
 import { WindowRpcs } from '../../shared/window/window.rpc';
 import { layerClientProtocol } from '../../shared/rpc/message-port-protocol';
 import { DesktopApi } from './desktop-api';
@@ -27,9 +28,9 @@ export const layerDesktop: Layer.Layer<DesktopApi, DesktopBridgeError> = Layer.u
  * so tests exercise the same contract as production.
  */
 export const makeDesktopTestLayer = (
-  handlers: Layer.Layer<Rpc.ToHandler<RpcGroup.Rpcs<typeof DesktopRpcs>>>,
+  handlers: Layer.Layer<any>,
 ): Layer.Layer<DesktopApi> =>
-  Layer.effect(DesktopApi, RpcTest.makeClient(DesktopRpcs)).pipe(Layer.provide(handlers));
+  Layer.effect(DesktopApi, RpcTest.makeClient(DesktopRpcs)).pipe(Layer.provide(Layer.merge(handlers, layerTerminalUnused)));
 
 const unused = () => Effect.die('Chat handler not under test');
 
@@ -69,6 +70,17 @@ export const layerWindowUnused = WindowRpcs.toLayer({
   'Window.minimize': windowUnused,
   'Window.toggleMaximize': windowUnused,
   'Window.maximized': () => Stream.empty,
+});
+
+const terminalUnused = () => Effect.die('Terminal handler not under test');
+
+/** Terminal handlers that die when called, so a test of another domain can still build `DesktopRpcs`. */
+export const layerTerminalUnused = TerminalRpcs.toLayer({
+  'Terminal.create': terminalUnused,
+  'Terminal.output': terminalUnused,
+  'Terminal.write': terminalUnused,
+  'Terminal.resize': terminalUnused,
+  'Terminal.close': terminalUnused,
 });
 
 const settingsUnused = () => Effect.die('Settings handler not under test');
