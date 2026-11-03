@@ -89,6 +89,7 @@ const settingsUnused = () => Effect.die('Settings handler not under test');
 export const layerSettingsUnused = SettingsRpcs.toLayer({
   'Settings.get': settingsUnused,
   'Settings.setLanguage': settingsUnused,
+  'Settings.setProvider': settingsUnused,
 });
 
 const projectsUnused = () => Effect.die('Projects handler not under test');

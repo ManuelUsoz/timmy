@@ -15,13 +15,14 @@ const setup = (options: { stored?: Language; failSave?: boolean } = {}) => {
   const saves: Language[] = [];
   const handlers = Layer.mergeAll(
     SettingsRpcs.toLayer({
-      'Settings.get': () => Effect.map(Ref.get(stored), (language) => ({ language })),
+      'Settings.get': () => Effect.map(Ref.get(stored), (language) => ({ language, providers: [] })),
+      'Settings.setProvider': () => Effect.die('unused'),
       'Settings.setLanguage': ({ language }) =>
         options.failSave
           ? Effect.die('disk full')
           : Effect.sync(() => void saves.push(language)).pipe(
               Effect.andThen(Ref.set(stored, language)),
-              Effect.as({ language }),
+              Effect.as({ language, providers: [] }),
             ),
     }),
     AppInfoRpcs.toLayer({ 'AppInfo.get': () => Effect.die('unused') }),
