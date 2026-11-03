@@ -1,59 +1,34 @@
 import { Layer } from 'effect';
-import { layerChatRpc } from '../chat/chat-rpc';
-import { layerMockSdkAdapterRegistry } from '../chat/mock-sdk-adapter';
-import { layerSdkAdapterRegistry } from '../chat/sdk-adapter-registry';
 import { layerProjectFiles } from '../files/project-files';
 import { layerProjectFolders } from '../projects/project-folders';
 import { layerProjectsService } from '../projects/projects-service';
-import { layerProjectResolver } from '../sessions/project-resolver';
-import { layerSessionObserver } from '../sessions/session-observer';
-import { layerSessionsService } from '../sessions/sessions-service';
+import { layerTerminalService } from '../terminal/terminal-service';
+import { layerWindowService } from '../window/window-service';
 import { layerAppInfoHandlers } from './app-info';
-import { layerAttachmentsHandlers } from './attachments';
-import { layerChatHandlers } from './chat';
 import { layerFilesHandlers } from './files';
 import { layerProjectsHandlers } from './projects';
-import { layerSessionsHandlers } from './sessions';
 import { layerSettingsHandlers } from './settings';
 import { layerTerminalHandlers } from './terminal';
 import { layerWindowHandlers } from './window';
-import { layerWindowService } from '../window/window-service';
-import { layerTerminalService } from '../terminal/terminal-service';
-
-/** `npm run e2e` runs the app against a scripted adapter, so no network or login is needed. */
-const isE2e = process.env['TIMMY_E2E'] === '1';
-
-const layerProjectFilesLive = layerProjectFiles();
-
-/** The services chat and sessions share. Built once, so both see the same open sessions. */
-const layerChatServices = layerChatRpc.pipe(
-  Layer.provideMerge(Layer.mergeAll(isE2e ? layerMockSdkAdapterRegistry : layerSdkAdapterRegistry, layerProjectResolver, layerSessionObserver, layerProjectFilesLive)),
-);
-
-const layerSessionHandlers = layerSessionsHandlers.pipe(Layer.provide(layerSessionsService));
 
 const layerProjectsHandlersLive = layerProjectsHandlers.pipe(
   Layer.provide(layerProjectsService),
-  Layer.provide(layerProjectResolver),
   Layer.provide(layerProjectFolders),
 );
 
-const layerFilesHandlersLive = layerFilesHandlers.pipe(Layer.provide(layerProjectFilesLive));
+const layerFilesHandlersLive = layerFilesHandlers.pipe(Layer.provide(layerProjectFiles()));
 
 const layerWindowHandlersLive = layerWindowHandlers.pipe(Layer.provide(layerWindowService));
 
 /**
  * Handlers for every domain in `DesktopRpcs`. Merge new domain handler layers here.
- * Needs a `SessionRepo`, a `SettingsStore`, a `WindowHost` and a `FolderPicker`; the runtime provides the real ones.
+ * Needs a `ProjectStore`, a `SettingsStore`, a `WindowHost` and a `FolderPicker`; the runtime provides the real ones.
  */
 export const layerDesktopHandlers = Layer.mergeAll(
   layerAppInfoHandlers,
-  layerChatHandlers,
-  layerSessionHandlers,
   layerWindowHandlersLive,
   layerSettingsHandlers,
   layerProjectsHandlersLive,
   layerFilesHandlersLive,
-  layerAttachmentsHandlers,
   layerTerminalHandlers.pipe(Layer.provide(layerTerminalService)),
-).pipe(Layer.provide(layerChatServices));
+);

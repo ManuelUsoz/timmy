@@ -2,8 +2,8 @@ import path from 'node:path';
 import { Context, Effect, Layer, Option } from 'effect';
 import type { FolderInspection, FolderStatus, Project } from '../../src/shared/projects/projects.model';
 import { ProjectsError } from '../../src/shared/projects/projects-error.model';
-import type { ProjectId } from '../../src/shared/sessions/sessions.model';
-import { ProjectResolver } from '../sessions/project-resolver';
+import type { ProjectId } from '../../src/shared/projects/projects.model';
+import { ProjectStore } from './project-store';
 import { FolderPicker } from './folder-picker';
 import { ProjectFolders } from './project-folders';
 
@@ -23,23 +23,16 @@ export class ProjectsService extends Context.Service<
   }
 >()('projects/ProjectsService') {}
 
-/** Also puts the projects that already have sessions into the list the first time, if their folder is still a git repository. */
-export const layerProjectsService: Layer.Layer<ProjectsService, never, ProjectResolver | ProjectFolders | FolderPicker> =
+export const layerProjectsService: Layer.Layer<ProjectsService, never, ProjectStore | ProjectFolders | FolderPicker> =
   Layer.effect(
     ProjectsService,
     Effect.gen(function* () {
-      const resolver = yield* ProjectResolver;
+      const store = yield* ProjectStore;
       const folders = yield* ProjectFolders;
       const picker = yield* FolderPicker;
 
-      yield* resolver.importImplicit((cwd) =>
-        Effect.gen(function* () {
-          return (yield* folders.exists(cwd)) && Option.isSome(yield* folders.gitBranch(cwd));
-        }),
-      );
-
       const requireProject = Effect.fn('ProjectsService.requireProject')(function* (projectId: ProjectId) {
-        const project = yield* resolver.find(projectId);
+        const project = yield* store.find(projectId);
         if (Option.isNone(project)) {
           return yield* new ProjectsError({ reason: 'ProjectNotFound', detail: `No project ${projectId} in the list` });
         }
@@ -52,7 +45,7 @@ export const layerProjectsService: Layer.Layer<ProjectsService, never, ProjectRe
           return yield* new ProjectsError({ reason: 'FolderNotFound', detail: `${folder} is not a folder` });
         }
         const branch = yield* folders.gitBranch(folder);
-        const existing = yield* resolver.findByCwd(folder);
+        const existing = yield* store.findByCwd(folder);
         return {
           path: folder,
           branch: Option.getOrNull(branch),
@@ -61,7 +54,7 @@ export const layerProjectsService: Layer.Layer<ProjectsService, never, ProjectRe
       });
 
       return ProjectsService.of({
-        list: resolver.list,
+        list: store.list,
         pickFolder: picker.pick,
         inspectFolder,
         initGit: Effect.fn('ProjectsService.initGit')(function* (input) {
@@ -83,11 +76,11 @@ export const layerProjectsService: Layer.Layer<ProjectsService, never, ProjectRe
               detail: `${inspection.path} is not a git repository`,
             });
           }
-          return yield* resolver.add(inspection.path, name);
+          return yield* store.add(inspection.path, name);
         }),
         remove: Effect.fn('ProjectsService.remove')(function* (projectId) {
           yield* requireProject(projectId);
-          yield* resolver.remove(projectId);
+          yield* store.remove(projectId);
         }),
         checkFolder: Effect.fn('ProjectsService.checkFolder')(function* (projectId) {
           const project = yield* requireProject(projectId);
@@ -95,7 +88,7 @@ export const layerProjectsService: Layer.Layer<ProjectsService, never, ProjectRe
         }),
         markUsed: Effect.fn('ProjectsService.markUsed')(function* (projectId) {
           yield* requireProject(projectId);
-          yield* resolver.touch(projectId);
+          yield* store.touch(projectId);
         }),
       });
     }),

@@ -1,5 +1,5 @@
 import { Project } from '../../../shared/projects/projects.model';
-import { ProjectId } from '../../../shared/sessions/sessions.model';
+import { ProjectId } from '../../../shared/projects/projects.model';
 import { filterProjects, sortProjects } from './project-search';
 
 const project = (name: string, cwd: string): Project => ({

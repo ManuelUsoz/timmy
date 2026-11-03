@@ -1,12 +1,10 @@
 import path from 'node:path';
 import { describe, expect, it } from '@effect/vitest';
 import { Effect, Layer, Option } from 'effect';
-import { SessionId } from '../../src/shared/chat/ids.model';
-import { ProviderSessionId } from '../../src/shared/sessions/sessions.model';
-import { layerProjectResolver, ProjectResolver } from '../sessions/project-resolver';
-import { layerSessionRepo, SessionRepo } from '../sessions/session-repo';
 import { layerFolderPickerTest } from './folder-picker';
+import { projectIdOfCwd } from './project-id';
 import { layerProjectFoldersTest, type FakeFolders } from './project-folders';
+import { layerProjectStore, ProjectStore } from './project-store';
 import { layerProjectsService, ProjectsService } from './projects-service';
 
 const at = (...parts: string[]) => path.resolve('/disk', ...parts);
@@ -14,26 +12,10 @@ const at = (...parts: string[]) => path.resolve('/disk', ...parts);
 /** A real in-memory repo, a pretend disk, and a picker that answers `picked`. */
 const makeLayer = (fake: FakeFolders, picked: Option.Option<string> = Option.none()) =>
   layerProjectsService.pipe(
-    Layer.provideMerge(layerProjectResolver),
     Layer.provide(layerProjectFoldersTest(fake)),
     Layer.provide(layerFolderPickerTest(picked)),
-    Layer.provideMerge(layerSessionRepo(':memory:')),
+    Layer.provideMerge(layerProjectStore(':memory:')),
   );
-
-/** A session in `cwd`, so that the folder is a project nobody added on purpose. */
-const startSessionIn = (cwd: string, id: string) =>
-  Effect.gen(function* () {
-    const repo = yield* SessionRepo;
-    const projectId = yield* (yield* ProjectResolver).resolveByCwd(cwd);
-    yield* repo.createSession({
-      sessionId: SessionId.make(id),
-      projectId,
-      cwd,
-      provider: 'Claude',
-      providerSessionId: ProviderSessionId.make(`native-${id}`),
-    });
-    return projectId;
-  });
 
 describe('ProjectsService', () => {
   describe('adding a folder', () => {
@@ -102,18 +84,14 @@ describe('ProjectsService', () => {
   });
 
   describe('removing a project', () => {
-    it.effect('takes it out of the list but keeps its sessions, which are there again when the folder comes back', () =>
+    it.effect('takes it out of the list, and it gets the same id when the folder comes back', () =>
       Effect.gen(function* () {
         const projects = yield* ProjectsService;
-        const repo = yield* SessionRepo;
         const { projectId } = yield* projects.add(at('app'));
-        yield* startSessionIn(at('app'), 's1');
         yield* projects.remove(projectId);
         expect(yield* projects.list).toEqual([]);
-        expect((yield* repo.list(projectId)).map((s) => s.sessionId)).toEqual(['s1']);
         const back = yield* projects.add(at('app'));
         expect(back.projectId).toBe(projectId);
-        expect((yield* repo.list(projectId)).map((s) => s.sessionId)).toEqual(['s1']);
       }).pipe(Effect.provide(makeLayer({ folders: { [at('app')]: 'main' } }))),
     );
 
@@ -140,7 +118,7 @@ describe('ProjectsService', () => {
       Effect.gen(function* () {
         const projects = yield* ProjectsService;
         // Added straight to the store: the pretend disk never had this folder, as if it was moved afterwards.
-        const { projectId } = yield* ProjectResolver.use((resolver) => resolver.add(at('moved')));
+        const { projectId } = yield* ProjectStore.use((store) => store.add(at('moved')));
         expect(yield* projects.checkFolder(projectId)).toBe('Missing');
         expect((yield* projects.list).map((p) => p.projectId)).toEqual([projectId]);
       }).pipe(Effect.provide(makeLayer({ folders: {} }))),
@@ -149,7 +127,7 @@ describe('ProjectsService', () => {
     it.effect('fails for a project that is not in the list', () =>
       Effect.gen(function* () {
         const projects = yield* ProjectsService;
-        const projectId = yield* startSessionIn(at('app'), 's1');
+        const projectId = projectIdOfCwd(at('app'));
         expect((yield* projects.checkFolder(projectId).pipe(Effect.flip)).reason).toBe('ProjectNotFound');
       }).pipe(Effect.provide(makeLayer({ folders: { [at('app')]: 'main' } }))),
     );

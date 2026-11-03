@@ -3,7 +3,7 @@ import { AppInfoRpcs } from '../../../shared/app-info/app-info.rpc';
 import type { FolderInspection, Project } from '../../../shared/projects/projects.model';
 import { ProjectsError } from '../../../shared/projects/projects-error.model';
 import { ProjectsRpcs } from '../../../shared/projects/projects.rpc';
-import { ProjectId } from '../../../shared/sessions/sessions.model';
+import { ProjectId } from '../../../shared/projects/projects.model';
 import { SettingsRpcs } from '../../../shared/settings/settings.rpc';
 import { layerFilesUnused, layerWindowUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
 

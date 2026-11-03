@@ -1,5 +1,5 @@
 import type { Project } from '../../../shared/projects/projects.model';
-import type { ProjectId } from '../../../shared/sessions/sessions.model';
+import type { ProjectId } from '../../../shared/projects/projects.model';
 
 /** What the Workspace opens: a project. */
 export interface EntryTarget {

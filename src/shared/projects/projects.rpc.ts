@@ -1,7 +1,6 @@
 import { Schema } from 'effect';
 import { Rpc, RpcGroup } from 'effect/rpc';
-import { ProjectId } from '../sessions/sessions.model';
-import { Project, FolderInspection, FolderStatus } from './projects.model';
+import { Project, FolderInspection, FolderStatus, ProjectId } from './projects.model';
 import { ProjectsError } from './projects-error.model';
 
 /** The Projects the user manages in the Workspace. Storage failures are defects. */
@@ -11,7 +10,7 @@ export const ProjectsRpcs = RpcGroup.make(
 
   /**
    * Adds the folder as a project. It must be a git repository. A folder removed earlier comes back
-   * with its sessions. Fails with `AlreadyAdded` when it is already in the list.
+   * under the same id. Fails with `AlreadyAdded` when it is already in the list.
    */
   Rpc.make('Projects.add', {
     payload: { path: Schema.String, name: Schema.optionalKey(Schema.String) },
@@ -19,7 +18,7 @@ export const ProjectsRpcs = RpcGroup.make(
     error: ProjectsError,
   }),
 
-  /** Takes the project out of the list. Its sessions are kept and come back if the folder is added again. */
+  /** Takes the project out of the list. The folder is left alone, and adding it again gives the same project id. */
   Rpc.make('Projects.remove', {
     payload: { projectId: ProjectId },
     success: Schema.Void,

@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { ProjectId } from '../../../shared/sessions/sessions.model';
+import { ProjectId } from '../../../shared/projects/projects.model';
 import type { TerminalId } from '../../../shared/terminal/terminal.model';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { fakeRuntime, makeBackend, project, type FakeBackend } from '../workspace/projects-fakes';

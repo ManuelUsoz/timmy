@@ -1,4 +1,4 @@
-import { ProjectId } from '../../../shared/sessions/sessions.model';
+import { ProjectId } from '../../../shared/projects/projects.model';
 import { addTerminal, restarted, terminalsOf, withExit, withState, TerminalId, type TerminalEntry } from './terminal-entries';
 
 const timmy = ProjectId.make('p-timmy');

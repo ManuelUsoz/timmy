@@ -1,7 +1,10 @@
 import { Schema } from 'effect';
-import { ProjectId } from '../sessions/sessions.model';
 
-/** A repository on disk that sessions belong to, as listed in the Workspace. */
+/** Timmy's id for a project. Opaque: today derived from the folder, so the same folder is the same project. */
+export const ProjectId = Schema.String.pipe(Schema.brand('ProjectId'));
+export type ProjectId = typeof ProjectId.Type;
+
+/** A repository on disk that Terminals belong to, as listed in the Workspace. */
 export const Project = Schema.Struct({
   projectId: ProjectId,
   /** Absolute path of the folder, as the user added it. */

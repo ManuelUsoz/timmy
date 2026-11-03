@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Project } from '../../../shared/projects/projects.model';
-import { ProjectId } from '../../../shared/sessions/sessions.model';
+import { ProjectId } from '../../../shared/projects/projects.model';
 import { panelProject } from './panel-project';
 
 const project = (id: string, lastUsedAt: number | null): Project => ({ projectId: ProjectId.make(id), name: id, cwd: `/work/${id}`, createdAt: 0, lastUsedAt });

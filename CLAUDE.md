@@ -19,7 +19,8 @@ electron/rpc/<domain>.ts              handler layers per domain
 electron/rpc/index.ts                 layerDesktopHandlers (merge of all handler layers)
 electron/rpc/ipc-server.ts            IpcServerPort, RpcPortHandoff, layerIpcServer (swap port per window load)
 electron/rpc/runtime.ts               MainRuntime (ManagedRuntime) running the RpcServer for the app lifetime
-electron/services/                    main-only privileged services
+electron/<domain>/                    main-only services per domain: files, projects (ProjectStore in
+                                      timmy.db), settings, terminal (node-pty), window
 src/app/core/                         DesktopApi, layerDesktop, desktop-port, EffectRuntime
 src/app/features/                     feature code, one folder per feature
 ```
@@ -87,8 +88,9 @@ it.effect('gets app info', () =>
 
 ## E2E and visual regression
 
-`@playwright/test` drives the real Electron app against the mock chat adapter (`TIMMY_E2E=1`).
-Config: `playwright.config.ts`. Fixture and helpers (`Timmy`: openPanel, send, switchMode, shot): `e2e/fixtures.ts`.
+`@playwright/test` drives the real Electron app with `TIMMY_E2E=1`, which gives each run its own data directory and
+answers the native folder dialog with `TIMMY_E2E_PICK_FOLDER`.
+Config: `playwright.config.ts`. Fixture and helpers (`Timmy`: openPanel, switchMode, addDemoProject, openProjectTerminal, newTerminal, shot): `e2e/fixtures.ts`.
 Specs live in `e2e/<area>/<name>.spec.ts`; baselines in `__screenshots__/` next to them (committed).
 
 - Add a spec per user-visible flow; call `timmy.shot('<flow>-<state>')` for each visual state.
