@@ -27,7 +27,7 @@ export const layerDesktop: Layer.Layer<DesktopApi, DesktopBridgeError> = Layer.u
 export const makeDesktopTestLayer = (
   handlers: Layer.Layer<any>,
 ): Layer.Layer<DesktopApi> =>
-  Layer.effect(DesktopApi, RpcTest.makeClient(DesktopRpcs)).pipe(Layer.provide(Layer.merge(handlers, layerTerminalUnused)));
+  Layer.effect(DesktopApi, RpcTest.makeClient(DesktopRpcs)).pipe(Layer.provide(Layer.merge(layerTerminalUnused, handlers)));
 
 const windowUnused = () => Effect.die('Window handler not under test');
 

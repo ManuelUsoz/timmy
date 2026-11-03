@@ -26,7 +26,7 @@ export class TerminalsState {
       }),
     );
     if (result._tag === 'Failure') return undefined;
-    const entry = addTerminal(this.all(), projectId, result.value.terminalId).at(-1)!;
+    const entry = addTerminal(this.all(), projectId, result.value.terminalId, provider).at(-1)!;
     this.all.update((entries) => withState([...entries, entry], entry.id, 'Live'));
     this.currentId.set(entry.id);
     return { ...entry, state: 'Live' };
@@ -60,13 +60,14 @@ export class TerminalsState {
     this.all.update((entries) => withExit(entries, id, exitCode));
   }
 
-  /** Kills the process of a terminal and starts a new one in the same folder under the same name. */
+  /** Kills the process of a terminal and starts a new one in the same folder under the same name, running the same Provider. */
   async restart(id: TerminalId, cwd: string): Promise<TerminalEntry | undefined> {
+    const provider = this.find(id)?.provider;
     const result = await this.runtime.run(
       Effect.gen(function* () {
         const desktop = yield* DesktopApi;
         yield* desktop['Terminal.close']({ terminalId: id }).pipe(Effect.ignore);
-        return yield* desktop['Terminal.create']({ cwd });
+        return yield* desktop['Terminal.create'](provider === undefined ? { cwd } : { cwd, provider });
       }),
     );
     if (result._tag === 'Failure') return undefined;
