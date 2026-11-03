@@ -14,12 +14,8 @@ An agent CLI Timmy can host (OpenCode, Claude Code, Codex). The user chooses in 
 A company whose models a Provider serves (Anthropic, OpenAI, and so on). A Provider like OpenCode fronts several Model vendors; Claude Code fronts one.
 _Avoid_: provider (for a Model vendor).
 
-**Session**
-A Provider's own conversation, run inside a Terminal. Timmy refers to it by id so it can be listed and resumed in a Terminal, and may read the Provider's transcript to show, read-only, what was done. It never stores a copy of the transcript, and a Session is not interactive outside a Terminal.
-_Avoid_: thread, conversation, chat.
-
 **Integration**
-The only place that knows how to launch a Provider's CLI, activate its Hook, read its state and resume its Sessions. It declares what its Provider can do.
+The only place that knows how to launch a Provider's CLI, activate its Hook and read its state. It declares what its Provider can do.
 _Avoid_: adapter.
 
 **Hook**
@@ -29,7 +25,7 @@ The extension point of a Provider through which an Integration learns what that 
 How much of Timmy is showing. There are three: Pill, Panel and Expanded. Timmy always starts in Pill. At any time, the user can move to either of the two modes it is not currently in.
 
 **Pill**
-The first Window mode: a single bar at the corner of the screen showing the state of the running Terminals. Nothing else is shown.
+The first Window mode: a single bar at the corner of the screen, led by the Mascot, showing the status of the Terminals. Nothing else is shown.
 
 **Panel**
 The second Window mode: a small surface anchored at the same corner as the Pill, holding the views of the design (Home, Terminal, Diff).
@@ -39,3 +35,13 @@ The third Window mode: the Workspace, centered on the screen. The user can maxim
 
 **Workspace**
 The full navigation shell shown in Expanded: a rail of areas (Projects, Settings), the list of Projects, and the content of the selected Project (its Terminals and files).
+
+**Terminal status**
+What a Terminal is doing: Working, Waiting (a live agent is stalled until the user acts), Done (exited cleanly), Error (exited otherwise) or Idle (not started).
+_Avoid_: state (already used for Window mode and the process state).
+
+**Seen**
+A Done or Error Terminal the user has viewed: it was selected while its content was on screen (Panel or Expanded). A Seen Terminal counts as Idle for the Mascot. Working and Waiting are never Seen, and a restarted Terminal starts unseen.
+
+**Mascot**
+Timmy's icon, shown large in Pill and Panel. It shows the highest-priority Terminal status across all Projects (Waiting, then Error, Working, Done, Idle) as its color, looks at the cursor wherever it is on screen, and stays subtly alive.
