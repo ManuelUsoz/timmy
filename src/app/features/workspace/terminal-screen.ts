@@ -31,6 +31,7 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
   readonly terminal = input.required<TerminalEntry>();
   readonly cwd = input.required<string>();
   readonly closed = output<void>();
+  readonly restarted = output<TerminalEntry>();
   protected readonly fallbackOutput = computed(() => sampleOutput(this.terminal().state, this.cwd()).map((line) => line.map((piece) => piece.text).join('')).join('\n'));
   protected readonly xtermReady = signal(false);
   protected readonly size = signal('120×34');
@@ -51,7 +52,7 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
       cursorBlink: true,
       fontFamily: token('--ff-mono') || 'monospace',
       fontSize: 14,
-      lineHeight: 1.25,
+      lineHeight: 1.14,
       scrollback: 5000,
       theme: terminalTheme({ background: token('--background') || '#161616', foreground: token('--text-primary') || '#f4f4f4', focus: token('--focus') || '#ffffff' }),
     });
@@ -86,7 +87,7 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
               instance.write(event.data);
               terminals.appendOutput(entry.id, event.data);
             } else {
-              terminals.setState(entry.id, 'Done');
+              terminals.exited(entry.id, event.exitCode);
             }
           }),
         );
@@ -102,6 +103,11 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
     cancelAnimationFrame(this.fitFrame);
     this.resizeObserver?.disconnect();
     this.instance?.dispose();
+  }
+
+  protected async restart(): Promise<void> {
+    const next = await this.terminals.restart(this.terminal().id, this.cwd());
+    if (next !== undefined) this.restarted.emit(next);
   }
 
   protected async closeTerminal(): Promise<void> {

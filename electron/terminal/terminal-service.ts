@@ -1,4 +1,5 @@
 import { Context, Effect, Layer, Queue, Ref, Stream } from 'effect';
+import type { Cause } from 'effect';
 import * as pty from 'node-pty';
 import type { IPty, IWindowsPtyForkOptions } from 'node-pty';
 import { TerminalError } from '../../src/shared/terminal/terminal-error.model';
@@ -19,7 +20,7 @@ export class PtyHost extends Context.Service<PtyHost, {
 
 type Terminal = {
   readonly process: PtyProcess;
-  readonly events: Queue.Queue<TerminalEvent>;
+  readonly events: Queue.Queue<TerminalEvent, Cause.Done>;
 };
 
 const shellCandidates = (): ReadonlyArray<string> =>
@@ -80,16 +81,12 @@ const layerTerminalServiceCore = Layer.effect(
         if (cwd.trim() === '') return yield* new TerminalError({ reason: 'InvalidCwd', detail: 'A terminal needs a project folder' });
         const process = yield* host.spawn(cwd);
         const id = TerminalIdSchema.make(crypto.randomUUID());
-        const events = yield* Queue.unbounded<TerminalEvent>();
+        const events = yield* Queue.unbounded<TerminalEvent, Cause.Done>();
         const terminal = { process, events };
         process.onData((data) => Effect.runFork(Queue.offer(events, { _tag: 'Data', data })));
         process.onExit(({ exitCode }) => {
-          Effect.runFork(Queue.offer(events, { _tag: 'Exit', exitCode }).pipe(Effect.andThen(Queue.shutdown(events))));
-          Effect.runFork(Ref.update(terminals, (all) => {
-            const next = new Map(all);
-            next.delete(id);
-            return next;
-          }));
+          // The terminal stays listed until it is closed, so a screen opened after the exit still reads it.
+          Effect.runFork(Queue.offer(events, { _tag: 'Exit', exitCode }).pipe(Effect.andThen(Queue.end(events))));
         });
         yield* Ref.update(terminals, (all) => new Map(all).set(id, terminal));
         return id;
@@ -108,7 +105,7 @@ const layerTerminalServiceCore = Layer.effect(
       }),
       close: Effect.fn('TerminalService.close')(function* (id) {
         const terminal = yield* get(id);
-        yield* Queue.offer(terminal.events, { _tag: 'Exit', exitCode: 0 }).pipe(Effect.andThen(Queue.shutdown(terminal.events)));
+        yield* Queue.offer(terminal.events, { _tag: 'Exit', exitCode: 0 }).pipe(Effect.andThen(Queue.end(terminal.events)));
         yield* closeProcess(terminal);
         yield* Ref.update(terminals, (all) => {
           const next = new Map(all);

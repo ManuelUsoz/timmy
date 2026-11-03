@@ -4,7 +4,7 @@ import type { ProjectId } from '../../../shared/sessions/sessions.model';
 import { TerminalId } from '../../../shared/terminal/terminal.model';
 import { DesktopApi } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
-import { addTerminal, withOutput, withState, type TerminalEntry, type TerminalState } from './terminal-entries';
+import { addTerminal, restarted, withExit, withOutput, withState, type TerminalEntry, type TerminalState } from './terminal-entries';
 
 @Injectable({ providedIn: 'root' })
 export class TerminalsState {
@@ -43,6 +43,24 @@ export class TerminalsState {
 
   setState(id: TerminalId, state: TerminalState): void {
     this.all.update((entries) => withState(entries, id, state));
+  }
+
+  exited(id: TerminalId, exitCode: number): void {
+    this.all.update((entries) => withExit(entries, id, exitCode));
+  }
+
+  /** Kills the process of a terminal and starts a new one in the same folder under the same name. */
+  async restart(id: TerminalId, cwd: string): Promise<TerminalEntry | undefined> {
+    const result = await this.runtime.run(
+      Effect.gen(function* () {
+        const desktop = yield* DesktopApi;
+        yield* desktop['Terminal.close']({ terminalId: id }).pipe(Effect.ignore);
+        return yield* desktop['Terminal.create']({ cwd });
+      }),
+    );
+    if (result._tag === 'Failure') return undefined;
+    this.all.update((entries) => restarted(entries, id, result.value.terminalId));
+    return this.find(result.value.terminalId);
   }
 
   async write(id: TerminalId, data: string): Promise<void> {

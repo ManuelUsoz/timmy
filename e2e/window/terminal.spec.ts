@@ -1,9 +1,8 @@
 import { expect, test } from '../fixtures';
 
-test.describe('real terminals', () => {
-  test.use({ language: 'en' });
+type Fixture = Parameters<Parameters<typeof test>[2]>[0]['timmy'];
 
-  test('opens a project terminal, renders output, and keeps it when switching', async ({ timmy }) => {
+const openNewTerminal = async (timmy: Fixture): Promise<void> => {
     await timmy.openPanel();
     await timmy.switchMode('Expanded');
     await timmy.page.getByRole('button', { name: 'New project' }).first().click();
@@ -13,6 +12,13 @@ test.describe('real terminals', () => {
     await expect(timmy.page.locator('app-project-list .as-row__title')).toContainText('demo-project', { timeout: 10_000 });
 
     await timmy.page.getByRole('region', { name: 'Terminals' }).getByRole('button', { name: 'New terminal' }).click();
+};
+
+test.describe('real terminals', () => {
+  test.use({ language: 'en' });
+
+  test('opens a project terminal, renders output, and keeps it when switching', async ({ timmy }) => {
+    await openNewTerminal(timmy);
     await expect(timmy.page.locator('app-terminal-screen')).toBeVisible();
     await expect(timmy.page.locator('.xterm')).toBeVisible();
     const fill = await timmy.page.evaluate(() => {
@@ -35,5 +41,24 @@ test.describe('real terminals', () => {
     await timmy.page.getByRole('option', { name: /Terminal 1/ }).click();
     await expect(timmy.page.locator('.xterm-screen')).toContainText('timmy-terminal');
     await timmy.shot('terminal-switched');
+  });
+
+  test('shows the Error state with the exit code, and restarts into a live terminal', async ({ timmy }) => {
+    await openNewTerminal(timmy);
+    await expect(timmy.page.locator('.xterm-screen')).toContainText('PS ');
+    await timmy.page.locator('.xterm-helper-textarea').focus();
+    await timmy.page.keyboard.type('exit 3');
+    await timmy.page.keyboard.press('Enter');
+    const screen = timmy.page.locator('app-terminal-screen');
+    await expect(screen.getByRole('alert')).toContainText('The process exited with code 3.');
+    await expect(screen.getByRole('button', { name: 'Restart' })).toBeEnabled();
+    await expect(screen.getByRole('button', { name: 'Close terminal' })).toBeEnabled();
+    await timmy.shot('terminal-error');
+
+    await screen.getByRole('button', { name: 'Restart' }).click();
+    await expect(screen.getByRole('alert')).toHaveCount(0);
+    await expect(screen.getByRole('button', { name: 'Stop' })).toBeVisible();
+    await expect(timmy.page.locator('.xterm-screen')).toContainText('PS ');
+    await expect(timmy.page.getByRole('region', { name: 'Terminals' }).getByRole('option')).toHaveCount(1);
   });
 });

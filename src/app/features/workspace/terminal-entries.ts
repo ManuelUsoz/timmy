@@ -16,6 +16,8 @@ export interface TerminalEntry {
   readonly state: TerminalState;
   /** Output received from main, retained only for this app run so switching terminals is lossless. */
   readonly output: string;
+  /** How the process ended; absent while it has not. */
+  readonly exitCode?: number;
 }
 
 /** The terminals of one project, in the order they were opened. */
@@ -33,3 +35,11 @@ export const withState = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId,
 
 export const withOutput = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, data: string): ReadonlyArray<TerminalEntry> =>
   entries.map((entry) => (entry.id === id ? { ...entry, output: `${entry.output}${data}`.slice(-200_000) } : entry));
+
+/** The process ended: a clean exit is Done, any other code is an Error that keeps the code to show. */
+export const withExit = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, exitCode: number): ReadonlyArray<TerminalEntry> =>
+  entries.map((entry) => (entry.id === id ? { ...entry, state: exitCode === 0 ? 'Done' : 'Error', exitCode } : entry));
+
+/** A fresh Live process takes the place of an entry: same project and number, new id, nothing carried over. */
+export const restarted = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, next: TerminalId): ReadonlyArray<TerminalEntry> =>
+  entries.map((entry) => (entry.id === id ? { id: next, projectId: entry.projectId, number: entry.number, state: 'Live', output: '' } : entry));

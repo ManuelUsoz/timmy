@@ -4,6 +4,7 @@ import { TerminalService, layerTerminalServiceTest, type PtyProcess } from './te
 
 const makePty = () => {
   let dataListener: ((data: string) => void) | undefined;
+  let exitListener: ((event: { exitCode: number }) => void) | undefined;
   const writes: string[] = [];
   let killed = false;
   const process: PtyProcess = {
@@ -11,7 +12,10 @@ const makePty = () => {
       dataListener = listener;
       return { dispose: () => undefined };
     },
-    onExit: () => ({ dispose: () => undefined }),
+    onExit: (listener) => {
+      exitListener = listener;
+      return { dispose: () => undefined };
+    },
     write: (data) => writes.push(data),
     resize: () => undefined,
     kill: () => {
@@ -26,6 +30,9 @@ const makePty = () => {
     },
     emit(data: string) {
       dataListener?.(data);
+    },
+    exit(exitCode: number) {
+      exitListener?.({ exitCode });
     },
   };
 };
@@ -51,6 +58,21 @@ describe('TerminalService', () => {
       yield* service.close(id);
       expect(pty.writes).toEqual(['dir\r']);
       expect(pty.killed).toBe(true);
+    }).pipe(Effect.provide(layerTerminalServiceTest({ spawn: () => Effect.succeed(pty.process) })));
+  });
+
+  it.effect('delivers the output and the exit code of a process that ends, then completes the stream', () => {
+    const pty = makePty();
+    return Effect.gen(function* () {
+      const service = yield* TerminalService;
+      const id = yield* service.create('C:/project');
+      pty.emit('bye');
+      pty.exit(3);
+      const events = yield* service.output(id).pipe(Stream.runCollect);
+      expect(events).toEqual([
+        { _tag: 'Data', data: 'bye' },
+        { _tag: 'Exit', exitCode: 3 },
+      ]);
     }).pipe(Effect.provide(layerTerminalServiceTest({ spawn: () => Effect.succeed(pty.process) })));
   });
 });

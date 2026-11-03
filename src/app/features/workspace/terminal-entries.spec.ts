@@ -1,5 +1,5 @@
 import { ProjectId } from '../../../shared/sessions/sessions.model';
-import { addTerminal, terminalsOf, withState, TerminalId, type TerminalEntry } from './terminal-entries';
+import { addTerminal, restarted, terminalsOf, withExit, withState, TerminalId, type TerminalEntry } from './terminal-entries';
 
 const timmy = ProjectId.make('p-timmy');
 const ascua = ProjectId.make('p-ascua');
@@ -37,5 +37,21 @@ describe('terminal entries', () => {
   it('ignores a state change for an entry that does not exist', () => {
     const entries = addTerminal([], timmy, id('a'));
     expect(withState(entries, id('nope'), 'Live')).toEqual(entries);
+  });
+
+  it('ends an entry as Done on a clean exit and as Error, keeping the code, on any other', () => {
+    const entries = addTerminal(addTerminal([], timmy, id('a')), timmy, id('b'));
+    const done = withExit(entries, id('a'), 0);
+    const failed = withExit(entries, id('b'), 1);
+    expect(done.find((entry) => entry.id === 'a')).toMatchObject({ state: 'Done', exitCode: 0 });
+    expect(failed.find((entry) => entry.id === 'b')).toMatchObject({ state: 'Error', exitCode: 1 });
+    expect(failed.find((entry) => entry.id === 'a')?.exitCode).toBeUndefined();
+  });
+
+  it('restarts an entry under a new id, keeping its project and number but not its output or exit code', () => {
+    const entries = withExit(addTerminal(addTerminal([], timmy, id('a')), timmy, id('b')), id('b'), 1);
+    const next = restarted(entries, id('b'), id('c'));
+    expect(next.map((entry) => entry.id)).toEqual(['a', 'c']);
+    expect(next[1]).toEqual({ id: 'c', projectId: timmy, number: 2, state: 'Live', output: '' });
   });
 });

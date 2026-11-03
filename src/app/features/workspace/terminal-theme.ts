@@ -7,8 +7,8 @@ export interface TerminalTokens {
 }
 
 const darkAnsi = {
-  black: '#262626', red: '#fa4d56', green: '#42be65', yellow: '#f1c21b', blue: '#78a9ff', magenta: '#be95ff', cyan: '#3ddbd9', white: '#c6c6c6',
-  brightBlack: '#6f6f6f', brightRed: '#ff8389', brightGreen: '#6fdc8c', brightYellow: '#fddc69', brightBlue: '#a6c8ff', brightMagenta: '#d4bbff', brightCyan: '#9ef0f0', brightWhite: '#f4f4f4',
+  black: '#262626', red: '#ff8389', green: '#a7f0ba', yellow: '#f1c21b', blue: '#78a9ff', magenta: '#be95ff', cyan: '#3ddbd9', white: '#c6c6c6',
+  brightBlack: '#a8a8a8', brightRed: '#ffb3b8', brightGreen: '#42be65', brightYellow: '#fddc69', brightBlue: '#a6c8ff', brightMagenta: '#d4bbff', brightCyan: '#9ef0f0', brightWhite: '#f4f4f4',
 } as const;
 
 const lightAnsi = {
