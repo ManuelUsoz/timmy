@@ -5,14 +5,16 @@ import { SettingsRpcs } from '../../../shared/settings/settings.rpc';
 import { WindowRpcs } from '../../../shared/window/window.rpc';
 import type { WindowMode } from '../../../shared/window/window.model';
 import { ChatRpcs } from '../../../shared/chat/chat.rpc';
-import { AgentId, MessageId, OptionId, PermissionRequestId, ToolCallId } from '../../../shared/chat/ids.model';
+import { AgentId, OptionId, PermissionRequestId, ToolCallId } from '../../../shared/chat/ids.model';
 import type { PermissionResponse } from '../../../shared/chat/permission.model';
 import type { ToolCall } from '../../../shared/chat/tool-call.model';
 import { ChatController } from '../chat/chat-controller';
-import { addUserMessage, initialChatState } from '../chat/chat-state';
+import { initialChatState } from '../chat/chat-state';
 import { layerFilesUnused, layerAttachmentsUnused, layerProjectsUnused, layerSessionsUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
+import { ProjectId } from '../../../shared/sessions/sessions.model';
 import { provideWorkspaceRouter } from '../workspace/workspace.routes';
+import { TerminalsState } from '../workspace/terminals-state';
 import { ShellComponent } from './shell';
 
 /** Real client against fake handlers: the window is just a Ref, like main's service behind its host. */
@@ -266,20 +268,9 @@ describe('ShellComponent', () => {
       return { ...ctx, controller };
     };
 
-    it('puts the Pill in Asks with the request and a Review action that opens the Panel', async () => {
-      const { el, settle } = await ask();
-      const pill = el.querySelector('ui-pill')!;
-      expect(pill.textContent).toContain('Asks');
-      expect(pill.textContent).toContain('Bash git push');
-      expect(pill.querySelector('.as-pill__action')?.textContent).toContain('Review');
-      pill.querySelector('button')!.click();
-      await settle();
-      expect(el.querySelector('app-chat-view')).not.toBeNull();
-    });
-
     it('shows the ask row above the composer, not an inline card, with named buttons', async () => {
       const { el, settle } = await ask();
-      el.querySelector('ui-pill button')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      el.querySelector('ui-pill')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
       await settle();
       const row = el.querySelector('ui-ask-row')!;
       expect(row.nextElementSibling?.classList.contains('composer')).toBe(true);
@@ -293,7 +284,7 @@ describe('ShellComponent', () => {
       ['Deny', 'deny'],
     ])('%s sends the matching response', async (name, optionId) => {
       const { el, settle, answers, controller } = await ask();
-      el.querySelector('ui-pill button')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      el.querySelector('ui-pill')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
       await settle();
       (el.querySelector(`ui-ask-row button[aria-label^="${name}:"]`) as HTMLButtonElement).click();
       await settle();
@@ -304,28 +295,50 @@ describe('ShellComponent', () => {
     });
   });
 
-  it('shows Done with a summary, then Idle on the next Turn', async () => {
-    const { el, settle, fixture } = await setup();
-    const chat = TestBed.inject(ChatController);
-    const assistant = { kind: 'Assistant', agentId: AgentId.make('r'), messageId: MessageId.make('m'), text: 'All green.', thinking: '' } as const;
-    chat.chat.set({ ...initialChatState, items: [assistant] });
-    fixture.detectChanges();
-    await settle();
-    expect(el.querySelector('ui-pill button')?.textContent).toContain('Done');
-    expect(el.querySelector('ui-pill button')?.textContent).toContain('All green.');
-    chat.chat.set(addUserMessage(chat.chat(), 'again'));
-    fixture.detectChanges();
-    await settle();
-    expect(el.querySelector('ui-pill button')?.textContent).toContain('Idle');
-  });
+  describe('the Pill and the Terminals', () => {
+    const pillText = (ctx: Awaited<ReturnType<typeof setup>>) => ctx.el.querySelector('ui-pill button')?.textContent ?? '';
+    const open = (project: string) => {
+      const terminals = TestBed.inject(TerminalsState);
+      const entry = terminals.create(ProjectId.make(project));
+      terminals.setState(entry.id, 'Live');
+      return { terminals, id: entry.id };
+    };
 
-  it('shows the running subagent count in the Pill', async () => {
-    const { el, settle, fixture } = await setup();
-    const chat = TestBed.inject(ChatController);
-    const id = AgentId.make('a');
-    chat.chat.set({ ...initialChatState, running: true, agents: new Map([[id, { info: { id, parentId: AgentId.make('r'), name: 'a' }, status: 'Running', usage: undefined }]]) });
-    fixture.detectChanges();
-    await settle();
-    expect(el.querySelector('ui-pill [data-count="subagents"]')?.textContent).toContain('1');
+    it('shows how many Terminals are running, and updates as they open and exit, with no reload', async () => {
+      const ctx = await setup();
+      expect(pillText(ctx)).toContain('Nada en marcha');
+      expect(ctx.el.querySelector('ui-pill.as-pill--running')).toBeNull();
+
+      const first = open('p1');
+      await ctx.settle();
+      expect(pillText(ctx)).toContain('Live');
+      expect(pillText(ctx)).toContain('1 terminal en marcha');
+      expect(ctx.el.querySelector('ui-pill.as-pill--running')).not.toBeNull();
+
+      open('p2');
+      await ctx.settle();
+      expect(pillText(ctx)).toContain('2 terminales en marcha');
+
+      first.terminals.exited(first.id, 0);
+      await ctx.settle();
+      expect(pillText(ctx)).toContain('1 terminal en marcha');
+    });
+
+    it('goes back to idle when the last running Terminal exits', async () => {
+      const ctx = await setup();
+      const only = open('p1');
+      await ctx.settle();
+      only.terminals.exited(only.id, 1);
+      await ctx.settle();
+      expect(pillText(ctx)).toContain('Idle');
+      expect(pillText(ctx)).toContain('Nada en marcha');
+    });
+
+    it('does not read the chat: a running Turn leaves the Pill idle', async () => {
+      const ctx = await setup();
+      TestBed.inject(ChatController).chat.set({ ...initialChatState, running: true });
+      await ctx.settle();
+      expect(pillText(ctx)).toContain('Idle');
+    });
   });
 });
