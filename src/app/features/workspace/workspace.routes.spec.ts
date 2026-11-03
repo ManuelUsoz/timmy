@@ -20,7 +20,6 @@ describe('projectsMatcher', () => {
   it('does not match other areas, nor unknown kinds of child', () => {
     expect(match('history')).toBeNull();
     expect(match('chat')).toBeNull();
-    expect(match('projects/p1/sessions/s1')).toBeNull();
     expect(match('projects/p1/files/f1')).toBeNull();
     expect(match('projects/p1/terminals')).toBeNull();
     expect(match('projects/p1/terminals/t1/extra')).toBeNull();

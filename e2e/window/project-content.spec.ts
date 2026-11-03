@@ -13,7 +13,7 @@ test('the rail has Projects and Settings, and a Project shows its Terminals and 
     await expect(rail.getByRole('link', { name: 'Settings' })).toBeVisible();
   });
 
-  await test.step('the Project content has Terminals and Files, and no Sessions', async () => {
+  await test.step('the Project content has only Terminals and Files', async () => {
     const content = page.getByRole('region', { name: 'Project content' });
     await expect(content.getByRole('region', { name: 'Terminals' })).toBeVisible();
     await expect(content.getByRole('region', { name: 'Files' })).toBeVisible();

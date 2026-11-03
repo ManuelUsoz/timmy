@@ -14,12 +14,8 @@ An agent CLI Timmy can host (OpenCode, Claude Code, Codex). The user chooses in 
 A company whose models a Provider serves (Anthropic, OpenAI, and so on). A Provider like OpenCode fronts several Model vendors; Claude Code fronts one.
 _Avoid_: provider (for a Model vendor).
 
-**Session**
-A Provider's own conversation, run inside a Terminal. Timmy refers to it by id so it can be listed and resumed in a Terminal, and may read the Provider's transcript to show, read-only, what was done. It never stores a copy of the transcript, and a Session is not interactive outside a Terminal.
-_Avoid_: thread, conversation, chat.
-
 **Integration**
-The only place that knows how to launch a Provider's CLI, activate its Hook, read its state and resume its Sessions. It declares what its Provider can do.
+The only place that knows how to launch a Provider's CLI, activate its Hook and read its state. It declares what its Provider can do.
 _Avoid_: adapter.
 
 **Hook**
