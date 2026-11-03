@@ -1,11 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { SessionId } from '../../../shared/chat/ids.model';
-import type { PermissionRequest } from '../../../shared/chat/permission.model';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { I18n } from '../../core/i18n';
-import { ChatController } from '../chat/chat-controller';
-import { fakeRuntime, makeBackend, project, session, type FakeBackend } from './projects-fakes';
+import { fakeRuntime, makeBackend, project, type FakeBackend } from './projects-fakes';
 import { TerminalsState } from './terminals-state';
 import { WorkspaceComponent } from './workspace';
 import { WorkspaceLayoutState } from './workspace-layout';
@@ -13,18 +10,14 @@ import { provideWorkspaceRouter } from './workspace.routes';
 
 interface Options {
   readonly backend?: FakeBackend;
-  /** Runs before the Workspace is created, to put the Panel's chat in some state. */
-  readonly panel?: (chat: ChatController) => void;
 }
 
-const setup = async ({ backend = makeBackend(), panel }: Options = {}) => {
+const setup = async ({ backend = makeBackend() }: Options = {}) => {
   await TestBed.configureTestingModule({
     imports: [WorkspaceComponent],
     providers: [provideWorkspaceRouter(), { provide: EffectRuntime, useValue: fakeRuntime(backend) }],
   }).compileComponents();
   TestBed.inject(WorkspaceLayoutState).width.set(1400);
-  const chat = TestBed.inject(ChatController);
-  panel?.(chat);
   const fixture = TestBed.createComponent(WorkspaceComponent);
   const el = fixture.nativeElement as HTMLElement;
   const router = TestBed.inject(Router);
@@ -48,7 +41,6 @@ const setup = async ({ backend = makeBackend(), panel }: Options = {}) => {
   const rows = (selector: string) => Array.from(el.querySelectorAll<HTMLElement>(`${selector} as-list-row`));
   const rowTitles = (selector: string) => rows(selector).map((row) => row.querySelector('.as-row__title')?.textContent?.trim());
   const projectRow = (name: string) => rows('app-project-list').find((row) => row.querySelector('.as-row__title')?.textContent?.trim() === name);
-  const sessionRow = (title: string) => rows('app-project-content').find((row) => row.querySelector('.as-row__title')?.textContent?.trim() === title);
   const type = async (input: HTMLInputElement, value: string) => {
     input.value = value;
     input.dispatchEvent(new Event('input'));
@@ -59,7 +51,7 @@ const setup = async ({ backend = makeBackend(), panel }: Options = {}) => {
     Array.from(el.querySelectorAll('app-toast-host .toast')).map(
       (toast) => `${toast.querySelector('.as-note__title')?.textContent}: ${toast.querySelector('.as-note__body')?.textContent?.trim()}`,
     );
-  return { el, router, chat, settle, buttonNamed, click, rowTitles, projectRow, sessionRow, type, backend, fixture, toastTexts };
+  return { el, router, settle, buttonNamed, click, rowTitles, projectRow, type, backend, fixture, toastTexts };
 };
 
 const timmy = project('timmy', { lastUsedAt: 300 });
@@ -117,30 +109,6 @@ describe('Projects screen', () => {
       expect(el.querySelector('app-project-list as-list-row[aria-current=true] .as-row__title')?.textContent?.trim()).toBe('timmy');
     });
 
-    it('opens the project and the session of the live Panel session first', async () => {
-      const { router, el } = await setup({
-        backend: makeBackend({ projects: [ascua, timmy], sessions: [session('ascua', 's9', 'En el panel')] }),
-        panel: (chat) => {
-          chat.sessions.set([session('ascua', 's9', 'En el panel')]);
-          chat.selectedSessionId.set(SessionId.make('s9'));
-        },
-      });
-      expect(router.url).toBe('/projects/p-ascua/sessions/s9');
-      expect(el.querySelector('app-project-content h2')?.textContent).toBe('ascua');
-      expect(el.querySelector('app-chat-view')).not.toBeNull();
-    });
-
-    it('does not follow a Panel session whose project is not in the list', async () => {
-      const { router } = await setup({
-        backend: makeBackend({ projects: [ascua, timmy] }),
-        panel: (chat) => {
-          chat.sessions.set([session('elsewhere', 's9', 'x')]);
-          chat.selectedSessionId.set(SessionId.make('s9'));
-        },
-      });
-      expect(router.url).toBe('/projects/p-timmy');
-    });
-
     it('stays on the list with nothing open when no project was ever used', async () => {
       const { router, el } = await setup({ backend: makeBackend({ projects: [project('timmy')] }) });
       expect(router.url).toBe('/projects');
@@ -161,305 +129,41 @@ describe('Projects screen', () => {
     });
   });
 
-  describe('sessions of a project', () => {
-    const sessions = [session('timmy', 's1', 'Refactor del handshake', 20), session('timmy', 's2', 'Migrar a Effect', 10), session('ascua', 's3', 'Otro proyecto')];
-    const withSessions = () => makeBackend({ projects: [timmy], sessions });
-
-    it('lists only the sessions of the project, all Idle when none is open', async () => {
-      const { el, rowTitles } = await setup({ backend: withSessions() });
-      expect(rowTitles('app-project-content')).toEqual(['Refactor del handshake', 'Migrar a Effect']);
-      const states = Array.from(el.querySelectorAll('app-project-content ui-state')).map((s) => s.textContent?.trim());
-      expect(states).toEqual(['Idle', 'Idle']);
-      expect(el.querySelector('app-workspace-hero h2')?.textContent).toBe('Elige una sesión');
-    });
-
-    it('opens a session in the chat at its own route and loads the conversation', async () => {
-      const { router, el, sessionRow, settle } = await setup({ backend: withSessions() });
-      sessionRow('Migrar a Effect')!.click();
-      await settle();
-      expect(router.url).toBe('/projects/p-timmy/sessions/s2');
-      const chat = el.querySelector('app-chat-view')!;
-      expect(chat.textContent).toContain('question s2');
-      expect(chat.textContent).toContain('answer s2');
-      expect(chat.textContent).toContain('Migrar a Effect');
-      expect(sessionRow('Migrar a Effect')!.getAttribute('aria-current')).toBe('true');
-    });
-
-    it('shows the real state of the open session and Idle for the rest', async () => {
-      const { el, chat, sessionRow, settle } = await setup({ backend: withSessions() });
-      sessionRow('Refactor del handshake')!.click();
-      await settle();
-      const stateOf = (title: string) => sessionRow(title)!.querySelector('ui-state')?.textContent?.trim();
-      expect(stateOf('Refactor del handshake')).toBe('Idle');
-
-      chat.chat.set({ ...chat.chat(), running: true });
-      await settle();
-      expect(stateOf('Refactor del handshake')).toBe('Live');
-      expect(stateOf('Migrar a Effect')).toBe('Idle');
-      expect(el.querySelector('app-project-list ui-state')?.textContent?.trim()).toBe('1');
-
-      chat.chat.set({ ...chat.chat(), permission: { id: 'p1', toolCall: { name: 'Bash', title: 'ls' }, options: [] } as unknown as PermissionRequest });
-      await settle();
-      expect(stateOf('Refactor del handshake')).toBe('Asks');
-    });
-
-    it('says there are no sessions, with a "Nueva sesión" button in the list and in the main area', async () => {
-      const { el } = await setup({ backend: makeBackend({ projects: [timmy] }) });
-      expect(el.querySelector('app-project-content .empty-title')?.textContent).toBe('Aún no hay sesiones');
-      expect(el.querySelector('app-workspace-hero h2')?.textContent).toBe('Empieza en timmy');
-      const buttons = (selector: string) => Array.from(el.querySelectorAll(selector + ' button')).map((b) => b.textContent?.trim());
-      expect(buttons('app-project-content .empty')).toEqual(['Nueva sesión', 'Nueva terminal']);
-      expect(buttons('app-workspace-hero')).toEqual(['Nueva sesión', 'Nueva terminal']);
-    });
-
-    it('goes back to the project when the route names a session it does not have', async () => {
-      const { router, settle } = await setup({ backend: withSessions() });
-      await router.navigate(['/projects', 'p-timmy', 'sessions', 'nope']);
-      await settle();
-      expect(router.url).toBe('/projects/p-timmy');
-    });
-
-    it('tells the user in a toast that a running turn blocks opening another session', async () => {
-      const { el, router, chat, sessionRow, settle, toastTexts } = await setup({ backend: withSessions() });
-      chat.chat.set({ ...chat.chat(), running: true });
-      sessionRow('Migrar a Effect')!.click();
-      await settle();
-      expect(toastTexts()).toEqual(['Aviso: Hay un turno en marcha en otra sesión. Espera a que termine para abrir esta.']);
-      expect(el.querySelector('app-workspace-hero p')?.textContent).not.toContain('Hay un turno en marcha');
-      expect(el.querySelector('app-chat-view')).toBeNull();
-      expect(router.url).toBe('/projects/p-timmy');
-    });
-
-    it('tells a failure to load the sessions in a toast, and the column says they are unavailable', async () => {
-      const { el, toastTexts } = await setup({ backend: makeBackend({ projects: [timmy], sessionsFail: true }) });
-      expect(toastTexts()).toEqual(['Error: No se pudieron cargar las sesiones. Inténtalo de nuevo en un momento.']);
-      expect(el.querySelector('app-project-content [role=alert]')).toBeNull();
-      expect(el.querySelector('app-project-content .note')?.textContent).toContain('Sesiones no disponibles');
-    });
-  });
-
-  describe('managing sessions', () => {
-    const sessions = [session('timmy', 's1', 'Refactor del handshake', 20), session('timmy', 's2', 'Migrar a Effect', 10)];
-    const withSessions = () => makeBackend({ projects: [timmy], sessions });
-    type Harness = Awaited<ReturnType<typeof setup>>;
-    const answer = async (name: string, t: Harness) => {
-      await t.type(t.el.querySelector<HTMLInputElement>('app-project-content .edit-field')!, name);
-      await t.click('Guardar');
-    };
-    const noteButton = (t: Harness, text: string) =>
-      Array.from(t.el.querySelectorAll<HTMLButtonElement>('app-chat-stopped button')).find((b) => b.textContent?.trim() === text)!;
-
-    describe('Nueva sesión', () => {
-      it('creates a session in the folder of the project, opens it in the chat and lists it', async () => {
-        const t = await setup({ backend: withSessions() });
-        await t.click('Nueva sesión');
-        expect(t.backend.calls).toContain('Chat.startSession:/work/timmy');
-        expect(t.router.url).toBe('/projects/p-timmy/sessions/new-3');
-        expect(t.el.querySelector('app-chat-view')).not.toBeNull();
-        expect(t.el.querySelector('app-chat-view')?.textContent).not.toContain('Say something to start a session.');
-        expect(t.rowTitles('app-project-content')).toEqual(['Sesión sin título', 'Refactor del handshake', 'Migrar a Effect']);
-        expect(t.sessionRow('Sesión sin título')!.getAttribute('aria-current')).toBe('true');
-      });
-
-      it('starts the first session of an empty project from the main area, and opens it', async () => {
-        const t = await setup({ backend: makeBackend({ projects: [timmy] }) });
-        t.el.querySelector<HTMLButtonElement>('app-workspace-hero button')!.click();
-        await t.settle();
-        expect(t.router.url).toBe('/projects/p-timmy/sessions/new-1');
-        expect(t.el.querySelector('app-chat-view')).not.toBeNull();
-        expect(t.rowTitles('app-project-content')).toEqual(['Sesión sin título']);
-      });
-
-      it('keeps talking in the session it created, without starting another', async () => {
-        const t = await setup({ backend: withSessions() });
-        await t.click('Nueva sesión');
-        t.chat.draft.set('Arregla el build');
-        t.chat.send();
-        await t.settle();
-        expect(t.el.querySelector('app-chat-view')?.textContent).toContain('Arregla el build');
-        expect(t.router.url).toBe('/projects/p-timmy/sessions/new-3');
-        expect(t.backend.calls.filter((call) => call.startsWith('Chat.startSession'))).toHaveLength(1);
-      });
-
-      it('says a running turn blocks it, and starts nothing', async () => {
-        const t = await setup({ backend: withSessions() });
-        t.chat.chat.set({ ...t.chat.chat(), running: true });
-        await t.click('Nueva sesión');
-        expect(t.toastTexts()).toEqual(['Aviso: Hay un turno en marcha. Espera a que termine para empezar otra sesión.']);
-        expect(t.el.querySelector('app-project-content [role=alert]')).toBeNull();
-        expect(t.backend.calls.some((call) => call.startsWith('Chat.startSession'))).toBe(false);
-      });
-
-      it('says so when the session cannot be created, and stays where it was', async () => {
-        const t = await setup({ backend: makeBackend({ projects: [timmy], sessions, startFails: true }) });
-        await t.click('Nueva sesión');
-        expect(t.toastTexts()).toEqual(['Error: No se pudo crear la sesión.']);
-        expect(t.router.url).toBe('/projects/p-timmy');
-        expect(t.rowTitles('app-project-content')).toHaveLength(2);
-      });
-    });
-
-    describe('rename', () => {
-      it('changes the title in the list and in main', async () => {
-        const t = await setup({ backend: withSessions() });
-        await t.click('Renombrar Migrar a Effect');
-        await answer('Pasar a Effect 4', t);
-        expect(t.rowTitles('app-project-content')).toEqual(['Refactor del handshake', 'Pasar a Effect 4']);
-        expect(t.backend.sessions.map((candidate) => candidate.title)).toContain('Pasar a Effect 4');
-        expect(t.el.querySelector('app-project-content .edit')).toBeNull();
-      });
-
-      it('renames the open session in the chat title too', async () => {
-        const t = await setup({ backend: withSessions() });
-        t.sessionRow('Migrar a Effect')!.click();
-        await t.settle();
-        await t.click('Renombrar Migrar a Effect');
-        await answer('Pasar a Effect 4', t);
-        expect(t.el.querySelector('app-chat-view .title-name')?.textContent).toBe('Pasar a Effect 4');
-      });
-
-      it('does not open the session when its button is pressed', async () => {
-        const t = await setup({ backend: withSessions() });
-        await t.click('Renombrar Migrar a Effect');
-        expect(t.router.url).toBe('/projects/p-timmy');
-      });
-
-      it('keeps the field open and says why when the name is empty', async () => {
-        const t = await setup({ backend: withSessions() });
-        await t.click('Renombrar Migrar a Effect');
-        await answer('   ', t);
-        expect(t.toastTexts()).toEqual(['Aviso: El nombre de la sesión no puede estar vacío.']);
-        expect(t.el.querySelector('app-project-content .edit-field')).not.toBeNull();
-        expect(t.rowTitles('app-project-content')).toEqual(['Refactor del handshake']);
-      });
-
-      it('leaves the title alone when it is cancelled or unchanged', async () => {
-        const t = await setup({ backend: withSessions() });
-        await t.click('Renombrar Migrar a Effect');
-        await t.type(t.el.querySelector<HTMLInputElement>('app-project-content .edit-field')!, 'Otro');
-        await t.click('Cancelar');
-        expect(t.rowTitles('app-project-content')).toEqual(['Refactor del handshake', 'Migrar a Effect']);
-        await t.click('Renombrar Migrar a Effect');
-        await t.click('Guardar');
-        expect(t.backend.calls.some((call) => call.startsWith('Sessions.rename'))).toBe(false);
-        expect(t.rowTitles('app-project-content')).toEqual(['Refactor del handshake', 'Migrar a Effect']);
-      });
-    });
-
-    describe('delete', () => {
-      it('asks first, then takes the session out of the list', async () => {
-        const t = await setup({ backend: withSessions() });
-        await t.click('Borrar Migrar a Effect');
-        expect(t.el.querySelector('app-project-content .confirm')?.textContent).toContain('¿Borrar «Migrar a Effect»?');
-        expect(t.backend.calls.some((call) => call.startsWith('Sessions.delete'))).toBe(false);
-        await t.click('Borrar');
-        expect(t.rowTitles('app-project-content')).toEqual(['Refactor del handshake']);
-        expect(t.backend.sessions.map((candidate) => candidate.sessionId)).toEqual(['s1']);
-      });
-
-      it('keeps the session when the user cancels', async () => {
-        const t = await setup({ backend: withSessions() });
-        await t.click('Borrar Migrar a Effect');
-        await t.click('Cancelar');
-        expect(t.rowTitles('app-project-content')).toHaveLength(2);
-        expect(t.backend.calls.some((call) => call.startsWith('Sessions.delete'))).toBe(false);
-      });
-
-      it('shows SessionActive to the user when the session is open, and keeps it', async () => {
-        const t = await setup({ backend: withSessions() });
-        await t.click('Nueva sesión');
-        await t.click('Borrar Sesión sin título');
-        await t.click('Borrar');
-        expect(t.toastTexts()).toEqual(['Aviso: No se puede borrar una sesión abierta. Abre otra sesión y vuelve a intentarlo.']);
-        expect(t.el.querySelector('app-project-content [role=alert]')).toBeNull();
-        expect(t.rowTitles('app-project-content')).toHaveLength(3);
-        expect(t.router.url).toBe('/projects/p-timmy/sessions/new-3');
-        expect(t.el.querySelector('app-chat-view')).not.toBeNull();
-      });
-
-      it('leaves the chat when the session on screen is deleted', async () => {
-        const t = await setup({ backend: withSessions() });
-        t.sessionRow('Migrar a Effect')!.click();
-        await t.settle();
-        await t.click('Borrar Migrar a Effect');
-        await t.click('Borrar');
-        expect(t.router.url).toBe('/projects/p-timmy');
-        expect(t.el.querySelector('app-chat-view')).toBeNull();
-        expect(t.chat.selectedSessionId()).toBeUndefined();
-        expect(t.rowTitles('app-project-content')).toEqual(['Refactor del handshake']);
-      });
-    });
-
-    describe('a session that stops', () => {
-      const stopped = async (backend = makeBackend({ projects: [timmy], sessions, turnOutcome: 'Failed' })) => {
-        const t = await setup({ backend });
-        await t.click('Nueva sesión');
-        t.chat.draft.set('Arregla el build');
-        t.chat.send();
-        await t.settle();
-        return t;
-      };
-
-      it('shows the stopped screen with the failure the chat already has', async () => {
-        const t = await stopped();
-        const note = t.el.querySelector('app-chat-view app-chat-stopped')!;
-        expect(note.querySelector('.title')?.textContent).toBe('La sesión se detuvo');
-        expect(note.querySelector('.detail')?.textContent).toBe('Mock failure: the provider returned an error.');
-        expect(note.querySelector('[role=alert]')).not.toBeNull();
-        expect(t.el.querySelector('app-chat-view .log .error')).toBeNull();
-      });
-
-      it('shows nothing of the kind when the turn completes', async () => {
-        const t = await stopped(makeBackend({ projects: [timmy], sessions }));
-        expect(t.el.querySelector('app-chat-stopped')).toBeNull();
-      });
-
-      it('starts a new session from the note', async () => {
-        const t = await stopped();
-        const before = t.router.url;
-        noteButton(t, 'Nueva sesión').click();
-        await t.settle();
-        expect(t.router.url).not.toBe(before);
-        expect(t.backend.calls.filter((call) => call.startsWith('Chat.startSession'))).toHaveLength(2);
-        expect(t.el.querySelector('app-chat-stopped')).toBeNull();
-      });
-
-      it('copies the detail', async () => {
-        const writeText = vi.fn(() => Promise.resolve());
-        vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
-        try {
-          const t = await stopped();
-          const button = noteButton(t, 'Copiar detalle');
-          button.click();
-          await t.settle();
-          expect(writeText).toHaveBeenCalledWith('Mock failure: the provider returned an error.');
-          expect(button.textContent?.trim()).toBe('Copiado');
-        } finally {
-          vi.unstubAllGlobals();
-        }
-      });
-
-      it('speaks English when the language is English', async () => {
-        const t = await stopped();
-        TestBed.inject(I18n).setLanguage('en');
-        await t.settle();
-        expect(t.el.querySelector('app-chat-stopped .title')?.textContent).toBe('The session stopped');
-        expect(t.el.querySelector('app-project-content .label')?.textContent).toBe('Sessions');
-      });
-    });
-  });
-
   describe('terminals of a project', () => {
     const textOf = (el: HTMLElement, selector: string) => Array.from(el.querySelectorAll(selector)).map((node) => node.textContent?.trim());
     const terminalGroup = (el: HTMLElement) => el.querySelector<HTMLElement>('app-project-content section[aria-label="Terminales"]')!;
 
-    it('says there are no terminals, with a "Nueva terminal" button and no counter', async () => {
+    it('shows the Terminals and the files of the project, and nothing else', async () => {
+      const { el } = await setup({ backend: makeBackend({ projects: [timmy] }) });
+      const groups = Array.from(el.querySelectorAll('app-project-content section.group')).map((group) => group.getAttribute('aria-label'));
+      expect(groups).toEqual(['Terminales', 'Archivos']);
+    });
+
+    it('says there are no terminals, with a "Nueva terminal" button in the list and in the main area, and no counter', async () => {
       const { el } = await setup({ backend: makeBackend({ projects: [timmy] }) });
       const group = terminalGroup(el);
       expect(group.querySelector('.empty-title')?.textContent).toBe('Aún no hay terminales');
       expect(group.querySelector('.empty small')?.textContent).toBe('Se abren en la carpeta del proyecto.');
       expect(group.querySelector('ui-tag')).toBeNull();
       expect(textOf(group, '.empty button')).toEqual(['Nueva terminal']);
+      expect(el.querySelector('app-workspace-hero h2')?.textContent).toBe('Empieza en timmy');
+      expect(textOf(el, 'app-workspace-hero button')).toEqual(['Nueva terminal']);
+    });
+
+    it('opens the first terminal from the main area', async () => {
+      const { el, router, settle } = await setup({ backend: makeBackend({ projects: [timmy] }) });
+      el.querySelector<HTMLButtonElement>('app-workspace-hero button')!.click();
+      await settle();
+      expect(router.url).toMatch(/^\/projects\/p-timmy\/terminals\/.+/);
+      expect(textOf(terminalGroup(el), 'as-list-row .as-row__title')).toEqual(['Terminal 1']);
+    });
+
+    it('asks to pick a terminal when the project has some but none is open', async () => {
+      const { el, router, click, settle } = await setup({ backend: makeBackend({ projects: [timmy] }) });
+      await click('Nueva terminal');
+      await router.navigate(['/projects', timmy.projectId]);
+      await settle();
+      expect(el.querySelector('app-workspace-hero h2')?.textContent).toBe('Elige una terminal');
     });
 
     it('creates a local terminal in the project and opens it at its own route, with a counter and its state', async () => {
@@ -568,7 +272,7 @@ describe('Projects screen', () => {
       await settle();
       expect(toggle('Terminales').getAttribute('aria-expanded')).toBe('false');
       expect(group('Terminales').querySelector('.empty')).toBeNull();
-      expect(group('Sesiones').querySelector('.empty')).not.toBeNull();
+      expect(group('Archivos').querySelector('[role=tree]')).not.toBeNull();
       toggle('Terminales').click();
       await settle();
       expect(group('Terminales').querySelector('.empty')).not.toBeNull();
@@ -689,13 +393,12 @@ describe('Projects screen', () => {
   });
 
   describe('removing a project', () => {
-    it('takes it out of the list and goes to the next one, leaving the sessions alone', async () => {
-      const backend = makeBackend({ projects: [timmy, ascua], sessions: [session('timmy', 's1', 'Keep me')] });
+    it('takes it out of the list and goes to the next one', async () => {
+      const backend = makeBackend({ projects: [timmy, ascua] });
       const { router, rowTitles, click } = await setup({ backend });
       await click('Quitar proyecto');
       expect(rowTitles('app-project-list')).toEqual(['ascua']);
       expect(router.url).toBe('/projects/p-ascua');
-      expect(backend.sessions).toHaveLength(1);
     });
 
     it('tells in a toast that the project could not be removed, and keeps it in the list', async () => {
@@ -725,8 +428,7 @@ describe('Projects screen', () => {
       expect(hero).toEqual(['Quitar proyecto']);
       expect(buttonNamed('Localizar carpeta')).toBeUndefined();
       expect(buttonNamed('Reintentar')).toBeUndefined();
-      // The column stays for Archivos, which says the folder cannot be read; no Sessions or Terminals to use.
-      expect(el.querySelector('app-project-content section[aria-label="Sesiones"]')).toBeNull();
+      // The column stays for Archivos, which says the folder cannot be read; no Terminals to use.
       expect(el.querySelector('app-project-content section[aria-label="Terminales"]')).toBeNull();
     });
 
@@ -749,7 +451,7 @@ describe('Projects screen', () => {
       window.dispatchEvent(new Event('focus'));
       await settle();
       expect(el.querySelector('app-workspace-hero h2')?.textContent).toBe('No encontramos la carpeta');
-      expect(el.querySelector('app-project-content section[aria-label="Sesiones"]')).toBeNull();
+      expect(el.querySelector('app-project-content section[aria-label="Terminales"]')).toBeNull();
     });
 
     it('checks again when the window regains focus: the folder comes back', async () => {
@@ -811,13 +513,11 @@ describe('Projects screen', () => {
     });
 
     it('has the pending buttons enabled to the keyboard, named, and with no effect when pressed', async () => {
-      const backend = makeBackend({ projects: [timmy], sessions: [session('timmy', 's1', 'Refactor del handshake')] });
-      const { el, router, settle, sessionRow, toastTexts } = await setup({ backend });
-      sessionRow('Refactor del handshake')!.click();
-      await settle();
+      const backend = makeBackend({ projects: [timmy] });
+      const { el, router, settle, toastTexts } = await setup({ backend });
       const calls = [...backend.calls];
       const url = router.url;
-      const pending = ['Abrir en el explorador', 'Buscar archivo', 'Bifurcar', 'Ver cambios', 'Más acciones'].map((name) => {
+      const pending = ['Abrir en el explorador', 'Buscar archivo'].map((name) => {
         const button = Array.from(el.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.getAttribute('aria-label') === name);
         expect(button, name).toBeDefined();
         expect(button!.disabled, name).toBe(false);
@@ -832,12 +532,6 @@ describe('Projects screen', () => {
       expect(router.url).toBe(url);
       expect(backend.calls).toEqual(calls);
       expect(toastTexts()).toEqual([]);
-    });
-
-    it('keeps the chat header actions out of the Panel chat', async () => {
-      const { el } = await setup({ backend: makeBackend({ projects: [timmy] }) });
-      expect(el.querySelector('app-chat-view')).toBeNull();
-      expect(el.querySelector('app-chat-header-actions')).toBeNull();
     });
 
     it('says the folder cannot be read in Archivos when the folder is missing, without tree or search', async () => {
@@ -855,7 +549,7 @@ describe('Projects screen', () => {
       const { el, settle } = await setup({ backend: makeBackend({ projects: [timmy] }) });
       TestBed.inject(I18n).setLanguage('en');
       await settle();
-      expect(el.querySelector('app-project-content .empty-title')?.textContent).toBe('No sessions yet');
+      expect(el.querySelector('app-project-content .empty-title')?.textContent).toBe('No terminals yet');
       expect(el.querySelector('app-project-list input')?.getAttribute('placeholder')).toBe('Search projects');
     });
 

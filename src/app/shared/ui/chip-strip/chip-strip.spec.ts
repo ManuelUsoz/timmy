@@ -6,7 +6,7 @@ import { ChipStripComponent, ChipStripItem } from './chip-strip';
   imports: [ChipStripComponent],
   template: `<ui-chip-strip
     label="ascua"
-    groupLabel="Sessions in ascua"
+    groupLabel="Terminals in ascua"
     [items]="items"
     [selectedId]="selectedId()"
     (selected)="picked.push($event)"
@@ -16,7 +16,7 @@ class Host {
   items: ChipStripItem[] = [
     { id: 'a', label: 'reply-bubble', status: 'live' },
     { id: 'b', label: 'feat/voice', branch: true, status: 'live' },
-    { id: 'c', label: 'api-gateway', status: 'asks' },
+    { id: 'c', label: 'api-gateway', status: 'done' },
   ];
   selectedId = signal<string | null>('a');
   picked: string[] = [];
@@ -35,11 +35,11 @@ describe('ChipStripComponent', () => {
   it('is a labelled group of buttons', async () => {
     const { root, chips } = await render();
     expect(root.getAttribute('role')).toBe('group');
-    expect(root.getAttribute('aria-label')).toBe('Sessions in ascua');
+    expect(root.getAttribute('aria-label')).toBe('Terminals in ascua');
     expect(chips().map((c) => c.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
       'reply-bubble',
       'feat/voice',
-      'api-gateway ASKS',
+      'api-gateway',
     ]);
   });
 

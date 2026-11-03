@@ -9,31 +9,25 @@ import {
   type UrlSegment,
 } from '@angular/router';
 
-const comingSoon = () => import('./coming-soon-screen').then((m) => m.ComingSoonScreen);
-
 /**
  * One route for the shapes of the Projects area, so moving between them keeps the screen alive:
- * `/projects`, `/projects/:projectId`, `/projects/:projectId/sessions/:sessionId` and
- * `/projects/:projectId/terminals/:terminalId`.
+ * `/projects`, `/projects/:projectId` and `/projects/:projectId/terminals/:terminalId`.
  */
 export const projectsMatcher: NonNullable<Route['matcher']> = (segments: UrlSegment[]): UrlMatchResult | null => {
-  const [area, projectId, child, childId] = segments;
+  const [area, projectId, child, terminalId] = segments;
   if (area?.path !== 'projects') return null;
   if (segments.length === 1) return { consumed: segments };
   if (segments.length === 2 && projectId !== undefined) return { consumed: segments, posParams: { projectId } };
-  if (segments.length === 4 && projectId !== undefined && childId !== undefined) {
-    if (child?.path === 'sessions') return { consumed: segments, posParams: { projectId, sessionId: childId } };
-    if (child?.path === 'terminals') return { consumed: segments, posParams: { projectId, terminalId: childId } };
+  if (segments.length === 4 && projectId !== undefined && terminalId !== undefined && child?.path === 'terminals') {
+    return { consumed: segments, posParams: { projectId, terminalId } };
   }
   return null;
 };
 
-/** Entering the Workspace lands on Projects. Chat and History are placeholders for now. */
+/** Entering the Workspace lands on Projects. */
 export const workspaceRoutes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'projects' },
   { matcher: projectsMatcher, loadComponent: () => import('./projects-screen').then((m) => m.ProjectsScreen) },
-  { path: 'chat', loadComponent: comingSoon, data: { title: 'rail.chat' } },
-  { path: 'history', loadComponent: comingSoon, data: { title: 'rail.history' } },
   { path: 'settings', loadComponent: () => import('./settings-screen').then((m) => m.SettingsScreen) },
   { path: '**', redirectTo: 'projects' },
 ];

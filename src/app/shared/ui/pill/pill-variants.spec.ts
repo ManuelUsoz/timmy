@@ -7,7 +7,7 @@ import { PillComponent } from './pill';
   template: `
     <ui-pill id="idle" square tone="neutral" label="Idle">Nothing running</ui-pill>
     <ui-pill id="fleet" square tone="running" label="4 live" [subagents]="5" [worktrees]="2">3 projects</ui-pill>
-    <ui-pill id="asks" square tone="waiting" label="Asks">
+    <ui-pill id="waiting" square tone="waiting" label="Waiting">
       api-gateway · git push<span pillCounts>+3 live</span><span pillAction>Review</span>
     </ui-pill>
     <ui-pill id="done" square tone="running" label="Done">docs-sweep · 4 files<span pillMeta>+40 −3</span></ui-pill>
@@ -54,8 +54,8 @@ describe('PillComponent variants', () => {
 
   it('includes the trailing action in the name', async () => {
     const { name, pill } = await render();
-    expect(name('asks')).toBe('Asks api-gateway · git push +3 live Review');
-    expect(pill('asks').classList).toContain('as-pill--attn');
+    expect(name('waiting')).toBe('Waiting api-gateway · git push +3 live Review');
+    expect(pill('waiting').classList).toContain('as-pill--attn');
   });
 
   it('hides counts that were not given', async () => {

@@ -40,7 +40,7 @@
       [options]="acOptions"
       [formControl]="acMulti"
     />
-    <ui-autocomplete variant="search" placeholder="Search history" [options]="acFlat" [formControl]="acSearch" />
+    <ui-autocomplete variant="search" placeholder="Search projects" [options]="acFlat" [formControl]="acSearch" />
     <ui-autocomplete label="Loading" placeholder="Search" loading [options]="[]" [formControl]="acLoading" />
   </div>
 </section>
@@ -299,21 +299,10 @@
 </section>
 
 <section>
-  <h2>Message</h2>
-  <div class="row" style="flex-direction: column; align-items: stretch; max-width: 440px">
-    <ui-message role="user">Make Stop and Notification announce the session.</ui-message>
-    <ui-message role="agent">
-      <div>I'll route both hooks through the existing pipe and keep the endpoint fail-open.</div>
-      <ui-tree-view variant="activity" size="sm" [nodes]="activityNodes" />
-    </ui-message>
-  </div>
-</section>
-
-<section>
   <h2>ChipStrip</h2>
   <div class="row" style="flex-direction: column; align-items: stretch">
-    <ui-chip-strip label="ascua" groupLabel="Sessions in ascua" [items]="stripItems" [selectedId]="stripSelected()" (selected)="stripSelected.set($event)" />
-    <ui-chip-strip groupLabel="Other sessions" [items]="stripOthers" [selectedId]="stripSelected()" (selected)="stripSelected.set($event)" />
+    <ui-chip-strip label="ascua" groupLabel="Terminals in ascua" [items]="stripItems" [selectedId]="stripSelected()" (selected)="stripSelected.set($event)" />
+    <ui-chip-strip groupLabel="Other terminals" [items]="stripOthers" [selectedId]="stripSelected()" (selected)="stripSelected.set($event)" />
   </div>
 </section>
 
@@ -321,9 +310,9 @@
   <h2>ListRow</h2>
   <div class="row">
     <div role="listbox" aria-label="Rows">
-      <as-list-group-label label="Sessions" [count]="4" />
+      <as-list-group-label label="Terminals" [count]="4" />
       <as-list-row label="Plain row" meta="main" />
-      <as-list-row lead label="Lead row" meta="feature/chat">
+      <as-list-row lead label="Lead row" meta="feature/files">
         <ui-avatar leading name="Ada Lovelace" size="md" />
         <ui-tag trailing tone="green">live</ui-tag>
       </as-list-row>
@@ -332,7 +321,7 @@
         [selected]="rowSelected() === 'b'"
         (activate)="rowSelected.set('b')"
       />
-      <as-list-row label="Needs input" asks />
+      <as-list-row label="Needs input" />
     </div>
   </div>
 </section>
@@ -341,14 +330,14 @@
   <h2>Pill</h2>
   <div class="row">
     <ui-pill tone="running" label="Live" pulse>Fix menu focus<span pillMeta>2m</span></ui-pill>
-    <ui-pill tone="waiting" label="Asks">
+    <ui-pill tone="waiting" label="Waiting">
       <ui-pill-stack pillLead>
         <ui-avatar name="Ada Lovelace" />
         <ui-avatar name="Grace Hopper" />
       </ui-pill-stack>
       Allow Bash?
     </ui-pill>
-    <ui-pill tone="neutral" label="Idle">No session</ui-pill>
+    <ui-pill tone="neutral" label="Idle">Nothing running</ui-pill>
   </div>
   <h3>variants</h3>
   <div class="row" style="flex-direction: column; align-items: stretch; width: 440px">
@@ -365,7 +354,7 @@
       </ui-pill-stack>
       3 projects
     </ui-pill>
-    <ui-pill square tone="waiting" label="Asks">
+    <ui-pill square tone="waiting" label="Waiting">
       <ui-pill-stack pillLead><ui-avatar name="Ada Lovelace" /></ui-pill-stack>
       api-gateway · git push<span pillCounts>+3 live</span><span pillAction>Review</span>
     </ui-pill>
@@ -383,47 +372,13 @@
 </section>
 
 <section>
-  <h2>History</h2>
-  <div class="row">
-    <ui-history
-      [groups]="historyGroups"
-      [selectedId]="historySelected()"
-      [filters]="historyFilters"
-      (select)="historySelected.set($event)"
-    />
-    <ui-history [groups]="historyEmpty" query="zzz" />
-  </div>
-</section>
-
-<section>
-  <h2>Session</h2>
-  <div class="row">
-    <ui-session title="Fix menu focus" sub="fix/menu · Claude" status="live" elapsed="2m" [tools]="sessionTools" />
-    <ui-session
-      title="Run build"
-      sub="main · Claude"
-      status="asks"
-      elapsed="5m"
-      [permission]="samplePermission"
-    />
-  </div>
-</section>
-
-<section>
-  <h2>Ask row</h2>
-  <div class="row">
-    <ui-ask-row title="api-gateway asks" sub="git push origin fix/rate-limit" />
-  </div>
-</section>
-
-<section>
   <h2>Modal</h2>
   <div class="row">
     <button uiButton kind="secondary" type="button" (click)="modalOpen.set(true)">Open modal</button>
   </div>
   @if (modalOpen()) {
-    <ui-modal heading="Send without text?" primaryLabel="Send anyway" closeLabel="Close" stateLabel="Info" (primary)="modalOpen.set(false)" (closed)="modalOpen.set(false)">
-      Your message has only images.
+    <ui-modal heading="Remove project?" primaryLabel="Remove" closeLabel="Close" stateLabel="Info" (primary)="modalOpen.set(false)" (closed)="modalOpen.set(false)">
+      The folder stays on disk.
     </ui-modal>
   }
 </section>

@@ -7,7 +7,7 @@ import { AutocompleteOption } from './autocomplete.types';
 
 const OPTIONS: AutocompleteOption<string>[] = [
   { value: 'main', label: 'main', group: 'Branches' },
-  { value: 'feature', label: 'feature/chat', group: 'Branches' },
+  { value: 'feature', label: 'feature/files', group: 'Branches' },
   { value: 'readme', label: 'README.md', group: 'Files' },
 ];
 
@@ -54,7 +54,7 @@ describe('AutocompleteComponent', () => {
     const { fixture, host, input } = await render();
     host.ctl.setValue('feature');
     await fixture.whenStable();
-    expect(input().value).toBe('feature/chat');
+    expect(input().value).toBe('feature/files');
   });
 
   it('writeValue multiple shows chips', async () => {

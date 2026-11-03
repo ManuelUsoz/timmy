@@ -16,7 +16,6 @@ test.describe('the Panel shows the current Terminal', () => {
     const panel = page.getByRole('region', { name: 'Timmy panel' });
     await expect(panel.getByRole('heading', { name: 'No terminals yet' })).toBeVisible();
     await expect(panel).toContainText('Add a project in the Workspace');
-    await expect(page.locator('app-chat-view')).toHaveCount(0);
     await timmy.shot('panel-empty-no-project');
 
     await panel.getByRole('button', { name: 'Open Workspace' }).click();

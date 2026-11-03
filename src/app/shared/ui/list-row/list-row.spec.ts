@@ -12,7 +12,6 @@ import { ListRow } from './list-row';
       meta="main"
       [selected]="selected"
       [disabled]="disabled"
-      [asks]="asks"
       [lead]="lead"
       (activate)="count = count + 1"
     >
@@ -24,7 +23,6 @@ import { ListRow } from './list-row';
 class Host {
   selected = false;
   disabled = false;
-  asks = false;
   lead = false;
   count = 0;
 }
@@ -52,12 +50,6 @@ describe('ListRow', () => {
     expect(el.classList).toContain('as-row--selected');
     expect(el.classList).toContain('as-row--disabled');
     expect(el.getAttribute('aria-selected')).toBe('true');
-  });
-
-  it('shows ASKS and class when asks', async () => {
-    const { el } = await render({ asks: true });
-    expect(el.classList).toContain('as-row--asks');
-    expect(el.textContent).toContain('ASKS');
   });
 
   it('applies lead class', async () => {

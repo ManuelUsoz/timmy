@@ -6,7 +6,7 @@ describe('App', () => {
     await TestBed.configureTestingModule({ imports: [App] }).compileComponents();
   });
 
-  it('hosts the shell and holds no chat logic of its own', async () => {
+  it('hosts the shell', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     const host = fixture.nativeElement as HTMLElement;

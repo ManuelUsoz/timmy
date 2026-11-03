@@ -3,9 +3,7 @@ import { describe, expect, it } from '@effect/vitest';
 import { Effect, Layer, Option } from 'effect';
 import { DesktopApi } from '../../src/app/core/desktop-api';
 import {
-  layerChatUnused,
-  layerSessionsUnused,
-  layerFilesUnused, layerAttachmentsUnused,
+  layerFilesUnused,
   layerSettingsUnused,
   layerWindowUnused,
   makeDesktopTestLayer,
@@ -32,10 +30,8 @@ const makeLayer = (picked: Option.Option<string> = Option.none()) =>
         Layer.provide(layerSessionRepo(':memory:')),
       ),
       AppInfoRpcs.toLayer({ 'AppInfo.get': () => Effect.die('unused') }),
-      layerChatUnused,
-      layerSessionsUnused,
       layerWindowUnused,
-      layerFilesUnused, layerAttachmentsUnused,
+      layerFilesUnused,
       layerSettingsUnused,
     ),
   );

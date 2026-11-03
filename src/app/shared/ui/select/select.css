@@ -87,7 +87,7 @@
 .as-select__icon { flex: none; vertical-align: -3px; margin-right: 6px; }
 .as-option__icon { flex: none; color: var(--text-secondary); }
 
-/* Inline: the trigger of a toolbar (composer). Transparent, square, label spoken only. */
+/* Inline: the trigger of a toolbar. Transparent, square, label spoken only. */
 .as-field__label--hidden {
   position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }

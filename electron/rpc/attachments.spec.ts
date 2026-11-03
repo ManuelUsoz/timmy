@@ -5,10 +5,8 @@ import { afterAll, describe, expect, it } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
 import { DesktopApi } from '../../src/app/core/desktop-api';
 import {
-  layerChatUnused,
   layerFilesUnused,
   layerProjectsUnused,
-  layerSessionsUnused,
   layerSettingsUnused,
   layerWindowUnused,
   makeDesktopTestLayer,
@@ -28,8 +26,6 @@ const makeLayer = () => {
     Layer.mergeAll(
       layerAttachmentsHandlers.pipe(Layer.provide(layerAttachmentStore(dir).pipe(Layer.provide(layerImageResizerTest)))),
       AppInfoRpcs.toLayer({ 'AppInfo.get': () => Effect.die('unused') }),
-      layerChatUnused,
-      layerSessionsUnused,
       layerWindowUnused,
       layerSettingsUnused,
       layerFilesUnused,

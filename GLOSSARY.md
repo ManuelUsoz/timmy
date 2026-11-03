@@ -38,4 +38,4 @@ The second Window mode: a small surface anchored at the same corner as the Pill,
 The third Window mode: the Workspace, centered on the screen. The user can maximize it.
 
 **Workspace**
-The full navigation shell shown in Expanded: a rail of areas (Projects, Sessions, Settings), the list of Projects, and the content of the selected Project (its Terminals, resumable Sessions and files).
+The full navigation shell shown in Expanded: a rail of areas (Projects, Settings), the list of Projects, and the content of the selected Project (its Terminals and files).

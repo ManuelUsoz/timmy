@@ -18,7 +18,7 @@ export const sampleFiles = (modifiedLabel: string): readonly TreeNode[] => [
         expanded: true,
         children: [
           { id: 'src/app/core', label: 'core', kind: 'folder', children: [{ id: 'src/app/core/i18n.ts', label: 'i18n.ts', kind: 'file' }] },
-          { id: 'src/app/features', label: 'features', kind: 'folder', children: [{ id: 'src/app/features/chat', label: 'chat', kind: 'folder', children: [{ id: 'src/app/features/chat/chat-view.ts', label: 'chat-view.ts', kind: 'file' }] }] },
+          { id: 'src/app/features', label: 'features', kind: 'folder', children: [{ id: 'src/app/features/shell', label: 'shell', kind: 'folder', children: [{ id: 'src/app/features/shell/shell.ts', label: 'shell.ts', kind: 'file' }] }] },
         ],
       },
     ],

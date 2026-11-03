@@ -129,17 +129,6 @@
   color: var(--background);
 }
 
-.rail-project .dot {
-  position: absolute;
-  inset-block-start: calc((var(--control-lg) - var(--control-sm)) / 2 - 3px);
-  inset-inline-end: calc((100% - var(--control-sm)) / 2 - 3px);
-  box-sizing: content-box;
-  gap: 0;
-  border: 2px solid var(--layer-01);
-  border-radius: var(--radius-full);
-  font-size: 0;
-}
-
 .rail-footer {
   display: flex;
   flex: none;

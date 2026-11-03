@@ -29,20 +29,16 @@
     [attr.aria-label]="i18n.t('projects.content')"
   >
     <app-project-content
-      [openSessionId]="routeSessionId()"
       [openTerminalId]="routeTerminal()?.id"
-      [creating]="creating()"
       [folderMissing]="folderMissing()"
-      (sessionOpened)="openSessionOf($event)"
       (terminalOpened)="openTerminal($event)"
-      (newSession)="newSession()"
       (newTerminal)="newTerminal()"
       (removed)="removeSelected()"
     />
   </section>
 }
 
-<section class="session">
+<section class="stage">
   @if (state.selected() !== undefined && layout.layout().content === 'overlay') {
     <button type="button" class="content-toggle" [attr.aria-expanded]="layout.contentOpen()" (click)="layout.toggleContent()">
       {{ layout.contentOpen() ? i18n.t('projects.hideContent') : i18n.t('projects.showContent') }}
@@ -77,33 +73,15 @@
           <app-terminal-screen class="terminal" [terminal]="live" [cwd]="project.cwd" [attr.aria-label]="i18n.t('terminals.screen')" (restarted)="openTerminal($event)" />
         }
       }
-    } @else if (openSession(); as session) {
-      <app-chat-view
-        class="chat"
-        embedded
-        [sessionTitle]="session.title === '' ? i18n.t('sessions.untitled') : session.title"
-        [attr.aria-label]="i18n.t('sessions.chat')"
-        (newSession)="newSession()"
-      >
-        <app-chat-header-actions headerActions />
-      </app-chat-view>
-    } @else if (state.sessions(); as sessions) {
-      @if (sessions.status === 'ready') {
-        @if (sessions.items.length === 0) {
-          <app-workspace-hero icon="chat" [title]="i18n.t('sessions.startTitle', { name: project.name })" [detail]="i18n.t('sessions.startDetail')">
-            <button uiButton kind="primary" type="button" [disabled]="creating()" (click)="newSession()">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h12v8H7l-3 2.5V11H2z" /></svg>
-              {{ i18n.t('sessions.new') }}
-            </button>
-            <button uiButton kind="secondary" type="button" (click)="newTerminal()">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
-              {{ i18n.t('terminals.new') }}
-            </button>
-          </app-workspace-hero>
-        } @else if (routeSessionId() === undefined) {
-          <app-workspace-hero icon="chat" [title]="i18n.t('sessions.pickTitle')" [detail]="i18n.t('sessions.pickDetail')" />
-        }
-      }
+    } @else if (terminalsOfProject().length === 0) {
+      <app-workspace-hero icon="terminal" [title]="i18n.t('terminals.startTitle', { name: project.name })" [detail]="i18n.t('terminals.startDetail')">
+        <button uiButton kind="primary" type="button" (click)="newTerminal()">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
+          {{ i18n.t('terminals.new') }}
+        </button>
+      </app-workspace-hero>
+    } @else {
+      <app-workspace-hero icon="terminal" [title]="i18n.t('terminals.pickTitle')" [detail]="i18n.t('terminals.pickDetail')" />
     }
   } @else {
     <app-workspace-hero [title]="i18n.t('projects.pickTitle')" [detail]="i18n.t('projects.pickDetail')" />

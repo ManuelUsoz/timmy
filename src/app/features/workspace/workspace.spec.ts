@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 import { Effect, Layer, Ref } from 'effect';
 import type { Language } from '../../../shared/settings/settings.model';
 import { SettingsRpcs } from '../../../shared/settings/settings.rpc';
@@ -52,35 +53,32 @@ const setup = async (width = 1400, backend = makeBackend({ projects: [project('t
 };
 
 describe('WorkspaceComponent', () => {
-  it('enters on Projects, with the rail of the four areas', async () => {
+  it('enters on Projects, with the rail of Projects and Settings', async () => {
     const { el, rail } = await setup();
     expect(Array.from(el.querySelectorAll('nav a')).map((a) => a.getAttribute('aria-label'))).toEqual([
-      'Chat',
       'Proyectos',
-      'Historial',
       'Ajustes',
     ]);
     expect(el.querySelector('app-projects-screen')).not.toBeNull();
     expect(rail('Proyectos').getAttribute('aria-current')).toBe('page');
   });
 
-  it.each([
-    ['Chat', 'Chat'],
-    ['Historial', 'Historial'],
-  ])('shows %s as a "Próximamente" screen', async (name, title) => {
-    const { el, go } = await setup();
-    await go(name);
-    expect(el.querySelector('app-coming-soon-screen')?.textContent).toContain(title);
-    expect(el.querySelector('app-coming-soon-screen')?.textContent).toContain('Próximamente');
-  });
-
-  it('navigates between the four areas with the rail', async () => {
+  it('navigates between the two areas with the rail', async () => {
     const { el, go } = await setup();
     await go('Ajustes');
     expect(el.querySelector('app-settings-screen')).not.toBeNull();
     await go('Proyectos');
     expect(el.querySelector('app-projects-screen')).not.toBeNull();
     expect(el.querySelector('app-settings-screen')).toBeNull();
+  });
+
+  it('sends the routes of the removed areas to Projects', async () => {
+    const { el, settle } = await setup();
+    for (const url of ['/chat', '/history']) {
+      await TestBed.inject(Router).navigateByUrl(url);
+      await settle();
+      expect(el.querySelector('app-projects-screen'), url).not.toBeNull();
+    }
   });
 
   it('changes the language from Settings, at once, for the whole Workspace, and stores it', async () => {
@@ -94,8 +92,8 @@ describe('WorkspaceComponent', () => {
     expect(rail('Projects')).not.toBeNull();
     expect(el.querySelector('app-settings-screen h1')?.textContent).toBe('Settings');
     expect(Effect.runSync(Ref.get(stored))).toBe('en');
-    await go('Chat');
-    expect(el.querySelector('app-coming-soon-screen')?.textContent).toContain('Coming soon');
+    await go('Projects');
+    expect(el.querySelector('app-projects-screen')).not.toBeNull();
   });
 
   describe('Projects column', () => {
