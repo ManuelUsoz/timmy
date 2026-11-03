@@ -154,6 +154,14 @@ describe('ClaudeAgentSdkAdapter', () => {
       yield* adapter.startup;
       const sessionId = SessionId.make(randomUUID());
       const stored = ProviderSessionId.make('stored-claude-id');
+      // The SDK can only resume what the mirror stored, so the spec stores the transcript an earlier run left.
+      const repo = yield* SessionRepo;
+      const projectId = ProjectId.make('p1');
+      yield* repo.ensureProject(projectId, '/work');
+      yield* repo.createSession({ sessionId, projectId, cwd: '/work', provider: 'Claude', providerSessionId: stored });
+      yield* repo.append({ projectId, sessionId }, [
+        { kind: 'user', uuid: randomUUID(), timestamp: new Date().toISOString(), native: { type: 'user' } },
+      ]);
       const providerSessionId = yield* adapter.startSession(
         { ...options, resume: sessionId },
         { sessionId, resumeProviderSessionId: stored },

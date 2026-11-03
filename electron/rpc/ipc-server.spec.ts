@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@effect/vitest';
-import { Effect, Layer, Queue } from 'effect';
-import { RpcSerialization, RpcServer } from 'effect/rpc';
+import { Effect, Exit, Layer, Queue, Schema } from 'effect';
+import { Rpc, RpcSerialization, RpcServer } from 'effect/rpc';
 import { AppInfoRpcs, type AppInfo } from '../../src/shared/app-info/app-info.rpc';
 import { layerPortSerialization } from '../../src/shared/rpc/message-port-protocol';
 import { layerIpcServer, RpcPortHandoff, type IpcServerPort } from './ipc-server';
@@ -49,16 +49,12 @@ const makeFakePort = Effect.gen(function* () {
 
 const codec = Effect.gen(function* () {
   const serialization = yield* RpcSerialization.RpcSerialization;
-  return serialization.makeUnsafe();
+  // As a real client does, the payload goes through the serialization's own codec: with the binary one it is bytes.
+  const payload = Schema.encodeSync(serialization.codecFor(Schema.Void))(undefined);
+  // The answer travels in the serialization's own encoding as well, so it is decoded the way a client does.
+  const decodeExit = Schema.decodeUnknownSync(serialization.codecFor(Rpc.exitSchema(AppInfoRpcs.requests.get('AppInfo.get')!)));
+  return { ...serialization.makeUnsafe(), decodeExit, request: (id: string) => ({ _tag: 'Request', id, tag: 'AppInfo.get', payload, headers: [] }) };
 }).pipe(Effect.provide(layerPortSerialization));
-
-const request = (id: string) => ({
-  _tag: 'Request',
-  id,
-  tag: 'AppInfo.get',
-  payload: undefined,
-  headers: [],
-});
 
 describe('layerIpcServer', () => {
   it.effect('serves a request arriving on a bound port', () =>
@@ -69,10 +65,11 @@ describe('layerIpcServer', () => {
 
       handoff.bind(fake.port);
       yield* Effect.yieldNow;
-      fake.receive(parser.encode(request('1'))!);
+      fake.receive(parser.encode(parser.request('1'))!);
 
       const [reply] = parser.decode(yield* Queue.take(fake.sent)) as ReadonlyArray<unknown>;
-      expect(reply).toMatchObject({ _tag: 'Exit', requestId: '1', exit: { _tag: 'Success', value: appInfo } });
+      expect(reply).toMatchObject({ _tag: 'Exit', requestId: '1' });
+      expect(parser.decodeExit((reply as { exit: unknown }).exit)).toEqual(Exit.succeed(appInfo));
       expect(fake.state.started).toBe(1);
     }).pipe(Effect.provide(layerServer), Effect.scoped),
   );
@@ -86,10 +83,11 @@ describe('layerIpcServer', () => {
       handoff.bind(fake.port);
       yield* Effect.yieldNow;
       expect(() => fake.receive(new Uint8Array([0xff, 0xfe, 0xfd, 0x00]))).not.toThrow();
-      fake.receive(parser.encode(request('2'))!);
+      fake.receive(parser.encode(parser.request('2'))!);
 
       const [reply] = parser.decode(yield* Queue.take(fake.sent)) as ReadonlyArray<unknown>;
-      expect(reply).toMatchObject({ requestId: '2', exit: { _tag: 'Success' } });
+      expect(reply).toMatchObject({ _tag: 'Exit', requestId: '2' });
+      expect(parser.decodeExit((reply as { exit: unknown }).exit)).toEqual(Exit.succeed(appInfo));
     }).pipe(Effect.provide(layerServer), Effect.scoped),
   );
 
@@ -109,8 +107,8 @@ describe('layerIpcServer', () => {
       expect(first.listenerCount()).toBe(0);
 
       // A frame from the swapped-out port gets no reply; the new port is served.
-      first.receive(parser.encode(request('old'))!);
-      second.receive(parser.encode(request('new'))!);
+      first.receive(parser.encode(parser.request('old'))!);
+      second.receive(parser.encode(parser.request('new'))!);
       const [reply] = parser.decode(yield* Queue.take(second.sent)) as ReadonlyArray<{ requestId: string }>;
       expect(reply.requestId).toBe('new');
       expect(yield* Queue.size(first.sent)).toBe(0);

@@ -36,13 +36,10 @@ jobs:
         run: npx ng test --watch=false
 
   # `ng test` does not pick up the specs under electron/, so they run on their own.
-  # Four of them already fail on main (ipc-server x3, claude-agent-sdk-adapter x1): they report here
-  # without blocking merges. Remove `continue-on-error` once those are fixed.
   electron-tests:
-    name: Electron tests (not blocking)
+    name: Electron tests
     runs-on: windows-latest
     timeout-minutes: 20
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
