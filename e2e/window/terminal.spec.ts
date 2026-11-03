@@ -15,6 +15,13 @@ test.describe('real terminals', () => {
     await timmy.page.getByRole('region', { name: 'Terminals' }).getByRole('button', { name: 'New terminal' }).click();
     await expect(timmy.page.locator('app-terminal-screen')).toBeVisible();
     await expect(timmy.page.locator('.xterm')).toBeVisible();
+    const fill = await timmy.page.evaluate(() => {
+      const pane = document.querySelector('app-terminal-screen .output')!.getBoundingClientRect();
+      const screen = document.querySelector('.xterm-screen')!.getBoundingClientRect();
+      return { paneHeight: pane.height, screenHeight: screen.height, paneWidth: pane.width, screenWidth: screen.width };
+    });
+    expect(fill.screenHeight).toBeGreaterThan(fill.paneHeight * 0.9);
+    expect(fill.screenWidth).toBeGreaterThan(fill.paneWidth * 0.9);
     await timmy.shot('terminal-open');
 
     await timmy.page.locator('.xterm-helper-textarea').focus();

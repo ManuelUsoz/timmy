@@ -34,3 +34,4 @@ Implement the real PTY-backed terminal described by GitHub issue #65.
 - L2: start with 65
 - L3: GitHub issue #65 title: Real Terminal in the Workspace
 - L4: The renderer keeps terminal output in memory only; local fallback creation preserves existing UI tests when no live RPC layer is provided.
+- L5: terminal polish — FitAddon sizes the PTY to the pane, xterm theme built from design tokens, xterm.css loaded globally (encapsulated styles never matched xterm's dynamic DOM).
