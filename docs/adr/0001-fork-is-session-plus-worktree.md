@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0008
+---
+
 # A Fork is a Session plus a Worktree, with git state read live
 
 A Fork pairs a Session with its own git Worktree and its own git branch, named by the user. Fork records live in the SQLite store next to sessions. Git state (ahead/behind, uncommitted files, pushed, merged) is read from git when needed and never mirrored into the database; only milestone transitions (created, first commit, pushed, merged, removed) are persisted, because git cannot tell us those once the Worktree is gone. We rejected a Fork that is only a Session variant (no isolation) and a mirrored git-state cache (it drifts from the source of truth).
