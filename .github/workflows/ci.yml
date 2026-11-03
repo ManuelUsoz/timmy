@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push to the same branch or PR cancels the run it replaces.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Windows, like the app: node-pty ships its prebuilt binaries for it and the paths behave as in development.
+  checks:
+    name: Typecheck and renderer tests
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Typecheck electron
+        run: npm run typecheck
+      - name: Typecheck renderer
+        run: npx tsc -p tsconfig.app.json --noEmit
+      - name: Typecheck specs
+        run: npx tsc -p tsconfig.spec.json --noEmit
+      - name: Renderer tests
+        run: npx ng test --watch=false
+
+  # `ng test` does not pick up the specs under electron/, so they run on their own.
+  # Four of them already fail on main (ipc-server x3, claude-agent-sdk-adapter x1): they report here
+  # without blocking merges. Remove `continue-on-error` once those are fixed.
+  electron-tests:
+    name: Electron tests (not blocking)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run electron
