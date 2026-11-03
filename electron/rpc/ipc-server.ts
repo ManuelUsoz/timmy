@@ -37,8 +37,7 @@ const makeProtocol = (portInbox: Queue.Queue<IpcServerPort>) =>
       const inbound = yield* Queue.make<readonly [number, RpcMessage.FromClientEncoded]>();
       let nextClientId = 0;
       let current: ActivePort | null = null;
-      // The parser is stateful (partial frames), so each port gets its own.
-      let parser = serialization.makeUnsafe();
+      const encoder = serialization.makeUnsafe();
 
       const bindPort = (port: IpcServerPort): void => {
         if (current) {
@@ -48,11 +47,11 @@ const makeProtocol = (portInbox: Queue.Queue<IpcServerPort>) =>
           Queue.offerUnsafe(disconnects, current.id);
         }
         const id = nextClientId++;
-        const portParser = serialization.makeUnsafe();
-        parser = portParser;
         const handler = (event: { data: PortData }): void => {
           try {
-            for (const message of portParser.decode(event.data)) {
+            // A port message is one whole frame, and the parser keeps what it cannot read as a partial frame:
+            // a shared parser would let one malformed frame from the (untrusted) renderer swallow every later one.
+            for (const message of serialization.makeUnsafe().decode(event.data)) {
               Queue.offerUnsafe(inbound, [id, message as RpcMessage.FromClientEncoded]);
             }
           } catch {
@@ -90,7 +89,7 @@ const makeProtocol = (portInbox: Queue.Queue<IpcServerPort>) =>
         send: (clientId, response) =>
           Effect.sync(() => {
             if (current?.id !== clientId) return;
-            const encoded = parser.encode(response);
+            const encoded = encoder.encode(response);
             if (encoded !== undefined) current.port.postMessage(encoded);
           }),
         end: () => Effect.void,
