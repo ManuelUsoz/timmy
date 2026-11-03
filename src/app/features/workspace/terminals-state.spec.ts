@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { ProjectId } from '../../../shared/sessions/sessions.model';
+import { TerminalId } from '../../../shared/terminal/terminal.model';
 import { TerminalsState } from './terminals-state';
 
 const timmy = ProjectId.make('p-timmy');
@@ -30,6 +31,26 @@ describe('TerminalsState', () => {
     const created = terminals.create(timmy);
     terminals.setState(created.id, 'Error');
     expect(terminals.find(created.id)?.state).toBe('Error');
+  });
+
+  describe('the current terminal', () => {
+    it('is nothing without terminals, and the newest one otherwise', () => {
+      const terminals = TestBed.inject(TerminalsState);
+      expect(terminals.current()).toBeUndefined();
+      terminals.create(timmy);
+      const second = terminals.create(timmy);
+      expect(terminals.current()?.id).toBe(second.id);
+    });
+
+    it('follows the one picked, and ignores an id that is not a terminal', () => {
+      const terminals = TestBed.inject(TerminalsState);
+      const first = terminals.create(timmy);
+      terminals.create(timmy);
+      terminals.setCurrent(first.id);
+      expect(terminals.current()?.id).toBe(first.id);
+      terminals.setCurrent(TerminalId.make('nope'));
+      expect(terminals.current()?.id).toBe(first.id);
+    });
   });
 
   it('leaves no trace: no storage is written and a new run starts empty', () => {

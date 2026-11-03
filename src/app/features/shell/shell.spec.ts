@@ -89,7 +89,7 @@ const setup = async () => {
 describe('ShellComponent', () => {
   it('starts as the Pill, Idle, with real buttons for the pill and the switcher', async () => {
     const { el } = await setup();
-    expect(el.querySelector('app-chat-view')).toBeNull();
+    expect(el.querySelector('app-panel-terminal')).toBeNull();
     expect(el.querySelector('ui-pill button')?.textContent).toContain('Idle');
     expect(el.querySelector('button[aria-label="Change window mode"]')).not.toBeNull();
   });
@@ -98,14 +98,14 @@ describe('ShellComponent', () => {
     const { el, settle } = await setup();
     el.querySelector('ui-pill')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
     await settle();
-    expect(el.querySelector('app-chat-view')).not.toBeNull();
+    expect(el.querySelector('app-panel-terminal')).not.toBeNull();
   });
 
   it('opens the Panel from the switcher button in the Pill', async () => {
     const { el, settle } = await setup();
     (el.querySelector('button[aria-label="Change window mode"]') as HTMLButtonElement).click();
     await settle();
-    expect(el.querySelector('app-chat-view')).not.toBeNull();
+    expect(el.querySelector('app-panel-terminal')).not.toBeNull();
     expect(el.querySelector('ui-option')).toBeNull();
   });
 
@@ -120,7 +120,7 @@ describe('ShellComponent', () => {
     close.click();
     await settle();
     expect(closes).toHaveLength(1);
-    expect((el.querySelector('app-chat-view') !== null)).toBe(from === 'Panel');
+    expect((el.querySelector('app-panel-terminal') !== null)).toBe(from === 'Panel');
   });
 
   it('returns to the Pill on double-click of the Panel header, and ignores Escape', async () => {
@@ -129,10 +129,10 @@ describe('ShellComponent', () => {
     await settle();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     await settle();
-    expect(el.querySelector('app-chat-view')).not.toBeNull();
+    expect(el.querySelector('app-panel-terminal')).not.toBeNull();
     el.querySelector('.panel-header')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
     await settle();
-    expect(el.querySelector('app-chat-view')).toBeNull();
+    expect(el.querySelector('app-panel-terminal')).toBeNull();
   });
 
   const SWITCHER = '.panel-header button[aria-label="Change window mode"]';
@@ -162,7 +162,7 @@ describe('ShellComponent', () => {
     expect(await openSwitcher(ctx)).toEqual(['Pill', 'Expanded']);
     await choose(ctx, 'Expanded');
     expect(ctx.el.querySelector('app-workspace')).not.toBeNull();
-    expect(ctx.el.querySelector('app-chat-view')).toBeNull();
+    expect(ctx.el.querySelector('app-panel-terminal')).toBeNull();
     expect(await openExpandedSwitcher(ctx)).toEqual(['Pill', 'Panel']);
   });
 
@@ -239,7 +239,7 @@ describe('ShellComponent', () => {
     await openExpandedSwitcher(ctx);
     await choose(ctx, 'Panel');
     expect(ctx.el.querySelector('app-workspace')).toBeNull();
-    expect(ctx.el.querySelector('app-chat-view')).not.toBeNull();
+    expect(ctx.el.querySelector('app-panel-terminal')).not.toBeNull();
     expect(ctx.el.querySelector('button[aria-label="Close Timmy"]')).not.toBeNull();
   });
 
@@ -274,33 +274,7 @@ describe('ShellComponent', () => {
       expect(pill.querySelector('.as-pill__action')?.textContent).toContain('Review');
       pill.querySelector('button')!.click();
       await settle();
-      expect(el.querySelector('app-chat-view')).not.toBeNull();
-    });
-
-    it('shows the ask row above the composer, not an inline card, with named buttons', async () => {
-      const { el, settle } = await ask();
-      el.querySelector('ui-pill button')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await settle();
-      const row = el.querySelector('ui-ask-row')!;
-      expect(row.nextElementSibling?.classList.contains('composer')).toBe(true);
-      expect(el.querySelector('.log ui-session')).toBeNull();
-      expect(row.querySelector('button[aria-label="Allow: Bash git push"]')).not.toBeNull();
-      expect(row.querySelector('button[aria-label="Deny: Bash git push"]')).not.toBeNull();
-    });
-
-    it.each([
-      ['Allow', 'allow'],
-      ['Deny', 'deny'],
-    ])('%s sends the matching response', async (name, optionId) => {
-      const { el, settle, answers, controller } = await ask();
-      el.querySelector('ui-pill button')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      await settle();
-      (el.querySelector(`ui-ask-row button[aria-label^="${name}:"]`) as HTMLButtonElement).click();
-      await settle();
-      expect(answers).toEqual([{ _tag: 'Selected', requestId: 'r', optionId }]);
-      controller.chat.update((c) => ({ ...c, permission: undefined }));
-      await settle();
-      expect(el.querySelector('ui-ask-row')).toBeNull();
+      expect(el.querySelector('app-panel-terminal')).not.toBeNull();
     });
   });
 

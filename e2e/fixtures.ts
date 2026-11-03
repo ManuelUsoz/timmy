@@ -30,16 +30,42 @@ export class Timmy {
   }
 
   async switchMode(mode: 'Pill' | 'Panel' | 'Expanded') {
-    // In the Pill the switcher button goes straight to the Panel: there is no menu to pick from.
-    const fromPill = (await this.page.locator('.pill-bar').count()) > 0;
+    // In the Pill the switcher button goes straight to the Panel: there is no menu to pick from, so Expanded goes through the Panel.
+    if ((await this.page.locator('.pill-bar').count()) > 0) {
+      await this.page.getByRole('button', { name: 'Change window mode' }).last().click();
+      await this.settle(900);
+      if (mode === 'Panel') return;
+    }
     await this.page.getByRole('button', { name: 'Change window mode' }).last().click();
-    if (!(fromPill && mode === 'Panel')) await this.page.getByRole('option', { name: mode }).click();
+    await this.page.getByRole('option', { name: mode }).click();
     await this.settle(900);
   }
 
   async openPanel() {
     await this.switchMode('Panel');
-    await this.page.getByPlaceholder('Message Claude').waitFor();
+    await this.page.getByRole('region', { name: 'Timmy panel' }).waitFor();
+  }
+
+  /** Adds the demo project in the Workspace. Leaves the Window in Expanded with the project open. */
+  async addDemoProject() {
+    await this.switchMode('Expanded');
+    await this.page.getByRole('button', { name: 'New project' }).first().click();
+    const dialog = this.page.getByRole('dialog', { name: 'New project' });
+    await dialog.getByRole('button', { name: 'Browse' }).click();
+    await dialog.getByRole('button', { name: 'Create project' }).click();
+    await expect(this.page.locator('app-project-list .as-row__title')).toContainText('demo-project', { timeout: 10_000 });
+  }
+
+  /** Adds the demo project and opens a real terminal in it. Leaves the Window in Expanded. */
+  async openProjectTerminal() {
+    await this.addDemoProject();
+    await this.newTerminal();
+  }
+
+  /** "New terminal" of the Project that is open in the Workspace. */
+  async newTerminal() {
+    await this.page.getByRole('region', { name: 'Terminals' }).getByRole('button', { name: 'New terminal' }).click();
+    await expect(this.page.locator('.xterm-screen')).toContainText('PS ', { timeout: 15_000 });
   }
 
   composer() {

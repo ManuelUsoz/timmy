@@ -1,0 +1,28 @@
+@if (current(); as terminal) {
+  <ui-chip-strip class="strip" [items]="items()" [selectedId]="terminal.id" [groupLabel]="i18n.t('terminals.title')" (selected)="select($event)" />
+  <!-- Deferred like in the Workspace: xterm stays out of the initial bundle, which only the Pill needs. -->
+  @defer (on immediate) {
+    @for (live of [terminal]; track live.id) {
+      <app-terminal-screen class="terminal" [terminal]="live" [cwd]="cwd()" [attr.aria-label]="i18n.t('terminals.screen')" />
+    }
+  }
+} @else {
+  @let project = home();
+  <app-workspace-hero
+    icon="terminal"
+    [title]="i18n.t('terminals.emptyTitle')"
+    [detail]="project === undefined ? (projectsReady() ? i18n.t('panel.noProjects') : '') : i18n.t('panel.emptyIn', { name: project.name })"
+  >
+    @if (project !== undefined) {
+      <button uiButton kind="primary" type="button" [disabled]="opening()" (click)="open()">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
+        {{ i18n.t('terminals.new') }}
+      </button>
+    } @else if (projectsReady()) {
+      <button uiButton kind="secondary" type="button" (click)="openWorkspace.emit()">{{ i18n.t('panel.openWorkspace') }}</button>
+    }
+    @if (failed()) {
+      <p class="failure" role="alert">{{ i18n.t('panel.openFailed') }}</p>
+    }
+  </app-workspace-hero>
+}
