@@ -1,6 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { Effect } from 'effect';
 import type { ProjectId } from '../../../shared/projects/projects.model';
+import type { Provider } from '../../../shared/settings/settings.model';
 import { TerminalId } from '../../../shared/terminal/terminal.model';
 import { DesktopApi } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
@@ -16,11 +17,12 @@ export class TerminalsState {
 
   constructor(private readonly runtime: EffectRuntime) {}
 
-  async createLive(projectId: ProjectId, cwd: string): Promise<TerminalEntry | undefined> {
+  /** Opens a shell in the folder; with a Provider, that Provider's CLI runs in it. */
+  async createLive(projectId: ProjectId, cwd: string, provider?: Provider): Promise<TerminalEntry | undefined> {
     const result = await this.runtime.run(
       Effect.gen(function* () {
         const desktop = yield* DesktopApi;
-        return yield* desktop['Terminal.create']({ cwd });
+        return yield* desktop['Terminal.create'](provider === undefined ? { cwd } : { cwd, provider });
       }),
     );
     if (result._tag === 'Failure') return undefined;

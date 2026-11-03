@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
+import type { Provider } from '../../../shared/settings/settings.model';
 import { I18n } from '../../core/i18n';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { ListRow } from '../../shared/ui/list-row/list-row';
@@ -6,6 +7,7 @@ import { StateComponent } from '../../shared/ui/state/state';
 import { TagComponent } from '../../shared/ui/tag/tag';
 import { TreeViewComponent } from '../../shared/ui/tree-view/tree-view';
 import { sampleFiles } from './files-sample';
+import { NewTerminal } from './new-terminal';
 import { ProjectsState } from './projects-state';
 import { terminalsOf, type TerminalEntry, type TerminalId } from './terminal-entries';
 import { SAMPLE_EXIT_CODE } from './terminal-sample';
@@ -15,7 +17,7 @@ import { TerminalsState } from './terminals-state';
 /** The selected project: who it is, its Terminals and its files. */
 @Component({
   selector: 'app-project-content',
-  imports: [ButtonComponent, ListRow, StateComponent, TagComponent, TreeViewComponent],
+  imports: [ButtonComponent, ListRow, NewTerminal, StateComponent, TagComponent, TreeViewComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './project-content.html',
   styleUrl: './project-content.css',
@@ -33,7 +35,7 @@ export class ProjectContent {
   readonly openTerminalId = input<TerminalId>();
   readonly terminalOpened = output<TerminalEntry>();
   /** "Nueva terminal" was pressed: the screen creates it and opens it. */
-  readonly newTerminal = output<void>();
+  readonly newTerminal = output<Provider | undefined>();
   readonly removed = output<void>();
 
   /** Archivos is a static placeholder for now (see files-sample.ts); it changes only with the language. */

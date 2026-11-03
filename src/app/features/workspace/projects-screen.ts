@@ -2,9 +2,11 @@ import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, injec
 import { Router } from '@angular/router';
 import type { Project } from '../../../shared/projects/projects.model';
 import { ProjectId } from '../../../shared/projects/projects.model';
+import type { Provider } from '../../../shared/settings/settings.model';
 import { I18n } from '../../core/i18n';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { NewProjectDialog } from './new-project-dialog';
+import { NewTerminal } from './new-terminal';
 import { ProjectContent } from './project-content';
 import { ProjectList } from './project-list';
 import { ProjectsState } from './projects-state';
@@ -23,7 +25,7 @@ import { entryPath, entryTarget } from './workspace-entry';
  */
 @Component({
   selector: 'app-projects-screen',
-  imports: [ButtonComponent, NewProjectDialog, ProjectContent, ProjectList, TerminalScreen, WorkspaceHero],
+  imports: [ButtonComponent, NewProjectDialog, NewTerminal, ProjectContent, ProjectList, TerminalScreen, WorkspaceHero],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './projects-screen.html',
   styleUrl: './projects-screen.css',
@@ -111,10 +113,10 @@ export class ProjectsScreen {
   }
 
   /** "Nueva terminal": adds a local entry to the project and opens it at its own route. */
-  protected async newTerminal(): Promise<void> {
+  protected async newTerminal(provider?: Provider): Promise<void> {
     const project = this.state.selected();
     if (project === undefined) return;
-    const terminal = (await this.terminals.createLive(project.projectId, project.cwd)) ?? this.terminals.create(project.projectId);
+    const terminal = (await this.terminals.createLive(project.projectId, project.cwd, provider)) ?? this.terminals.create(project.projectId);
     await this.openTerminal(terminal);
   }
 

@@ -14,10 +14,10 @@
     [detail]="project === undefined ? (projectsReady() ? i18n.t('panel.noProjects') : '') : i18n.t('panel.emptyIn', { name: project.name })"
   >
     @if (project !== undefined) {
-      <button uiButton kind="primary" type="button" [disabled]="opening()" (click)="open()">
+      <app-new-terminal kind="primary" [disabled]="opening()" (chosen)="open($event)">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
         {{ i18n.t('terminals.new') }}
-      </button>
+      </app-new-terminal>
     } @else if (projectsReady()) {
       <button uiButton kind="secondary" type="button" (click)="openWorkspace.emit()">{{ i18n.t('panel.openWorkspace') }}</button>
     }
