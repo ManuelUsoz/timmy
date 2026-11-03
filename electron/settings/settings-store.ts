@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { Context, Effect, Layer, Option, Ref, Schema } from 'effect';
-import { defaultSettings, Settings, type Language } from '../../src/shared/settings/settings.model';
+import { Context, Effect, Layer, Option, Ref, Schema, Semaphore } from 'effect';
+import { allProviders, defaultSettings, Settings, type Language, type Provider } from '../../src/shared/settings/settings.model';
 
 /** The user's settings. Storage failures are defects: no caller can act on them. */
 export class SettingsStore extends Context.Service<
@@ -10,6 +10,8 @@ export class SettingsStore extends Context.Service<
     readonly get: Effect.Effect<Settings>;
     /** Stores the language and answers with the settings as they are afterwards. */
     readonly setLanguage: (language: Language) => Effect.Effect<Settings>;
+    /** Enables or disables a Provider and answers with the settings as they are afterwards. */
+    readonly setProvider: (provider: Provider, enabled: boolean) => Effect.Effect<Settings>;
   }
 >()('settings/SettingsStore') {}
 
@@ -32,16 +34,31 @@ const writeSettings = (file: string, settings: Settings): Effect.Effect<void> =>
     await rename(partial, file);
   }).pipe(Effect.orDie);
 
+/** The Providers with `provider` switched on or off, always in the order Settings lists them. */
+const withProvider = (providers: ReadonlyArray<Provider>, provider: Provider, enabled: boolean): ReadonlyArray<Provider> =>
+  allProviders.filter((candidate) => (candidate === provider ? enabled : providers.includes(candidate)));
+
 const makeStore = (initial: Settings, persist: (settings: Settings) => Effect.Effect<void>) =>
   Effect.gen(function* () {
     const ref = yield* Ref.make(initial);
+    // Each change is read, stored and kept as one step, so two quick changes never lose one another.
+    const lock = yield* Semaphore.make(1);
+    const update = (change: (current: Settings) => Settings) =>
+      lock.withPermits(1)(
+        Effect.gen(function* () {
+          const next = change(yield* Ref.get(ref));
+          yield* persist(next);
+          yield* Ref.set(ref, next);
+          return next;
+        }),
+      );
     return SettingsStore.of({
       get: Ref.get(ref),
       setLanguage: Effect.fn('SettingsStore.setLanguage')(function* (language: Language) {
-        const next: Settings = { ...(yield* Ref.get(ref)), language };
-        yield* persist(next);
-        yield* Ref.set(ref, next);
-        return next;
+        return yield* update((current) => ({ ...current, language }));
+      }),
+      setProvider: Effect.fn('SettingsStore.setProvider')(function* (provider: Provider, enabled: boolean) {
+        return yield* update((current) => ({ ...current, providers: withProvider(current.providers, provider, enabled) }));
       }),
     });
   });

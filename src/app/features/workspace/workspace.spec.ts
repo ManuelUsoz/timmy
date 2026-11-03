@@ -14,8 +14,9 @@ const setup = async (width = 1400, backend = makeBackend({ projects: [project('t
   const stored = Ref.makeUnsafe<Language>('es');
   const handlers = Layer.mergeAll(
     SettingsRpcs.toLayer({
-      'Settings.get': () => Effect.map(Ref.get(stored), (language) => ({ language })),
-      'Settings.setLanguage': ({ language }) => Ref.set(stored, language).pipe(Effect.as({ language })),
+      'Settings.get': () => Effect.map(Ref.get(stored), (language) => ({ language, providers: [] })),
+      'Settings.setProvider': () => Effect.die('unused'),
+      'Settings.setLanguage': ({ language }) => Ref.set(stored, language).pipe(Effect.as({ language, providers: [] })),
     }),
     layerFakeProjects(backend),
   );
@@ -85,7 +86,9 @@ describe('WorkspaceComponent', () => {
   it('changes the language from Settings, at once, for the whole Workspace, and stores it', async () => {
     const { el, go, settle, rail, stored } = await setup();
     await go('Ajustes');
-    const english = Array.from(el.querySelectorAll<HTMLButtonElement>('ui-switcher button')).find((b) => b.textContent?.trim() === 'English')!;
+    Array.from(el.querySelectorAll<HTMLButtonElement>('app-settings-screen nav button')).find((b) => b.textContent?.trim() === 'Idioma')!.click();
+    await settle();
+    const english = Array.from(el.querySelectorAll<HTMLButtonElement>('app-settings-screen [role="radio"]')).find((b) => b.textContent?.trim() === 'English')!;
     english.click();
     await settle();
     expect(rail('Projects')).not.toBeNull();

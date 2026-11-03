@@ -63,8 +63,9 @@ const setup = async () => {
     layerSessionsUnused,
     layerFilesUnused, layerAttachmentsUnused, layerProjectsUnused,
     SettingsRpcs.toLayer({
-      'Settings.get': () => Effect.succeed({ language: 'es' as const }),
-      'Settings.setLanguage': ({ language }) => Effect.succeed({ language }),
+      'Settings.get': () => Effect.succeed({ language: 'es' as const, providers: [] }),
+      'Settings.setLanguage': ({ language }) => Effect.succeed({ language, providers: [] }),
+      'Settings.setProvider': ({ enabled, provider }) => Effect.succeed({ language: 'es' as const, providers: enabled ? [provider] : [] }),
     }),
   );
   const layer = makeDesktopTestLayer(handlers);

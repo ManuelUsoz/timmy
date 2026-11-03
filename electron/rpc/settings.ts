@@ -8,6 +8,7 @@ export const layerSettingsHandlers = SettingsRpcs.toLayer(
     return {
       'Settings.get': () => settings.get,
       'Settings.setLanguage': ({ language }) => settings.setLanguage(language),
+      'Settings.setProvider': ({ provider, enabled }) => settings.setProvider(provider, enabled),
     };
   }),
 );
