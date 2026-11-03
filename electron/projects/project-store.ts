@@ -5,7 +5,7 @@ import { Project, type ProjectId } from '../../src/shared/projects/projects.mode
 import { projectIdOfCwd } from './project-id';
 
 /** The name a project gets when the user does not choose one: the name of its folder. */
-export const defaultProjectName = (cwd: string): string => path.basename(cwd) || cwd;
+const defaultProjectName = (cwd: string): string => path.basename(cwd) || cwd;
 
 /**
  * The projects in the user's list, persisted. The only place that knows how a folder maps to a project id.

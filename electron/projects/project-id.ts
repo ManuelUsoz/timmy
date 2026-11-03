@@ -9,8 +9,8 @@ export const normalizeCwd = (cwd: string): string => {
 };
 
 /**
- * The project id of a directory while projects are implicit. Only `ProjectResolver`
- * calls this, so a real project entity can replace it without touching callers.
+ * The project id of a directory. Only `ProjectStore` calls this, so a real project entity can
+ * replace it without touching callers.
  */
 export const projectIdOfCwd = (cwd: string): ProjectId =>
   ProjectId.make(createHash('sha256').update(normalizeCwd(cwd)).digest('hex').slice(0, 16));
