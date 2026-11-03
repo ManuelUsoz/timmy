@@ -1,19 +1,14 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Router } from '@angular/router';
-import { SessionId } from '../../../shared/chat/ids.model';
 import type { Project } from '../../../shared/projects/projects.model';
-import { ProjectId, type SessionSummary } from '../../../shared/sessions/sessions.model';
+import { ProjectId } from '../../../shared/sessions/sessions.model';
 import { I18n } from '../../core/i18n';
-import { ToastService } from '../../core/toast';
 import { ButtonComponent } from '../../shared/ui/button/button';
-import { ChatController } from '../chat/chat-controller';
-import { ChatViewComponent } from '../chat/chat-view';
-import { ChatHeaderActions } from './chat-header-actions';
 import { NewProjectDialog } from './new-project-dialog';
 import { ProjectContent } from './project-content';
 import { ProjectList } from './project-list';
 import { ProjectsState } from './projects-state';
-import type { TerminalEntry } from './terminal-entries';
+import { terminalsOf, type TerminalEntry } from './terminal-entries';
 import { TerminalScreen } from './terminal-screen';
 import { TerminalsState } from './terminals-state';
 import { WorkspaceHero } from './workspace-hero';
@@ -21,14 +16,14 @@ import { WorkspaceLayoutState } from './workspace-layout';
 import { entryPath, entryTarget } from './workspace-entry';
 
 /**
- * Projects: the list, the content of the selected project and the open session. One component serves
- * `/projects`, `/projects/:projectId`, `/projects/:projectId/sessions/:sessionId` and `/projects/:projectId/terminals/:terminalId` (see `workspace.routes`),
+ * Projects: the list, the content of the selected project and the open Terminal. One component serves
+ * `/projects`, `/projects/:projectId` and `/projects/:projectId/terminals/:terminalId` (see `workspace.routes`),
  * so moving between them keeps the columns in place. The route decides what is open; this screen makes the
  * state follow it.
  */
 @Component({
   selector: 'app-projects-screen',
-  imports: [ButtonComponent, ChatHeaderActions, ChatViewComponent, NewProjectDialog, ProjectContent, ProjectList, TerminalScreen, WorkspaceHero],
+  imports: [ButtonComponent, NewProjectDialog, ProjectContent, ProjectList, TerminalScreen, WorkspaceHero],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './projects-screen.html',
   styleUrl: './projects-screen.css',
@@ -37,37 +32,26 @@ export class ProjectsScreen {
   protected readonly i18n = inject(I18n);
   protected readonly layout = inject(WorkspaceLayoutState);
   protected readonly state = inject(ProjectsState);
-  private readonly chat = inject(ChatController);
   private readonly router = inject(Router);
-  private readonly toasts = inject(ToastService);
   private readonly terminals = inject(TerminalsState);
 
   /** Path parameters of the route, bound to inputs. */
   readonly projectId = input<string>();
-  readonly sessionId = input<string>();
   readonly terminalId = input<string>();
 
   protected readonly dialogOpen = signal(false);
-  /** A new session is being started, so the buttons that start one wait. */
-  protected readonly creating = signal(false);
-
-  protected readonly routeSessionId = computed(() => {
-    const id = this.sessionId();
-    return id === undefined ? undefined : SessionId.make(id);
-  });
-
-  /** The session of the route, once the project's sessions are loaded and it is one of them. */
-  protected readonly openSession = computed((): SessionSummary | undefined => {
-    const list = this.state.sessions();
-    const id = this.routeSessionId();
-    return list.status === 'ready' && id !== undefined ? list.items.find((session) => session.sessionId === id) : undefined;
-  });
 
   /** The terminal of the route, if it is one of the selected project's. Terminals live only as long as the app run. */
   protected readonly routeTerminal = computed((): TerminalEntry | undefined => {
     const id = this.terminalId();
     const entry = id === undefined ? undefined : this.terminals.find(id);
     return entry !== undefined && entry.projectId === this.state.selectedId() ? entry : undefined;
+  });
+
+  /** The selected project's Terminals, to tell "nothing open yet" from "pick one". */
+  protected readonly terminalsOfProject = computed(() => {
+    const selected = this.state.selectedId();
+    return selected === undefined ? [] : terminalsOf(this.terminals.entries(), selected);
   });
 
   protected readonly listReady = computed(() => this.state.projects().status === 'ready');
@@ -83,24 +67,6 @@ export class ProjectsScreen {
       const id = this.projectId();
       if (list.status !== 'ready') return;
       untracked(() => this.follow(list.items, id));
-    });
-
-    // A session in the route opens in the chat, unless it is already the one on screen.
-    effect(() => {
-      const sessions = this.state.sessions();
-      const id = this.routeSessionId();
-      const selected = this.state.selectedId();
-      if (id === undefined || selected === undefined || selected !== this.projectId() || sessions.status !== 'ready') return;
-      untracked(() => {
-        const session = sessions.items.find((candidate) => candidate.sessionId === id);
-        if (session === undefined) {
-          void this.router.navigate(['/projects', selected], { replaceUrl: true });
-        } else if (this.chat.selectedSessionId() !== id && !this.chat.openStoredSession(session)) {
-          // Another session has a Turn running, which cannot be switched away from: say so and stay on the project.
-          this.toasts.warning('sessions.busy');
-          void this.router.navigate(['/projects', selected], { replaceUrl: true });
-        }
-      });
     });
 
     // The Terminal on screen is the current one, which is also what the Panel shows.
@@ -126,7 +92,7 @@ export class ProjectsScreen {
   /** Aligns the selection with the route; `/projects` alone goes where entering the Workspace should. */
   private follow(projects: ReadonlyArray<Project>, id: string | undefined): void {
     if (id === undefined) {
-      const target = entryTarget(projects, this.state.panelSession());
+      const target = entryTarget(projects);
       if (target === undefined) this.state.deselect();
       else void this.router.navigate(entryPath(target), { replaceUrl: true });
       return;
@@ -140,10 +106,6 @@ export class ProjectsScreen {
     void this.router.navigate(['/projects', projectId]);
   }
 
-  protected async openSessionOf(session: SessionSummary): Promise<void> {
-    await this.router.navigate(['/projects', session.projectId, 'sessions', session.sessionId]);
-  }
-
   protected async openTerminal(terminal: TerminalEntry): Promise<void> {
     await this.router.navigate(['/projects', terminal.projectId, 'terminals', terminal.id]);
   }
@@ -154,15 +116,6 @@ export class ProjectsScreen {
     if (project === undefined) return;
     const terminal = (await this.terminals.createLive(project.projectId, project.cwd)) ?? this.terminals.create(project.projectId);
     await this.openTerminal(terminal);
-  }
-
-  /** "Nueva sesión": starts a session in the project, which opens in the chat at its own route. */
-  protected async newSession(): Promise<void> {
-    if (this.creating()) return;
-    this.creating.set(true);
-    const started = await this.state.createSession();
-    this.creating.set(false);
-    if (started !== undefined) await this.openSessionOf(started);
   }
 
   protected async created(project: Project): Promise<void> {

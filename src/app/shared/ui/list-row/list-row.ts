@@ -13,7 +13,6 @@ import { ChangeDetectionStrategy, Component, booleanAttribute, input, output } f
     '[attr.aria-disabled]': 'disabled() || null',
     '[class.as-row--selected]': 'selected()',
     '[class.as-row--disabled]': 'disabled()',
-    '[class.as-row--asks]': 'asks()',
     '[class.as-row--lead]': 'lead()',
     '(click)': 'choose()',
     '(keydown.enter)': 'choose()',
@@ -24,7 +23,6 @@ export class ListRow {
   readonly meta = input<string>();
   readonly selected = input(false, { transform: booleanAttribute });
   readonly disabled = input(false, { transform: booleanAttribute });
-  readonly asks = input(false, { transform: booleanAttribute });
   readonly lead = input(false, { transform: booleanAttribute });
   readonly activate = output<void>();
 

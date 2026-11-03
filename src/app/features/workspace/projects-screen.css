@@ -29,7 +29,7 @@
   background: var(--background);
 }
 
-/* Below lg the content floats over the session, next to the Projects column. */
+/* Below lg the content floats over the stage, next to the Projects column. */
 .content.overlay {
   position: absolute;
   inset-block: 0;
@@ -45,7 +45,7 @@
   inset-inline-start: 224px;
 }
 
-.session {
+.stage {
   position: relative;
   display: flex;
   flex: 1;
@@ -71,7 +71,6 @@ h2 {
   font: var(--text-heading-02);
 }
 
-.chat,
 .terminal {
   flex: 1;
   min-height: 0;

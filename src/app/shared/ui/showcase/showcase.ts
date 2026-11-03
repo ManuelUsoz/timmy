@@ -25,13 +25,7 @@ import { ListRow } from '../list-row/list-row';
 import { ListGroupLabel } from '../list-row/list-group-label';
 import { PillComponent } from '../pill/pill';
 import { PillStackComponent } from '../pill/pill-stack';
-import { HistoryComponent, HistoryFilter, HistoryGroup } from '../history/history';
-import { SessionComponent } from '../session/session';
-import { AskRowComponent } from '../ask-row/ask-row';
-import { MessageComponent } from '../message/message';
 import { ChipStripComponent, ChipStripItem } from '../chip-strip/chip-strip';
-import type { PermissionRequest } from '../../../../shared/chat/permission.model';
-import type { AgentId, OptionId, PermissionRequestId, ToolCallId } from '../../../../shared/chat/ids.model';
 
 @Component({
   selector: 'ui-showcase',
@@ -58,10 +52,6 @@ import type { AgentId, OptionId, PermissionRequestId, ToolCallId } from '../../.
     ListGroupLabel,
     PillComponent,
     PillStackComponent,
-    HistoryComponent,
-    SessionComponent,
-    AskRowComponent,
-    MessageComponent,
     ChipStripComponent,
     ModalComponent,
   ],
@@ -108,7 +98,7 @@ export class ShowcaseComponent {
   protected readonly disabledCtl = new FormControl<string | null>({ value: 'haiku', disabled: true });
 
   protected readonly switchTwo = [
-    { value: 'chat', label: 'Chat' },
+    { value: 'terminals', label: 'Terminals' },
     { value: 'code', label: 'Code' },
   ];
   protected readonly switchThree = [
@@ -116,7 +106,7 @@ export class ShowcaseComponent {
     { value: 'week', label: 'Week' },
     { value: 'month', label: 'Month' },
   ];
-  protected readonly switchDefault = new FormControl<string | null>('chat');
+  protected readonly switchDefault = new FormControl<string | null>('terminals');
   protected readonly switchThreeCtl = new FormControl<string | null>('week');
   protected readonly switchSm = new FormControl<string | null>('day');
   protected readonly switchFull = new FormControl<string | null>('month');
@@ -130,7 +120,7 @@ export class ShowcaseComponent {
 
   protected readonly acOptions: AutocompleteOption<string>[] = [
     { value: 'main', label: 'main', group: 'Branches' },
-    { value: 'feature-chat', label: 'feature/chat', group: 'Branches' },
+    { value: 'feature-files', label: 'feature/files', group: 'Branches' },
     { value: 'fix-menu', label: 'fix/menu', group: 'Branches' },
     { value: 'readme', label: 'README.md', group: 'Files' },
     { value: 'package', label: 'package.json', group: 'Files' },
@@ -189,7 +179,7 @@ export class ShowcaseComponent {
     { id: 'fix/i18n', label: 'fix/i18n', branch: true, status: 'done' },
   ];
   protected readonly stripOthers: ChipStripItem[] = [
-    { id: 'api-gateway', label: 'api-gateway', status: 'asks' },
+    { id: 'api-gateway', label: 'api-gateway' },
     { id: 'perf/cache', label: 'perf/cache', branch: true, status: 'live', outline: true },
     { id: 'docs-site', label: 'docs-site', status: 'done', outline: true },
   ];
@@ -198,57 +188,13 @@ export class ShowcaseComponent {
 
   protected readonly pillTones = ['neutral', 'running', 'waiting', 'error', 'done'] as const;
   protected readonly rowSelected = signal('b');
-  protected readonly historySelected = signal<string | null>('h2');
-  protected readonly historyGroups: HistoryGroup[] = [
-    {
-      label: 'Today',
-      items: [
-        { id: 'h1', title: 'Fix menu focus', sub: 'fix/menu', time: '10:42', status: 'merged', last: 'Done.' },
-        { id: 'h2', title: 'Add chat history', sub: 'feature/chat', time: '09:15', status: 'finished' },
-      ],
-    },
-    { label: 'Yesterday', items: [{ id: 'h3', title: 'Tailwind setup', sub: 'main', time: '17:03' }] },
-  ];
-  protected readonly historyFilters: HistoryFilter[] = [{ id: 'repo', label: 'timmy' }];
-  protected readonly historyEmpty: HistoryGroup[] = [];
-  protected readonly sessionTools: TreeNode[] = [
-    {
-      id: 'agent',
-      label: 'Explore',
-      children: [
-        { id: 't1', label: 'Read src/app/app.ts' },
-        { id: 't2', label: 'Grep "permission"' },
-      ],
-    },
-    { id: 't3', label: 'Edit src/app/app.html' },
-  ];
-  protected readonly samplePermission: PermissionRequest = {
-    id: 'req-1' as PermissionRequestId,
-    agentId: 'main' as AgentId,
-    toolCall: {
-      id: 'call-1' as ToolCallId,
-      agentId: 'main' as AgentId,
-      name: 'Bash',
-      kind: 'Execute',
-      title: 'npm run build',
-      status: 'Pending',
-      locations: [],
-      diffs: [],
-    },
-    options: [
-      { id: 'o1' as OptionId, label: 'Allow once', kind: 'AllowOnce' },
-      { id: 'o2' as OptionId, label: 'Always allow', kind: 'AllowAlways' },
-      { id: 'o3' as OptionId, label: 'Deny', kind: 'RejectOnce' },
-    ],
-  };
-
   protected readonly chipTones =['blue', 'green', 'red', 'purple', 'outline', 'mono'] as const;
   protected readonly tagTones = ['green', 'blue', 'red', 'purple', 'gray'] as const;
   protected readonly notificationTones = [
     { tone: 'success', title: 'Success', body: 'Project created. Open it from the list.' },
     { tone: 'info', title: 'Info', body: 'The list refreshes when you return to the window.' },
-    { tone: 'warning', title: 'Warning', body: 'A turn is running in another session. Wait for it to finish.' },
-    { tone: 'error', title: 'Error', body: 'The sessions could not be loaded. Try again in a moment.' },
+    { tone: 'warning', title: 'Warning', body: 'A terminal is still starting. Wait for it to finish.' },
+    { tone: 'error', title: 'Error', body: 'The projects could not be loaded. Try again in a moment.' },
   ] as const;
   protected readonly stateTones = ['success', 'info', 'warning', 'error', 'merged', 'idle'] as const;
   protected readonly removable = signal(['alpha', 'beta', 'gamma']);

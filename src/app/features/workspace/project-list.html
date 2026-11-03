@@ -11,9 +11,6 @@
         (click)="opened.emit(project.projectId)"
       >
         <span class="tile" aria-hidden="true">{{ initials(project.name) }}</span>
-        @if (state.badges().get(project.projectId); as badge) {
-          <ui-state class="dot" role="img" [tone]="badge.tone" [attr.aria-label]="i18n.t('projects.live', { count: badge.count })" />
-        }
       </button>
     }
   </div>
@@ -71,11 +68,6 @@
             <svg leading class="folder" viewBox="0 0 16 16" aria-hidden="true">
               <path d="M2 4.5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" />
             </svg>
-            <span trailing>
-              @if (state.badges().get(project.projectId); as badge) {
-                <ui-state [tone]="badge.tone" [attr.aria-label]="i18n.t('projects.live', { count: badge.count })">{{ badge.count }}</ui-state>
-              }
-            </span>
           </as-list-row>
         }
       }

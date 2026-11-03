@@ -8,10 +8,9 @@ const match = (url: string) => {
 };
 
 describe('projectsMatcher', () => {
-  it('matches the three shapes of Projects that existed before terminals', () => {
+  it('matches the list and a project', () => {
     expect(match('projects')).toEqual({});
     expect(match('projects/p1')).toEqual({ projectId: 'p1' });
-    expect(match('projects/p1/sessions/s1')).toEqual({ projectId: 'p1', sessionId: 's1' });
   });
 
   it('matches a terminal of a project', () => {
@@ -20,6 +19,8 @@ describe('projectsMatcher', () => {
 
   it('does not match other areas, nor unknown kinds of child', () => {
     expect(match('history')).toBeNull();
+    expect(match('chat')).toBeNull();
+    expect(match('projects/p1/sessions/s1')).toBeNull();
     expect(match('projects/p1/files/f1')).toBeNull();
     expect(match('projects/p1/terminals')).toBeNull();
     expect(match('projects/p1/terminals/t1/extra')).toBeNull();

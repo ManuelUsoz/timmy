@@ -3,7 +3,7 @@ import { Effect, Layer, Ref } from 'effect';
 import { AppInfoRpcs } from '../../shared/app-info/app-info.rpc';
 import type { Language } from '../../shared/settings/settings.model';
 import { SettingsRpcs } from '../../shared/settings/settings.rpc';
-import { layerChatUnused, layerFilesUnused, layerAttachmentsUnused, layerProjectsUnused, layerSessionsUnused, layerWindowUnused, makeDesktopTestLayer } from './desktop-layers';
+import { layerFilesUnused, layerProjectsUnused, layerWindowUnused, makeDesktopTestLayer } from './desktop-layers';
 import { EffectRuntime } from './effect-runtime';
 import { dictionaries, en, es } from './i18n-dictionaries';
 import { I18n } from './i18n';
@@ -26,10 +26,9 @@ const setup = (options: { stored?: Language; failSave?: boolean } = {}) => {
             ),
     }),
     AppInfoRpcs.toLayer({ 'AppInfo.get': () => Effect.die('unused') }),
-    layerChatUnused,
-    layerSessionsUnused,
     layerWindowUnused,
-    layerFilesUnused, layerAttachmentsUnused, layerProjectsUnused,
+    layerFilesUnused,
+    layerProjectsUnused,
   );
   const layer = makeDesktopTestLayer(handlers);
   TestBed.configureTestingModule({
@@ -58,28 +57,28 @@ describe('I18n', () => {
   it('speaks Spanish until told otherwise', () => {
     const { i18n } = setup();
     expect(i18n.language()).toBe('es');
-    expect(i18n.t('workspace.comingSoon')).toBe('Próximamente');
+    expect(i18n.t('rail.projects')).toBe('Proyectos');
   });
 
   it('fills the {placeholders} of a text with the given values', () => {
     const { i18n } = setup();
-    expect(i18n.t('projects.live', { count: 3 })).toBe('3 sesiones vivas');
+    expect(i18n.t('pill.runningMany', { count: 3 })).toBe('3 terminales en marcha');
     expect(i18n.t('newProject.duplicate', { name: 'timmy' })).toContain('como timmy');
-    expect(i18n.t('projects.live', {})).toBe('{count} sesiones vivas');
+    expect(i18n.t('pill.runningMany', {})).toBe('{count} terminales en marcha');
   });
 
   it('adopts the language stored in main', async () => {
     const { i18n, settle } = setup({ stored: 'en' });
     await settle();
     expect(i18n.language()).toBe('en');
-    expect(i18n.t('workspace.comingSoon')).toBe('Coming soon');
+    expect(i18n.t('rail.projects')).toBe('Projects');
   });
 
   it('applies a new language at once and stores it in main', async () => {
     const { i18n, saves, stored, settle } = setup();
     await settle();
     i18n.setLanguage('en');
-    expect(i18n.t('workspace.comingSoon')).toBe('Coming soon'); // before main has answered
+    expect(i18n.t('rail.projects')).toBe('Projects'); // before main has answered
     await settle();
     expect(saves).toEqual(['en']);
     expect(Effect.runSync(Ref.get(stored))).toBe('en');

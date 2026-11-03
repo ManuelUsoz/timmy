@@ -68,42 +68,11 @@ export class Timmy {
     await expect(this.page.locator('.xterm-screen')).toContainText('PS ', { timeout: 15_000 });
   }
 
-  /** Adds the demo project in the Workspace. Leaves the Window in Expanded with the project open. */
-  async addDemoProject() {
-    await this.switchMode('Expanded');
-    await this.page.getByRole('button', { name: 'New project' }).first().click();
-    const dialog = this.page.getByRole('dialog', { name: 'New project' });
-    await dialog.getByRole('button', { name: 'Browse' }).click();
-    await dialog.getByRole('button', { name: 'Create project' }).click();
-    await expect(this.page.locator('app-project-list .as-row__title')).toContainText('demo-project', { timeout: 10_000 });
-  }
-
-  /** Adds the demo project and opens a real terminal in it. Leaves the Window in Expanded. */
-  async openProjectTerminal() {
-    await this.addDemoProject();
-    await this.newTerminal();
-  }
-
-  /** "New terminal" of the Project that is open in the Workspace. */
-  async newTerminal() {
-    await this.page.getByRole('region', { name: 'Terminals' }).getByRole('button', { name: 'New terminal' }).click();
-    await expect(this.page.locator('.xterm-screen')).toContainText('PS ', { timeout: 15_000 });
-  }
-
-  composer() {
-    return this.page.getByPlaceholder('Message Claude');
-  }
-
-  async send(text: string) {
-    await this.composer().fill(text);
-    await this.page.getByRole('button', { name: 'Send' }).click();
-  }
-
   text(s: string | RegExp, timeout = 8000) {
     return this.page.getByText(s).first().waitFor({ timeout });
   }
 
-  /** No view of the app scrolls sideways: the page fits the window and nothing in the composer bar sticks out. */
+  /** No view of the app scrolls sideways: the page fits the window and nothing sticks out. */
   async expectNoHorizontalOverflow() {
     const overflow = await this.page.evaluate(() => {
       const width = window.innerWidth;
@@ -111,7 +80,7 @@ export class Timmy {
       const out: string[] = [];
       if (doc.scrollWidth > doc.clientWidth) out.push(`page scrolls: ${doc.scrollWidth} > ${doc.clientWidth}`);
       // What the user sees: a container whose content is wider than it and that shows a horizontal scrollbar.
-      // (The session chip strip scrolls too, but without a visible bar.)
+      // (The chip strip scrolls too, but without a visible bar.)
       for (const el of document.body.querySelectorAll<HTMLElement>('*')) {
         const overflowX = getComputedStyle(el).overflowX;
         if (overflowX !== 'auto' && overflowX !== 'scroll') continue;
@@ -136,11 +105,9 @@ export class Timmy {
 export type Language = 'es' | 'en';
 
 /** `test.use({ language: 'en' })` in a spec file pins the UI language; the default is the app's own (es). */
-export const test = base.extend<{ timmy: Timmy; language: Language; openCode: 'ready' | 'missing' }>({
+export const test = base.extend<{ timmy: Timmy; language: Language }>({
   language: ['es', { option: true }],
-  /** `test.use({ openCode: 'missing' })` makes the mock OpenCode fail to start, as when it is not installed. */
-  openCode: ['ready', { option: true }],
-  timmy: async ({ language, openCode }, use) => {
+  timmy: async ({ language }, use) => {
     mkdirSync(fixtureCwd, { recursive: true });
     const userData = mkdtempSync(path.join(tmpdir(), 'timmy-e2e-'));
     writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ language }));
@@ -153,7 +120,7 @@ export const test = base.extend<{ timmy: Timmy; language: Language; openCode: 'r
       executablePath: electronPath,
       args: [root],
       cwd: fixtureCwd,
-      env: { ...process.env, TIMMY_E2E: '1', TIMMY_E2E_OPENCODE: openCode, TIMMY_E2E_PICK_FOLDER: projectDir, TIMMY_USER_DATA: userData, ELECTRON_RENDERER_URL: '' },
+      env: { ...process.env, TIMMY_E2E: '1', TIMMY_E2E_PICK_FOLDER: projectDir, TIMMY_USER_DATA: userData, ELECTRON_RENDERER_URL: '' },
     });
     const page = await app.firstWindow();
     const errors: string[] = [];

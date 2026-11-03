@@ -3,16 +3,15 @@ import type { ProjectId } from '../../../shared/sessions/sessions.model';
 import { I18n } from '../../core/i18n';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { ListRow } from '../../shared/ui/list-row/list-row';
-import { StateComponent } from '../../shared/ui/state/state';
 import { ProjectsState } from './projects-state';
 
 /**
- * The searchable list of projects, with the badge of live sessions and the way to add one. Collapsed, it is the
- * rail of avatars (one per project, with a dot for live sessions) and a button to add a project.
+ * The searchable list of projects and the way to add one. Collapsed, it is the rail of avatars (one per
+ * project) and a button to add a project.
  */
 @Component({
   selector: 'app-project-list',
-  imports: [ButtonComponent, ListRow, StateComponent],
+  imports: [ButtonComponent, ListRow],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './project-list.html',
   styleUrl: './project-list.css',

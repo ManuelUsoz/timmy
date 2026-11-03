@@ -3,7 +3,7 @@ import { expect, test } from '../fixtures';
 test('Expanded is the resizable Workspace window, with the rail and the Projects screen', async ({ timmy }) => {
   const { page } = timmy;
   const control = (name: string) => page.getByRole('button', { name, exact: true });
-  // Relative dates ("hace 2 min") in the session rows change between runs.
+  // The project row shows the temp folder of the run, which changes between runs.
   const volatile = [page.locator('.as-row__sub')];
 
   await timmy.openPanel();
@@ -23,7 +23,7 @@ test('Expanded is the resizable Workspace window, with the rail and the Projects
   await test.step('has our own Minimizar, Maximizar and Cerrar controls', async () => {
     for (const name of ['Minimizar', 'Maximizar', 'Cerrar']) await control(name).waitFor({ timeout: 3000 });
   });
-  // Rail on the left with Chat, Proyectos, Historial, Ajustes; Projects column and placeholders; custom Carbon-style minimize, maximize and close at the top right, and no native Windows buttons.
+  // Rail on the left with Proyectos and Ajustes; Projects column and its content; custom Carbon-style minimize, maximize and close at the top right, and no native Windows buttons.
   await timmy.shot('expanded-workspace', { mask: volatile });
 
   await test.step('Maximizar maximizes the window and the control becomes Restaurar', async () => {

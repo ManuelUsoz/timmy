@@ -4,11 +4,7 @@ import { AppInfoRpcs } from '../../../shared/app-info/app-info.rpc';
 import { SettingsRpcs } from '../../../shared/settings/settings.rpc';
 import { WindowRpcs } from '../../../shared/window/window.rpc';
 import type { WindowMode } from '../../../shared/window/window.model';
-import { ChatRpcs } from '../../../shared/chat/chat.rpc';
-import type { PermissionResponse } from '../../../shared/chat/permission.model';
-import { ChatController } from '../chat/chat-controller';
-import { initialChatState } from '../chat/chat-state';
-import { layerFilesUnused, layerAttachmentsUnused, layerProjectsUnused, layerSessionsUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
+import { layerFilesUnused, layerProjectsUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { ProjectId } from '../../../shared/sessions/sessions.model';
 import { provideWorkspaceRouter } from '../workspace/workspace.routes';
@@ -17,7 +13,6 @@ import { ShellComponent } from './shell';
 
 /** Real client against fake handlers: the window is just a Ref, like main's service behind its host. */
 const setup = async () => {
-  const answers: PermissionResponse[] = [];
   const closes: number[] = [];
   const minimizes: number[] = [];
   const toggles: number[] = [];
@@ -26,19 +21,6 @@ const setup = async () => {
   /** What main does when its window is maximized or restored, by the user or by the system. */
   const setMaximized = (value: boolean) =>
     Effect.runPromise(Ref.set(maximized, value).pipe(Effect.andThen(PubSub.publish(maximizedChanges, value)), Effect.asVoid));
-  const unused = () => Effect.die('not under test');
-  const layerChat = ChatRpcs.toLayer({
-    'Chat.capabilities': unused,
-    'Chat.models': unused,
-    'Chat.commands': unused,
-    'Chat.changeAdapter': unused,
-    'Chat.startSession': unused,
-    'Chat.send': unused,
-    'Chat.resolvePermission': ({ response }) => Effect.sync(() => void answers.push(response)),
-    'Chat.answerQuestion': unused,
-    'Chat.interrupt': unused,
-    'Chat.closeSession': unused,
-  });
   const mode = Ref.makeUnsafe<WindowMode>('Pill');
   const handlers = Layer.mergeAll(
     AppInfoRpcs.toLayer({
@@ -59,9 +41,8 @@ const setup = async () => {
       'Window.maximized': () =>
         Stream.concat(Stream.fromEffect(Ref.get(maximized)), Stream.fromPubSub(maximizedChanges)),
     }),
-    layerChat,
-    layerSessionsUnused,
-    layerFilesUnused, layerAttachmentsUnused, layerProjectsUnused,
+    layerFilesUnused,
+    layerProjectsUnused,
     SettingsRpcs.toLayer({
       'Settings.get': () => Effect.succeed({ language: 'es' as const, providers: [] }),
       'Settings.setLanguage': ({ language }) => Effect.succeed({ language, providers: [] }),
@@ -83,7 +64,7 @@ const setup = async () => {
   };
   fixture.detectChanges();
   await settle();
-  return { el, settle, fixture, answers, closes, minimizes, toggles, setMaximized };
+  return { el, settle, fixture, closes, minimizes, toggles, setMaximized };
 };
 
 describe('ShellComponent', () => {
@@ -280,13 +261,6 @@ describe('ShellComponent', () => {
       await ctx.settle();
       expect(pillText(ctx)).toContain('Idle');
       expect(pillText(ctx)).toContain('Nada en marcha');
-    });
-
-    it('does not read the chat: a running Turn leaves the Pill idle', async () => {
-      const ctx = await setup();
-      TestBed.inject(ChatController).chat.set({ ...initialChatState, running: true });
-      await ctx.settle();
-      expect(pillText(ctx)).toContain('Idle');
     });
   });
 });

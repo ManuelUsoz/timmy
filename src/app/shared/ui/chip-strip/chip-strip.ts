@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 
-export type ChipStripStatus = 'live' | 'done' | 'asks';
+export type ChipStripStatus = 'live' | 'done';
 
 export interface ChipStripItem {
   readonly id: string;
@@ -8,11 +8,10 @@ export interface ChipStripItem {
   /** Branch glyph before the label. */
   readonly branch?: boolean;
   /**
-   * live: green dot (before the label, or after it when `branch`); done: green check after;
-   * asks: blue dot before, "ASKS" after, outline and underline.
+   * live: green dot (before the label, or after it when `branch`); done: green check after.
    */
   readonly status?: ChipStripStatus;
-  /** Outline chip (sessions outside the selected one). */
+  /** Outline chip (those outside the selected group). */
   readonly outline?: boolean;
 }
 

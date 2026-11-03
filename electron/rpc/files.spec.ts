@@ -6,10 +6,8 @@ import { afterAll, describe, expect, it } from '@effect/vitest';
 import { Effect, Layer } from 'effect';
 import { DesktopApi } from '../../src/app/core/desktop-api';
 import {
-  layerChatUnused,
   layerProjectsUnused,
-  layerSessionsUnused,
-  layerSettingsUnused, layerAttachmentsUnused,
+  layerSettingsUnused,
   layerWindowUnused,
   makeDesktopTestLayer,
 } from '../../src/app/core/desktop-layers';
@@ -34,10 +32,8 @@ const makeLayer = (limit?: number) =>
     Layer.mergeAll(
       layerFilesHandlers.pipe(Layer.provide(layerProjectFiles(limit))),
       AppInfoRpcs.toLayer({ 'AppInfo.get': () => Effect.die('unused') }),
-      layerChatUnused,
-      layerSessionsUnused,
       layerWindowUnused,
-      layerSettingsUnused, layerAttachmentsUnused,
+      layerSettingsUnused,
       layerProjectsUnused,
     ),
   );

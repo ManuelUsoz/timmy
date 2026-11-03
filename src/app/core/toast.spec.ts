@@ -13,7 +13,7 @@ describe('ToastService', () => {
   const bodies = () => toasts.toasts().map((toast) => toast.body);
 
   it('shows a toast with the title of its tone and returns a distinct id each time', () => {
-    const first = toasts.show({ tone: 'warning', body: 'sessions.busy' });
+    const first = toasts.show({ tone: 'warning', body: 'projects.checkFailed' });
     const second = toasts.info('projects.checkFailed');
     expect(first).not.toBe(second);
     expect(toasts.toasts().map((toast) => [toast.id, toast.tone, toast.title])).toEqual([
@@ -23,8 +23,8 @@ describe('ToastService', () => {
   });
 
   it('has a shorthand per tone, and a title can be replaced', () => {
-    toasts.success('sessions.busy');
-    toasts.error('sessions.busy', { title: 'toast.title.info' });
+    toasts.success('projects.checkFailed');
+    toasts.error('projects.checkFailed', { title: 'toast.title.info' });
     expect(toasts.toasts().map((toast) => [toast.tone, toast.title])).toEqual([
       ['success', 'toast.title.success'],
       ['error', 'toast.title.info'],
@@ -32,30 +32,30 @@ describe('ToastService', () => {
   });
 
   it('keeps the newest three: a fourth toast removes the one that has been there longest', () => {
-    const ids = [1, 2, 3, 4].map(() => toasts.error('sessions.busy'));
+    const ids = [1, 2, 3, 4].map(() => toasts.error('projects.checkFailed'));
     expect(MAX_TOASTS).toBe(3);
     expect(toasts.toasts().map((toast) => toast.id)).toEqual(ids.slice(1));
-    const fifth = toasts.error('sessions.busy');
+    const fifth = toasts.error('projects.checkFailed');
     expect(toasts.toasts().map((toast) => toast.id)).toEqual([ids[2], ids[3], fifth]);
   });
 
   it('dismisses by id and ignores an id that is gone', () => {
     const a = toasts.info('projects.loadFailed');
-    const b = toasts.info('sessions.loadFailed');
+    const b = toasts.info('projects.loadFailed');
     toasts.dismiss(a);
     toasts.dismiss(a);
-    expect(bodies()).toEqual(['sessions.loadFailed']);
+    expect(bodies()).toEqual(['projects.loadFailed']);
     toasts.dismiss(b);
     expect(toasts.toasts()).toEqual([]);
   });
 
   it('dismisses by itself after 6 s, and after 8 s when it is an error', () => {
     toasts.info('projects.loadFailed');
-    toasts.error('sessions.loadFailed');
+    toasts.error('projects.loadFailed');
     vi.advanceTimersByTime(DEFAULT_DURATION_MS - 1);
     expect(toasts.toasts()).toHaveLength(2);
     vi.advanceTimersByTime(1);
-    expect(bodies()).toEqual(['sessions.loadFailed']);
+    expect(bodies()).toEqual(['projects.loadFailed']);
     vi.advanceTimersByTime(ERROR_DURATION_MS - DEFAULT_DURATION_MS - 1);
     expect(toasts.toasts()).toHaveLength(1);
     vi.advanceTimersByTime(1);
@@ -64,11 +64,11 @@ describe('ToastService', () => {
 
   it('takes the duration of the toast when given, and `null` keeps it until dismissed', () => {
     toasts.error('projects.loadFailed', { durationMs: 1000 });
-    const sticky = toasts.info('sessions.loadFailed', { durationMs: null });
+    const sticky = toasts.info('projects.loadFailed', { durationMs: null });
     vi.advanceTimersByTime(1000);
-    expect(bodies()).toEqual(['sessions.loadFailed']);
+    expect(bodies()).toEqual(['projects.loadFailed']);
     vi.advanceTimersByTime(60_000);
-    expect(bodies()).toEqual(['sessions.loadFailed']);
+    expect(bodies()).toEqual(['projects.loadFailed']);
     toasts.dismiss(sticky);
     expect(toasts.toasts()).toEqual([]);
   });
@@ -77,9 +77,9 @@ describe('ToastService', () => {
     const first = toasts.info('projects.loadFailed');
     toasts.dismiss(first);
     vi.advanceTimersByTime(3000);
-    toasts.info('sessions.loadFailed');
+    toasts.info('projects.loadFailed');
     vi.advanceTimersByTime(DEFAULT_DURATION_MS - 3000);
-    expect(bodies()).toEqual(['sessions.loadFailed']);
+    expect(bodies()).toEqual(['projects.loadFailed']);
     vi.advanceTimersByTime(3000);
     expect(toasts.toasts()).toEqual([]);
   });
@@ -87,8 +87,8 @@ describe('ToastService', () => {
   it('clears the timer of an evicted toast', () => {
     toasts.info('projects.loadFailed');
     vi.advanceTimersByTime(1000);
-    toasts.info('sessions.loadFailed');
-    toasts.info('sessions.busy');
+    toasts.info('projects.loadFailed');
+    toasts.info('projects.checkFailed');
     toasts.info('projects.checkFailed');
     expect(vi.getTimerCount()).toBe(MAX_TOASTS);
     vi.advanceTimersByTime(DEFAULT_DURATION_MS);

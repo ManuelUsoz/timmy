@@ -1,15 +1,12 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-/** The centred message that fills the main area when there is no project or session to show. */
+/** The centred message that fills the main area when there is no project or terminal to show. */
 @Component({
   selector: 'app-workspace-hero',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="hero">
       @switch (icon()) {
-        @case ('chat') {
-          <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v8H7l-3 2.5V11H2z" /></svg>
-        }
         @case ('terminal') {
           <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
         }
@@ -71,7 +68,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   `,
 })
 export class WorkspaceHero {
-  readonly icon = input<'folder' | 'chat' | 'terminal' | 'folder-error'>('folder');
+  readonly icon = input<'folder' | 'terminal' | 'folder-error'>('folder');
   readonly title = input.required<string>();
   readonly detail = input.required<string>();
 }

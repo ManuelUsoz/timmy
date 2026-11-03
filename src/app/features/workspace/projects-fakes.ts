@@ -1,16 +1,11 @@
-import { Effect, Layer, Stream } from 'effect';
+import { Effect, Layer } from 'effect';
 import { AppInfoRpcs } from '../../../shared/app-info/app-info.rpc';
-import { ChatError } from '../../../shared/chat/chat-error.model';
-import { ChatRpcs } from '../../../shared/chat/chat.rpc';
-import { SessionId, TurnId } from '../../../shared/chat/ids.model';
 import type { FolderInspection, Project } from '../../../shared/projects/projects.model';
 import { ProjectsError } from '../../../shared/projects/projects-error.model';
 import { ProjectsRpcs } from '../../../shared/projects/projects.rpc';
-import { ProjectId, ProviderSessionId, type SessionSummary } from '../../../shared/sessions/sessions.model';
-import { SessionsError } from '../../../shared/sessions/sessions-error.model';
-import { SessionsRpcs } from '../../../shared/sessions/sessions.rpc';
+import { ProjectId } from '../../../shared/sessions/sessions.model';
 import { SettingsRpcs } from '../../../shared/settings/settings.rpc';
-import { layerFilesUnused, layerAttachmentsUnused, layerWindowUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
+import { layerFilesUnused, layerWindowUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
 
 export const project = (name: string, overrides: Partial<Project> = {}): Project => ({
   projectId: ProjectId.make(`p-${name}`),
@@ -21,21 +16,9 @@ export const project = (name: string, overrides: Partial<Project> = {}): Project
   ...overrides,
 });
 
-export const session = (projectName: string, id: string, title: string, updatedAt = 0): SessionSummary => ({
-  sessionId: SessionId.make(id),
-  projectId: ProjectId.make(`p-${projectName}`),
-  provider: 'Claude',
-  providerSessionId: ProviderSessionId.make(`native-${id}`),
-  cwd: `/work/${projectName}`,
-  title,
-  createdAt: 0,
-  updatedAt,
-});
-
 /** The main process as the Workspace sees it, in memory. Tests read and change `state` while the UI runs. */
 export interface FakeBackend {
   projects: Project[];
-  sessions: SessionSummary[];
   /** Projects whose folder is gone. */
   missing: Set<ProjectId>;
   /** Folders on the fake disk: a branch, or null for a folder without git. */
@@ -45,18 +28,10 @@ export interface FakeBackend {
   gitMissing: boolean;
   /** Makes `Projects.list` break, as a failing disk would. */
   listFails: boolean;
-  /** Makes `Sessions.list`, `Projects.checkFolder` and `Projects.remove` break, and `git init` fail. */
-  sessionsFail: boolean;
+  /** Makes `Projects.checkFolder` and `Projects.remove` break, and `git init` fail. */
   checkFails: boolean;
   removeFails: boolean;
   initFails: boolean;
-  /** Sessions open in main, which cannot be deleted. */
-  open: Set<SessionId>;
-  /** Makes `Chat.startSession` refuse, as an adapter that is not ready would. */
-  startFails: boolean;
-  /** What the next `Chat.send` ends with; `Failed` carries `failureDetail`. */
-  turnOutcome: 'Completed' | 'Failed';
-  failureDetail: string;
   /** Calls the UI made, as `Name` or `Name:argument`. */
   calls: string[];
 }
@@ -65,18 +40,12 @@ export interface FakeBackend {
 export const makeBackend = (initial: Partial<FakeBackend> = {}): FakeBackend => ({
   gitMissing: false,
   listFails: false,
-  sessionsFail: false,
   checkFails: false,
   removeFails: false,
   initFails: false,
-  startFails: false,
-  turnOutcome: 'Completed',
-  failureDetail: 'Mock failure: the provider returned an error.',
   calls: [],
   ...initial,
-  open: new Set(initial.open),
   projects: [...(initial.projects ?? [])],
-  sessions: [...(initial.sessions ?? [])],
   missing: new Set(initial.missing),
   folders: { ...initial.folders },
   picks: [...(initial.picks ?? [])],
@@ -95,55 +64,7 @@ const inspect = (backend: FakeBackend, path: string): Effect.Effect<FolderInspec
 
 const notFound = (projectId: ProjectId) => new ProjectsError({ reason: 'ProjectNotFound', detail: projectId });
 
-const chatUnused = () => Effect.die('Chat handler not under test');
-
-/** Chat as far as the Workspace goes: sessions start (and are stored), and a turn ends as `backend.turnOutcome` says. */
-const layerFakeChat = (backend: FakeBackend) =>
-  ChatRpcs.toLayer({
-    'Chat.capabilities': chatUnused,
-    'Chat.models': () => Effect.succeed([]),
-    'Chat.commands': () => Effect.succeed([]),
-    'Chat.changeAdapter': chatUnused,
-    'Chat.startSession': ({ cwd, resume }) =>
-      Effect.gen(function* () {
-        backend.calls.push(`Chat.startSession:${cwd}`);
-        if (backend.startFails) return yield* new ChatError({ reason: 'AdapterNotReady', detail: 'not ready' });
-        if (resume !== undefined) {
-          backend.open.add(resume);
-          return resume;
-        }
-        const created = session(cwd.split('/').at(-1) ?? cwd, `new-${backend.sessions.length + 1}`, '');
-        backend.sessions = [{ ...created, updatedAt: Date.now() }, ...backend.sessions];
-        backend.open.add(created.sessionId);
-        return created.sessionId;
-      }),
-    'Chat.send': ({ sessionId, text }) =>
-      Stream.make(
-        { _tag: 'TurnStarted' as const, sessionId, turnId: TurnId.make('t1') },
-        {
-          _tag: 'TurnFinished' as const,
-          sessionId,
-          turnId: TurnId.make('t1'),
-          outcome: backend.turnOutcome,
-          usage: { inputTokens: 0, outputTokens: 0 },
-          ...(backend.turnOutcome === 'Failed' ? { detail: backend.failureDetail } : {}),
-        },
-      ).pipe(
-        Stream.tap(() =>
-          Effect.sync(() => {
-            backend.sessions = backend.sessions.map((candidate) =>
-              candidate.sessionId === sessionId && candidate.title === '' ? { ...candidate, title: text } : candidate,
-            );
-          }),
-        ),
-      ),
-    'Chat.resolvePermission': chatUnused,
-    'Chat.answerQuestion': chatUnused,
-    'Chat.interrupt': chatUnused,
-    'Chat.closeSession': ({ sessionId }) => Effect.sync(() => void backend.open.delete(sessionId)),
-  });
-
-/** Handlers for the Projects and Sessions RPCs over `backend`, and dying ones for chat, window and app info. */
+/** Handlers for the Projects RPCs over `backend`, and dying ones for window, files and app info. */
 export const layerFakeProjects = (backend: FakeBackend) =>
   Layer.mergeAll(
     ProjectsRpcs.toLayer({
@@ -196,41 +117,9 @@ export const layerFakeProjects = (backend: FakeBackend) =>
           );
         }),
     }),
-    SessionsRpcs.toLayer({
-      'Sessions.list': ({ cwd }) =>
-        backend.sessionsFail ? Effect.die('the sessions are unreadable') : Effect.sync(() => backend.sessions.filter((candidate) => candidate.cwd === cwd)),
-      'Sessions.history': ({ ref }) =>
-        Effect.succeed([
-          { _tag: 'Message' as const, role: 'User' as const, text: `question ${ref.sessionId}` },
-          { _tag: 'Message' as const, role: 'Assistant' as const, text: `answer ${ref.sessionId}` },
-        ]),
-      'Sessions.listSubagents': () => Effect.succeed([]),
-      'Sessions.rename': ({ sessionId, title }) =>
-        Effect.gen(function* () {
-          backend.calls.push(`Sessions.rename:${sessionId}`);
-          if (title.trim() === '') return yield* new SessionsError({ reason: 'InvalidTitle', detail: 'empty' });
-          if (!backend.sessions.some((candidate) => candidate.sessionId === sessionId)) {
-            return yield* new SessionsError({ reason: 'SessionNotFound', detail: sessionId });
-          }
-          backend.sessions = backend.sessions.map((candidate) =>
-            candidate.sessionId === sessionId ? { ...candidate, title: title.trim() } : candidate,
-          );
-        }),
-      'Sessions.delete': ({ sessionId }) =>
-        Effect.gen(function* () {
-          backend.calls.push(`Sessions.delete:${sessionId}`);
-          if (!backend.sessions.some((candidate) => candidate.sessionId === sessionId)) {
-            return yield* new SessionsError({ reason: 'SessionNotFound', detail: sessionId });
-          }
-          if (backend.open.has(sessionId)) return yield* new SessionsError({ reason: 'SessionActive', detail: sessionId });
-          backend.sessions = backend.sessions.filter((candidate) => candidate.sessionId !== sessionId);
-        }),
-      'Sessions.changes': () => Stream.empty,
-    }),
     AppInfoRpcs.toLayer({ 'AppInfo.get': () => Effect.die('unused') }),
-    layerFakeChat(backend),
     layerWindowUnused,
-    layerFilesUnused, layerAttachmentsUnused,
+    layerFilesUnused,
   );
 
 /** The same, with settings that answer Spanish and accept any language. */

@@ -25,7 +25,7 @@ let nextId = 0;
 export class PillComponent {
   /** Colours the state dot; 'waiting' also draws the inset info line. */
   readonly tone = input<PillTone>('neutral');
-  /** State word (Idle, Live, 4 live, Asks, Done). Part of the accessible name. */
+  /** State word (Idle, Live, 4 live, Waiting, Done). Part of the accessible name. */
   readonly label = input('');
   readonly pulse = input(false, { transform: booleanAttribute });
   /** Square corners (radius 0), as in the collapsed corner pill. */

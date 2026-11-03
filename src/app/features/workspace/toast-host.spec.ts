@@ -32,15 +32,15 @@ describe('ToastHost', () => {
   it('shows the title word and the body of each toast, newest first', async () => {
     const { toasts, settle, items } = await setup();
     toasts.info('projects.removeFailed');
-    toasts.warning('sessions.busy');
+    toasts.warning('projects.checkFailed');
     await settle();
     expect(items().map((item) => item.querySelector('.as-note__title')?.textContent)).toEqual(['Aviso', 'Información']);
-    expect(items()[0].textContent).toContain('Hay un turno en marcha');
+    expect(items()[0].textContent).toContain('No se pudo comprobar la carpeta');
   });
 
   it('announces errors assertively and the rest politely', async () => {
     const { toasts, settle, items } = await setup();
-    toasts.error('sessions.loadFailed');
+    toasts.error('projects.loadFailed');
     toasts.success('projects.removeFailed');
     await settle();
     const [success, error] = items();
@@ -50,7 +50,7 @@ describe('ToastHost', () => {
 
   it('shows at most three, dropping the oldest', async () => {
     const { toasts, settle, items } = await setup();
-    for (const body of ['projects.loadFailed', 'sessions.loadFailed', 'sessions.busy', 'projects.checkFailed'] as const) toasts.error(body);
+    for (const body of ['projects.loadFailed', 'projects.checkFailed', 'projects.removeFailed', 'settings.saveFailed'] as const) toasts.error(body);
     await settle();
     expect(items()).toHaveLength(3);
     expect(items().map((item) => item.textContent).join()).not.toContain('No se pudieron cargar los proyectos');
@@ -59,7 +59,7 @@ describe('ToastHost', () => {
   it('dismisses with its button and with Escape', async () => {
     const { toasts, settle, items, el } = await setup();
     toasts.info('projects.removeFailed', { durationMs: null });
-    toasts.info('sessions.busy', { durationMs: null });
+    toasts.info('projects.checkFailed', { durationMs: null });
     await settle();
     el.querySelector<HTMLButtonElement>('.toast button')!.click();
     await settle();
@@ -72,13 +72,13 @@ describe('ToastHost', () => {
 
   it('follows the language, and the detail is a tooltip, not the message', async () => {
     const { toasts, settle, items } = await setup();
-    toasts.error('sessions.busy', { detail: 'raw cause' });
+    toasts.error('projects.checkFailed', { detail: 'raw cause' });
     await settle();
     expect(items()[0].querySelector('.as-note__body span')?.getAttribute('title')).toBe('raw cause');
     TestBed.inject(I18n).language.set('en');
     await settle();
     expect(items()[0].querySelector('.as-note__title')?.textContent).toBe('Error');
-    expect(items()[0].textContent).toContain('A turn is running in another session');
+    expect(items()[0].textContent).toContain('could not be checked');
     expect(items()[0].querySelector('button')?.getAttribute('aria-label')).toBe('Dismiss notification');
   });
 });

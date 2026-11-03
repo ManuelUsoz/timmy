@@ -5,8 +5,7 @@
   <button
     type="button"
     class="as-chip"
-    [class.as-chip--outline]="item.outline || item.status === 'asks'"
-    [class.as-chip--asks]="item.status === 'asks'"
+    [class.as-chip--outline]="item.outline"
     [attr.title]="item.label"
     [attr.aria-pressed]="selectedId() === item.id"
     (click)="selected.emit(item.id)"
@@ -17,8 +16,8 @@
         <path d="M6 8v8M18 10c0 4-6 3-12 6" />
       </svg>
     }
-    @if (item.status === 'asks' || (item.status === 'live' && !item.branch)) {
-      <i class="dot" [class.dot--info]="item.status === 'asks'" aria-hidden="true"></i>
+    @if (item.status === 'live' && !item.branch) {
+      <i class="dot" aria-hidden="true"></i>
     }
     <span class="name">{{ item.label }}</span>{{ ' ' }}
     @switch (item.status) {
@@ -31,9 +30,6 @@
         <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M5 12l5 5 9-10" />
         </svg>
-      }
-      @case ('asks') {
-        <span class="asks">ASKS</span>
       }
     }
   </button>
