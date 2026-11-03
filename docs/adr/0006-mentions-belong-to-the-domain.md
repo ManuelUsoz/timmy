@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0008
+---
+
 # Mentions belong to the domain; Adapters translate them
 
 Timmy supports several providers, so `@` mentions of files and folders are a Timmy feature, not a provider one. Timmy defines the `@path` syntax, parses it, and checks that each path exists inside the Session's `cwd`. `UserMessage` carries the text plus the resolved `mentions` (path, file or folder); the old `files: string[]` is removed. The Adapter never parses text: it only translates `mentions` into whatever its provider understands.

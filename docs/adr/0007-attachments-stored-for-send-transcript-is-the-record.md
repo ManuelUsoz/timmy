@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0008
+---
+
 # Attachments are stored by Timmy to send; the provider transcript is the record
 
 Images the user adds to a message are **Attachments**. Timmy ingests each one in main (the renderer sends bytes through an `Attachments` RPC; main checks the magic bytes, resizes and stores it as a file in app data, and returns an id). `UserMessage` carries `attachments: [{ id }]`, never bytes. The Adapter builds the provider payload from the stored file at send time (for Claude, base64 image blocks in a streaming `SDKUserMessage`), so the domain stays provider-neutral.
