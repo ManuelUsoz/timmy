@@ -12,7 +12,7 @@ describe('TerminalsState', () => {
   it('creates an Idle terminal in the project, which can then be found', () => {
     const terminals = TestBed.inject(TerminalsState);
     const created = terminals.create(timmy);
-    expect(created).toMatchObject({ projectId: timmy, number: 1, state: 'Idle' });
+    expect(created).toMatchObject({ projectId: timmy, number: 1, state: 'Idle', output: '' });
     expect(terminals.find(created.id)).toEqual(created);
     expect(terminals.entries()).toEqual([created]);
   });

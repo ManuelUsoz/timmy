@@ -144,9 +144,10 @@ export class ProjectsScreen {
 
   /** "Nueva terminal": adds a local entry to the project and opens it at its own route. */
   protected async newTerminal(): Promise<void> {
-    const projectId = this.state.selectedId();
-    if (projectId === undefined) return;
-    await this.openTerminal(this.terminals.create(projectId));
+    const project = this.state.selected();
+    if (project === undefined) return;
+    const terminal = (await this.terminals.createLive(project.projectId, project.cwd)) ?? this.terminals.create(project.projectId);
+    await this.openTerminal(terminal);
   }
 
   /** "Nueva sesión": starts a session in the project, which opens in the chat at its own route. */

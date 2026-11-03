@@ -1,29 +1,87 @@
 import { Injectable, signal } from '@angular/core';
+import { Effect } from 'effect';
 import type { ProjectId } from '../../../shared/sessions/sessions.model';
-import { addTerminal, TerminalId, withState, type TerminalEntry, type TerminalState } from './terminal-entries';
+import { TerminalId } from '../../../shared/terminal/terminal.model';
+import { DesktopApi } from '../../core/desktop-api';
+import { EffectRuntime } from '../../core/effect-runtime';
+import { addTerminal, restarted, withExit, withOutput, withState, type TerminalEntry, type TerminalState } from './terminal-entries';
 
-/**
- * UI state of the terminals of the Workspace. In this phase they are only visual: kept in memory for this run
- * of the app, never stored and never sent to main (no RPC), so they are gone on restart.
- */
 @Injectable({ providedIn: 'root' })
 export class TerminalsState {
   private readonly all = signal<ReadonlyArray<TerminalEntry>>([]);
   readonly entries = this.all.asReadonly();
 
-  /** "Nueva terminal": a local entry in the project. */
+  constructor(private readonly runtime: EffectRuntime) {}
+
+  async createLive(projectId: ProjectId, cwd: string): Promise<TerminalEntry | undefined> {
+    const result = await this.runtime.run(
+      Effect.gen(function* () {
+        const desktop = yield* DesktopApi;
+        return yield* desktop['Terminal.create']({ cwd });
+      }),
+    );
+    if (result._tag === 'Failure') return undefined;
+    const entry = addTerminal(this.all(), projectId, result.value.terminalId).at(-1)!;
+    this.all.update((entries) => withState([...entries, entry], entry.id, 'Live'));
+    return { ...entry, state: 'Live' };
+  }
+
   create(projectId: ProjectId): TerminalEntry {
     const id = TerminalId.make(crypto.randomUUID());
-    this.all.update((entries) => addTerminal(entries, projectId, id));
-    return this.entries().find((entry) => entry.id === id)!;
+    const entry = addTerminal(this.all(), projectId, id).at(-1)!;
+    this.all.update((entries) => [...entries, entry]);
+    return entry;
   }
 
   find(id: string): TerminalEntry | undefined {
     return this.all().find((entry) => entry.id === id);
   }
 
-  /** The seam for the process that will drive a terminal; until there is one, only tests move a state. */
+  appendOutput(id: TerminalId, data: string): void {
+    this.all.update((entries) => withOutput(entries, id, data));
+  }
+
   setState(id: TerminalId, state: TerminalState): void {
     this.all.update((entries) => withState(entries, id, state));
+  }
+
+  exited(id: TerminalId, exitCode: number): void {
+    this.all.update((entries) => withExit(entries, id, exitCode));
+  }
+
+  /** Kills the process of a terminal and starts a new one in the same folder under the same name. */
+  async restart(id: TerminalId, cwd: string): Promise<TerminalEntry | undefined> {
+    const result = await this.runtime.run(
+      Effect.gen(function* () {
+        const desktop = yield* DesktopApi;
+        yield* desktop['Terminal.close']({ terminalId: id }).pipe(Effect.ignore);
+        return yield* desktop['Terminal.create']({ cwd });
+      }),
+    );
+    if (result._tag === 'Failure') return undefined;
+    this.all.update((entries) => restarted(entries, id, result.value.terminalId));
+    return this.find(result.value.terminalId);
+  }
+
+  async write(id: TerminalId, data: string): Promise<void> {
+    await this.runtime.run(Effect.gen(function* () {
+      const desktop = yield* DesktopApi;
+      yield* desktop['Terminal.write']({ terminalId: id, data });
+    }));
+  }
+
+  async resize(id: TerminalId, cols: number, rows: number): Promise<void> {
+    await this.runtime.run(Effect.gen(function* () {
+      const desktop = yield* DesktopApi;
+      yield* desktop['Terminal.resize']({ terminalId: id, cols, rows });
+    }));
+  }
+
+  async close(id: TerminalId): Promise<void> {
+    await this.runtime.run(Effect.gen(function* () {
+      const desktop = yield* DesktopApi;
+      yield* desktop['Terminal.close']({ terminalId: id });
+    }));
+    this.all.update((entries) => entries.filter((entry) => entry.id !== id));
   }
 }

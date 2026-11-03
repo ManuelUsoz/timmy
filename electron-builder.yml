@@ -7,9 +7,13 @@ files:
   - dist-electron/**/*
   - dist/renderer/**/*
   - package.json
-  # The renderer is bundled by Angular/esbuild, so no runtime node_modules are needed.
+  # The renderer is bundled by Angular/esbuild; node-pty is the one native runtime dependency.
   - '!node_modules/**/*'
+  - node_modules/node-pty/**
+asarUnpack:
+  - node_modules/node-pty/**
 asar: true
+npmRebuild: false
 win:
   icon: docs/assets/img/icon.ico
   target:

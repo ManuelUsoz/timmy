@@ -73,7 +73,9 @@
       </app-workspace-hero>
     } @else if (routeTerminal(); as terminal) {
       @defer (on immediate) {
-        <app-terminal-screen class="terminal" [terminal]="terminal" [cwd]="project.cwd" [attr.aria-label]="i18n.t('terminals.screen')" />
+        @for (live of [terminal]; track live.id) {
+          <app-terminal-screen class="terminal" [terminal]="live" [cwd]="project.cwd" [attr.aria-label]="i18n.t('terminals.screen')" (restarted)="openTerminal($event)" />
+        }
       }
     } @else if (openSession(); as session) {
       <app-chat-view
