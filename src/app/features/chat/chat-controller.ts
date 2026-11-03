@@ -3,7 +3,6 @@ import type { PermissionMode } from '../../../shared/chat/provider.model';
 import type { SessionOptions } from '../../../shared/chat/session.model';
 import type { SelectOption } from '../../shared/ui/select/select.types';
 import { I18n } from '../../core/i18n';
-import { pillView } from '../shell/pill-view';
 import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import type { AdapterCapabilities, Effort, ModelInfo, ProviderId } from '../../../shared/chat/provider.model';
@@ -149,9 +148,6 @@ export class ChatController {
 
   /** Only flips on a real transition, so effects reading it do not re-run on every streamed delta. */
   private readonly running = computed(() => this.chat().running);
-  private readonly turnStartedAt = signal(0);
-  private readonly now = signal(Date.now());
-  readonly pill = computed(() => pillView(this.chat(), this.now() - this.turnStartedAt(), this.i18n.t('chat.working')));
 
   readonly contextPercent = computed(() => {
     const context = this.chat().context;
@@ -187,14 +183,6 @@ export class ChatController {
       this.resetSession();
     });
     this.permissionControl.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.resetSession());
-
-    // Elapsed time on the Pill: tick once a second while a Turn runs.
-    effect((onCleanup) => {
-      if (!this.running()) return;
-      this.now.set(Date.now());
-      const timer = setInterval(() => this.now.set(Date.now()), 1000);
-      onCleanup(() => clearInterval(timer));
-    });
 
     // A session cannot change options mid-turn: lock the selectors while one runs.
     // emitEvent: false keeps enable/disable from firing valueChanges (which would reset the session).
@@ -474,8 +462,6 @@ export class ChatController {
     const before = this.chat();
     this.draft.set('');
     this.images.set([]);
-    this.turnStartedAt.set(Date.now());
-    this.now.set(Date.now());
     this.chat.update((state) => ({ ...addUserMessage(state, text, sentImages.map(({ url }) => ({ url }))), running: true }));
 
     const apply = (event: ChatEvent) =>
