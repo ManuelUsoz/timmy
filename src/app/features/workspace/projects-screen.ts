@@ -103,6 +103,12 @@ export class ProjectsScreen {
       });
     });
 
+    // The Terminal on screen is the current one, which is also what the Panel shows.
+    effect(() => {
+      const terminal = this.routeTerminal();
+      if (terminal !== undefined) untracked(() => this.terminals.setCurrent(terminal.id));
+    });
+
     // A terminal that does not exist (a stale route) sends the user back to the project.
     effect(() => {
       const id = this.terminalId();

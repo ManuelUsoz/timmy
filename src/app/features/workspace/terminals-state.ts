@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, computed, signal } from '@angular/core';
 import { Effect } from 'effect';
 import type { ProjectId } from '../../../shared/sessions/sessions.model';
 import { TerminalId } from '../../../shared/terminal/terminal.model';
@@ -10,6 +10,9 @@ import { addTerminal, restarted, withExit, withOutput, withState, type TerminalE
 export class TerminalsState {
   private readonly all = signal<ReadonlyArray<TerminalEntry>>([]);
   readonly entries = this.all.asReadonly();
+  private readonly currentId = signal<TerminalId | undefined>(undefined);
+  /** The Terminal the user is on, in the Workspace or the Panel: the one picked last, else the newest. Undefined when there are none. */
+  readonly current = computed((): TerminalEntry | undefined => this.all().find((entry) => entry.id === this.currentId()) ?? this.all().at(-1));
 
   constructor(private readonly runtime: EffectRuntime) {}
 
@@ -23,6 +26,7 @@ export class TerminalsState {
     if (result._tag === 'Failure') return undefined;
     const entry = addTerminal(this.all(), projectId, result.value.terminalId).at(-1)!;
     this.all.update((entries) => withState([...entries, entry], entry.id, 'Live'));
+    this.currentId.set(entry.id);
     return { ...entry, state: 'Live' };
   }
 
@@ -35,6 +39,11 @@ export class TerminalsState {
 
   find(id: string): TerminalEntry | undefined {
     return this.all().find((entry) => entry.id === id);
+  }
+
+  /** Makes a Terminal the current one; an id that is not (or no longer) a Terminal leaves the current one as it is. */
+  setCurrent(id: TerminalId): void {
+    if (this.find(id) !== undefined) this.currentId.set(id);
   }
 
   appendOutput(id: TerminalId, data: string): void {
@@ -60,6 +69,7 @@ export class TerminalsState {
     );
     if (result._tag === 'Failure') return undefined;
     this.all.update((entries) => restarted(entries, id, result.value.terminalId));
+    if (this.currentId() === id) this.currentId.set(result.value.terminalId);
     return this.find(result.value.terminalId);
   }
 

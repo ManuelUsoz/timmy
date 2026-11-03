@@ -10,6 +10,9 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
         @case ('chat') {
           <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v8H7l-3 2.5V11H2z" /></svg>
         }
+        @case ('terminal') {
+          <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
+        }
         @case ('folder-error') {
           <svg class="icon error" viewBox="0 0 16 16" aria-hidden="true">
             <path d="M2 4.5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1zM6.5 7.5l3 3M9.5 7.5l-3 3" />
@@ -68,7 +71,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   `,
 })
 export class WorkspaceHero {
-  readonly icon = input<'folder' | 'chat' | 'folder-error'>('folder');
+  readonly icon = input<'folder' | 'chat' | 'terminal' | 'folder-error'>('folder');
   readonly title = input.required<string>();
   readonly detail = input.required<string>();
 }

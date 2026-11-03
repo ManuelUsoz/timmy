@@ -47,11 +47,11 @@
   <section class="panel" animate.enter="mode-in" animate.leave="mode-out" aria-label="Timmy panel">
     <header class="panel-header" (dblclick)="request('Pill')">
       <img class="panel-icon" src="ascua-geometric-blue.svg" width="16" height="16" alt="" />
-      <span class="panel-title">Chat</span>
+      <span class="panel-title">{{ i18n.t('terminals.screen') }}</span>
       <span class="drag-fill" aria-hidden="true"></span>
       <ng-container *ngTemplateOutlet="switcher" />
     </header>
-    <app-chat-view class="panel-body" />
+    <app-panel-terminal class="panel-body" (openWorkspace)="request('Expanded')" />
   </section>
 }
 

@@ -1,0 +1,24 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.strip {
+  flex: none;
+  padding: var(--spacing-02) var(--spacing-04);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.terminal {
+  flex: 1;
+}
+
+.failure {
+  margin: 0;
+  color: var(--text-error);
+  font: var(--text-body-01);
+}

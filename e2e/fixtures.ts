@@ -43,7 +43,29 @@ export class Timmy {
 
   async openPanel() {
     await this.switchMode('Panel');
-    await this.page.getByPlaceholder('Message Claude').waitFor();
+    await this.page.getByRole('region', { name: 'Timmy panel' }).waitFor();
+  }
+
+  /** Adds the demo project in the Workspace. Leaves the Window in Expanded with the project open. */
+  async addDemoProject() {
+    await this.switchMode('Expanded');
+    await this.page.getByRole('button', { name: 'New project' }).first().click();
+    const dialog = this.page.getByRole('dialog', { name: 'New project' });
+    await dialog.getByRole('button', { name: 'Browse' }).click();
+    await dialog.getByRole('button', { name: 'Create project' }).click();
+    await expect(this.page.locator('app-project-list .as-row__title')).toContainText('demo-project', { timeout: 10_000 });
+  }
+
+  /** Adds the demo project and opens a real terminal in it. Leaves the Window in Expanded. */
+  async openProjectTerminal() {
+    await this.addDemoProject();
+    await this.newTerminal();
+  }
+
+  /** "New terminal" of the Project that is open in the Workspace. */
+  async newTerminal() {
+    await this.page.getByRole('region', { name: 'Terminals' }).getByRole('button', { name: 'New terminal' }).click();
+    await expect(this.page.locator('.xterm-screen')).toContainText('PS ', { timeout: 15_000 });
   }
 
   /** Adds the demo project in the Workspace. Leaves the Window in Expanded with the project open. */
