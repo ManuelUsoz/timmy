@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { ProjectId } from '../../src/shared/sessions/sessions.model';
+import { ProjectId } from '../../src/shared/projects/projects.model';
 
 /** Same directory, same string: separators unified, no trailing slash, case folded on Windows. */
 export const normalizeCwd = (cwd: string): string => {

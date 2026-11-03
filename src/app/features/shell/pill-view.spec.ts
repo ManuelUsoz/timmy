@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ProjectId } from '../../../shared/sessions/sessions.model';
+import type { ProjectId } from '../../../shared/projects/projects.model';
 import { TerminalId } from '../../../shared/terminal/terminal.model';
 import type { TerminalEntry, TerminalState } from '../workspace/terminal-entries';
 import { pillView } from './pill-view';

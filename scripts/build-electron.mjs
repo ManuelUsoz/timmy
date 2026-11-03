@@ -8,9 +8,7 @@ const shared = {
   platform: 'node',
   format: 'cjs',
   target: 'node22',
-  // The Agent SDK is ESM and locates its platform binary next to itself, so it
-  // must stay a real node_modules package loaded with import(), not be bundled.
-  external: ['electron', '@anthropic-ai/claude-agent-sdk', 'node-pty'],
+  external: ['electron', 'node-pty'],
   sourcemap: true,
   logLevel: 'info',
 };

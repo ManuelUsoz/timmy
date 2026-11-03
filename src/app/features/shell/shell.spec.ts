@@ -6,7 +6,7 @@ import { WindowRpcs } from '../../../shared/window/window.rpc';
 import type { WindowMode } from '../../../shared/window/window.model';
 import { layerFilesUnused, layerProjectsUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
-import { ProjectId } from '../../../shared/sessions/sessions.model';
+import { ProjectId } from '../../../shared/projects/projects.model';
 import { provideWorkspaceRouter } from '../workspace/workspace.routes';
 import { TerminalsState } from '../workspace/terminals-state';
 import { ShellComponent } from './shell';

@@ -1,7 +1,6 @@
 import { Schema } from 'effect';
 import { Rpc, RpcGroup } from 'effect/rpc';
-import { ProjectId } from '../sessions/sessions.model';
-import { Project, FolderInspection, FolderStatus } from './projects.model';
+import { Project, FolderInspection, FolderStatus, ProjectId } from './projects.model';
 import { ProjectsError } from './projects-error.model';
 
 /** The Projects the user manages in the Workspace. Storage failures are defects. */

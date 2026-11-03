@@ -1,5 +1,5 @@
 import { Project } from '../../../shared/projects/projects.model';
-import { ProjectId } from '../../../shared/sessions/sessions.model';
+import { ProjectId } from '../../../shared/projects/projects.model';
 import { entryPath, entryTarget } from './workspace-entry';
 
 const project = (id: string, lastUsedAt: number | null): Project => ({

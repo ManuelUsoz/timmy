@@ -12,8 +12,7 @@ import { AppInfoRpcs } from '../../src/shared/app-info/app-info.rpc';
 import { layerFolderPickerTest } from '../projects/folder-picker';
 import { layerProjectFoldersTest } from '../projects/project-folders';
 import { layerProjectsService } from '../projects/projects-service';
-import { layerProjectResolver } from '../sessions/project-resolver';
-import { layerSessionRepo } from '../sessions/session-repo';
+import { layerProjectStore } from '../projects/project-store';
 import { layerProjectsHandlers } from './projects';
 
 const at = (...parts: string[]) => path.resolve('/disk', ...parts);
@@ -24,10 +23,9 @@ const makeLayer = (picked: Option.Option<string> = Option.none()) =>
     Layer.mergeAll(
       layerProjectsHandlers.pipe(
         Layer.provide(layerProjectsService),
-        Layer.provide(layerProjectResolver),
         Layer.provide(layerProjectFoldersTest({ folders: { [at('app')]: 'main', [at('plain')]: null } })),
         Layer.provide(layerFolderPickerTest(picked)),
-        Layer.provide(layerSessionRepo(':memory:')),
+        Layer.provide(layerProjectStore(':memory:')),
       ),
       AppInfoRpcs.toLayer({ 'AppInfo.get': () => Effect.die('unused') }),
       layerWindowUnused,

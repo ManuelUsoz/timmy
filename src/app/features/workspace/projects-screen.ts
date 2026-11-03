@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Router } from '@angular/router';
 import type { Project } from '../../../shared/projects/projects.model';
-import { ProjectId } from '../../../shared/sessions/sessions.model';
+import { ProjectId } from '../../../shared/projects/projects.model';
 import { I18n } from '../../core/i18n';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { NewProjectDialog } from './new-project-dialog';

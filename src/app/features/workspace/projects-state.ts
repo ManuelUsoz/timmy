@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Cause, Effect, Exit } from 'effect';
 import type { Project } from '../../../shared/projects/projects.model';
-import type { ProjectId } from '../../../shared/sessions/sessions.model';
+import type { ProjectId } from '../../../shared/projects/projects.model';
 import { DesktopApi, type DesktopApiShape } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { ToastService } from '../../core/toast';

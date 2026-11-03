@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { ProjectId } from '../../../shared/sessions/sessions.model';
+import { ProjectId } from '../../../shared/projects/projects.model';
 import { TerminalId } from '../../../shared/terminal/terminal.model';
 import { TerminalsState } from './terminals-state';
 

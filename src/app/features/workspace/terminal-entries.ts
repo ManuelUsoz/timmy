@@ -1,5 +1,5 @@
 import { TerminalId } from '../../../shared/terminal/terminal.model';
-import type { ProjectId } from '../../../shared/sessions/sessions.model';
+import type { ProjectId } from '../../../shared/projects/projects.model';
 
 export { TerminalId } from '../../../shared/terminal/terminal.model';
 export type { TerminalEvent } from '../../../shared/terminal/terminal.model';

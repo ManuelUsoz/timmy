@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, booleanAttribute, inject, input, output } from '@angular/core';
-import type { ProjectId } from '../../../shared/sessions/sessions.model';
+import type { ProjectId } from '../../../shared/projects/projects.model';
 import { I18n } from '../../core/i18n';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { ListRow } from '../../shared/ui/list-row/list-row';
