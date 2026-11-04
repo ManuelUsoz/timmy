@@ -40,6 +40,10 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
   private instance: Terminal | undefined;
   private serializer: SerializeAddon | undefined;
   private destroyed = false;
+  /** False until the saved screen has been written back: leaving before that must not replace it with a half-restored one. */
+  private screenRestored = false;
+  /** Output handed to xterm whose parsing has not finished: xterm writes asynchronously, and main will not send it again. */
+  private readonly unparsed: string[] = [];
   private resizeObserver: ResizeObserver | undefined;
   private fitFrame = 0;
   private dataSubscription: { dispose: () => void } | undefined;
@@ -95,6 +99,7 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
     });
     void restored.then(() => {
       if (this.destroyed) return;
+      this.screenRestored = true;
       this.size.set(`${instance.cols}×${instance.rows}`);
       this.resizeSubscription = instance.onResize(({ cols, rows }) => {
         this.size.set(`${cols}×${rows}`);
@@ -113,13 +118,15 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
     instance.textarea?.addEventListener('focus', this.onFocus);
 
     const terminals = this.terminals;
+    const unparsed = this.unparsed;
     void this.runtime.run(
       Effect.gen(function* () {
         const desktop = yield* DesktopApi;
         yield* Stream.runForEach(desktop['Terminal.output']({ terminalId: entry.id }), (event) =>
           Effect.sync(() => {
             if (event._tag === 'Data') {
-              instance.write(event.data);
+              unparsed.push(event.data);
+              instance.write(event.data, () => void unparsed.shift());
             } else {
               terminals.exited(entry.id, event.exitCode);
             }
@@ -130,13 +137,24 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
     );
   }
 
-  private readonly onFocus = (): void => void this.terminals.focus(this.terminal().id);
+  /** What the next place that shows this Terminal restores: the screen as parsed so far, then the output still to be parsed. */
+  private saveScreen(): void {
+    const { instance, serializer } = this;
+    const entry = this.terminal();
+    const pending = this.unparsed.join('');
+    if (this.screenRestored && instance !== undefined && serializer !== undefined) {
+      this.terminals.saveScreen(entry.id, { cols: instance.cols, rows: instance.rows, data: serializer.serialize() + pending });
+    } else if (entry.screen !== undefined) {
+      // Left before the saved screen was written back: the saved one still stands, with what arrived since.
+      this.terminals.saveScreen(entry.id, { ...entry.screen, data: entry.screen.data + pending });
+    }
+  }
+
+  private readonly onFocus =(): void => void this.terminals.focus(this.terminal().id);
 
   ngOnDestroy(): void {
     this.destroyed = true;
-    if (this.instance !== undefined && this.serializer !== undefined) {
-      this.terminals.saveScreen(this.terminal().id, { cols: this.instance.cols, rows: this.instance.rows, data: this.serializer.serialize() });
-    }
+    this.saveScreen();
     this.instance?.textarea?.removeEventListener('focus', this.onFocus);
     this.streamAbort.abort();
     this.dataSubscription?.dispose();

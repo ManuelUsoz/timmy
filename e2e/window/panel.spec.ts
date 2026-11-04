@@ -69,13 +69,15 @@ test.describe('the Panel shows the current Terminal', () => {
     await expect(page.locator('.xterm-screen')).not.toContainText('only-in-two');
     await timmy.shot('panel-switched', { mask: [page.locator('app-terminal-screen .cwd'), page.locator('.xterm-screen')] });
 
-    // And back at the size it was recorded at, it still has the output it had.
+    // And back in the Workspace (wide again), it still shows its whole prompt; so does the one that never changed size.
     await timmy.switchMode('Expanded');
-    await page.getByRole('region', { name: 'Terminals' }).getByRole('option', { name: /Terminal 2/ }).click();
+    const terminals = page.getByRole('region', { name: 'Terminals' });
+    await expect(page.locator('app-workspace .xterm-screen')).toContainText(/PS C:\\Users.*demo-project>/);
+    await terminals.getByRole('option', { name: /Terminal 2/ }).click();
     await expect(page.locator('app-workspace .xterm-screen')).toContainText('only-in-two');
+    await terminals.getByRole('option', { name: /Terminal 1/ }).click();
     await expect(page.locator('app-workspace .xterm-screen')).toContainText(/PS C:\\Users.*demo-project>/);
     await timmy.switchMode('Panel');
-    await strip.getByRole('button', { name: 'Terminal 1' }).click();
     await expect(panel.getByRole('heading', { name: 'Terminal 1' })).toBeVisible();
 
     // Stopping the open one leaves the other as the current Terminal; stopping that one brings the empty state back.
