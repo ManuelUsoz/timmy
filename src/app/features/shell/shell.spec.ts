@@ -1,6 +1,9 @@
 import { TestBed } from '@angular/core/testing';
 import { Effect, Layer, PubSub, Ref, Stream } from 'effect';
 import { AppInfoRpcs } from '../../../shared/app-info/app-info.rpc';
+import type { NotificationEvent, TerminalStatus } from '../../../shared/notification/notification.model';
+import { NotificationRpcs } from '../../../shared/notification/notification.rpc';
+import { TerminalId } from '../../../shared/terminal/terminal.model';
 import { SettingsRpcs } from '../../../shared/settings/settings.rpc';
 import { WindowRpcs } from '../../../shared/window/window.rpc';
 import type { WindowMode } from '../../../shared/window/window.model';
@@ -22,6 +25,9 @@ const setup = async () => {
   const setMaximized = (value: boolean) =>
     Effect.runPromise(Ref.set(maximized, value).pipe(Effect.andThen(PubSub.publish(maximizedChanges, value)), Effect.asVoid));
   const mode = Ref.makeUnsafe<WindowMode>('Pill');
+  const notifications = Effect.runSync(PubSub.unbounded<NotificationEvent>());
+  /** What main's bus says: a Terminal entering a status, or going away. */
+  const hear = (event: NotificationEvent) => Effect.runPromise(PubSub.publish(notifications, event).pipe(Effect.asVoid));
   const handlers = Layer.mergeAll(
     AppInfoRpcs.toLayer({
       'AppInfo.get': () =>
@@ -41,6 +47,7 @@ const setup = async () => {
       'Window.maximized': () =>
         Stream.concat(Stream.fromEffect(Ref.get(maximized)), Stream.fromPubSub(maximizedChanges)),
     }),
+    NotificationRpcs.toLayer({ 'Notification.subscribe': () => Stream.fromPubSub(notifications) }),
     layerFilesUnused,
     layerProjectsUnused,
     SettingsRpcs.toLayer({
@@ -64,7 +71,7 @@ const setup = async () => {
   };
   fixture.detectChanges();
   await settle();
-  return { el, settle, fixture, closes, minimizes, toggles, setMaximized };
+  return { el, settle, fixture, closes, minimizes, toggles, setMaximized, hear };
 };
 
 describe('ShellComponent', () => {
@@ -224,42 +231,49 @@ describe('ShellComponent', () => {
     expect(ctx.el.querySelector('button[aria-label="Close Timmy"]')).not.toBeNull();
   });
 
-  describe('the Pill and the Terminals', () => {
+  describe('the Pill and the Notifications from main', () => {
     const pillText = (ctx: Awaited<ReturnType<typeof setup>>) => ctx.el.querySelector('ui-pill button')?.textContent ?? '';
-    const open = (project: string) => {
-      const terminals = TestBed.inject(TerminalsState);
-      const entry = terminals.create(ProjectId.make(project));
-      terminals.setState(entry.id, 'Live');
-      return { terminals, id: entry.id };
-    };
+    const source = (id: string) => ({ _tag: 'Terminal', terminalId: TerminalId.make(id) }) as const;
+    const enter = (ctx: Awaited<ReturnType<typeof setup>>, id: string, type: TerminalStatus) =>
+      ctx.hear({ _tag: 'Notified', notification: { source: source(id), type } });
 
-    it('shows how many Terminals are running, and updates as they open and exit, with no reload', async () => {
+    it('shows how many Terminals are Working, and updates as they start and end, with no reload', async () => {
       const ctx = await setup();
       expect(pillText(ctx)).toContain('Nada en marcha');
       expect(ctx.el.querySelector('ui-pill.as-pill--running')).toBeNull();
 
-      const first = open('p1');
+      await enter(ctx, 'a', 'Working');
       await ctx.settle();
       expect(pillText(ctx)).toContain('Live');
       expect(pillText(ctx)).toContain('1 terminal en marcha');
       expect(ctx.el.querySelector('ui-pill.as-pill--running')).not.toBeNull();
 
-      open('p2');
+      await enter(ctx, 'b', 'Working');
       await ctx.settle();
       expect(pillText(ctx)).toContain('2 terminales en marcha');
 
-      first.terminals.exited(first.id, 0);
+      await enter(ctx, 'a', 'Done');
       await ctx.settle();
       expect(pillText(ctx)).toContain('1 terminal en marcha');
     });
 
-    it('goes back to idle when the last running Terminal exits', async () => {
+    it('goes back to idle when the last Working Terminal ends or is closed', async () => {
       const ctx = await setup();
-      const only = open('p1');
+      await enter(ctx, 'a', 'Working');
+      await enter(ctx, 'b', 'Working');
       await ctx.settle();
-      only.terminals.exited(only.id, 1);
+      await enter(ctx, 'a', 'Error');
+      await ctx.hear({ _tag: 'Retracted', source: source('b') });
       await ctx.settle();
       expect(pillText(ctx)).toContain('Idle');
+      expect(pillText(ctx)).toContain('Nada en marcha');
+    });
+
+    it('does not take a Terminal that is only open in the renderer as running', async () => {
+      const ctx = await setup();
+      const terminals = TestBed.inject(TerminalsState);
+      terminals.setState(terminals.create(ProjectId.make('p1')).id, 'Live');
+      await ctx.settle();
       expect(pillText(ctx)).toContain('Nada en marcha');
     });
   });

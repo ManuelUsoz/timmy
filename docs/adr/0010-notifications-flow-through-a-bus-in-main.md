@@ -1,0 +1,5 @@
+# Notifications flow through a bus in main; the Mascot and the Channels are Subscribers
+
+Main derives each Terminal's status from its process and publishes it as a Notification on a bus (`NotificationBus`). The bus keeps the latest Notification of every Source that still exists, replays them to each new Subscriber, and retracts a Source when it ceases to exist (a Terminal is closed). The renderer is a Subscriber over one stream RPC (`Notification.subscribe`); the Pill, and later the Mascot and every Channel, read from it instead of deriving Terminal status in the renderer.
+
+We rejected deriving status in the renderer: the Channels (toast, voice, push) must alert while the window is a Pill or hidden, and the Hook and the output tap, which will become more inputs to the same Terminal Source, already live in main. A bus with replay also means a Subscriber never depends on having been listening at the moment something happened. The cost is that anything a Subscriber needs must be a Notification: until the output tap feeds the Terminal Source, the Pill still reads "needs attention" from Terminal activity.

@@ -1,6 +1,7 @@
 import { Effect, Layer, Stream } from 'effect';
 import { RpcClient, RpcTest, type Rpc, type RpcGroup } from 'effect/rpc';
 import { FilesRpcs } from '../../shared/files/files.rpc';
+import { NotificationRpcs } from '../../shared/notification/notification.rpc';
 import { DesktopRpcs } from '../../shared/rpc/desktop-rpcs';
 import { ProjectsRpcs } from '../../shared/projects/projects.rpc';
 import { SettingsRpcs } from '../../shared/settings/settings.rpc';
@@ -27,7 +28,7 @@ export const layerDesktop: Layer.Layer<DesktopApi, DesktopBridgeError> = Layer.u
 export const makeDesktopTestLayer = (
   handlers: Layer.Layer<any>,
 ): Layer.Layer<DesktopApi> =>
-  Layer.effect(DesktopApi, RpcTest.makeClient(DesktopRpcs)).pipe(Layer.provide(Layer.merge(layerTerminalUnused, handlers)));
+  Layer.effect(DesktopApi, RpcTest.makeClient(DesktopRpcs)).pipe(Layer.provide(Layer.mergeAll(layerTerminalUnused, layerNotificationUnused, handlers)));
 
 const windowUnused = () => Effect.die('Window handler not under test');
 
@@ -52,6 +53,11 @@ export const layerTerminalUnused = TerminalRpcs.toLayer({
   'Terminal.write': terminalUnused,
   'Terminal.resize': terminalUnused,
   'Terminal.close': terminalUnused,
+});
+
+/** Notification handlers that die when called, so a test of another domain can still build `DesktopRpcs`. */
+export const layerNotificationUnused = NotificationRpcs.toLayer({
+  'Notification.subscribe': () => Stream.die('Notification handler not under test'),
 });
 
 const settingsUnused = () => Effect.die('Settings handler not under test');

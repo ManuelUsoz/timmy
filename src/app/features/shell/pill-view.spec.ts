@@ -1,44 +1,42 @@
 import { describe, expect, it } from 'vitest';
-import type { ProjectId } from '../../../shared/projects/projects.model';
+import type { Notification, TerminalStatus } from '../../../shared/notification/notification.model';
 import { TerminalId } from '../../../shared/terminal/terminal.model';
-import type { TerminalActivity, TerminalEntry, TerminalState } from '../workspace/terminal-entries';
 import { pillView } from './pill-view';
 
-const terminal = (id: string, state: TerminalState, activity: TerminalActivity = 'Idle'): TerminalEntry => ({
-  id: TerminalId.make(id),
-  projectId: 'p' as ProjectId,
-  number: 1,
-  state,
-  activity,
-});
+const notification = (id: string, type: TerminalStatus): Notification => ({ source: { _tag: 'Terminal', terminalId: TerminalId.make(id) }, type });
+const attending = (...ids: string[]): ReadonlySet<TerminalId> => new Set(ids.map((id) => TerminalId.make(id)));
+const none = attending();
 
 describe('pillView', () => {
-  it('is Idle, without pulse, when there are no Terminals', () => {
-    expect(pillView([])).toEqual({ tone: 'neutral', state: 'Idle', running: 0, attention: 0, pulse: false });
+  it('is Idle, without pulse, when there are no Notifications', () => {
+    expect(pillView([], none)).toEqual({ tone: 'neutral', state: 'Idle', running: 0, attention: 0, pulse: false });
   });
 
-  it('counts the Terminals whose process is alive and pulses', () => {
-    const view = pillView([terminal('a', 'Live'), terminal('b', 'Live')]);
+  it('counts the Working Terminals and pulses', () => {
+    const view = pillView([notification('a', 'Working'), notification('b', 'Working')], none);
     expect(view).toEqual({ tone: 'running', state: 'Live', running: 2, attention: 0, pulse: true });
   });
 
-  it.each<TerminalState>(['Done', 'Error', 'Idle'])('does not count a %s Terminal as running', (state) => {
-    expect(pillView([terminal('a', state)])).toMatchObject({ state: 'Idle', running: 0 });
-    expect(pillView([terminal('a', state), terminal('b', 'Live')])).toMatchObject({ state: 'Live', running: 1 });
+  it.each<TerminalStatus>(['Done', 'Error', 'Idle'])('does not count a %s Terminal as running', (type) => {
+    expect(pillView([notification('a', type)], none)).toMatchObject({ state: 'Idle', running: 0 });
+    expect(pillView([notification('a', type), notification('b', 'Working')], none)).toMatchObject({ state: 'Live', running: 1 });
   });
 });
 
 describe('pillView: attention', () => {
-  it('takes over the Pill when a running Terminal needs attention, and counts them', () => {
-    const view = pillView([terminal('a', 'Live', 'NeedsAttention'), terminal('b', 'Live', 'Active'), terminal('c', 'Live', 'NeedsAttention')]);
+  it('takes over the Pill when a Working Terminal needs attention, and counts them', () => {
+    const view = pillView(
+      [notification('a', 'Working'), notification('b', 'Working'), notification('c', 'Working')],
+      attending('a', 'c'),
+    );
     expect(view).toEqual({ tone: 'waiting', state: 'Attention', running: 3, attention: 2, pulse: true });
   });
 
-  it('ignores the attention of a Terminal whose process ended', () => {
-    expect(pillView([terminal('a', 'Done', 'NeedsAttention')])).toMatchObject({ state: 'Idle', attention: 0 });
+  it('ignores the attention of a Terminal that is not Working', () => {
+    expect(pillView([notification('a', 'Done')], attending('a'))).toMatchObject({ state: 'Idle', attention: 0 });
   });
 
   it('goes back to Live when the user has seen them all', () => {
-    expect(pillView([terminal('a', 'Live', 'Idle')])).toMatchObject({ tone: 'running', state: 'Live', attention: 0 });
+    expect(pillView([notification('a', 'Working')], none)).toMatchObject({ tone: 'running', state: 'Live', attention: 0 });
   });
 });
