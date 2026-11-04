@@ -1,6 +1,7 @@
 import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { Effect, Stream } from 'effect';
 import { FitAddon } from '@xterm/addon-fit';
+import { SerializeAddon } from '@xterm/addon-serialize';
 import { Terminal } from '@xterm/xterm';
 import { DesktopApi } from '../../core/desktop-api';
 import { I18n } from '../../core/i18n';
@@ -37,6 +38,8 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
   protected readonly size = signal('120×34');
 
   private instance: Terminal | undefined;
+  private serializer: SerializeAddon | undefined;
+  private destroyed = false;
   private resizeObserver: ResizeObserver | undefined;
   private fitFrame = 0;
   private dataSubscription: { dispose: () => void } | undefined;
@@ -70,19 +73,35 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
       theme: terminalTheme({ background: token('--background') || '#161616', foreground: token('--text-primary') || '#f4f4f4', focus: token('--focus') || '#ffffff' }),
     });
     const fit = new FitAddon();
+    const serializer = new SerializeAddon();
     instance.loadAddon(fit);
+    instance.loadAddon(serializer);
     this.instance = instance;
+    this.serializer = serializer;
     instance.open(this.host().nativeElement);
     this.xtermReady.set(true);
     fit.fit();
     this.size.set(`${instance.cols}×${instance.rows}`);
-    if (entry.output !== '') instance.write(entry.output);
     this.dataSubscription = instance.onData((data) => void this.terminals.write(entry.id, data));
-    this.resizeSubscription = instance.onResize(({ cols, rows }) => {
-      this.size.set(`${cols}×${rows}`);
-      void this.terminals.resize(entry.id, cols, rows);
+    // The screen is restored at the size it was recorded at and then fitted: xterm reflows it as it does for any resize,
+    // which a raw replay into the new size does not. The PTY only hears of the final size.
+    const restored = new Promise<void>((resolve) => {
+      if (entry.screen === undefined) return resolve();
+      instance.resize(entry.screen.cols, entry.screen.rows);
+      instance.write(entry.screen.data, () => {
+        fit.fit();
+        resolve();
+      });
     });
-    void this.terminals.resize(entry.id, instance.cols, instance.rows);
+    void restored.then(() => {
+      if (this.destroyed) return;
+      this.size.set(`${instance.cols}×${instance.rows}`);
+      this.resizeSubscription = instance.onResize(({ cols, rows }) => {
+        this.size.set(`${cols}×${rows}`);
+        void this.terminals.resize(entry.id, cols, rows);
+      });
+      void this.terminals.resize(entry.id, instance.cols, instance.rows);
+    });
     this.resizeObserver = new ResizeObserver(() => {
       cancelAnimationFrame(this.fitFrame);
       this.fitFrame = requestAnimationFrame(() => fit.fit());
@@ -101,7 +120,6 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
           Effect.sync(() => {
             if (event._tag === 'Data') {
               instance.write(event.data);
-              terminals.appendOutput(entry.id, event.data);
             } else {
               terminals.exited(entry.id, event.exitCode);
             }
@@ -115,6 +133,10 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
   private readonly onFocus = (): void => void this.terminals.focus(this.terminal().id);
 
   ngOnDestroy(): void {
+    this.destroyed = true;
+    if (this.instance !== undefined && this.serializer !== undefined) {
+      this.terminals.saveScreen(this.terminal().id, { cols: this.instance.cols, rows: this.instance.rows, data: this.serializer.serialize() });
+    }
     this.instance?.textarea?.removeEventListener('focus', this.onFocus);
     this.streamAbort.abort();
     this.dataSubscription?.dispose();

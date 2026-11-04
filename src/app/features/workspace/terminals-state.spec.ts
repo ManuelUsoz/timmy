@@ -18,7 +18,8 @@ describe('TerminalsState', () => {
   it('creates an Idle terminal in the project, which can then be found', () => {
     const terminals = TestBed.inject(TerminalsState);
     const created = terminals.create(timmy);
-    expect(created).toMatchObject({ projectId: timmy, number: 1, state: 'Idle', output: '' });
+    expect(created).toMatchObject({ projectId: timmy, number: 1, state: 'Idle' });
+    expect(created.screen).toBeUndefined();
     expect(terminals.find(created.id)).toEqual(created);
     expect(terminals.entries()).toEqual([created]);
   });
@@ -36,6 +37,14 @@ describe('TerminalsState', () => {
     const created = terminals.create(timmy);
     terminals.setState(created.id, 'Error');
     expect(terminals.find(created.id)?.state).toBe('Error');
+  });
+
+  it('keeps the screen a Terminal had when it left the window, to restore it where it is shown next', () => {
+    const terminals = TestBed.inject(TerminalsState);
+    const created = terminals.create(timmy);
+    const screen = { cols: 120, rows: 34, data: 'PS C:\\demo> ' };
+    terminals.saveScreen(created.id, screen);
+    expect(terminals.find(created.id)?.screen).toEqual(screen);
   });
 
   describe('the current terminal', () => {

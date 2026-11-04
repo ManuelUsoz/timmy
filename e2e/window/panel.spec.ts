@@ -64,9 +64,19 @@ test.describe('the Panel shows the current Terminal', () => {
 
     await strip.getByRole('button', { name: 'Terminal 1' }).click();
     await expect(panel.getByRole('heading', { name: 'Terminal 1' })).toBeVisible();
-    await expect(page.locator('.xterm-screen')).toContainText('demo-project>');
+    // Terminal 1 was recorded in the Workspace (wide) and is shown here (narrow): its screen is restored whole, not cut at the start.
+    await expect(page.locator('.xterm-screen')).toContainText(/PS C:\\Users.*demo-project>/);
     await expect(page.locator('.xterm-screen')).not.toContainText('only-in-two');
     await timmy.shot('panel-switched', { mask: [page.locator('app-terminal-screen .cwd'), page.locator('.xterm-screen')] });
+
+    // And back at the size it was recorded at, it still has the output it had.
+    await timmy.switchMode('Expanded');
+    await page.getByRole('region', { name: 'Terminals' }).getByRole('option', { name: /Terminal 2/ }).click();
+    await expect(page.locator('app-workspace .xterm-screen')).toContainText('only-in-two');
+    await expect(page.locator('app-workspace .xterm-screen')).toContainText(/PS C:\\Users.*demo-project>/);
+    await timmy.switchMode('Panel');
+    await strip.getByRole('button', { name: 'Terminal 1' }).click();
+    await expect(panel.getByRole('heading', { name: 'Terminal 1' })).toBeVisible();
 
     // Stopping the open one leaves the other as the current Terminal; stopping that one brings the empty state back.
     await panel.getByRole('button', { name: 'Stop' }).click();

@@ -8,6 +8,13 @@ export type { TerminalActivity, TerminalEvent } from '../../../shared/terminal/t
 /** What a terminal row says it is doing. Only `Idle` can happen until there is a process behind them. */
 export type TerminalState = 'Live' | 'Done' | 'Idle' | 'Error';
 
+/** A Terminal's screen as xterm serialized it, with the size it was at: it is restored at that size and then fitted. */
+export interface TerminalScreenSnapshot {
+  readonly cols: number;
+  readonly rows: number;
+  readonly data: string;
+}
+
 /** A terminal of a project. Local to this run of the app: nothing about terminals is stored. */
 export interface TerminalEntry {
   readonly id: TerminalId;
@@ -17,8 +24,8 @@ export interface TerminalEntry {
   readonly state: TerminalState;
   /** What its output says it is doing, as main reads it. Meaningful while the process is alive. */
   readonly activity: TerminalActivity;
-  /** Output received from main, retained only for this app run so switching terminals is lossless. */
-  readonly output: string;
+  /** The screen it had when it was last shown, retained only for this app run so switching terminals is lossless. */
+  readonly screen?: TerminalScreenSnapshot;
   /** The Provider whose CLI it was opened with, so a restart runs it again; absent for a plain shell. */
   readonly provider?: Provider;
   /** How the process ended; absent while it has not. */
@@ -32,7 +39,7 @@ export const terminalsOf = (entries: ReadonlyArray<TerminalEntry>, projectId: Pr
 /** A new, Idle terminal for the project, numbered after the last one it has. */
 export const addTerminal = (entries: ReadonlyArray<TerminalEntry>, projectId: ProjectId, id: TerminalId, provider?: Provider): ReadonlyArray<TerminalEntry> => {
   const last = terminalsOf(entries, projectId).reduce((max, entry) => Math.max(max, entry.number), 0);
-  return [...entries, { id, projectId, number: last + 1, state: 'Idle', activity: 'Idle', output: '', ...(provider === undefined ? {} : { provider }) }];
+  return [...entries, { id, projectId, number: last + 1, state: 'Idle', activity: 'Idle', ...(provider === undefined ? {} : { provider }) }];
 };
 
 export const withState = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, state: TerminalState): ReadonlyArray<TerminalEntry> =>
@@ -45,13 +52,13 @@ export const withActivity = (entries: ReadonlyArray<TerminalEntry>, snapshot: Re
     return reported === undefined || reported.activity === entry.activity ? entry : { ...entry, activity: reported.activity };
   });
 
-export const withOutput = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, data: string): ReadonlyArray<TerminalEntry> =>
-  entries.map((entry) => (entry.id === id ? { ...entry, output: `${entry.output}${data}`.slice(-200_000) } : entry));
+export const withScreen = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, screen: TerminalScreenSnapshot): ReadonlyArray<TerminalEntry> =>
+  entries.map((entry) => (entry.id === id ? { ...entry, screen } : entry));
 
 /** The process ended: a clean exit is Done, any other code is an Error that keeps the code to show. */
 export const withExit = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, exitCode: number): ReadonlyArray<TerminalEntry> =>
   entries.map((entry) => (entry.id === id ? { ...entry, state: exitCode === 0 ? 'Done' : 'Error', exitCode } : entry));
 
-/** A fresh Live process takes the place of an entry: same project, number and Provider, new id, no output carried over. */
+/** A fresh Live process takes the place of an entry: same project, number and Provider, new id, no screen carried over. */
 export const restarted = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, next: TerminalId): ReadonlyArray<TerminalEntry> =>
-  entries.map((entry) => (entry.id === id ? { id: next, projectId: entry.projectId, number: entry.number, state: 'Live', activity: 'Idle', output: '', ...(entry.provider === undefined ? {} : { provider: entry.provider }) } : entry));
+  entries.map((entry) => (entry.id === id ? { id: next, projectId: entry.projectId, number: entry.number, state: 'Live', activity: 'Idle', ...(entry.provider === undefined ? {} : { provider: entry.provider }) } : entry));

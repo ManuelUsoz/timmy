@@ -5,7 +5,7 @@ import type { Provider } from '../../../shared/settings/settings.model';
 import { TerminalId, type TerminalActivityEntry } from '../../../shared/terminal/terminal.model';
 import { DesktopApi } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
-import { addTerminal, restarted, withActivity, withExit, withOutput, withState, type TerminalEntry, type TerminalState } from './terminal-entries';
+import { addTerminal, restarted, withActivity, withExit, withScreen, withState, type TerminalEntry, type TerminalScreenSnapshot, type TerminalState } from './terminal-entries';
 
 @Injectable({ providedIn: 'root' })
 export class TerminalsState {
@@ -60,8 +60,9 @@ export class TerminalsState {
     if (this.find(id) !== undefined) this.currentId.set(id);
   }
 
-  appendOutput(id: TerminalId, data: string): void {
-    this.all.update((entries) => withOutput(entries, id, data));
+  /** Keeps the screen of a Terminal that is leaving the window, so the next place that shows it can restore it. */
+  saveScreen(id: TerminalId, screen: TerminalScreenSnapshot): void {
+    this.all.update((entries) => withScreen(entries, id, screen));
   }
 
   setState(id: TerminalId, state: TerminalState): void {
