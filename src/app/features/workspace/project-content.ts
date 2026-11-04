@@ -11,7 +11,7 @@ import { NewTerminal } from './new-terminal';
 import { ProjectsState } from './projects-state';
 import { terminalsOf, type TerminalEntry, type TerminalId } from './terminal-entries';
 import { SAMPLE_EXIT_CODE } from './terminal-sample';
-import { shortPath, terminalStateKey, terminalTone } from './terminal-view';
+import { shortPath, terminalBadge } from './terminal-view';
 import { TerminalsState } from './terminals-state';
 
 /** The selected project: who it is, its Terminals and its files. */
@@ -25,8 +25,7 @@ import { TerminalsState } from './terminals-state';
 export class ProjectContent {
   protected readonly state = inject(ProjectsState);
   protected readonly i18n = inject(I18n);
-  protected readonly terminalTone = terminalTone;
-  protected readonly terminalStateKey = terminalStateKey;
+  protected readonly terminalBadge = terminalBadge;
   private readonly terminalsState = inject(TerminalsState);
 
   /** The project's folder is not on disk: only the header and an Archivos that says so are shown. */

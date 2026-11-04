@@ -27,9 +27,10 @@ export class ShellComponent {
   private readonly terminals = inject(TerminalsState);
   protected readonly pill = computed(() => pillView(this.terminals.entries()));
   /** The Pill's state word and its sentence, translated here so the view model stays language-free. */
-  protected readonly pillLabel = computed(() => this.i18n.t(this.pill().state === 'Live' ? 'state.live' : 'state.idle'));
+  protected readonly pillLabel = computed(() => this.i18n.t(({ Live: 'state.live', Idle: 'state.idle', Attention: 'activity.needsAttention' } as const)[this.pill().state]));
   protected readonly pillText = computed(() => {
-    const { running } = this.pill();
+    const { running, attention } = this.pill();
+    if (attention > 0) return attention === 1 ? this.i18n.t('pill.attentionOne') : this.i18n.t('pill.attentionMany', { count: attention });
     if (running === 0) return this.i18n.t('pill.idle');
     return running === 1 ? this.i18n.t('pill.runningOne') : this.i18n.t('pill.runningMany', { count: running });
   });

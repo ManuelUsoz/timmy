@@ -47,6 +47,8 @@ const terminalUnused = () => Effect.die('Terminal handler not under test');
 export const layerTerminalUnused = TerminalRpcs.toLayer({
   'Terminal.create': terminalUnused,
   'Terminal.output': terminalUnused,
+  'Terminal.activity': terminalUnused,
+  'Terminal.focus': terminalUnused,
   'Terminal.write': terminalUnused,
   'Terminal.resize': terminalUnused,
   'Terminal.close': terminalUnused,

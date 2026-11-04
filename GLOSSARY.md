@@ -40,6 +40,10 @@ The full navigation shell shown in Expanded: a rail of areas (Projects, Settings
 What a Terminal is doing: Working, Waiting (a live agent is stalled until the user acts), Done (exited cleanly), Error (exited otherwise) or Idle (not started).
 _Avoid_: state (already used for Window mode and the process state).
 
+**Terminal activity**
+What a Terminal's output says it is doing while its process is alive: Active (printing), Idle (quiet for a while) or Needs attention (it rang a bell or sent a notification, until the user focuses the Terminal). The output tap in main reads it from the raw output stream, without parsing it into messages; a Hook can later feed the same signals. It is the generic fallback for Terminals without a Hook, and is not the Terminal status.
+_Avoid_: state.
+
 **Seen**
 A Done or Error Terminal the user has viewed: it was selected while its content was on screen (Panel or Expanded). A Seen Terminal counts as Idle for the Mascot. Working and Waiting are never Seen, and a restarted Terminal starts unseen.
 
