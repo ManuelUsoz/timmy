@@ -36,7 +36,7 @@ test.describe('the Pill shows the running Terminals', () => {
     await timmy.shot('pill-after-closing');
   });
 
-  test('stops counting a Terminal whose process exited', async ({ timmy }) => {
+  test('does not count a Terminal whose process exited as running', async ({ timmy }) => {
     const { page } = timmy;
     await timmy.openProjectTerminal();
     await page.locator('.xterm-helper-textarea').focus();
@@ -44,6 +44,6 @@ test.describe('the Pill shows the running Terminals', () => {
     await page.keyboard.press('Enter');
     await expect(page.getByRole('button', { name: 'Close terminal' })).toBeEnabled();
     await timmy.switchMode('Pill');
-    await expect(page.locator('ui-pill')).toContainText('Nothing running');
+    await expect(page.locator('ui-pill')).toContainText('1 terminal done');
   });
 });

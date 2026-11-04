@@ -20,6 +20,7 @@ let nextId = 0;
     '[class.as-pill--done]': "tone() === 'done'",
     '[class.as-pill--pulse]': 'pulse()',
     '[class.as-pill--square]': 'square()',
+    '[class.as-pill--lg]': 'large()',
   },
 })
 export class PillComponent {
@@ -30,6 +31,11 @@ export class PillComponent {
   readonly pulse = input(false, { transform: booleanAttribute });
   /** Square corners (radius 0), as in the collapsed corner pill. */
   readonly square = input(false, { transform: booleanAttribute });
+  /**
+   * The tall Pill (88px) led by the Mascot: the state dot is gone, since the Mascot carries the status, and the state word
+   * sits above the text.
+   */
+  readonly large = input(false, { transform: booleanAttribute });
   /** Subagent count; hidden when null or undefined. */
   readonly subagents = input<number | null>(null);
   /** Worktree count; hidden when null or undefined. */

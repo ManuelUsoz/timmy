@@ -42,7 +42,7 @@ export const restoredBounds = (geometry: WindowGeometry): Rect =>
   geometry.maximized ? geometry.normalBounds : geometry.bounds;
 
 const MARGIN = 16;
-const PILL_SIZE = { width: 440, height: 40 } as const;
+const PILL_SIZE = { width: 440, height: 88 } as const;
 const PANEL_SIZE = { width: 440, height: 560 } as const;
 
 const EXPANDED_SIZE = { width: 1280, height: 800 } as const;

@@ -1,29 +1,25 @@
-import type { Notification } from '../../../shared/notification/notification.model';
+import type { Notification, TerminalStatus } from '../../../shared/notification/notification.model';
 import type { TerminalId } from '../../../shared/terminal/terminal.model';
-import type { PillTone } from '../../shared/ui/pill/pill';
 
 export interface PillView {
-  readonly tone: PillTone;
-  /** What the Pill shows as its state word; the caller translates it. */
-  readonly state: 'Idle' | 'Live' | 'Attention';
-  /** Working Terminals, in every Project. */
-  readonly running: number;
-  /** Working Terminals that asked for the user (a bell or a notification) and have not been focused since. */
-  readonly attention: number;
-  readonly pulse: boolean;
+  /** The highest-priority Terminal status across all Projects: what the Mascot shows. */
+  readonly status: TerminalStatus;
+  /** How many Terminals are in that status. Meaningless while Idle, where the Pill says nothing is running. */
+  readonly count: number;
 }
 
+/** Most urgent first (GLOSSARY: Mascot). */
+const PRIORITY: ReadonlyArray<TerminalStatus> = ['Waiting', 'Error', 'Working', 'Done', 'Idle'];
+
 /**
- * What the Pill shows, from the latest Notification of every Source: how many Terminals are Working, or Idle when
- * there are none. A Working Terminal that needs attention takes over the Pill until the user focuses it. Attention is
- * not a Notification yet (it is what the output tap reads), so the caller says which Terminals have it.
+ * What the Pill shows, from the latest Notification of every Source: the highest-priority status and how many Terminals
+ * are in it. A Working Terminal that needs attention counts as Waiting until the user focuses it. Attention is not a
+ * Notification yet (it is what the output tap reads), so the caller says which Terminals have it.
  */
 export const pillView = (notifications: ReadonlyArray<Notification>, needingAttention: ReadonlySet<TerminalId>): PillView => {
-  const working = notifications.filter((notification) => notification.type === 'Working');
-  const running = working.length;
-  const attention = working.filter((notification) => needingAttention.has(notification.source.terminalId)).length;
-  if (running === 0) return { tone: 'neutral', state: 'Idle', running, attention, pulse: false };
-  return attention > 0
-    ? { tone: 'waiting', state: 'Attention', running, attention, pulse: true }
-    : { tone: 'running', state: 'Live', running, attention, pulse: true };
+  const statuses = notifications.map((notification): TerminalStatus =>
+    notification.type === 'Working' && needingAttention.has(notification.source.terminalId) ? 'Waiting' : notification.type,
+  );
+  const status = PRIORITY.find((candidate) => statuses.includes(candidate)) ?? 'Idle';
+  return { status, count: statuses.filter((candidate) => candidate === status).length };
 };

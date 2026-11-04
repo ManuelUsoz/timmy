@@ -232,6 +232,28 @@
 </section>
 
 <section>
+  <h2>Mascot</h2>
+  <h3>every status</h3>
+  <div class="row" data-testid="mascot-statuses">
+    @for (status of mascotStatuses; track status) {
+      <figure style="margin: 0; display: flex; flex-direction: column; align-items: center; gap: 8px">
+        <ui-mascot [status]="status" [size]="72" [label]="status" />
+        <figcaption>{{ status }}</figcaption>
+      </figure>
+    }
+  </div>
+  <h3>in the Pill</h3>
+  <div class="row" style="flex-direction: column; align-items: stretch; width: 440px">
+    @for (status of mascotStatuses; track status) {
+      <ui-pill square large [label]="status">
+        <ui-mascot pillLead [status]="status" [size]="72" />
+        {{ status }} terminal
+      </ui-pill>
+    }
+  </div>
+</section>
+
+<section>
   <h2>Logo</h2>
   <h3>geometric 16 / 24 / 28</h3>
   <div class="row">

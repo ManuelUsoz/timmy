@@ -233,20 +233,28 @@ describe('ShellComponent', () => {
 
   describe('the Pill and the Notifications from main', () => {
     const pillText = (ctx: Awaited<ReturnType<typeof setup>>) => ctx.el.querySelector('ui-pill button')?.textContent ?? '';
+    const mascot = (ctx: Awaited<ReturnType<typeof setup>>) => ctx.el.querySelector('ui-pill ui-mascot');
     const source = (id: string) => ({ _tag: 'Terminal', terminalId: TerminalId.make(id) }) as const;
     const enter = (ctx: Awaited<ReturnType<typeof setup>>, id: string, type: TerminalStatus) =>
       ctx.hear({ _tag: 'Notified', notification: { source: source(id), type } });
 
+    it('leads with the Mascot, gray when nothing is running, and has no state dot', async () => {
+      const ctx = await setup();
+      expect(mascot(ctx)?.getAttribute('data-status')).toBe('Idle');
+      expect(ctx.el.querySelector('ui-pill .as-pill__lead ui-mascot')).not.toBeNull();
+      expect(ctx.el.querySelector('ui-pill')?.classList).toContain('as-pill--lg');
+      expect(ctx.el.querySelector('ui-pill .as-dot')).toBeNull();
+    });
+
     it('shows how many Terminals are Working, and updates as they start and end, with no reload', async () => {
       const ctx = await setup();
       expect(pillText(ctx)).toContain('Nada en marcha');
-      expect(ctx.el.querySelector('ui-pill.as-pill--running')).toBeNull();
 
       await enter(ctx, 'a', 'Working');
       await ctx.settle();
       expect(pillText(ctx)).toContain('Live');
       expect(pillText(ctx)).toContain('1 terminal en marcha');
-      expect(ctx.el.querySelector('ui-pill.as-pill--running')).not.toBeNull();
+      expect(mascot(ctx)?.getAttribute('data-status')).toBe('Working');
 
       await enter(ctx, 'b', 'Working');
       await ctx.settle();
@@ -257,14 +265,39 @@ describe('ShellComponent', () => {
       expect(pillText(ctx)).toContain('1 terminal en marcha');
     });
 
-    it('goes back to idle when the last Working Terminal ends or is closed', async () => {
+    it('turns the Mascot red, with the word Error, when a Terminal exits with an error', async () => {
       const ctx = await setup();
       await enter(ctx, 'a', 'Working');
+      await enter(ctx, 'a', 'Error');
+      await ctx.settle();
+      expect(mascot(ctx)?.getAttribute('data-status')).toBe('Error');
+      expect(pillText(ctx)).toContain('Error');
+      expect(pillText(ctx)).toContain('1 terminal ha fallado');
+    });
+
+    it('shows the highest-priority status of all the Terminals', async () => {
+      const ctx = await setup();
+      await enter(ctx, 'a', 'Done');
       await enter(ctx, 'b', 'Working');
       await ctx.settle();
-      await enter(ctx, 'a', 'Error');
+      expect(mascot(ctx)?.getAttribute('data-status')).toBe('Working');
+      await enter(ctx, 'c', 'Error');
+      await ctx.settle();
+      expect(mascot(ctx)?.getAttribute('data-status')).toBe('Error');
+      await enter(ctx, 'd', 'Waiting');
+      await ctx.settle();
+      expect(mascot(ctx)?.getAttribute('data-status')).toBe('Waiting');
+    });
+
+    it('goes back to idle when the last Terminal is closed', async () => {
+      const ctx = await setup();
+      await enter(ctx, 'a', 'Working');
+      await enter(ctx, 'b', 'Error');
+      await ctx.settle();
+      await ctx.hear({ _tag: 'Retracted', source: source('a') });
       await ctx.hear({ _tag: 'Retracted', source: source('b') });
       await ctx.settle();
+      expect(mascot(ctx)?.getAttribute('data-status')).toBe('Idle');
       expect(pillText(ctx)).toContain('Idle');
       expect(pillText(ctx)).toContain('Nada en marcha');
     });

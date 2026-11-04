@@ -1,6 +1,9 @@
 <button type="button" class="as-pill__btn" [attr.aria-labelledby]="labelledBy">
   <span class="as-pill__lead" aria-hidden="true"><ng-content select="[pillLead]" /></span>
-  <span class="as-pill__state" [id]="stateId"><i class="as-dot" aria-hidden="true"></i>{{ label() }}</span>
+  <span class="as-pill__state" [id]="stateId">@if (!large()) {
+      <i class="as-dot" aria-hidden="true"></i>
+    }
+    {{ label() }}</span>
   <span class="as-pill__text" [id]="textId"><ng-content /></span>
   <span class="as-pill__counts" [id]="countsId">
     @if (subagents() !== null) {

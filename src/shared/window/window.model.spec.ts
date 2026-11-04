@@ -23,6 +23,10 @@ describe('window modes', () => {
     expect(panel.bounds.y + panel.bounds.height).toBe(pill.bounds.y + pill.bounds.height);
   });
 
+  it('makes the Pill 440x88, led by the Mascot', () => {
+    expect(planFor('Pill', workArea).bounds).toMatchObject({ width: 440, height: 88 });
+  });
+
   it('respects a work area that does not start at the origin', () => {
     const plan = planFor('Pill', { x: 1920, y: 40, width: 1280, height: 720 });
     expect(plan.bounds.x + plan.bounds.width).toBe(1920 + 1280 - 16);

@@ -6,7 +6,7 @@ import { NotificationsState } from './notifications-state';
 import { PanelTerminal } from './panel-terminal';
 import { TerminalsState } from '../workspace/terminals-state';
 import { WorkspaceComponent } from '../workspace/workspace';
-import { AvatarComponent } from '../../shared/ui/avatar/avatar';
+import { MascotComponent } from '../../shared/ui/mascot/mascot';
 import { MenuComponent } from '../../shared/ui/menu/menu';
 import { OptionComponent } from '../../shared/ui/menu/option';
 import { PillComponent } from '../../shared/ui/pill/pill';
@@ -17,7 +17,7 @@ import { WindowModeState } from './window-mode-state';
 /** Picks the content for the current Window mode. Nothing here changes the mode on its own: only the switcher and double-clicks do. */
 @Component({
   selector: 'app-shell',
-  imports: [NgTemplateOutlet, PanelTerminal, WorkspaceComponent, PillComponent, AvatarComponent, MenuComponent, OptionComponent],
+  imports: [NgTemplateOutlet, PanelTerminal, WorkspaceComponent, PillComponent, MascotComponent, MenuComponent, OptionComponent],
   templateUrl: './shell.html',
   styleUrl: './shell.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -31,12 +31,15 @@ export class ShellComponent {
   private readonly needingAttention = computed(() => new Set(this.terminals.entries().filter((entry) => entry.activity === 'NeedsAttention').map((entry) => entry.id)));
   protected readonly pill = computed(() => pillView(this.notifications.notifications(), this.needingAttention()));
   /** The Pill's state word and its sentence, translated here so the view model stays language-free. */
-  protected readonly pillLabel = computed(() => this.i18n.t(({ Live: 'state.live', Idle: 'state.idle', Attention: 'activity.needsAttention' } as const)[this.pill().state]));
+  protected readonly pillLabel = computed(() =>
+    this.i18n.t(({ Working: 'state.live', Idle: 'state.idle', Waiting: 'activity.needsAttention', Done: 'state.done', Error: 'state.error' } as const)[this.pill().status]),
+  );
   protected readonly pillText = computed(() => {
-    const { running, attention } = this.pill();
-    if (attention > 0) return attention === 1 ? this.i18n.t('pill.attentionOne') : this.i18n.t('pill.attentionMany', { count: attention });
-    if (running === 0) return this.i18n.t('pill.idle');
-    return running === 1 ? this.i18n.t('pill.runningOne') : this.i18n.t('pill.runningMany', { count: running });
+    const { status, count } = this.pill();
+    if (status === 'Idle') return this.i18n.t('pill.idle');
+    const one = { Working: 'pill.runningOne', Waiting: 'pill.attentionOne', Done: 'pill.doneOne', Error: 'pill.errorOne' } as const;
+    const many = { Working: 'pill.runningMany', Waiting: 'pill.attentionMany', Done: 'pill.doneMany', Error: 'pill.errorMany' } as const;
+    return count === 1 ? this.i18n.t(one[status]) : this.i18n.t(many[status], { count });
   });
   protected readonly switcherOpen = signal(false);
 

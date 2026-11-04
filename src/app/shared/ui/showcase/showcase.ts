@@ -7,6 +7,7 @@ import { NotificationComponent } from '../notification/notification';
 import { CheckboxComponent } from '../checkbox/checkbox';
 import { AvatarComponent } from '../avatar/avatar';
 import { LogoComponent } from '../logo/logo';
+import { MascotComponent } from '../mascot/mascot';
 import { MenuComponent } from '../menu/menu';
 import { OptionComponent } from '../menu/option';
 import { OptionGroupComponent } from '../menu/option-group';
@@ -41,6 +42,7 @@ import { ChipStripComponent, ChipStripItem } from '../chip-strip/chip-strip';
     CheckboxComponent,
     AvatarComponent,
     LogoComponent,
+    MascotComponent,
     MenuComponent,
     OptionComponent,
     OptionGroupComponent,
@@ -186,6 +188,7 @@ export class ShowcaseComponent {
   protected readonly treeSingle =new FormControl<string | null>('main.ts');
   protected readonly treeChecked = new FormControl<string[]>(['app.ts']);
 
+  protected readonly mascotStatuses = ['Idle', 'Working', 'Waiting', 'Error', 'Done'] as const;
   protected readonly pillTones = ['neutral', 'running', 'waiting', 'error', 'done'] as const;
   protected readonly rowSelected = signal('b');
   protected readonly chipTones =['blue', 'green', 'red', 'purple', 'outline', 'mono'] as const;
