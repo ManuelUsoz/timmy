@@ -3,16 +3,9 @@ import { Schema } from 'effect';
 import { allProviders, Language, type Provider } from '../../../shared/settings/settings.model';
 import { I18n } from '../../core/i18n';
 import type { MessageKey } from '../../core/i18n-dictionaries';
-import { ProviderSettings } from '../../core/provider-settings';
+import { ProviderSettings, providerNames } from '../../core/provider-settings';
 
 type Section = 'providers' | 'language';
-
-/** Provider names are product names: they read the same in every language. */
-const providerNames: Readonly<Record<Provider, string>> = {
-  OpenCode: 'OpenCode',
-  ClaudeCode: 'Claude Code',
-  Codex: 'Codex',
-};
 
 /** Language names are shown in their own language, whatever the interface language is. */
 const languageNames: ReadonlyArray<{ readonly value: Language; readonly label: string }> = [

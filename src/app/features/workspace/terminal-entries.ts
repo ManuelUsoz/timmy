@@ -1,5 +1,6 @@
 import { TerminalId } from '../../../shared/terminal/terminal.model';
 import type { ProjectId } from '../../../shared/projects/projects.model';
+import type { Provider } from '../../../shared/settings/settings.model';
 
 export { TerminalId } from '../../../shared/terminal/terminal.model';
 export type { TerminalEvent } from '../../../shared/terminal/terminal.model';
@@ -16,6 +17,8 @@ export interface TerminalEntry {
   readonly state: TerminalState;
   /** Output received from main, retained only for this app run so switching terminals is lossless. */
   readonly output: string;
+  /** The Provider whose CLI it was opened with, so a restart runs it again; absent for a plain shell. */
+  readonly provider?: Provider;
   /** How the process ended; absent while it has not. */
   readonly exitCode?: number;
 }
@@ -25,9 +28,9 @@ export const terminalsOf = (entries: ReadonlyArray<TerminalEntry>, projectId: Pr
   entries.filter((entry) => entry.projectId === projectId);
 
 /** A new, Idle terminal for the project, numbered after the last one it has. */
-export const addTerminal = (entries: ReadonlyArray<TerminalEntry>, projectId: ProjectId, id: TerminalId): ReadonlyArray<TerminalEntry> => {
+export const addTerminal = (entries: ReadonlyArray<TerminalEntry>, projectId: ProjectId, id: TerminalId, provider?: Provider): ReadonlyArray<TerminalEntry> => {
   const last = terminalsOf(entries, projectId).reduce((max, entry) => Math.max(max, entry.number), 0);
-  return [...entries, { id, projectId, number: last + 1, state: 'Idle', output: '' }];
+  return [...entries, { id, projectId, number: last + 1, state: 'Idle', output: '', ...(provider === undefined ? {} : { provider }) }];
 };
 
 export const withState = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, state: TerminalState): ReadonlyArray<TerminalEntry> =>
@@ -40,6 +43,6 @@ export const withOutput = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId
 export const withExit = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, exitCode: number): ReadonlyArray<TerminalEntry> =>
   entries.map((entry) => (entry.id === id ? { ...entry, state: exitCode === 0 ? 'Done' : 'Error', exitCode } : entry));
 
-/** A fresh Live process takes the place of an entry: same project and number, new id, nothing carried over. */
+/** A fresh Live process takes the place of an entry: same project, number and Provider, new id, no output carried over. */
 export const restarted = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, next: TerminalId): ReadonlyArray<TerminalEntry> =>
-  entries.map((entry) => (entry.id === id ? { id: next, projectId: entry.projectId, number: entry.number, state: 'Live', output: '' } : entry));
+  entries.map((entry) => (entry.id === id ? { id: next, projectId: entry.projectId, number: entry.number, state: 'Live', output: '', ...(entry.provider === undefined ? {} : { provider: entry.provider }) } : entry));

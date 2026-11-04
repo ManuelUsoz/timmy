@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
+import type { Provider } from '../../../shared/settings/settings.model';
 import { TerminalId } from '../../../shared/terminal/terminal.model';
 import { I18n } from '../../core/i18n';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { ChipStripComponent, type ChipStripItem } from '../../shared/ui/chip-strip/chip-strip';
+import { NewTerminal } from '../workspace/new-terminal';
 import { ProjectsState } from '../workspace/projects-state';
 import { TerminalScreen } from '../workspace/terminal-screen';
 import { TerminalsState } from '../workspace/terminals-state';
@@ -15,7 +17,7 @@ import { panelProject } from './panel-project';
  */
 @Component({
   selector: 'app-panel-terminal',
-  imports: [ButtonComponent, ChipStripComponent, TerminalScreen, WorkspaceHero],
+  imports: [ButtonComponent, ChipStripComponent, NewTerminal, TerminalScreen, WorkspaceHero],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './panel-terminal.html',
   styleUrl: './panel-terminal.css',
@@ -61,12 +63,12 @@ export class PanelTerminal {
     this.terminals.setCurrent(TerminalId.make(id));
   }
 
-  protected async open(): Promise<void> {
+  protected async open(provider?: Provider): Promise<void> {
     const project = this.home();
     if (project === undefined || this.opening()) return;
     this.opening.set(true);
     this.failed.set(false);
-    const terminal = await this.terminals.createLive(project.projectId, project.cwd);
+    const terminal = await this.terminals.createLive(project.projectId, project.cwd, provider);
     this.failed.set(terminal === undefined);
     this.opening.set(false);
   }

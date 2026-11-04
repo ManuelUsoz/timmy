@@ -5,6 +5,13 @@ import { DesktopApi } from './desktop-api';
 import { EffectRuntime } from './effect-runtime';
 import { ToastService } from './toast';
 
+/** Provider names are product names: they read the same in every language. */
+export const providerNames: Readonly<Record<Provider, string>> = {
+  OpenCode: 'OpenCode',
+  ClaudeCode: 'Claude Code',
+  Codex: 'Codex',
+};
+
 /** What the renderer knows about the Providers the user enabled. */
 export type ProviderSettingsState =
   | { readonly status: 'loading' }

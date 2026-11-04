@@ -1,6 +1,6 @@
 import { _electron as electron, expect, test as base, type ElectronApplication, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -103,14 +103,43 @@ export class Timmy {
 }
 
 export type Language = 'es' | 'en';
+export type Provider = 'OpenCode' | 'ClaudeCode' | 'Codex';
+
+/** What the stand-in CLI prints. A spec waits for it to know the Provider's command ran. */
+export const STAND_IN_OUTPUT = 'stand-in claude ran';
+
+/** A directory with a `claude` command that prints STAND_IN_OUTPUT and exits: stands in for the real Claude Code CLI. */
+const makeStandInBin = (): string => {
+  const bin = mkdtempSync(path.join(tmpdir(), 'timmy-e2e-bin-'));
+  if (process.platform === 'win32') {
+    writeFileSync(path.join(bin, 'claude.cmd'), `@echo ${STAND_IN_OUTPUT}
+`);
+  } else {
+    const file = path.join(bin, 'claude');
+    writeFileSync(file, `#!/bin/sh
+echo '${STAND_IN_OUTPUT}'
+`);
+    chmodSync(file, 0o755);
+  }
+  return bin;
+};
+
+/** The environment with `bin` first on PATH (spelled `Path` on Windows). */
+const envWithPathFirst = (bin: string): NodeJS.ProcessEnv => {
+  const key = Object.keys(process.env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH';
+  return { ...process.env, [key]: `${bin}${path.delimiter}${process.env[key] ?? ''}` };
+};
 
 /** `test.use({ language: 'en' })` in a spec file pins the UI language; the default is the app's own (es). */
-export const test = base.extend<{ timmy: Timmy; language: Language }>({
+export const test = base.extend<{ timmy: Timmy; language: Language; providers: Provider[] }>({
   language: ['es', { option: true }],
-  timmy: async ({ language }, use) => {
+  /** `test.use({ providers: ['ClaudeCode'] })` enables those Providers in Settings from the start. */
+  providers: [[], { option: true }],
+  timmy: async ({ language, providers }, use) => {
     mkdirSync(fixtureCwd, { recursive: true });
     const userData = mkdtempSync(path.join(tmpdir(), 'timmy-e2e-'));
-    writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ language }));
+    writeFileSync(path.join(userData, 'settings.json'), JSON.stringify({ language, providers }));
+    const standInBin = makeStandInBin();
     // The folder the (undrivable) native picker "chooses" when a spec adds a project: a git repository of its own.
     const projectRoot = mkdtempSync(path.join(tmpdir(), 'timmy-e2e-project-'));
     const projectDir = path.join(projectRoot, 'demo-project');
@@ -120,7 +149,7 @@ export const test = base.extend<{ timmy: Timmy; language: Language }>({
       executablePath: electronPath,
       args: [root],
       cwd: fixtureCwd,
-      env: { ...process.env, TIMMY_E2E: '1', TIMMY_E2E_PICK_FOLDER: projectDir, TIMMY_USER_DATA: userData, ELECTRON_RENDERER_URL: '' },
+      env: { ...envWithPathFirst(standInBin), TIMMY_E2E: '1', TIMMY_E2E_PICK_FOLDER: projectDir, TIMMY_USER_DATA: userData, ELECTRON_RENDERER_URL: '' },
     });
     const page = await app.firstWindow();
     const errors: string[] = [];
@@ -133,6 +162,7 @@ export const test = base.extend<{ timmy: Timmy; language: Language }>({
 
     await app.close().catch(() => {});
     rmSync(userData, { recursive: true, force: true });
+    rmSync(standInBin, { recursive: true, force: true });
     rmSync(projectRoot, { recursive: true, force: true });
     expect(errors, 'renderer console errors').toEqual([]);
   },

@@ -1,11 +1,13 @@
 import { Schema } from 'effect';
 import { Rpc, RpcGroup } from 'effect/rpc';
+import { Provider } from '../settings/settings.model';
 import { TerminalError } from './terminal-error.model';
 import { TerminalEvent, TerminalId } from './terminal.model';
 
 export const TerminalRpcs = RpcGroup.make(
   Rpc.make('Terminal.create', {
-    payload: { cwd: Schema.String },
+    /** With a Provider, the Terminal types that Provider's CLI into the shell it opens. */
+    payload: { cwd: Schema.String, provider: Schema.optional(Provider) },
     success: Schema.Struct({ terminalId: TerminalId }),
     error: TerminalError,
   }),

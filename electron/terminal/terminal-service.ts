@@ -2,9 +2,11 @@ import { Context, Effect, Layer, Queue, Ref, Stream } from 'effect';
 import type { Cause } from 'effect';
 import * as pty from 'node-pty';
 import type { IPty, IWindowsPtyForkOptions } from 'node-pty';
+import type { Provider } from '../../src/shared/settings/settings.model';
 import { TerminalError } from '../../src/shared/terminal/terminal-error.model';
 import type { TerminalEvent, TerminalId } from '../../src/shared/terminal/terminal.model';
 import { TerminalId as TerminalIdSchema } from '../../src/shared/terminal/terminal.model';
+import { providerCommand } from './provider-command';
 
 export interface PtyProcess {
   readonly onData: (listener: (data: string) => void) => { dispose: () => void };
@@ -42,7 +44,8 @@ const nativePtyHost: Layer.Layer<PtyHost> = Layer.succeed(PtyHost, {
 });
 
 export class TerminalService extends Context.Service<TerminalService, {
-  readonly create: (cwd: string) => Effect.Effect<TerminalId, TerminalError>;
+  /** With a Provider, its CLI command is typed into the new shell: the shell outlives the CLI. */
+  readonly create: (cwd: string, provider?: Provider) => Effect.Effect<TerminalId, TerminalError>;
   readonly output: (id: TerminalId) => Stream.Stream<TerminalEvent, TerminalError>;
   readonly write: (id: TerminalId, data: string) => Effect.Effect<void, TerminalError>;
   readonly resize: (id: TerminalId, cols: number, rows: number) => Effect.Effect<void, TerminalError>;
@@ -77,7 +80,7 @@ const layerTerminalServiceCore = Layer.effect(
     );
 
     return TerminalService.of({
-      create: Effect.fn('TerminalService.create')(function* (cwd) {
+      create: Effect.fn('TerminalService.create')(function* (cwd, provider) {
         if (cwd.trim() === '') return yield* new TerminalError({ reason: 'InvalidCwd', detail: 'A terminal needs a project folder' });
         const process = yield* host.spawn(cwd);
         const id = TerminalIdSchema.make(crypto.randomUUID());
@@ -89,6 +92,7 @@ const layerTerminalServiceCore = Layer.effect(
           Effect.runFork(Queue.offer(events, { _tag: 'Exit', exitCode }).pipe(Effect.andThen(Queue.end(events))));
         });
         yield* Ref.update(terminals, (all) => new Map(all).set(id, terminal));
+        if (provider !== undefined) yield* Effect.sync(() => process.write(`${providerCommand(provider)}\r`));
         return id;
       }),
       output: (id) => Stream.unwrap(get(id).pipe(Effect.map((terminal) => Stream.fromQueue(terminal.events)))), 
