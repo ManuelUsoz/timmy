@@ -10,7 +10,6 @@ const terminal = (id: string, state: TerminalState, activity: TerminalActivity =
   number: 1,
   state,
   activity,
-  output: '',
 });
 
 describe('pillView', () => {

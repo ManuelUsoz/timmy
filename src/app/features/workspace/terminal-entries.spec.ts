@@ -1,9 +1,10 @@
 import { ProjectId } from '../../../shared/projects/projects.model';
-import { addTerminal, restarted, terminalsOf, withActivity, withExit, withState, TerminalId, type TerminalEntry } from './terminal-entries';
+import { addTerminal, restarted, terminalsOf, withActivity, withExit, withScreen, withState, TerminalId, type TerminalEntry } from './terminal-entries';
 
 const timmy = ProjectId.make('p-timmy');
 const ascua = ProjectId.make('p-ascua');
 const id = (value: string) => TerminalId.make(value);
+const screen = { cols: 120, rows: 34, data: 'PS C:\\demo> ' };
 
 describe('terminal entries', () => {
   it('adds an Idle entry numbered after the last one of its project', () => {
@@ -48,11 +49,18 @@ describe('terminal entries', () => {
     expect(failed.find((entry) => entry.id === 'a')?.exitCode).toBeUndefined();
   });
 
-  it('restarts an entry under a new id, keeping its project and number but not its output or exit code', () => {
-    const entries = withExit(addTerminal(addTerminal([], timmy, id('a')), timmy, id('b')), id('b'), 1);
+  it('keeps the screen of one entry, at the size it was recorded, and leaves the rest as they were', () => {
+    const entries = addTerminal(addTerminal([], timmy, id('a')), timmy, id('b'));
+    const next = withScreen(entries, id('b'), screen);
+    expect(next.map((entry) => entry.screen)).toEqual([undefined, screen]);
+    expect(entries.map((entry) => entry.screen)).toEqual([undefined, undefined]);
+  });
+
+  it('restarts an entry under a new id, keeping its project and number but not its screen or exit code', () => {
+    const entries = withScreen(withExit(addTerminal(addTerminal([], timmy, id('a')), timmy, id('b')), id('b'), 1), id('b'), screen);
     const next = restarted(entries, id('b'), id('c'));
     expect(next.map((entry) => entry.id)).toEqual(['a', 'c']);
-    expect(next[1]).toEqual({ id: 'c', projectId: timmy, number: 2, state: 'Live', activity: 'Idle', output: '' });
+    expect(next[1]).toEqual({ id: 'c', projectId: timmy, number: 2, state: 'Live', activity: 'Idle' });
   });
 });
 
