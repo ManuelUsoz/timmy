@@ -76,7 +76,8 @@
           >
             <svg leading class="glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
             <span trailing>
-              <ui-state [tone]="terminalTone(terminal.state)">{{ i18n.t(terminalStateKey(terminal.state)) }}</ui-state>
+              @let badge = terminalBadge(terminal);
+              <ui-state [tone]="badge.tone" [attr.data-activity]="badge.activity ?? null">{{ i18n.t(badge.key) }}</ui-state>
             </span>
           </as-list-row>
         }

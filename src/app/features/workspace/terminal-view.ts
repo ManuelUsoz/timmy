@@ -1,6 +1,6 @@
 import type { MessageKey } from '../../core/i18n-dictionaries';
 import type { StateTone } from '../../shared/ui/state/state';
-import type { TerminalState } from './terminal-entries';
+import type { TerminalActivity, TerminalEntry, TerminalState } from './terminal-entries';
 
 export const terminalTone = (state: TerminalState): StateTone => {
   switch (state) {
@@ -24,6 +24,29 @@ export const terminalStateKey = (state: TerminalState): MessageKey => {
       return 'state.idle';
     case 'Error':
       return 'state.error';
+  }
+};
+
+export interface TerminalBadge {
+  readonly tone: StateTone;
+  readonly key: MessageKey;
+  /** Present while the process is alive: the activity the badge says. */
+  readonly activity?: TerminalActivity;
+}
+
+/**
+ * What a Terminal's row says. A live Terminal says what it is doing (printing, quiet, asking for the user); one
+ * without a process says how it ended.
+ */
+export const terminalBadge = (terminal: Pick<TerminalEntry, 'state' | 'activity'>): TerminalBadge => {
+  if (terminal.state !== 'Live') return { tone: terminalTone(terminal.state), key: terminalStateKey(terminal.state) };
+  switch (terminal.activity) {
+    case 'Active':
+      return { tone: 'success', key: 'activity.active', activity: 'Active' };
+    case 'Idle':
+      return { tone: 'idle', key: 'activity.idle', activity: 'Idle' };
+    case 'NeedsAttention':
+      return { tone: 'warning', key: 'activity.needsAttention', activity: 'NeedsAttention' };
   }
 };
 

@@ -1,5 +1,5 @@
 import { ProjectId } from '../../../shared/projects/projects.model';
-import { addTerminal, restarted, terminalsOf, withExit, withState, TerminalId, type TerminalEntry } from './terminal-entries';
+import { addTerminal, restarted, terminalsOf, withActivity, withExit, withState, TerminalId, type TerminalEntry } from './terminal-entries';
 
 const timmy = ProjectId.make('p-timmy');
 const ascua = ProjectId.make('p-ascua');
@@ -52,6 +52,21 @@ describe('terminal entries', () => {
     const entries = withExit(addTerminal(addTerminal([], timmy, id('a')), timmy, id('b')), id('b'), 1);
     const next = restarted(entries, id('b'), id('c'));
     expect(next.map((entry) => entry.id)).toEqual(['a', 'c']);
-    expect(next[1]).toEqual({ id: 'c', projectId: timmy, number: 2, state: 'Live', output: '' });
+    expect(next[1]).toEqual({ id: 'c', projectId: timmy, number: 2, state: 'Live', activity: 'Idle', output: '' });
+  });
+});
+
+describe('terminal activity', () => {
+  it('starts Idle and takes the activity main reports for it', () => {
+    const entries = addTerminal(addTerminal([], timmy, id('a')), timmy, id('b'));
+    expect(entries.map((entry) => entry.activity)).toEqual(['Idle', 'Idle']);
+    const next = withActivity(entries, [{ terminalId: id('b'), activity: 'NeedsAttention' }]);
+    expect(next.map((entry) => entry.activity)).toEqual(['Idle', 'NeedsAttention']);
+  });
+
+  it('keeps the same entries when nothing changed, and ignores Terminals it does not know', () => {
+    const entries = addTerminal([], timmy, id('a'));
+    expect(withActivity(entries, [{ terminalId: id('a'), activity: 'Idle' }])[0]).toBe(entries[0]);
+    expect(withActivity(entries, [{ terminalId: id('zzz'), activity: 'Active' }])).toEqual(entries);
   });
 });

@@ -1,4 +1,4 @@
-import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { Effect, Stream } from 'effect';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
@@ -43,6 +43,19 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
   private resizeSubscription: { dispose: () => void } | undefined;
   private readonly streamAbort = new AbortController();
 
+  constructor() {
+    // A bell or notification that arrives while the user is typing in this Terminal has been seen at once.
+    effect(() => {
+      const { id, activity } = this.terminal();
+      if (activity === 'NeedsAttention' && this.userIsHere()) void this.terminals.focus(id);
+    });
+  }
+
+  private userIsHere(): boolean {
+    const host = this.host().nativeElement;
+    return document.hasFocus() && host.contains(document.activeElement);
+  }
+
   ngAfterViewInit(): void {
     const entry = this.terminal();
     if (typeof window.matchMedia !== 'function') return;
@@ -76,6 +89,9 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
     });
     this.resizeObserver.observe(this.host().nativeElement);
     instance.focus();
+    // Showing a Terminal, and going back to its window, is the user being on it: what it asked for has been seen.
+    void this.terminals.focus(entry.id);
+    instance.textarea?.addEventListener('focus', this.onFocus);
 
     const terminals = this.terminals;
     void this.runtime.run(
@@ -96,7 +112,10 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
     );
   }
 
+  private readonly onFocus = (): void => void this.terminals.focus(this.terminal().id);
+
   ngOnDestroy(): void {
+    this.instance?.textarea?.removeEventListener('focus', this.onFocus);
     this.streamAbort.abort();
     this.dataSubscription?.dispose();
     this.resizeSubscription?.dispose();

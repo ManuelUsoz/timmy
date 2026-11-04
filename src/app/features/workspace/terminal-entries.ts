@@ -1,9 +1,9 @@
-import { TerminalId } from '../../../shared/terminal/terminal.model';
+import { TerminalId, type TerminalActivity, type TerminalActivityEntry } from '../../../shared/terminal/terminal.model';
 import type { ProjectId } from '../../../shared/projects/projects.model';
 import type { Provider } from '../../../shared/settings/settings.model';
 
 export { TerminalId } from '../../../shared/terminal/terminal.model';
-export type { TerminalEvent } from '../../../shared/terminal/terminal.model';
+export type { TerminalActivity, TerminalEvent } from '../../../shared/terminal/terminal.model';
 
 /** What a terminal row says it is doing. Only `Idle` can happen until there is a process behind them. */
 export type TerminalState = 'Live' | 'Done' | 'Idle' | 'Error';
@@ -15,6 +15,8 @@ export interface TerminalEntry {
   /** Its position among the terminals the project has had, which names it ("Terminal 2"). */
   readonly number: number;
   readonly state: TerminalState;
+  /** What its output says it is doing, as main reads it. Meaningful while the process is alive. */
+  readonly activity: TerminalActivity;
   /** Output received from main, retained only for this app run so switching terminals is lossless. */
   readonly output: string;
   /** The Provider whose CLI it was opened with, so a restart runs it again; absent for a plain shell. */
@@ -30,11 +32,18 @@ export const terminalsOf = (entries: ReadonlyArray<TerminalEntry>, projectId: Pr
 /** A new, Idle terminal for the project, numbered after the last one it has. */
 export const addTerminal = (entries: ReadonlyArray<TerminalEntry>, projectId: ProjectId, id: TerminalId, provider?: Provider): ReadonlyArray<TerminalEntry> => {
   const last = terminalsOf(entries, projectId).reduce((max, entry) => Math.max(max, entry.number), 0);
-  return [...entries, { id, projectId, number: last + 1, state: 'Idle', output: '', ...(provider === undefined ? {} : { provider }) }];
+  return [...entries, { id, projectId, number: last + 1, state: 'Idle', activity: 'Idle', output: '', ...(provider === undefined ? {} : { provider }) }];
 };
 
 export const withState = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, state: TerminalState): ReadonlyArray<TerminalEntry> =>
   entries.map((entry) => (entry.id === id ? { ...entry, state } : entry));
+
+/** Applies the activity main reports; Terminals main does not know (not started) keep theirs. */
+export const withActivity = (entries: ReadonlyArray<TerminalEntry>, snapshot: ReadonlyArray<TerminalActivityEntry>): ReadonlyArray<TerminalEntry> =>
+  entries.map((entry) => {
+    const reported = snapshot.find((item) => item.terminalId === entry.id);
+    return reported === undefined || reported.activity === entry.activity ? entry : { ...entry, activity: reported.activity };
+  });
 
 export const withOutput = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, data: string): ReadonlyArray<TerminalEntry> =>
   entries.map((entry) => (entry.id === id ? { ...entry, output: `${entry.output}${data}`.slice(-200_000) } : entry));
@@ -45,4 +54,4 @@ export const withExit = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, 
 
 /** A fresh Live process takes the place of an entry: same project, number and Provider, new id, no output carried over. */
 export const restarted = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, next: TerminalId): ReadonlyArray<TerminalEntry> =>
-  entries.map((entry) => (entry.id === id ? { id: next, projectId: entry.projectId, number: entry.number, state: 'Live', output: '', ...(entry.provider === undefined ? {} : { provider: entry.provider }) } : entry));
+  entries.map((entry) => (entry.id === id ? { id: next, projectId: entry.projectId, number: entry.number, state: 'Live', activity: 'Idle', output: '', ...(entry.provider === undefined ? {} : { provider: entry.provider }) } : entry));

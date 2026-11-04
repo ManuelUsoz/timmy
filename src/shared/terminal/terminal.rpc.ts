@@ -2,7 +2,7 @@ import { Schema } from 'effect';
 import { Rpc, RpcGroup } from 'effect/rpc';
 import { Provider } from '../settings/settings.model';
 import { TerminalError } from './terminal-error.model';
-import { TerminalEvent, TerminalId } from './terminal.model';
+import { TerminalActivityEntry, TerminalEvent, TerminalId } from './terminal.model';
 
 export const TerminalRpcs = RpcGroup.make(
   Rpc.make('Terminal.create', {
@@ -16,6 +16,17 @@ export const TerminalRpcs = RpcGroup.make(
     success: TerminalEvent,
     error: TerminalError,
     stream: true,
+  }),
+  Rpc.make('Terminal.activity', {
+    /** What every Terminal is doing, read from its output: the current activity of all of them, then again at each change. */
+    success: Schema.Array(TerminalActivityEntry),
+    stream: true,
+  }),
+  Rpc.make('Terminal.focus', {
+    /** The user is on this Terminal: whatever asked for their attention has been seen. */
+    payload: { terminalId: TerminalId },
+    success: Schema.Void,
+    error: TerminalError,
   }),
   Rpc.make('Terminal.write', {
     payload: { terminalId: TerminalId, data: Schema.String },

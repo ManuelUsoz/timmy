@@ -1,8 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { Effect } from 'effect';
+import { Effect, Stream } from 'effect';
 import { ProjectId } from '../../../shared/projects/projects.model';
 import type { Provider } from '../../../shared/settings/settings.model';
-import { TerminalId } from '../../../shared/terminal/terminal.model';
+import { TerminalId, type TerminalActivityEntry } from '../../../shared/terminal/terminal.model';
 import { TerminalRpcs } from '../../../shared/terminal/terminal.rpc';
 import { makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
@@ -68,13 +68,16 @@ describe('TerminalsState', () => {
 });
 
 /** The real client against a main whose Terminal.create answers a new id each time and records what it was asked. */
-const withMain = () => {
+const withMain = (activity: ReadonlyArray<ReadonlyArray<TerminalActivityEntry>> = []) => {
   const created: Array<{ readonly cwd: string; readonly provider?: Provider }> = [];
+  const focused: TerminalId[] = [];
   const unused = () => Effect.die('not under test');
   const handlers = TerminalRpcs.toLayer({
     'Terminal.create': (payload) => Effect.sync(() => (created.push(payload), { terminalId: TerminalId.make(`t-${created.length}`) })),
     'Terminal.close': () => Effect.void,
     'Terminal.output': unused,
+    'Terminal.activity': () => Stream.fromIterable(activity),
+    'Terminal.focus': ({ terminalId }) => Effect.sync(() => void focused.push(terminalId)),
     'Terminal.write': unused,
     'Terminal.resize': unused,
   });
@@ -82,7 +85,7 @@ const withMain = () => {
   TestBed.configureTestingModule({
     providers: [{ provide: EffectRuntime, useValue: { run: (e: Effect.Effect<unknown, unknown, never>) => Effect.runPromiseExit(Effect.provide(e as never, layer)) } }],
   });
-  return { created, terminals: TestBed.inject(TerminalsState) };
+  return { created, focused, terminals: TestBed.inject(TerminalsState) };
 };
 
 describe('TerminalsState: Providers', () => {
@@ -106,5 +109,21 @@ describe('TerminalsState: Providers', () => {
     const opened = await terminals.createLive(timmy, '/work/timmy');
     await terminals.restart(opened!.id, '/work/timmy');
     expect(created.at(-1)).toEqual({ cwd: '/work/timmy' });
+  });
+});
+
+describe('TerminalsState: activity', () => {
+  it('shows the activity main reports for a Terminal', async () => {
+    const reported = [{ terminalId: TerminalId.make('t-1'), activity: 'NeedsAttention' as const }];
+    const { terminals } = withMain([reported]);
+    const opened = await terminals.createLive(timmy, '/work/timmy');
+    await vi.waitFor(() => expect(terminals.find(opened!.id)?.activity).toBe('NeedsAttention'));
+  });
+
+  it('tells main when the user is on a Terminal', async () => {
+    const { focused, terminals } = withMain();
+    const opened = await terminals.createLive(timmy, '/work/timmy');
+    await terminals.focus(opened!.id);
+    expect(focused).toEqual([opened!.id]);
   });
 });

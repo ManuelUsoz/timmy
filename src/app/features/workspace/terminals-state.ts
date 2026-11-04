@@ -1,21 +1,33 @@
-import { Injectable, computed, signal } from '@angular/core';
-import { Effect } from 'effect';
+import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
+import { Effect, Stream, pipe } from 'effect';
 import type { ProjectId } from '../../../shared/projects/projects.model';
 import type { Provider } from '../../../shared/settings/settings.model';
-import { TerminalId } from '../../../shared/terminal/terminal.model';
+import { TerminalId, type TerminalActivityEntry } from '../../../shared/terminal/terminal.model';
 import { DesktopApi } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
-import { addTerminal, restarted, withExit, withOutput, withState, type TerminalEntry, type TerminalState } from './terminal-entries';
+import { addTerminal, restarted, withActivity, withExit, withOutput, withState, type TerminalEntry, type TerminalState } from './terminal-entries';
 
 @Injectable({ providedIn: 'root' })
 export class TerminalsState {
   private readonly all = signal<ReadonlyArray<TerminalEntry>>([]);
   readonly entries = this.all.asReadonly();
+  /** The last activity main reported, kept for a Terminal whose entry is added after main already spoke of it. */
+  private reported: ReadonlyArray<TerminalActivityEntry> = [];
   private readonly currentId = signal<TerminalId | undefined>(undefined);
   /** The Terminal the user is on, in the Workspace or the Panel: the one picked last, else the newest. Undefined when there are none. */
   readonly current = computed((): TerminalEntry | undefined => this.all().find((entry) => entry.id === this.currentId()) ?? this.all().at(-1));
 
-  constructor(private readonly runtime: EffectRuntime) {}
+  constructor(private readonly runtime: EffectRuntime) {
+    // What main reads from each Terminal's output lives as long as the app: the Pill needs it with no Terminal on screen.
+    const stop = new AbortController();
+    inject(DestroyRef).onDestroy(() => stop.abort());
+    void this.runtime.run(
+      Effect.flatMap(DesktopApi, (desktop) =>
+        Stream.runForEach(desktop['Terminal.activity'](), (snapshot) => Effect.sync(() => this.applyActivity(snapshot))),
+      ),
+      { signal: stop.signal },
+    );
+  }
 
   /** Opens a shell in the folder; with a Provider, that Provider's CLI runs in it. */
   async createLive(projectId: ProjectId, cwd: string, provider?: Provider): Promise<TerminalEntry | undefined> {
@@ -27,7 +39,7 @@ export class TerminalsState {
     );
     if (result._tag === 'Failure') return undefined;
     const entry = addTerminal(this.all(), projectId, result.value.terminalId, provider).at(-1)!;
-    this.all.update((entries) => withState([...entries, entry], entry.id, 'Live'));
+    this.all.update((entries) => pipe(withState([...entries, entry], entry.id, 'Live'), (next) => withActivity(next, this.reported)));
     this.currentId.set(entry.id);
     return { ...entry, state: 'Live' };
   }
@@ -56,6 +68,19 @@ export class TerminalsState {
     this.all.update((entries) => withState(entries, id, state));
   }
 
+  private applyActivity(snapshot: ReadonlyArray<TerminalActivityEntry>): void {
+    this.reported = snapshot;
+    this.all.update((entries) => withActivity(entries, snapshot));
+  }
+
+  /** The user is on this Terminal: tells main, which clears what asked for their attention. */
+  async focus(id: TerminalId): Promise<void> {
+    await this.runtime.run(Effect.gen(function* () {
+      const desktop = yield* DesktopApi;
+      yield* desktop['Terminal.focus']({ terminalId: id });
+    }));
+  }
+
   exited(id: TerminalId, exitCode: number): void {
     this.all.update((entries) => withExit(entries, id, exitCode));
   }
@@ -71,7 +96,7 @@ export class TerminalsState {
       }),
     );
     if (result._tag === 'Failure') return undefined;
-    this.all.update((entries) => restarted(entries, id, result.value.terminalId));
+    this.all.update((entries) => pipe(restarted(entries, id, result.value.terminalId), (next) => withActivity(next, this.reported)));
     if (this.currentId() === id) this.currentId.set(result.value.terminalId);
     return this.find(result.value.terminalId);
   }

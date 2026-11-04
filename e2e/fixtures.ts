@@ -94,11 +94,27 @@ export class Timmy {
     expect(overflow, 'horizontal overflow').toEqual([]);
   }
 
-  /** Visual regression check of the whole window. `name` is the baseline file name (`<name>.png`). */
-  async shot(name: string, options: { mask?: ReturnType<Page['locator']>[] } = {}) {
+  /**
+   * Visual regression check of the whole window. `name` is the baseline file name (`<name>.png`).
+   * The activity badge of a Terminal row (Active, Idle) follows the clock, so it is masked unless `maskActivity` is false.
+   */
+  async shot(name: string, options: { mask?: ReturnType<Page['locator']>[]; maskActivity?: boolean } = {}) {
     await this.settle();
     await this.expectNoHorizontalOverflow();
-    await expect(this.page).toHaveScreenshot(`${name}.png`, options);
+    const { maskActivity = true, mask = [] } = options;
+    await expect(this.page).toHaveScreenshot(`${name}.png`, { mask: maskActivity ? [...mask, this.page.locator('[data-activity]')] : mask });
+  }
+
+  /** The activity badge of the n-th Terminal row (0-based) of the open Project. */
+  activity(n: number) {
+    return this.page.getByRole('region', { name: 'Terminals' }).getByRole('option').nth(n).locator('[data-activity]');
+  }
+
+  /** Types a command into the open Terminal and runs it. */
+  async run(command: string) {
+    await this.page.locator('.xterm-helper-textarea').focus();
+    await this.page.keyboard.type(command);
+    await this.page.keyboard.press('Enter');
   }
 }
 
