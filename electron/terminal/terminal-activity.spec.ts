@@ -32,3 +32,32 @@ describe('terminal activity', () => {
     expect(activityOf(run('Output', 'Attention', 'Exited'))).toBe('Idle');
   });
 });
+
+describe('terminal activity reported by a Hook', () => {
+  it('follows Working, Waiting and Done', () => {
+    expect(activityOf(run('HookWorking'))).toBe('Active');
+    expect(activityOf(run('HookWorking', 'HookWaiting'))).toBe('NeedsAttention');
+    expect(activityOf(run('HookWaiting', 'HookWorking'))).toBe('Active');
+    expect(activityOf(run('HookWorking', 'HookDone'))).toBe('Idle');
+  });
+
+  it('replaces what the output says: printing is not Working, quiet is not Done, a bell is not Waiting', () => {
+    expect(activityOf(run('HookDone', 'Output'))).toBe('Idle');
+    expect(activityOf(run('HookWorking', 'Output', 'Quiet'))).toBe('Active');
+    expect(activityOf(run('HookDone', 'Output', 'Attention'))).toBe('Idle');
+  });
+
+  it('keeps Waiting when the user focuses the Terminal: it only ends when the agent goes on', () => {
+    expect(activityOf(run('HookWaiting', 'Focused'))).toBe('NeedsAttention');
+  });
+
+  it('falls back to the output when the Provider session ends', () => {
+    expect(activityOf(run('HookWorking', 'HookEnded'))).toBe('Idle');
+    expect(activityOf(run('HookWorking', 'HookEnded', 'Output'))).toBe('Active');
+  });
+
+  it('is Idle once the process exited, and the output is generic again in a restarted Terminal', () => {
+    expect(activityOf(run('HookWaiting', 'Exited'))).toBe('Idle');
+    expect(activityOf(run('HookWorking', 'Exited', 'Output'))).toBe('Active');
+  });
+});

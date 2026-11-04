@@ -15,11 +15,11 @@ A company whose models a Provider serves (Anthropic, OpenAI, and so on). A Provi
 _Avoid_: provider (for a Model vendor).
 
 **Integration**
-The only place that knows how to launch a Provider's CLI, activate its Hook and read its state. It declares what its Provider can do.
+The only place that knows how to launch a Provider's CLI, activate its Hook and read its state. It declares what its Provider can do. Each Provider that has a Hook has one Hook Integration (a strategy behind one interface), so the code that lists Hooks, receives their reports and sets the Terminal's state never depends on which Provider it is.
 _Avoid_: adapter.
 
 **Hook**
-The extension point of a Provider through which an Integration learns what that Provider is doing in a Terminal Timmy started. The user activates it per Provider in Settings.
+The extension point of a Provider through which an Integration learns what that Provider is doing in a Terminal Timmy started. The user activates it per Provider in Settings, and it reports to Timmy through the local channel: a loopback server in main whose address every Terminal Timmy starts receives in its environment.
 
 **Window mode**
 How much of Timmy is showing. There are three: Pill, Panel and Expanded. Timmy always starts in Pill. At any time, the user can move to either of the two modes it is not currently in.
@@ -41,7 +41,7 @@ What a Terminal is doing: Working, Waiting (a live agent is stalled until the us
 _Avoid_: state (already used for Window mode and the process state).
 
 **Terminal activity**
-What a Terminal's output says it is doing while its process is alive: Active (printing), Idle (quiet for a while) or Needs attention (it rang a bell or sent a notification, until the user focuses the Terminal). The output tap in main reads it from the raw output stream, without parsing it into messages; a Hook can later feed the same signals. It is the generic fallback for Terminals without a Hook, and is not the Terminal status.
+What a Terminal's output says it is doing while its process is alive: Active (printing), Idle (quiet for a while) or Needs attention (it rang a bell or sent a notification, until the user focuses the Terminal). The output tap in main reads it from the raw output stream, without parsing it into messages; a Hook feeds the same activity: while a Provider's Hook is reporting, its working, waiting for you and done replace what the output says (Active, Needs attention, Idle) for that Terminal, until the Provider's session ends. The output tap is the generic fallback for Terminals without a Hook, and Terminal activity is not the Terminal status.
 _Avoid_: state.
 
 **Seen**

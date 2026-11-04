@@ -14,6 +14,8 @@ export class Timmy {
   constructor(
     readonly app: ElectronApplication,
     readonly page: Page,
+    /** The app data directory of this run; Claude Code settings for the Hook live in claude/ inside it. */
+    readonly userData: string,
   ) {}
 
   bounds() {
@@ -174,7 +176,7 @@ export const test = base.extend<{ timmy: Timmy; language: Language; providers: P
     await page.waitForSelector('.pill-bar', { timeout: 20_000 });
     await page.waitForTimeout(800);
 
-    await use(new Timmy(app, page));
+    await use(new Timmy(app, page, userData));
 
     await app.close().catch(() => {});
     rmSync(userData, { recursive: true, force: true });
