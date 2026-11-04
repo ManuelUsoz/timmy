@@ -1,11 +1,12 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Schema } from 'effect';
 import { allProviders, Language, type Provider } from '../../../shared/settings/settings.model';
 import { I18n } from '../../core/i18n';
 import type { MessageKey } from '../../core/i18n-dictionaries';
+import { HookSettings } from '../../core/hook-settings';
 import { ProviderSettings, providerNames } from '../../core/provider-settings';
 
-type Section = 'providers' | 'language';
+type Section = 'providers' | 'hooks' | 'language';
 
 /** Language names are shown in their own language, whatever the interface language is. */
 const languageNames: ReadonlyArray<{ readonly value: Language; readonly label: string }> = [
@@ -21,7 +22,7 @@ const languageNames: ReadonlyArray<{ readonly value: Language; readonly label: s
     <nav class="sections" [attr.aria-label]="i18n.t('settings.title')">
       <h1>{{ i18n.t('settings.title') }}</h1>
       @for (item of sections; track item.id) {
-        <button type="button" class="section" [attr.aria-current]="section() === item.id ? 'page' : 'false'" (click)="section.set(item.id)">
+        <button type="button" class="section" [attr.aria-current]="section() === item.id ? 'page' : 'false'" (click)="open(item.id)">
           {{ i18n.t(item.label) }}
         </button>
       }
@@ -58,6 +59,42 @@ const languageNames: ReadonlyArray<{ readonly value: Language; readonly label: s
                 </div>
               }
             </div>
+          }
+        }
+      } @else if (section() === 'hooks') {
+        <h2>{{ i18n.t('settings.hooks') }}</h2>
+        <p class="help">{{ i18n.t('settings.hooks.help') }}</p>
+        @switch (hookSettings.state().status) {
+          @case ('loading') {
+            <!-- Nothing to say yet: reading the config takes a moment. -->
+          }
+          @case ('failed') {
+            <p class="failed" role="alert">{{ i18n.t('settings.hooks.loadFailed') }}</p>
+          }
+          @default {
+            @if (hooks().length === 0) {
+              <p class="help" data-testid="hooks-empty">{{ i18n.t('settings.hooks.empty') }}</p>
+            } @else {
+              <div class="rows">
+                @for (hook of hooks(); track hook.provider) {
+                  <div class="row" data-testid="hook-row">
+                    <span class="name">{{ names[hook.provider] }}</span>
+                    <span class="status">
+                      <span class="dot" [class.on]="hook.active"></span>{{ i18n.t(hook.active ? 'settings.hooks.active' : 'settings.hooks.inactive') }}
+                    </span>
+                    <button
+                      type="button"
+                      class="action"
+                      [class.off]="!hook.active"
+                      [attr.aria-label]="i18n.t(hook.active ? 'settings.hooks.deactivateLabel' : 'settings.hooks.activateLabel', { name: names[hook.provider] })"
+                      (click)="hookSettings.setActive(hook.provider, !hook.active)"
+                    >
+                      {{ i18n.t(hook.active ? 'settings.hooks.deactivate' : 'settings.hooks.activate') }}
+                    </button>
+                  </div>
+                }
+              </div>
+            }
           }
         }
       } @else {
@@ -217,6 +254,14 @@ const languageNames: ReadonlyArray<{ readonly value: Language; readonly label: s
     .choice.selected {
       background: var(--layer-selected);
     }
+    .help {
+      margin: 0;
+      max-width: 640px;
+      color: var(--text-secondary);
+      font-size: var(--text-body-01);
+      line-height: var(--text-body-01--line-height);
+      letter-spacing: var(--text-body-01--letter-spacing);
+    }
     .failed {
       margin: 0;
       color: var(--text-error);
@@ -229,16 +274,30 @@ const languageNames: ReadonlyArray<{ readonly value: Language; readonly label: s
 export class SettingsScreen {
   protected readonly i18n = inject(I18n);
   protected readonly providerSettings = inject(ProviderSettings);
+  protected readonly hookSettings = inject(HookSettings);
 
   protected readonly section = signal<Section>('providers');
   protected readonly sections: ReadonlyArray<{ readonly id: Section; readonly label: MessageKey }> = [
     { id: 'providers', label: 'settings.providers' },
+    { id: 'hooks', label: 'settings.hooks' },
     { id: 'language', label: 'settings.language' },
   ];
 
   protected readonly providers = allProviders;
   protected readonly names = providerNames;
   protected readonly languages = languageNames;
+
+  /** The Hooks of the Providers; empty while loading or when reading failed. */
+  protected readonly hooks = computed(() => {
+    const state = this.hookSettings.state();
+    return state.status === 'ready' ? state.hooks : [];
+  });
+
+  /** Opening Hooks reads them again: a Provider may have been enabled in Providers since. */
+  protected open(id: Section): void {
+    this.section.set(id);
+    if (id === 'hooks') this.hookSettings.refresh();
+  }
 
   protected isEnabled(provider: Provider): boolean {
     return this.providerSettings.enabled().includes(provider);

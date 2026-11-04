@@ -6,7 +6,10 @@ import type { Provider } from '../../src/shared/settings/settings.model';
 import type { NotificationEvent } from '../../src/shared/notification/notification.model';
 import type { TerminalId } from '../../src/shared/terminal/terminal.model';
 import { NotificationBus } from '../notification/notification-bus';
-import { IDLE_AFTER_MS, TerminalService, layerTerminalServiceTest, type PtyProcess } from './terminal-service';
+import { TerminalId as TerminalIdSchema } from '../../src/shared/terminal/terminal.model';
+import type { HookSignal } from '../hooks/hook-integration';
+import { makeHookChannelTest } from '../hooks/hook-channel';
+import { HOOK_STALE_AFTER_MS, IDLE_AFTER_MS, TerminalService, layerTerminalServiceTest, type PtyProcess } from './terminal-service';
 
 const makePty = () => {
   let dataListener: ((data: string) => void) | undefined;
@@ -318,6 +321,117 @@ describe('TerminalService notifications', () => {
         ]);
         const late = yield* listen;
         expect(yield* late.heard).toEqual([]);
+      }),
+    ),
+  );
+});
+
+describe('TerminalService with a Hook', () => {
+  /** A Terminal whose Provider has a Hook: `report` is the Hook posting to the local channel. */
+  const withHook = <A, E>(use: (ctx: { pty: ReturnType<typeof makePty>; service: typeof TerminalService.Service; id: TerminalId; report: (signal: HookSignal, to?: TerminalId) => Effect.Effect<void>; spawned: Array<{ cwd: string; env: Readonly<Record<string, string>> | undefined }> }) => Effect.Effect<A, E>) =>
+    Effect.gen(function* () {
+      const pty = makePty();
+      const spawned: Array<{ cwd: string; env: Readonly<Record<string, string>> | undefined }> = [];
+      const { channel, emit } = yield* makeHookChannelTest();
+      return yield* Effect.gen(function* () {
+        const service = yield* TerminalService;
+        const id = yield* service.create('C:/project', 'ClaudeCode');
+        return yield* use({ pty, service, id, spawned, report: (signal, to) => emit({ terminalId: to ?? id, signal }) });
+      }).pipe(
+        Effect.provide(
+          layerTerminalServiceTest(
+            {
+              spawn: (cwd, env) => {
+                spawned.push({ cwd, env });
+                return Effect.succeed(pty.process);
+              },
+            },
+            channel,
+          ),
+        ),
+      );
+    });
+
+  const activityOf = (service: typeof TerminalService.Service, id: TerminalId) =>
+    Effect.gen(function* () {
+      yield* Effect.yieldNow;
+      yield* Effect.yieldNow;
+      yield* Effect.yieldNow;
+      const [snapshot] = yield* service.activity.pipe(Stream.take(1), Stream.runCollect);
+      return snapshot?.find((entry) => entry.terminalId === id)?.activity;
+    });
+
+  it.effect('every Terminal starts with the id and the Hook URL in its environment, which is what activates the Hook', () =>
+    withHook(({ id, spawned }) =>
+      Effect.sync(() => {
+        expect(spawned).toHaveLength(1);
+        expect(spawned[0]!.env).toEqual({ TIMMY_TERMINAL_ID: id, TIMMY_HOOK_URL: `http://127.0.0.1:0/hook/test/${id}` });
+      }),
+    ),
+  );
+
+  it.effect('follows the Hook: Working is Active, Waiting needs attention, Done is Idle', () =>
+    withHook(({ service, id, report }) =>
+      Effect.gen(function* () {
+        yield* report('Working');
+        expect(yield* activityOf(service, id)).toBe('Active');
+        yield* report('Waiting');
+        expect(yield* activityOf(service, id)).toBe('NeedsAttention');
+        yield* report('Working');
+        expect(yield* activityOf(service, id)).toBe('Active');
+        yield* report('Done');
+        expect(yield* activityOf(service, id)).toBe('Idle');
+      }),
+    ),
+  );
+
+  it.effect('replaces the output: it stays Done while the CLI prints, and Active with no quiet timeout while Working', () =>
+    withHook(({ pty, service, id, report }) =>
+      Effect.gen(function* () {
+        yield* report('Done');
+        pty.emit('prompt redraw\x07');
+        expect(yield* activityOf(service, id)).toBe('Idle');
+        yield* report('Working');
+        yield* TestClock.adjust(IDLE_AFTER_MS * 5);
+        expect(yield* activityOf(service, id)).toBe('Active');
+      }),
+    ),
+  );
+
+  it.effect('stops believing a Working Hook that has gone silent, as after an interrupt that sends no Stop', () =>
+    withHook(({ pty, service, id, report }) =>
+      Effect.gen(function* () {
+        yield* report('Working');
+        yield* TestClock.adjust(HOOK_STALE_AFTER_MS - 1);
+        expect(yield* activityOf(service, id)).toBe('Active');
+        // Anything the CLI draws is a sign of life and starts the wait again.
+        pty.emit('spinner');
+        yield* activityOf(service, id);
+        yield* TestClock.adjust(HOOK_STALE_AFTER_MS - 1);
+        expect(yield* activityOf(service, id)).toBe('Active');
+        yield* TestClock.adjust(1);
+        expect(yield* activityOf(service, id)).toBe('Idle');
+      }),
+    ),
+  );
+
+  it.effect('falls back to the output when the session ends', () =>
+    withHook(({ pty, service, id, report }) =>
+      Effect.gen(function* () {
+        yield* report('Working');
+        yield* report('Ended');
+        expect(yield* activityOf(service, id)).toBe('Idle');
+        pty.emit('shell output');
+        expect(yield* activityOf(service, id)).toBe('Active');
+      }),
+    ),
+  );
+
+  it.effect('ignores a report for a Terminal that does not exist', () =>
+    withHook(({ service, id, report }) =>
+      Effect.gen(function* () {
+        yield* report('Working', TerminalIdSchema.make('someone-else'));
+        expect(yield* activityOf(service, id)).toBe('Idle');
       }),
     ),
   );

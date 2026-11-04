@@ -7,6 +7,8 @@ import type { TerminalStatus } from '../../src/shared/notification/notification.
 import { TerminalError } from '../../src/shared/terminal/terminal-error.model';
 import type { TerminalActivity, TerminalActivityEntry, TerminalEvent, TerminalId } from '../../src/shared/terminal/terminal.model';
 import { TerminalId as TerminalIdSchema } from '../../src/shared/terminal/terminal.model';
+import { HookChannel, quietHookChannel } from '../hooks/hook-channel';
+import type { HookSignal } from '../hooks/hook-integration';
 import { NotificationBus, layerNotificationBus } from '../notification/notification-bus';
 import { makeOutputTap } from './output-tap';
 import { providerCommand } from './provider-command';
@@ -21,11 +23,18 @@ export interface PtyProcess {
 }
 
 export class PtyHost extends Context.Service<PtyHost, {
-  readonly spawn: (cwd: string) => Effect.Effect<PtyProcess, TerminalError>;
+  /** `env` is added to the environment the shell inherits. */
+  readonly spawn: (cwd: string, env?: Readonly<Record<string, string>>) => Effect.Effect<PtyProcess, TerminalError>;
 }>()('terminal/PtyHost') {}
 
 /** How long a Terminal must be quiet before it counts as Idle instead of Active. */
 export const IDLE_AFTER_MS = 2000;
+
+/**
+ * How long a Terminal whose Hook says Working may print nothing before the Hook is not believed. A working agent keeps
+ * drawing (a spinner, its output); silence means it stopped without saying so, as when the user interrupts it.
+ */
+export const HOOK_STALE_AFTER_MS = 30_000;
 
 type Terminal = {
   readonly process: PtyProcess;
@@ -40,11 +49,11 @@ const shellCandidates = (): ReadonlyArray<string> =>
   process.platform === 'win32' ? ['pwsh.exe', 'powershell.exe'] : [process.env['SHELL'] ?? '/bin/sh'];
 
 const nativePtyHost: Layer.Layer<PtyHost> = Layer.succeed(PtyHost, {
-  spawn: Effect.fn('PtyHost.spawn')(function* (cwd) {
+  spawn: Effect.fn('PtyHost.spawn')(function* (cwd, env) {
     let lastError: unknown;
     for (const shell of shellCandidates()) {
       try {
-        const options: IWindowsPtyForkOptions = { name: 'xterm-256color', cols: 120, rows: 34, cwd, env: process.env };
+        const options: IWindowsPtyForkOptions = { name: 'xterm-256color', cols: 120, rows: 34, cwd, env: { ...process.env, ...env } };
         return pty.spawn(shell, [], options) as unknown as PtyProcess;
       } catch (error) {
         lastError = error;
@@ -70,11 +79,20 @@ export class TerminalService extends Context.Service<TerminalService, {
 /** What a Terminal's process ended with: a clean exit is Done, any other code is an Error. */
 export const statusOfExit = (exitCode: number): TerminalStatus => (exitCode === 0 ? 'Done' : 'Error');
 
+/** What a Hook's report does to a Terminal's activity. */
+const hookEvents: Readonly<Record<HookSignal, ActivityEvent>> = {
+  Working: 'HookWorking',
+  Waiting: 'HookWaiting',
+  Done: 'HookDone',
+  Ended: 'HookEnded',
+};
+
 const layerTerminalServiceCore = Layer.effect(
   TerminalService,
   Effect.gen(function* () {
     const host = yield* PtyHost;
     const bus = yield* NotificationBus;
+    const hooks = yield* HookChannel;
     const scope = yield* Scope.Scope;
     const terminals = yield* Ref.make<ReadonlyMap<TerminalId, Terminal>>(new Map());
     const activities = yield* SubscriptionRef.make<ReadonlyMap<TerminalId, TerminalActivity>>(new Map());
@@ -89,16 +107,18 @@ const layerTerminalServiceCore = Layer.effect(
       });
 
     /**
-     * Folds a Terminal's activity events into its activity. While it is busy the wait for the next event is bounded:
-     * running out means it went quiet. Ends when the queue does (the process exited or the Terminal was closed).
+     * Folds a Terminal's activity events into its activity. While it is busy, or its Hook says Working, the wait for the
+     * next event is bounded: running out means it went quiet, or that the Hook went stale. Ends when the queue does (the process exited or the Terminal was closed).
      */
     const trackActivity = Effect.fnUntraced(function* (id: TerminalId, events: Queue.Queue<ActivityEvent, Cause.Done>) {
       let state = initialActivity;
       while (true) {
-        const next = state.busy
-          ? yield* Queue.take(events).pipe(Effect.timeoutOption(Duration.millis(IDLE_AFTER_MS)))
-          : Option.some(yield* Queue.take(events));
-        state = nextActivity(state, Option.getOrElse(next, (): ActivityEvent => 'Quiet'));
+        const hookWorking = state.hook === 'Working';
+        const next =
+          state.busy || hookWorking
+            ? yield* Queue.take(events).pipe(Effect.timeoutOption(Duration.millis(hookWorking ? HOOK_STALE_AFTER_MS : IDLE_AFTER_MS)))
+            : Option.some(yield* Queue.take(events));
+        state = nextActivity(state, Option.getOrElse(next, (): ActivityEvent => (hookWorking ? 'HookEnded' : 'Quiet')));
         yield* publish(id, activityOf(state));
       }
     });
@@ -129,6 +149,19 @@ const layerTerminalServiceCore = Layer.effect(
         }
       });
 
+    // A report for a Terminal that is gone (or never existed) is dropped.
+    yield* hooks.signals.pipe(
+      Stream.runForEach(({ terminalId, signal }) =>
+        Ref.get(terminals).pipe(
+          Effect.flatMap((all) => {
+            const terminal = all.get(terminalId);
+            return terminal === undefined ? Effect.void : Queue.offer(terminal.activity, hookEvents[signal]);
+          }),
+        ),
+      ),
+      Effect.forkIn(scope),
+    );
+
     yield* Effect.addFinalizer(() =>
       Ref.get(terminals).pipe(
         Effect.flatMap((all) => Effect.forEach(all.values(), closeProcess, { discard: true })),
@@ -138,8 +171,9 @@ const layerTerminalServiceCore = Layer.effect(
     return TerminalService.of({
       create: Effect.fn('TerminalService.create')(function* (cwd, provider) {
         if (cwd.trim() === '') return yield* new TerminalError({ reason: 'InvalidCwd', detail: 'A terminal needs a project folder' });
-        const process = yield* host.spawn(cwd);
         const id = TerminalIdSchema.make(crypto.randomUUID());
+        // Setting these is what turns a Provider's Hook on for this Terminal (ADR 0009).
+        const process = yield* host.spawn(cwd, { TIMMY_TERMINAL_ID: id, TIMMY_HOOK_URL: hooks.urlFor(id) });
         const events = yield* Queue.unbounded<TerminalEvent, Cause.Done>();
         const activity = yield* Queue.unbounded<ActivityEvent, Cause.Done>();
         // The tap reads a copy of the output: what the renderer receives is not changed by it.
@@ -211,5 +245,12 @@ const layerTerminalServiceCore = Layer.effect(
 export const layerTerminalService = layerTerminalServiceCore.pipe(Layer.provide(nativePtyHost));
 
 /** With its own bus, which the test also gets, so it can listen to what the Terminals publish. */
-export const layerTerminalServiceTest = (host: typeof PtyHost.Service): Layer.Layer<TerminalService | NotificationBus> =>
-  layerTerminalServiceCore.pipe(Layer.provide(Layer.succeed(PtyHost, host)), Layer.provideMerge(layerNotificationBus));
+export const layerTerminalServiceTest = (
+  host: typeof PtyHost.Service,
+  channel: typeof HookChannel.Service = quietHookChannel,
+): Layer.Layer<TerminalService | NotificationBus> =>
+  layerTerminalServiceCore.pipe(
+    Layer.provide(Layer.succeed(PtyHost, host)),
+    Layer.provide(Layer.succeed(HookChannel, channel)),
+    Layer.provideMerge(layerNotificationBus),
+  );
