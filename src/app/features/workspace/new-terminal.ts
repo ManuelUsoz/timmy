@@ -20,6 +20,7 @@ const SHELL = 'shell';
   host: {
     '(document:click)': 'closeOnOutside($event)',
     '(document:keydown.escape)': 'open.set(false)',
+    '[class.align-end]': 'iconOnly()',
   },
   styles: `
     :host {
@@ -29,9 +30,14 @@ const SHELL = 'shell';
     .menu {
       position: absolute;
       top: 100%;
-      right: 0;
+      left: 0;
       z-index: 10;
       min-width: 180px;
+    }
+    /* The icon-only "+" sits at the right edge of its column: open the menu towards the left so it is not clipped. */
+    :host(.align-end) .menu {
+      left: auto;
+      right: 0;
     }
   `,
   template: `
