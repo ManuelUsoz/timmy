@@ -1,13 +1,15 @@
-import { Context, Duration, Effect, Fiber, Layer, Option, Queue, Ref, Scope, Stream, SubscriptionRef } from 'effect';
+import { Context, Duration, Effect, Fiber, Layer, Option, Queue, Ref, Scope, Semaphore, Stream, SubscriptionRef } from 'effect';
 import type { Cause } from 'effect';
 import * as pty from 'node-pty';
 import type { IPty, IWindowsPtyForkOptions } from 'node-pty';
 import type { Provider } from '../../src/shared/settings/settings.model';
+import type { TerminalStatus } from '../../src/shared/notification/notification.model';
 import { TerminalError } from '../../src/shared/terminal/terminal-error.model';
 import type { TerminalActivity, TerminalActivityEntry, TerminalEvent, TerminalId } from '../../src/shared/terminal/terminal.model';
 import { TerminalId as TerminalIdSchema } from '../../src/shared/terminal/terminal.model';
 import { HookChannel, quietHookChannel } from '../hooks/hook-channel';
 import type { HookSignal } from '../hooks/hook-integration';
+import { NotificationBus, layerNotificationBus } from '../notification/notification-bus';
 import { makeOutputTap } from './output-tap';
 import { providerCommand } from './provider-command';
 import { activityOf, initialActivity, nextActivity, type ActivityEvent } from './terminal-activity';
@@ -74,6 +76,9 @@ export class TerminalService extends Context.Service<TerminalService, {
   readonly close: (id: TerminalId) => Effect.Effect<void, TerminalError>;
 }>()('terminal/TerminalService') {}
 
+/** What a Terminal's process ended with: a clean exit is Done, any other code is an Error. */
+export const statusOfExit = (exitCode: number): TerminalStatus => (exitCode === 0 ? 'Done' : 'Error');
+
 /** What a Hook's report does to a Terminal's activity. */
 const hookEvents: Readonly<Record<HookSignal, ActivityEvent>> = {
   Working: 'HookWorking',
@@ -86,6 +91,7 @@ const layerTerminalServiceCore = Layer.effect(
   TerminalService,
   Effect.gen(function* () {
     const host = yield* PtyHost;
+    const bus = yield* NotificationBus;
     const hooks = yield* HookChannel;
     const scope = yield* Scope.Scope;
     const terminals = yield* Ref.make<ReadonlyMap<TerminalId, Terminal>>(new Map());
@@ -116,6 +122,17 @@ const layerTerminalServiceCore = Layer.effect(
         yield* publish(id, activityOf(state));
       }
     });
+
+    // A Terminal's status changes and its closing never interleave: a process that ends after the Terminal was closed
+    // finds it gone and publishes nothing, so a retracted Source cannot come back.
+    const transitions = yield* Semaphore.make(1);
+
+    const enter = (id: TerminalId, type: TerminalStatus): Effect.Effect<void> =>
+      transitions.withPermits(1)(
+        Effect.gen(function* () {
+          if ((yield* Ref.get(terminals)).has(id)) yield* bus.publish({ source: { _tag: 'Terminal', terminalId: id }, type });
+        }),
+      );
 
     const get = Effect.fn('TerminalService.get')(function* (id: TerminalId) {
       const terminal = (yield* Ref.get(terminals)).get(id);
@@ -166,6 +183,10 @@ const layerTerminalServiceCore = Layer.effect(
             Queue.offer(events, { _tag: 'Data', data }).pipe(Effect.andThen(Queue.offerAll(activity, tap.scan(data)))),
           ),
         );
+        yield* publish(id, 'Idle');
+        const tracker = yield* trackActivity(id, activity).pipe(Effect.ignore, Effect.forkIn(scope));
+        const terminal = { process, events, activity, tracker };
+        yield* Ref.update(terminals, (all) => new Map(all).set(id, terminal));
         process.onExit(({ exitCode }) => {
           // The terminal stays listed until it is closed, so a screen opened after the exit still reads it.
           Effect.runFork(
@@ -173,13 +194,13 @@ const layerTerminalServiceCore = Layer.effect(
               Effect.andThen(Queue.end(events)),
               Effect.andThen(Queue.offer(activity, 'Exited')),
               Effect.andThen(Queue.end(activity)),
+              Effect.andThen(enter(id, statusOfExit(exitCode))),
             ),
           );
         });
-        yield* publish(id, 'Idle');
-        const tracker = yield* trackActivity(id, activity).pipe(Effect.ignore, Effect.forkIn(scope));
-        const terminal = { process, events, activity, tracker };
-        yield* Ref.update(terminals, (all) => new Map(all).set(id, terminal));
+        // Created, the Terminal is Idle; its process is already live, so it is Working right after.
+        yield* enter(id, 'Idle');
+        yield* enter(id, 'Working');
         if (provider !== undefined) yield* Effect.sync(() => process.write(`${providerCommand(provider)}\r`));
         return id;
       }),
@@ -207,19 +228,29 @@ const layerTerminalServiceCore = Layer.effect(
         yield* Queue.offer(terminal.events, { _tag: 'Exit', exitCode: 0 }).pipe(Effect.andThen(Queue.end(terminal.events)));
         yield* Fiber.interrupt(terminal.tracker);
         yield* publish(id, undefined);
+        yield* transitions.withPermits(1)(
+          Ref.update(terminals, (all) => {
+            const next = new Map(all);
+            next.delete(id);
+            return next;
+          }).pipe(Effect.andThen(bus.retract({ _tag: 'Terminal', terminalId: id }))),
+        );
         yield* closeProcess(terminal);
-        yield* Ref.update(terminals, (all) => {
-          const next = new Map(all);
-          next.delete(id);
-          return next;
-        });
       }),
     });
   }),
 );
 
+/** Needs the `NotificationBus`, which the handlers share with the Subscribers. */
 export const layerTerminalService = layerTerminalServiceCore.pipe(Layer.provide(nativePtyHost));
 
-
-export const layerTerminalServiceTest = (host: typeof PtyHost.Service, channel: typeof HookChannel.Service = quietHookChannel): Layer.Layer<TerminalService> =>
-  layerTerminalServiceCore.pipe(Layer.provide(Layer.succeed(PtyHost, host)), Layer.provide(Layer.succeed(HookChannel, channel)));
+/** With its own bus, which the test also gets, so it can listen to what the Terminals publish. */
+export const layerTerminalServiceTest = (
+  host: typeof PtyHost.Service,
+  channel: typeof HookChannel.Service = quietHookChannel,
+): Layer.Layer<TerminalService | NotificationBus> =>
+  layerTerminalServiceCore.pipe(
+    Layer.provide(Layer.succeed(PtyHost, host)),
+    Layer.provide(Layer.succeed(HookChannel, channel)),
+    Layer.provideMerge(layerNotificationBus),
+  );

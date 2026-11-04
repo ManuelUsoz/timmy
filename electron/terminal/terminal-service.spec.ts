@@ -1,8 +1,11 @@
 import { describe, expect, it } from '@effect/vitest';
 import { Effect, Fiber, Stream } from 'effect';
+import type { Scope } from 'effect';
 import { TestClock } from 'effect/testing';
 import type { Provider } from '../../src/shared/settings/settings.model';
+import type { NotificationEvent } from '../../src/shared/notification/notification.model';
 import type { TerminalId } from '../../src/shared/terminal/terminal.model';
+import { NotificationBus } from '../notification/notification-bus';
 import { TerminalId as TerminalIdSchema } from '../../src/shared/terminal/terminal.model';
 import type { HookSignal } from '../hooks/hook-integration';
 import { makeHookChannelTest } from '../hooks/hook-channel';
@@ -228,6 +231,96 @@ describe('TerminalService activity', () => {
       Effect.gen(function* () {
         const error = yield* service.focus('nope' as TerminalId).pipe(Effect.flip);
         expect(error.reason).toBe('NotFound');
+      }),
+    ),
+  );
+});
+
+describe('TerminalService notifications', () => {
+  /** Collects what a Subscriber hears from now on; `heard` lets the pending fibers run first. */
+  const listen = Effect.gen(function* () {
+    const bus = yield* NotificationBus;
+    const events: NotificationEvent[] = [];
+    yield* bus.subscribe.pipe(Stream.runForEach((event) => Effect.sync(() => void events.push(event))), Effect.forkScoped);
+    yield* Effect.yieldNow;
+    return {
+      heard: Effect.gen(function* () {
+        yield* Effect.yieldNow;
+        yield* Effect.yieldNow;
+        return [...events];
+      }),
+    };
+  });
+
+  const notified = (terminalId: TerminalId, type: 'Idle' | 'Working' | 'Done' | 'Error'): NotificationEvent => ({
+    _tag: 'Notified',
+    notification: { source: { _tag: 'Terminal', terminalId }, type },
+  });
+
+  const withPty = <A, E>(
+    use: (pty: ReturnType<typeof makePty>, service: typeof TerminalService.Service, subscriber: Effect.Success<typeof listen>) => Effect.Effect<A, E, NotificationBus | Scope.Scope>,
+  ) => {
+    const pty = makePty();
+    return Effect.gen(function* () {
+      const subscriber = yield* listen;
+      return yield* use(pty, yield* TerminalService, subscriber);
+    }).pipe(Effect.scoped, Effect.provide(layerTerminalServiceTest({ spawn: () => Effect.succeed(pty.process) })));
+  };
+
+  it.effect('a created Terminal is Idle, and then Working once its process is live', () =>
+    withPty((_pty, service, subscriber) =>
+      Effect.gen(function* () {
+        const id = yield* service.create('C:/project');
+        expect(yield* subscriber.heard).toEqual([notified(id, 'Idle'), notified(id, 'Working')]);
+      }),
+    ),
+  );
+
+  it.effect('a clean exit is Done', () =>
+    withPty((pty, service, subscriber) =>
+      Effect.gen(function* () {
+        const id = yield* service.create('C:/project');
+        pty.exit(0);
+        expect(yield* subscriber.heard).toEqual([notified(id, 'Idle'), notified(id, 'Working'), notified(id, 'Done')]);
+      }),
+    ),
+  );
+
+  it.effect('any other exit code is an Error', () =>
+    withPty((pty, service, subscriber) =>
+      Effect.gen(function* () {
+        const id = yield* service.create('C:/project');
+        pty.exit(3);
+        expect(yield* subscriber.heard).toEqual([notified(id, 'Idle'), notified(id, 'Working'), notified(id, 'Error')]);
+      }),
+    ),
+  );
+
+  it.effect('a Subscriber that connects late hears the latest status of every open Terminal', () =>
+    withPty((pty, service) =>
+      Effect.gen(function* () {
+        const id = yield* service.create('C:/project');
+        pty.exit(0);
+        yield* Effect.yieldNow;
+        const late = yield* listen;
+        expect(yield* late.heard).toEqual([notified(id, 'Done')]);
+      }),
+    ),
+  );
+
+  it.effect('closing a Terminal retracts its Source, and the process ending afterwards does not bring it back', () =>
+    withPty((pty, service, subscriber) =>
+      Effect.gen(function* () {
+        const id = yield* service.create('C:/project');
+        yield* service.close(id);
+        pty.exit(0);
+        expect(yield* subscriber.heard).toEqual([
+          notified(id, 'Idle'),
+          notified(id, 'Working'),
+          { _tag: 'Retracted', source: { _tag: 'Terminal', terminalId: id } },
+        ]);
+        const late = yield* listen;
+        expect(yield* late.heard).toEqual([]);
       }),
     ),
   );

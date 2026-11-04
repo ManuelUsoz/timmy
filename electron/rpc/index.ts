@@ -2,12 +2,14 @@ import { Layer } from 'effect';
 import { layerProjectFiles } from '../files/project-files';
 import { layerHooksService } from '../hooks/hooks-service';
 import { layerProjectFolders } from '../projects/project-folders';
+import { layerNotificationBus } from '../notification/notification-bus';
 import { layerProjectsService } from '../projects/projects-service';
 import { layerTerminalService } from '../terminal/terminal-service';
 import { layerWindowService } from '../window/window-service';
 import { layerAppInfoHandlers } from './app-info';
 import { layerFilesHandlers } from './files';
 import { layerHooksHandlers } from './hooks';
+import { layerNotificationHandlers } from './notification';
 import { layerProjectsHandlers } from './projects';
 import { layerSettingsHandlers } from './settings';
 import { layerTerminalHandlers } from './terminal';
@@ -36,4 +38,8 @@ export const layerDesktopHandlers = Layer.mergeAll(
   layerFilesHandlersLive,
   layerHooksHandlersLive,
   layerTerminalHandlers.pipe(Layer.provide(layerTerminalService)),
+  layerNotificationHandlers,
+).pipe(
+  // One bus for the Terminals that publish and the handlers that stream.
+  Layer.provide(layerNotificationBus),
 );

@@ -19,8 +19,9 @@ electron/rpc/<domain>.ts              handler layers per domain
 electron/rpc/index.ts                 layerDesktopHandlers (merge of all handler layers)
 electron/rpc/ipc-server.ts            IpcServerPort, RpcPortHandoff, layerIpcServer (swap port per window load)
 electron/rpc/runtime.ts               MainRuntime (ManagedRuntime) running the RpcServer for the app lifetime
-electron/<domain>/                    main-only services per domain: files, projects (ProjectStore in
-                                      timmy.db), settings, terminal (node-pty), window
+electron/<domain>/                    main-only services per domain: files, notification (NotificationBus:
+                                      latest per Source, replay, retraction; ADR 0010), projects (ProjectStore
+                                      in timmy.db), settings, terminal (node-pty), window
 src/app/core/                         DesktopApi, layerDesktop, desktop-port, EffectRuntime
 src/app/features/                     feature code, one folder per feature
 ```

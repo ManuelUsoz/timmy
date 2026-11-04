@@ -2,6 +2,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Schema } from 'effect';
 import { I18n } from '../../core/i18n';
+import { NotificationsState } from './notifications-state';
 import { PanelTerminal } from './panel-terminal';
 import { TerminalsState } from '../workspace/terminals-state';
 import { WorkspaceComponent } from '../workspace/workspace';
@@ -25,7 +26,10 @@ export class ShellComponent {
   protected readonly windowMode = inject(WindowModeState);
   protected readonly i18n = inject(I18n);
   private readonly terminals = inject(TerminalsState);
-  protected readonly pill = computed(() => pillView(this.terminals.entries()));
+  private readonly notifications = inject(NotificationsState);
+  /** The Terminals whose output asked for the user. It is not a Notification yet, so it still comes from their activity. */
+  private readonly needingAttention = computed(() => new Set(this.terminals.entries().filter((entry) => entry.activity === 'NeedsAttention').map((entry) => entry.id)));
+  protected readonly pill = computed(() => pillView(this.notifications.notifications(), this.needingAttention()));
   /** The Pill's state word and its sentence, translated here so the view model stays language-free. */
   protected readonly pillLabel = computed(() => this.i18n.t(({ Live: 'state.live', Idle: 'state.idle', Attention: 'activity.needsAttention' } as const)[this.pill().state]));
   protected readonly pillText = computed(() => {
