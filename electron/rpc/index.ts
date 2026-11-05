@@ -3,6 +3,7 @@ import { layerProjectFiles } from '../files/project-files';
 import { layerHooksService } from '../hooks/hooks-service';
 import { layerProjectFolders } from '../projects/project-folders';
 import { layerNotificationBus } from '../notification/notification-bus';
+import { layerOnScreen } from '../notification/on-screen';
 import { layerProjectsService } from '../projects/projects-service';
 import { layerTerminalService } from '../terminal/terminal-service';
 import { layerWindowService } from '../window/window-service';
@@ -24,22 +25,21 @@ const layerFilesHandlersLive = layerFilesHandlers.pipe(Layer.provide(layerProjec
 
 const layerHooksHandlersLive = layerHooksHandlers.pipe(Layer.provide(layerHooksService));
 
-const layerWindowHandlersLive = layerWindowHandlers.pipe(Layer.provide(layerWindowService));
-
 /**
  * Handlers for every domain in `DesktopRpcs`. Merge new domain handler layers here.
  * Needs a `ProjectStore`, a `SettingsStore`, a `WindowHost`, a `FolderPicker`, the `HookIntegrations` and the `HookChannel`; the runtime provides the real ones.
  */
 export const layerDesktopHandlers = Layer.mergeAll(
   layerAppInfoHandlers,
-  layerWindowHandlersLive,
+  layerWindowHandlers,
   layerSettingsHandlers,
   layerProjectsHandlersLive,
   layerFilesHandlersLive,
   layerHooksHandlersLive,
-  layerTerminalHandlers.pipe(Layer.provide(layerTerminalService)),
+  layerTerminalHandlers.pipe(Layer.provide(layerTerminalService), Layer.provide(layerOnScreen)),
   layerNotificationHandlers,
 ).pipe(
-  // One bus for the Terminals that publish and the handlers that stream.
-  Layer.provide(layerNotificationBus),
+  // One bus for the Terminals that publish and the handlers that stream, and one WindowService for the handlers of the
+  // window and for what is on screen.
+  Layer.provide(Layer.merge(layerNotificationBus, layerWindowService)),
 );

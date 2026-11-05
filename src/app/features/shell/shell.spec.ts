@@ -253,15 +253,15 @@ describe('ShellComponent', () => {
 
     it('shows the same status as the Pill, from the same Notifications, and tallies every status', async () => {
       const ctx = await setup();
-      await ctx.hear({ _tag: 'Notified', notification: { source: source('a'), type: 'Waiting' } });
-      await ctx.hear({ _tag: 'Notified', notification: { source: source('b'), type: 'Working' } });
-      await ctx.hear({ _tag: 'Notified', notification: { source: source('c'), type: 'Working' } });
+      await ctx.hear({ _tag: 'Notified', notification: { source: source('a'), type: 'Waiting', seen: false } });
+      await ctx.hear({ _tag: 'Notified', notification: { source: source('b'), type: 'Working', seen: false } });
+      await ctx.hear({ _tag: 'Notified', notification: { source: source('c'), type: 'Working', seen: false } });
       await ctx.settle();
       await openPanel(ctx);
       expect(mascot(ctx)?.getAttribute('data-status')).toBe('Waiting');
       expect(tally(ctx)).toEqual(['1 esperando', '2 en marcha']);
 
-      await ctx.hear({ _tag: 'Notified', notification: { source: source('a'), type: 'Error' } });
+      await ctx.hear({ _tag: 'Notified', notification: { source: source('a'), type: 'Error', seen: false } });
       await ctx.settle();
       expect(mascot(ctx)?.getAttribute('data-status')).toBe('Error');
       expect(tally(ctx)).toEqual(['1 con error', '2 en marcha']);
@@ -273,8 +273,8 @@ describe('ShellComponent', () => {
       const working = terminals.create(ProjectId.make('p1'));
       const asking = terminals.create(ProjectId.make('p1'));
       for (const entry of [working, asking]) terminals.setState(entry.id, 'Live');
-      await ctx.hear({ _tag: 'Notified', notification: { source: source(working.id), type: 'Working' } });
-      await ctx.hear({ _tag: 'Notified', notification: { source: source(asking.id), type: 'Waiting' } });
+      await ctx.hear({ _tag: 'Notified', notification: { source: source(working.id), type: 'Working', seen: false } });
+      await ctx.hear({ _tag: 'Notified', notification: { source: source(asking.id), type: 'Waiting', seen: false } });
       terminals.setCurrent(working.id);
       await ctx.settle();
       await openPanel(ctx);
@@ -304,7 +304,7 @@ describe('ShellComponent', () => {
     const mascot = (ctx: Awaited<ReturnType<typeof setup>>) => ctx.el.querySelector('ui-pill ui-mascot');
     const source = (id: string) => ({ _tag: 'Terminal', terminalId: TerminalId.make(id) }) as const;
     const enter = (ctx: Awaited<ReturnType<typeof setup>>, id: string, type: TerminalStatus) =>
-      ctx.hear({ _tag: 'Notified', notification: { source: source(id), type } });
+      ctx.hear({ _tag: 'Notified', notification: { source: source(id), type, seen: false } });
 
     it('leads with the Mascot, gray when nothing is running, and has no state dot', async () => {
       const ctx = await setup();

@@ -3,7 +3,7 @@ import type { Notification, TerminalStatus } from '../../../shared/notification/
 import { TerminalId } from '../../../shared/terminal/terminal.model';
 import { pillView } from './pill-view';
 
-const notification = (id: string, type: TerminalStatus): Notification => ({ source: { _tag: 'Terminal', terminalId: TerminalId.make(id) }, type });
+const notification = (id: string, type: TerminalStatus, seen = false): Notification => ({ source: { _tag: 'Terminal', terminalId: TerminalId.make(id) }, type, seen });
 
 describe('pillView', () => {
   it('is Idle, with nothing to count, when there are no Notifications', () => {
@@ -17,6 +17,21 @@ describe('pillView', () => {
 
   it.each<[TerminalStatus]>([['Working'], ['Waiting'], ['Error'], ['Done'], ['Idle']])('shows a lone %s Terminal', (status) => {
     expect(pillView([notification('a', status)])).toEqual({ status, count: 1 });
+  });
+});
+
+describe('pillView: Seen', () => {
+  it.each<[TerminalStatus]>([['Done'], ['Error']])('counts a Seen %s Terminal as Idle', (status) => {
+    expect(pillView([notification('a', status, true)])).toEqual({ status: 'Idle', count: 1 });
+  });
+
+  it('lets a Seen Error give way to what is below it', () => {
+    expect(pillView([notification('a', 'Error', true), notification('b', 'Done')])).toEqual({ status: 'Done', count: 1 });
+    expect(pillView([notification('a', 'Error', true), notification('b', 'Working')])).toEqual({ status: 'Working', count: 1 });
+  });
+
+  it('still counts an Error that was not Seen next to one that was', () => {
+    expect(pillView([notification('a', 'Error', true), notification('b', 'Error')])).toEqual({ status: 'Error', count: 1 });
   });
 });
 

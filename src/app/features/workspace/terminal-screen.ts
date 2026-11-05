@@ -51,6 +51,8 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
   private readonly streamAbort = new AbortController();
 
   constructor() {
+    // Whichever Terminal this screen shows (a restart gives it a new one) is what main is told is on screen.
+    effect(() => this.terminals.show(this.terminal().id));
     // A bell or notification that arrives while the user is typing in this Terminal has been seen at once.
     effect(() => {
       const { id, activity } = this.terminal();
@@ -154,6 +156,7 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.destroyed = true;
+    this.terminals.hide(this.terminal().id);
     this.saveScreen();
     this.instance?.textarea?.removeEventListener('focus', this.onFocus);
     this.streamAbort.abort();

@@ -20,7 +20,7 @@ const entry = (id: string, projectId: ProjectId, number: number, provider?: Term
   activity: 'Idle',
   ...(provider === undefined ? {} : { provider }),
 });
-const said = (id: string, type: TerminalStatus): Notification => ({ source: { _tag: 'Terminal', terminalId: TerminalId.make(id) }, type });
+const said = (id: string, type: TerminalStatus, seen = false): Notification => ({ source: { _tag: 'Terminal', terminalId: TerminalId.make(id) }, type, seen });
 
 describe('railView', () => {
   it('is empty with no Terminals', () => {
@@ -67,6 +67,16 @@ describe('railView', () => {
     ]);
   });
 
+  it('leaves a Seen Done or Error out of the tally, as the Mascot does, but keeps its line with its status', () => {
+    const view = railView([entry('a', api, 1), entry('b', api, 2), entry('c', api, 3)], [said('a', 'Error', true), said('b', 'Done', true), said('c', 'Error')], projects);
+    expect(view.tally).toEqual([{ status: 'Error', count: 1 }]);
+    expect(view.groups.flatMap((group) => group.rows).map((row) => [row.id, row.status, row.seen])).toEqual([
+      ['a', 'Error', true],
+      ['c', 'Error', false],
+      ['b', 'Done', true],
+    ]);
+  });
+
   it('is only Idle Terminals: nothing to tally', () => {
     expect(railView([entry('a', api, 1)], [said('a', 'Idle')], projects).tally).toEqual([]);
   });
@@ -77,6 +87,12 @@ describe('urgentTerminal', () => {
 
   it('is the first Terminal in the status the Mascot shows', () => {
     expect(urgentTerminal(view, 'Working')).toBe('b');
+  });
+
+  it('skips a Seen Terminal: the Mascot is not about it', () => {
+    const seen = railView([entry('a', api, 1), entry('b', api, 2)], [said('a', 'Error', true), said('b', 'Error')], projects);
+    expect(urgentTerminal(seen, 'Error')).toBe('b');
+    expect(urgentTerminal(railView([entry('a', api, 1)], [said('a', 'Error', true)], projects), 'Error')).toBeUndefined();
   });
 
   it('is nothing while the Mascot is Idle, or when no Terminal has that status', () => {

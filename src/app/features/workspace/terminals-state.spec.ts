@@ -80,6 +80,7 @@ describe('TerminalsState', () => {
 const withMain = (activity: ReadonlyArray<ReadonlyArray<TerminalActivityEntry>> = []) => {
   const created: Array<{ readonly cwd: string; readonly provider?: Provider }> = [];
   const focused: TerminalId[] = [];
+  const shown: Array<TerminalId | undefined> = [];
   const unused = () => Effect.die('not under test');
   const handlers = TerminalRpcs.toLayer({
     'Terminal.create': (payload) => Effect.sync(() => (created.push(payload), { terminalId: TerminalId.make(`t-${created.length}`) })),
@@ -89,12 +90,13 @@ const withMain = (activity: ReadonlyArray<ReadonlyArray<TerminalActivityEntry>> 
     'Terminal.focus': ({ terminalId }) => Effect.sync(() => void focused.push(terminalId)),
     'Terminal.write': unused,
     'Terminal.resize': unused,
+    'Terminal.show': ({ terminalId }) => Effect.sync(() => void shown.push(terminalId)),
   });
   const layer = makeDesktopTestLayer(handlers);
   TestBed.configureTestingModule({
     providers: [{ provide: EffectRuntime, useValue: { run: (e: Effect.Effect<unknown, unknown, never>) => Effect.runPromiseExit(Effect.provide(e as never, layer)) } }],
   });
-  return { created, focused, terminals: TestBed.inject(TerminalsState) };
+  return { created, focused, shown, terminals: TestBed.inject(TerminalsState) };
 };
 
 describe('TerminalsState: Providers', () => {
@@ -134,5 +136,29 @@ describe('TerminalsState: activity', () => {
     const opened = await terminals.createLive(timmy, '/work/timmy');
     await terminals.focus(opened!.id);
     expect(focused).toEqual([opened!.id]);
+  });
+});
+
+describe('TerminalsState: what is showing', () => {
+  it('tells main which Terminal the screen shows, and that none is once it leaves', async () => {
+    const { shown, terminals } = withMain();
+    const opened = await terminals.createLive(timmy, '/work/timmy');
+    terminals.show(opened!.id);
+    TestBed.tick();
+    await vi.waitFor(() => expect(shown).toEqual([opened!.id]));
+    terminals.hide(opened!.id);
+    TestBed.tick();
+    await vi.waitFor(() => expect(shown).toEqual([opened!.id, undefined]));
+  });
+
+  it('keeps the Terminal that took the screen over when the one it replaced leaves late', async () => {
+    const { shown, terminals } = withMain();
+    const first = await terminals.createLive(timmy, '/work/timmy');
+    const second = await terminals.createLive(timmy, '/work/timmy');
+    terminals.show(first!.id);
+    terminals.show(second!.id);
+    terminals.hide(first!.id);
+    TestBed.tick();
+    await vi.waitFor(() => expect(shown).toEqual([second!.id]));
   });
 });

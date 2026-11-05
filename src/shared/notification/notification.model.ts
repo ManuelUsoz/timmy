@@ -14,9 +14,19 @@ export type TerminalSource = typeof TerminalSource.Type;
 export const Source = TerminalSource;
 export type Source = typeof Source.Type;
 
-/** A Source entering a status. */
-export const Notification = Schema.Struct({ source: Source, type: TerminalStatus }).annotate({ identifier: 'Notification' });
+/** What a Source publishes: it entered a status. Whether anyone has seen it is for the bus to say. */
+export const Entered = Schema.Struct({ source: Source, type: TerminalStatus }).annotate({ identifier: 'Entered' });
+export type Entered = typeof Entered.Type;
+
+/**
+ * A Source entering a status. `seen` is true for a Done or Error the user has viewed (GLOSSARY: Seen); it is never true
+ * for any other status.
+ */
+export const Notification = Schema.Struct({ ...Entered.fields, seen: Schema.Boolean }).annotate({ identifier: 'Notification' });
 export type Notification = typeof Notification.Type;
+
+/** The statuses that can be Seen: what is over, not what is going on or asking for the user. */
+export const canBeSeen = (type: TerminalStatus): boolean => type === 'Done' || type === 'Error';
 
 /** Identifies a Source among the others, in the bus in main and in every Subscriber. */
 export const sourceKey = (source: Source): string => `${source._tag}:${source.terminalId}`;

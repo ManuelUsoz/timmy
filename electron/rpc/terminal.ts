@@ -1,11 +1,14 @@
 import { Effect } from 'effect';
 import { TerminalRpcs } from '../../src/shared/terminal/terminal.rpc';
+import { OnScreen } from '../notification/on-screen';
 import { TerminalService } from '../terminal/terminal-service';
 
 export const layerTerminalHandlers = TerminalRpcs.toLayer(
   Effect.gen(function* () {
     const terminals = yield* TerminalService;
+    const onScreen = yield* OnScreen;
     return {
+      'Terminal.show': ({ terminalId }) => onScreen.report(terminalId),
       'Terminal.create': ({ cwd, provider }) => terminals.create(cwd, provider).pipe(Effect.map((terminalId) => ({ terminalId }))),
       'Terminal.output': ({ terminalId }) => terminals.output(terminalId),
       'Terminal.activity': () => terminals.activity,

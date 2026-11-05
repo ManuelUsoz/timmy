@@ -2,13 +2,15 @@ import type { Notification, TerminalStatus } from '../../../shared/notification/
 import type { Project, ProjectId } from '../../../shared/projects/projects.model';
 import type { Provider } from '../../../shared/settings/settings.model';
 import type { TerminalEntry, TerminalId } from '../workspace/terminal-entries';
-import { PRIORITY } from './pill-view';
+import { PRIORITY, mascotStatus } from './pill-view';
 
 /** A Terminal as a line of the Panel's rail. */
 export interface RailRow {
   readonly id: TerminalId;
   readonly number: number;
   readonly status: TerminalStatus;
+  /** A Done or Error the user has viewed: it no longer counts for the Mascot (GLOSSARY: Seen). */
+  readonly seen: boolean;
   readonly projectName: string;
   /** The Provider it runs; absent for a plain shell. */
   readonly provider: Provider | undefined;
@@ -46,14 +48,15 @@ export const railView = (
   notifications: ReadonlyArray<Notification>,
   projects: ReadonlyArray<Project>,
 ): RailView => {
-  const statuses = new Map(notifications.map((notification) => [notification.source.terminalId, notification.type]));
+  const said = new Map(notifications.map((notification) => [notification.source.terminalId, notification]));
   const projectName = (projectId: ProjectId) => projects.find((project) => project.projectId === projectId)?.name ?? '';
   const lines = entries.map((entry) => ({
     projectId: entry.projectId,
     row: {
       id: entry.id,
       number: entry.number,
-      status: statuses.get(entry.id) ?? 'Idle',
+      status: said.get(entry.id)?.type ?? 'Idle',
+      seen: said.get(entry.id)?.seen ?? false,
       projectName: projectName(entry.projectId),
       provider: entry.provider,
     } satisfies RailRow,
@@ -72,11 +75,11 @@ export const railView = (
   }
 
   const tally = PRIORITY.filter((status) => status !== 'Idle')
-    .map((status) => ({ status, count: notifications.filter((notification) => notification.type === status).length }))
+    .map((status) => ({ status, count: notifications.filter((notification) => mascotStatus(notification) === status).length }))
     .filter((item) => item.count > 0);
   return { tally, groups };
 };
 
-/** The Terminal the Mascot is about: the first one in the status it shows. Undefined while nothing says anything. */
+/** The Terminal the Mascot is about: the first unseen one in the status it shows. Undefined while nothing says anything. */
 export const urgentTerminal = (view: RailView, status: TerminalStatus): TerminalId | undefined =>
-  status === 'Idle' ? undefined : view.groups.flatMap((group) => group.rows).find((row) => row.status === status)?.id;
+  status === 'Idle' ? undefined : view.groups.flatMap((group) => group.rows).find((row) => !row.seen && row.status === status)?.id;
