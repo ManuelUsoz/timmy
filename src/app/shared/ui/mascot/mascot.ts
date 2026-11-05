@@ -1,8 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, input, numberAttribute } from '@angular/core';
 import type { TerminalStatus } from '../../../../shared/notification/notification.model';
+import type { StateTone } from '../state/state';
 
 /** The tone palette per Terminal status (GLOSSARY: Mascot). */
-const TONE: Record<TerminalStatus, string> = {
+export const statusTone: Record<TerminalStatus, StateTone> = {
   Working: 'success',
   Waiting: 'info',
   Error: 'error',
@@ -34,5 +35,5 @@ export class MascotComponent {
   /** Names the status for assistive technology. Leave empty when the status is already written next to it. */
   readonly label = input('');
 
-  protected readonly tone = computed(() => `var(--support-${TONE[this.status()]})`);
+  protected readonly tone = computed(() => `var(--support-${statusTone[this.status()]})`);
 }

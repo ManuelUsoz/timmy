@@ -9,7 +9,7 @@ import { MascotComponent } from '../../shared/ui/mascot/mascot';
 import { MenuComponent } from '../../shared/ui/menu/menu';
 import { OptionComponent } from '../../shared/ui/menu/option';
 import { PillComponent } from '../../shared/ui/pill/pill';
-import { pillView } from './pill-view';
+import { pillView, statusWordKey } from './pill-view';
 import { WindowMode } from '../../../shared/window/window.model';
 import { WindowModeState } from './window-mode-state';
 
@@ -28,7 +28,7 @@ export class ShellComponent {
   protected readonly pill = computed(() => pillView(this.notifications.notifications()));
   /** The Pill's state word and its sentence, translated here so the view model stays language-free. */
   protected readonly pillLabel = computed(() =>
-    this.i18n.t(({ Working: 'state.live', Idle: 'state.idle', Waiting: 'activity.needsAttention', Done: 'state.done', Error: 'state.error' } as const)[this.pill().status]),
+    this.i18n.t(statusWordKey[this.pill().status]),
   );
   protected readonly pillText = computed(() => {
     const { status, count } = this.pill();

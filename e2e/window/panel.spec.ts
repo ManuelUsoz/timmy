@@ -3,14 +3,14 @@ import { expect, test } from '../fixtures';
 test.describe('the Panel shows the current Terminal', () => {
   test.use({ language: 'en' });
 
-  test('opens at 440x616 with an empty state that sends the user to the Workspace when there is no Project', async ({ timmy }) => {
+  test('opens at 880x560 with an empty state that sends the user to the Workspace when there is no Project', async ({ timmy }) => {
     const { page } = timmy;
     await timmy.openPanel();
 
-    await test.step('panel is 440x616', async () => {
+    await test.step('panel is 880x560', async () => {
       const b = await timmy.bounds();
-      expect(Math.abs(b.width - 440)).toBeLessThanOrEqual(8);
-      expect(Math.abs(b.height - 616)).toBeLessThanOrEqual(8);
+      expect(Math.abs(b.width - 880)).toBeLessThanOrEqual(8);
+      expect(Math.abs(b.height - 560)).toBeLessThanOrEqual(8);
     });
 
     const panel = page.getByRole('region', { name: 'Timmy panel' });
@@ -33,7 +33,7 @@ test.describe('the Panel shows the current Terminal', () => {
 
     await panel.getByRole('button', { name: 'New terminal' }).click();
     await expect(page.locator('.xterm-screen')).toContainText('PS ', { timeout: 15_000 });
-    await expect(panel.getByRole('group', { name: 'Terminals' }).getByRole('button')).toHaveText(['Terminal 1']);
+    await expect(panel.getByRole('listbox', { name: 'Terminals' }).locator('.as-row__title')).toHaveText(['Terminal 1']);
     await page.locator('.xterm-helper-textarea').focus();
     await page.keyboard.type('echo from-the-panel');
     await page.keyboard.press('Enter');
@@ -57,12 +57,12 @@ test.describe('the Panel shows the current Terminal', () => {
 
     await timmy.switchMode('Panel');
     const panel = page.getByRole('region', { name: 'Timmy panel' });
-    const strip = panel.getByRole('group', { name: 'Terminals' });
-    await expect(strip.getByRole('button')).toHaveText(['Terminal 1', 'Terminal 2']);
+    const rail = panel.getByRole('listbox', { name: 'Terminals' });
+    await expect(rail.locator('.as-row__title')).toHaveText(['Terminal 1', 'Terminal 2']);
     await expect(panel.getByRole('heading', { name: 'Terminal 2' })).toBeVisible();
     await expect(page.locator('.xterm-screen')).toContainText('only-in-two');
 
-    await strip.getByRole('button', { name: 'Terminal 1' }).click();
+    await rail.getByRole('option', { name: /Terminal 1/ }).click();
     await expect(panel.getByRole('heading', { name: 'Terminal 1' })).toBeVisible();
     // Terminal 1 was recorded in the Workspace (wide) and is shown here (narrow): its screen is restored whole, not cut at the start.
     await expect(page.locator('.xterm-screen')).toContainText(/PS C:\\Users.*demo-project>/);

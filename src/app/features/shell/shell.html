@@ -36,17 +36,12 @@
     }
   </section>
 } @else {
-  <section class="panel" animate.enter="mode-in" animate.leave="mode-out" aria-label="Timmy panel">
-    <header class="panel-header" (dblclick)="request('Pill')">
-      <ui-mascot [status]="pill().status" [size]="72" />
-      <div class="panel-heading">
-        <span class="panel-title">{{ i18n.t('terminals.title') }}</span>
-        <span class="panel-status">{{ pillLabel() }}</span>
+  <section class="panel" data-theme="g100" animate.enter="mode-in" animate.leave="mode-out" aria-label="Timmy panel">
+    <app-panel-terminal class="panel-body" (openWorkspace)="request('Expanded')" (collapse)="request('Pill')">
+      <div panelControls class="panel-controls">
+        <ng-container *ngTemplateOutlet="switcher" />
       </div>
-      <span class="drag-fill" aria-hidden="true"></span>
-      <ng-container *ngTemplateOutlet="switcher" />
-    </header>
-    <app-panel-terminal class="panel-body" (openWorkspace)="request('Expanded')" />
+    </app-panel-terminal>
   </section>
 }
 

@@ -1,29 +1,30 @@
 import { expect, test } from '../fixtures';
 
-test.describe('the Panel header is a Mascot band', () => {
+test.describe('the Panel rail leads with the Mascot', () => {
   test.use({ language: 'en' });
 
-  test('shows the gray Mascot, the title and the Idle word with nothing running, and double-click returns to the Pill', async ({ timmy }) => {
+  test('shows the gray Mascot and says nothing is running, with the switcher and close at the foot, and double-click returns to the Pill', async ({ timmy }) => {
     const { page } = timmy;
     await timmy.openPanel();
-    const band = page.locator('.panel-header');
-    const mascot = band.locator('ui-mascot');
+    const rail = page.locator('app-panel-rail');
+    const mascot = rail.locator('ui-mascot');
 
     await expect(mascot).toHaveAttribute('data-status', 'Idle');
-    await expect(band.locator('.panel-title')).toHaveText('Terminals');
-    await expect(band.locator('.panel-status')).toHaveText('Idle');
-    const [bandBox, mascotBox, wordBox, switcherBox] = await Promise.all([
-      band.boundingBox(),
+    await expect(rail.locator('.tally')).toHaveText('Nothing running');
+    const [railBox, mascotBox, tallyBox, switcherBox, mainBox] = await Promise.all([
+      rail.boundingBox(),
       mascot.boundingBox(),
-      band.locator('.panel-heading').boundingBox(),
-      band.getByRole('button', { name: 'Change window mode' }).boundingBox(),
+      rail.locator('.tally').boundingBox(),
+      rail.getByRole('button', { name: 'Change window mode' }).boundingBox(),
+      page.locator('app-panel-terminal .main').boundingBox(),
     ]);
-    expect(Math.round(bandBox!.height)).toBe(88);
-    expect(Math.round(mascotBox!.height)).toBe(72);
-    // The Mascot leads on the left; the switcher and close are at the right.
-    expect(mascotBox!.x + mascotBox!.width).toBeLessThanOrEqual(wordBox!.x);
-    expect(wordBox!.x + wordBox!.width).toBeLessThanOrEqual(switcherBox!.x);
-    await timmy.shot('panel-band-empty');
+    expect(Math.round(railBox!.width)).toBe(248);
+    expect(Math.round(mascotBox!.height)).toBe(64);
+    // The Mascot leads on the left with its words after it; the controls are at the foot of the rail; the Terminal is beside it.
+    expect(mascotBox!.x + mascotBox!.width).toBeLessThanOrEqual(tallyBox!.x);
+    expect(switcherBox!.y).toBeGreaterThan(mascotBox!.y + mascotBox!.height);
+    expect(railBox!.x + railBox!.width).toBeLessThanOrEqual(mainBox!.x);
+    await timmy.shot('panel-rail-empty');
 
     // The Panel stays at the corner the Pill is anchored to.
     const panelBounds = await timmy.bounds();
@@ -35,19 +36,20 @@ test.describe('the Panel header is a Mascot band', () => {
     expect(pillBounds.y + pillBounds.height).toBe(panelBounds.y + panelBounds.height);
   });
 
-  test('shows the same status as the Pill while a Terminal runs, and the terminal area is not shorter than before', async ({ timmy }) => {
+  test('shows the same status as the Pill while a Terminal runs, and the Terminal as a line of its Project', async ({ timmy }) => {
     const { page } = timmy;
     await timmy.openProjectTerminal();
     await timmy.switchMode('Panel');
     const panel = page.getByRole('region', { name: 'Timmy panel' });
-    const band = panel.locator('.panel-header');
+    const rail = panel.locator('app-panel-rail');
 
-    await expect(band.locator('ui-mascot')).toHaveAttribute('data-status', 'Working');
-    await expect(band.locator('.panel-status')).toHaveText('Live');
-    // Before the band the header was 48 px high in a 560 px Panel: 512 px for the terminal area.
-    const body = await panel.locator('app-panel-terminal').boundingBox();
-    expect(body!.height).toBeGreaterThanOrEqual(512);
-    await timmy.shot('panel-band-working', { mask: [page.locator('app-terminal-screen .cwd'), page.locator('.xterm-screen')] });
+    await expect(rail.locator('ui-mascot')).toHaveAttribute('data-status', 'Working');
+    await expect(rail.locator('.tally ui-state')).toHaveText(['1 live']);
+    await expect(rail.locator('as-list-group-label')).toContainText('demo-project');
+    const row = rail.getByRole('option', { name: /Terminal 1/ });
+    await expect(row).toHaveAttribute('aria-selected', 'true');
+    await expect(row).toContainText('Shell');
+    await timmy.shot('panel-rail-working', { mask: [page.locator('app-terminal-screen .cwd'), page.locator('.xterm-screen')] });
 
     await timmy.switchMode('Pill');
     await expect(page.locator('ui-pill ui-mascot')).toHaveAttribute('data-status', 'Working');

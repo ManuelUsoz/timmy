@@ -25,43 +25,19 @@
   flex-direction: column;
   height: 100%;
   background: var(--pill);
-}
-
-/* The Mascot band: 88 px like the Pill, the Mascot at the left, the switcher and close at the right. */
-.panel-header {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-04);
-  flex: none;
-  height: 88px;
-  box-sizing: border-box;
-  padding: 0 var(--spacing-04);
-  color: var(--text-helper);
-  user-select: none;
-}
-
-.panel-heading {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-  gap: var(--spacing-01);
-}
-
-.panel-title {
-  color: var(--text-helper);
-  font: var(--text-helper-text-01);
-}
-
-.panel-status {
   color: var(--text-primary);
-  font: var(--text-heading-02);
 }
 
+/* The Panel is the rail and the current Terminal (panel-terminal); its switcher and close sit at the foot of the rail. */
 .panel-body {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+}
+
+.panel-controls {
+  display: flex;
+  flex: none;
+  align-items: center;
 }
 
 .switcher {
@@ -101,11 +77,6 @@
   width: 160px;
 }
 
-.panel-header .switcher-menu {
-  top: 100%;
-  bottom: auto;
-}
-
 /*
  * Expanded is frameless like every mode and draws its own window controls (ADR 0005). The title bar
  * is a drag region; the switcher and the controls opt out of dragging. A frameless window gets no
@@ -137,10 +108,6 @@
 .workspace-body {
   flex: 1;
   min-height: 0;
-}
-
-.panel-header .drag-fill {
-  display: none;
 }
 
 .titlebar .drag-fill {

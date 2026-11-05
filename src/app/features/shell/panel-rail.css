@@ -1,0 +1,108 @@
+:host {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--spacing-03);
+  width: 248px;
+  min-height: 0;
+}
+
+/* The one Mascot, with how many Terminals are in each status. */
+.id {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--spacing-04);
+  height: 80px;
+  box-sizing: border-box;
+  padding: var(--spacing-03) var(--spacing-04);
+  border: 0;
+  border-radius: var(--radius-panel);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  user-select: none;
+}
+
+.id:hover {
+  background: var(--layer-hover);
+}
+
+/* With no Terminal to go to, a click does nothing: the Mascot is only a picture, and a double-click still goes to the Pill. */
+.id--inert {
+  cursor: default;
+}
+
+.id--inert:hover {
+  background: transparent;
+}
+
+.id:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
+.tally {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-01);
+  min-width: 0;
+}
+
+/* The first line is the status the Mascot shows. */
+.tally .lead {
+  color: var(--text-primary);
+}
+
+.nothing {
+  color: var(--text-secondary);
+  font: var(--text-body-compact-01);
+}
+
+.list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--spacing-01);
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.row {
+  grid-template-columns: auto 1fr auto;
+  gap: var(--spacing-03);
+  min-height: 40px;
+  padding-block: var(--spacing-01);
+}
+
+.row--waiting {
+  box-shadow: inset 0 0 0 1px var(--support-info);
+}
+
+.row--error {
+  box-shadow: inset 0 0 0 1px var(--support-error);
+}
+
+.dot {
+  display: block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--tone, var(--support-idle));
+}
+
+.footer {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--spacing-02);
+  padding: 0 var(--spacing-02);
+}
+
+.grow {
+  flex: 1;
+}

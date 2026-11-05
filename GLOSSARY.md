@@ -28,7 +28,7 @@ How much of Timmy is showing. There are three: Pill, Panel and Expanded. Timmy a
 The first Window mode: a single bar at the corner of the screen, led by the Mascot, showing the status of the Terminals. Nothing else is shown.
 
 **Panel**
-The second Window mode: a small surface anchored at the same corner as the Pill, holding the views of the design (Home, Terminal, Diff). Its header is a band led by the Mascot, with the aggregate Terminal status word.
+The second Window mode: a surface anchored at the same corner as the Pill, with a rail and the current Terminal beside it. The rail is led by the Mascot with how many Terminals are in each status, then lists every Terminal, those that need the user (Waiting, Error) first and the rest grouped by Project.
 
 **Expanded**
 The third Window mode: the Workspace, centered on the screen. The user can maximize it.

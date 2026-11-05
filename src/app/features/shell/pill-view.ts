@@ -8,7 +8,7 @@ export interface PillView {
 }
 
 /** Most urgent first (GLOSSARY: Mascot). */
-const PRIORITY: ReadonlyArray<TerminalStatus> = ['Waiting', 'Error', 'Working', 'Done', 'Idle'];
+export const PRIORITY: ReadonlyArray<TerminalStatus> = ['Waiting', 'Error', 'Working', 'Done', 'Idle'];
 
 /**
  * What the Pill shows, from the latest Notification of every Source: the highest-priority status and how many Terminals
@@ -19,3 +19,12 @@ export const pillView = (notifications: ReadonlyArray<Notification>): PillView =
   const status = PRIORITY.find((candidate) => statuses.includes(candidate)) ?? 'Idle';
   return { status, count: statuses.filter((candidate) => candidate === status).length };
 };
+
+/** The word for each Terminal status, as a translation key: what the Pill and the Panel say next to the Mascot. */
+export const statusWordKey = {
+  Working: 'state.live',
+  Idle: 'state.idle',
+  Waiting: 'activity.needsAttention',
+  Done: 'state.done',
+  Error: 'state.error',
+} as const satisfies Record<TerminalStatus, string>;

@@ -1,0 +1,58 @@
+<button
+  type="button"
+  class="id"
+  [attr.aria-label]="summary()"
+  [class.id--inert]="urgent() === undefined"
+  [attr.title]="urgent() === undefined ? null : i18n.t('panel.showUrgent')"
+  (click)="showUrgent()"
+  (dblclick)="collapse.emit()"
+>
+  <ui-mascot [status]="mascot()" [size]="64" />
+  <span class="tally" aria-hidden="true">
+    @for (line of tally(); track line.status) {
+      <ui-state [tone]="line.tone" [class.lead]="$first">{{ line.text }}</ui-state>
+    } @empty {
+      <span class="nothing">{{ i18n.t('pill.idle') }}</span>
+    }
+  </span>
+</button>
+
+<div class="list" role="listbox" [attr.aria-label]="i18n.t('terminals.title')">
+  @for (group of groups(); track group.key) {
+    <div role="group" [attr.aria-label]="group.needsYou ? i18n.t('panel.needsYou') : group.name || null">
+      @if (group.needsYou) {
+        <as-list-group-label [label]="i18n.t('panel.needsYou')" [count]="group.rows.length" />
+      } @else if (group.name !== '') {
+        <as-list-group-label [label]="group.name" [count]="group.rows.length" />
+      }
+      @for (row of group.rows; track row.id) {
+        <as-list-row
+          class="row"
+          [class.row--waiting]="row.status === 'Waiting'"
+          [class.row--error]="row.status === 'Error'"
+          [label]="i18n.t('terminals.name', { number: row.number })"
+          [meta]="sub(row, group.needsYou)"
+          [selected]="row.id === currentId()"
+          [attr.aria-current]="row.id === currentId() ? 'true' : null"
+          (activate)="select(row)"
+        >
+          <i leading class="dot" [style.--tone]="'var(--support-' + tone(row.status) + ')'" aria-hidden="true"></i>
+          @if (word(row.status); as word) {
+            <ui-state trailing [tone]="tone(row.status)">{{ word }}</ui-state>
+          }
+        </as-list-row>
+      }
+    </div>
+  }
+</div>
+
+<div class="footer">
+  @if (canOpen()) {
+    <app-new-terminal kind="ghost" size="sm" neutral up [disabled]="busy()" (chosen)="opened.emit($event)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+      {{ i18n.t('terminals.new') }}
+    </app-new-terminal>
+  }
+  <span class="grow"></span>
+  <ng-content />
+</div>

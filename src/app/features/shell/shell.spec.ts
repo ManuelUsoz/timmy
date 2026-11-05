@@ -111,19 +111,19 @@ describe('ShellComponent', () => {
     expect((el.querySelector('app-panel-terminal') !== null)).toBe(from === 'Panel');
   });
 
-  it('returns to the Pill on double-click of the Panel header, and ignores Escape', async () => {
+  it('returns to the Pill on double-click of the Mascot in the Panel, and ignores Escape', async () => {
     const { el, settle } = await setup();
     el.querySelector('ui-pill')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
     await settle();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     await settle();
     expect(el.querySelector('app-panel-terminal')).not.toBeNull();
-    el.querySelector('.panel-header')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    el.querySelector('app-panel-rail .id')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
     await settle();
     expect(el.querySelector('app-panel-terminal')).toBeNull();
   });
 
-  const SWITCHER = '.panel-header button[aria-label="Change window mode"]';
+  const SWITCHER = 'app-panel-rail button[aria-label="Change window mode"]';
   const openSwitcher = async (ctx: Awaited<ReturnType<typeof setup>>) => {
     ctx.el.querySelector<HTMLButtonElement>(SWITCHER)!.click();
     await ctx.settle();
@@ -219,7 +219,7 @@ describe('ShellComponent', () => {
     });
   });
 
-  it('returns from Expanded to the Panel from the title bar switcher, and the Panel keeps its own header', async () => {
+  it('returns from Expanded to the Panel from the title bar switcher, and the Panel keeps its own controls', async () => {
     const ctx = await setup();
     await openPanel(ctx);
     await openSwitcher(ctx);
@@ -231,44 +231,69 @@ describe('ShellComponent', () => {
     expect(ctx.el.querySelector('button[aria-label="Close Timmy"]')).not.toBeNull();
   });
 
-  describe('the Panel header is a Mascot band', () => {
+  describe('the Panel rail leads with the Mascot', () => {
     const source = (id: string) => ({ _tag: 'Terminal', terminalId: TerminalId.make(id) }) as const;
-    const band = (ctx: Awaited<ReturnType<typeof setup>>) => ctx.el.querySelector('.panel-header')!;
+    const rail = (ctx: Awaited<ReturnType<typeof setup>>) => ctx.el.querySelector('app-panel-rail')!;
+    const mascot = (ctx: Awaited<ReturnType<typeof setup>>) => rail(ctx).querySelector('ui-mascot');
+    const tally = (ctx: Awaited<ReturnType<typeof setup>>) => Array.from(rail(ctx).querySelectorAll('.tally ui-state')).map((line) => line.textContent?.trim());
     const openPanel = async (ctx: Awaited<ReturnType<typeof setup>>) => {
       ctx.el.querySelector('ui-pill')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
       await ctx.settle();
     };
 
-    it('leads with the 72 px Mascot, gray, next to the title and the aggregate status word', async () => {
+    it('leads with the 64 px Mascot, gray, and says nothing is running', async () => {
       const ctx = await setup();
       await openPanel(ctx);
-      const mascot = band(ctx).querySelector('ui-mascot');
-      expect(mascot?.getAttribute('data-status')).toBe('Idle');
-      expect(mascot?.querySelector('svg')?.getAttribute('width')).toBe('72');
-      expect(band(ctx).querySelector('.panel-title')?.textContent?.trim()).toBe('Terminales');
-      expect(band(ctx).querySelector('.panel-status')?.textContent?.trim()).toBe('Idle');
-      expect(band(ctx).querySelector('button[aria-label="Change window mode"]')).not.toBeNull();
-      expect(band(ctx).querySelector('button[aria-label="Close Timmy"]')).not.toBeNull();
+      expect(mascot(ctx)?.getAttribute('data-status')).toBe('Idle');
+      expect(mascot(ctx)?.querySelector('svg')?.getAttribute('width')).toBe('64');
+      expect(rail(ctx).querySelector('.tally')?.textContent?.trim()).toBe('Nada en marcha');
+      expect(rail(ctx).querySelector('button[aria-label="Change window mode"]')).not.toBeNull();
+      expect(rail(ctx).querySelector('button[aria-label="Close Timmy"]')).not.toBeNull();
     });
 
-    it('shows the same status as the Pill, from the same Notifications', async () => {
+    it('shows the same status as the Pill, from the same Notifications, and tallies every status', async () => {
       const ctx = await setup();
       await ctx.hear({ _tag: 'Notified', notification: { source: source('a'), type: 'Waiting' } });
+      await ctx.hear({ _tag: 'Notified', notification: { source: source('b'), type: 'Working' } });
+      await ctx.hear({ _tag: 'Notified', notification: { source: source('c'), type: 'Working' } });
       await ctx.settle();
       await openPanel(ctx);
-      expect(band(ctx).querySelector('ui-mascot')?.getAttribute('data-status')).toBe('Waiting');
-      expect(band(ctx).querySelector('.panel-status')?.textContent?.trim()).toBe('Atención');
+      expect(mascot(ctx)?.getAttribute('data-status')).toBe('Waiting');
+      expect(tally(ctx)).toEqual(['1 esperando', '2 en marcha']);
 
       await ctx.hear({ _tag: 'Notified', notification: { source: source('a'), type: 'Error' } });
       await ctx.settle();
-      expect(band(ctx).querySelector('ui-mascot')?.getAttribute('data-status')).toBe('Error');
-      expect(band(ctx).querySelector('.panel-status')?.textContent?.trim()).toBe('Error');
+      expect(mascot(ctx)?.getAttribute('data-status')).toBe('Error');
+      expect(tally(ctx)).toEqual(['1 con error', '2 en marcha']);
     });
 
-    it('adds no behavior of its own to the Mascot: a double-click on it still returns to the Pill', async () => {
+    it('lists the Terminals that need the user first, and the Mascot takes the user to the one that asks', async () => {
+      const ctx = await setup();
+      const terminals = TestBed.inject(TerminalsState);
+      const working = terminals.create(ProjectId.make('p1'));
+      const asking = terminals.create(ProjectId.make('p1'));
+      for (const entry of [working, asking]) terminals.setState(entry.id, 'Live');
+      await ctx.hear({ _tag: 'Notified', notification: { source: source(working.id), type: 'Working' } });
+      await ctx.hear({ _tag: 'Notified', notification: { source: source(asking.id), type: 'Waiting' } });
+      terminals.setCurrent(working.id);
+      await ctx.settle();
+      await openPanel(ctx);
+
+      const groups = Array.from(rail(ctx).querySelectorAll('[role=group]'));
+      expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['Te necesitan', null]);
+      expect(Array.from(groups[0]!.querySelectorAll('.as-row__title')).map((title) => title.textContent)).toEqual(['Terminal 2']);
+      expect(groups[0]!.querySelector('as-list-row')?.classList).toContain('row--waiting');
+      expect(rail(ctx).querySelector('as-list-row[aria-selected=true] .as-row__title')?.textContent).toBe('Terminal 1');
+
+      rail(ctx).querySelector<HTMLButtonElement>('.id')!.click();
+      await ctx.settle();
+      expect(rail(ctx).querySelector('as-list-row[aria-selected=true] .as-row__title')?.textContent).toBe('Terminal 2');
+    });
+
+    it('adds nothing to the Mascot but the way back: a double-click on it returns to the Pill', async () => {
       const ctx = await setup();
       await openPanel(ctx);
-      band(ctx).querySelector('ui-mascot')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      mascot(ctx)!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
       await ctx.settle();
       expect(ctx.el.querySelector('app-panel-terminal')).toBeNull();
     });

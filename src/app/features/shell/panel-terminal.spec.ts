@@ -33,11 +33,13 @@ const setup = async (backend: FakeBackend = makeBackend({ projects: [timmy, ascu
     await settle();
     return entry.id;
   };
-  const chips = () => Array.from(el.querySelectorAll<HTMLButtonElement>('ui-chip-strip button'));
-  const chipLabels = () => chips().map((chip) => chip.textContent?.trim());
+  /** The lines of the rail, one per Terminal. */
+  const rows = () => Array.from(el.querySelectorAll<HTMLElement>('app-panel-rail as-list-row'));
+  const rowTitles = () => rows().map((row) => row.querySelector('.as-row__title')?.textContent?.trim());
+  const groupLabels = () => Array.from(el.querySelectorAll('app-panel-rail as-list-group-label')).map((label) => `${label.querySelector('span')?.textContent}:${label.querySelector('.as-group__count')?.textContent}`);
   const heading = () => el.querySelector('app-terminal-screen h1')?.textContent?.trim();
   const buttonNamed = (name: string) => Array.from(el.querySelectorAll('button')).find((button) => button.textContent?.trim() === name);
-  return { el, fixture, terminals, settle, running, chips, chipLabels, heading, buttonNamed };
+  return { el, fixture, terminals, settle, running, rows, rowTitles, groupLabels, heading, buttonNamed };
 };
 
 describe('PanelTerminal', () => {
@@ -48,7 +50,7 @@ describe('PanelTerminal', () => {
       expect(el.querySelector('app-workspace-hero p')?.textContent).toContain('Se abre en timmy.');
       expect(buttonNamed('Nueva terminal')).toBeDefined();
       expect(el.querySelector('app-terminal-screen')).toBeNull();
-      expect(el.querySelector('ui-chip-strip')).toBeNull();
+      expect(el.querySelector('app-panel-rail as-list-row')).toBeNull();
     });
 
     it('sends the user to the Workspace when there is no Project to open one in', async () => {
@@ -81,17 +83,17 @@ describe('PanelTerminal', () => {
       expect(el.querySelector('app-terminal-screen .cwd')?.textContent).toBe('/work/timmy');
     });
 
-    it('lets the user switch between the Terminals there are', async () => {
-      const { running, chips, chipLabels, heading, settle } = await setup();
+    it('lists every Terminal in the rail and lets the user switch between them', async () => {
+      const { running, rows, rowTitles, heading, settle } = await setup();
       await running(timmy.projectId);
       await running(timmy.projectId);
-      expect(chipLabels()).toEqual(['Terminal 1', 'Terminal 2']);
+      expect(rowTitles()).toEqual(['Terminal 1', 'Terminal 2']);
       expect(heading()).toBe('Terminal 2');
-      expect(chips().map((chip) => chip.getAttribute('aria-pressed'))).toEqual(['false', 'true']);
-      chips()[0]!.click();
+      expect(rows().map((row) => row.getAttribute('aria-selected'))).toEqual(['false', 'true']);
+      rows()[0]!.click();
       await settle();
       expect(heading()).toBe('Terminal 1');
-      expect(chips().map((chip) => chip.getAttribute('aria-pressed'))).toEqual(['true', 'false']);
+      expect(rows().map((row) => row.getAttribute('aria-selected'))).toEqual(['true', 'false']);
     });
 
     it('shows the Terminal that is current in the Workspace', async () => {
@@ -103,11 +105,22 @@ describe('PanelTerminal', () => {
       expect(heading()).toBe('Terminal 1');
     });
 
-    it('names the Project on each chip when the Terminals belong to several', async () => {
-      const { running, chipLabels } = await setup();
+    it('groups the Terminals by Project, each group with its Project and how many Terminals it has', async () => {
+      const { running, rowTitles, groupLabels } = await setup();
       await running(timmy.projectId);
       await running(ascua.projectId);
-      expect(chipLabels()).toEqual(['timmy · Terminal 1', 'ascua · Terminal 1']);
+      await running(timmy.projectId);
+      expect(groupLabels()).toEqual(['timmy:2', 'ascua:1']);
+      expect(rowTitles()).toEqual(['Terminal 1', 'Terminal 2', 'Terminal 1']);
+    });
+
+    it('goes to the Pill from a double-click on the Mascot of the rail', async () => {
+      const { el, fixture, settle } = await setup();
+      let asked = 0;
+      fixture.componentInstance.collapse.subscribe(() => asked++);
+      el.querySelector('app-panel-rail .id')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      await settle();
+      expect(asked).toBe(1);
     });
 
     it('keeps a Terminal whose process ended, with its state, until it is closed', async () => {

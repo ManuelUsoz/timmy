@@ -21,6 +21,7 @@ const SHELL = 'shell';
     '(document:click)': 'closeOnOutside($event)',
     '(document:keydown.escape)': 'open.set(false)',
     '[class.align-end]': 'iconOnly()',
+    '[class.up]': 'up()',
   },
   styles: `
     :host {
@@ -33,6 +34,11 @@ const SHELL = 'shell';
       left: 0;
       z-index: 10;
       min-width: 180px;
+    }
+    /* Opens upwards, for a button at the bottom edge of a column. */
+    :host(.up) .menu {
+      top: auto;
+      bottom: 100%;
     }
     /* The icon-only "+" sits at the right edge of its column: open the menu towards the left so it is not clipped. */
     :host(.align-end) .menu {
@@ -47,6 +53,7 @@ const SHELL = 'shell';
       [kind]="kind()"
       [size]="size()"
       [iconOnly]="iconOnly()"
+      [neutral]="neutral()"
       [disabled]="disabled()"
       [attr.aria-label]="i18n.t('terminals.new')"
       [attr.title]="iconOnly() ? i18n.t('terminals.new') : null"
@@ -74,7 +81,10 @@ export class NewTerminal {
   readonly kind = input<ButtonKind>('primary');
   readonly size = input<ButtonSize>('md');
   readonly iconOnly = input(false, { transform: booleanAttribute });
+  readonly neutral = input(false, { transform: booleanAttribute });
   readonly disabled = input(false, { transform: booleanAttribute });
+  /** Opens the menu above the button instead of below it. */
+  readonly up = input(false, { transform: booleanAttribute });
   /** The Provider whose CLI to run, or undefined for a plain shell. */
   readonly chosen = output<Provider | undefined>();
 
