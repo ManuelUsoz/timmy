@@ -8,26 +8,32 @@
 
 :root,
 [data-theme='g100'] {
-  --background: #161616;
-  --layer-01: #262626;
-  --layer-02: #393939;
-  --layer-hover: #333333;
-  --layer-hover-02: #474747;
-  --layer-selected: #393939;
-  --layer-selected-02: #525252;
-  --field: #262626;
-  --border-subtle: #393939;
+  /* "Negro" palette (docs/features/redesign): near-black surfaces, brighter text. */
+  --background: #000000;
+  --layer-01: #0e0e0e;
+  --layer-02: #1a1a1a;
+  --layer-hover: #141414;
+  --layer-hover-02: #222222;
+  --layer-selected: #1a1a1a;
+  --layer-selected-02: #262626;
+  --field: #0e0e0e;
+  --border-subtle: #222222;
   --border-strong: #6f6f6f;
-  --text-primary: #f4f4f4;
-  --text-secondary: #c6c6c6;
-  --text-helper: #a8a8a8;
+  --text-primary: #ffffff;
+  --text-secondary: #e0e0e0;
+  --text-helper: #b0b0b0;
+  --text-disabled: #8d8d8d;
+  /* The modal sits one step above the black screens: its own surface, border and field. */
+  --modal: #0f0f0f;
+  --modal-border: #2e2e2e;
+  --modal-field: #000000;
   --text-on-color: #ffffff;
   --text-error: #ff8389;
   --link: #78a9ff;
   --focus: #ffffff;
   --button-primary: #0f62fe;
   --button-primary-hover: #0050e6;
-  --button-secondary: #6f6f6f;
+  --button-secondary: #262626;
   --button-danger: #da1e28;
   --support-success: #42be65;
   --support-info: #4589ff;
@@ -78,6 +84,10 @@
   --text-primary: #161616;
   --text-secondary: #525252;
   --text-helper: #6f6f6f;
+  --text-disabled: #8d8d8d;
+  --modal: #ffffff;
+  --modal-border: #e0e0e0;
+  --modal-field: #f4f4f4;
   --text-error: #da1e28;
   --link: #0f62fe;
   --focus: #0f62fe;
@@ -140,6 +150,7 @@
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-text-helper: var(--text-helper);
+  --color-text-disabled: var(--text-disabled);
   --color-text-on-color: var(--text-on-color);
   --color-text-error: var(--text-error);
   --color-link: var(--link);
