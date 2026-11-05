@@ -199,7 +199,7 @@
 /* The Pill hugs the bottom-right corner, which Pill and Panel keep fixed; leave it there while it fades. */
 .pill-bar.mode-out {
   top: auto;
-  height: 40px;
+  height: 88px;
 }
 
 @keyframes mode-fade-in {

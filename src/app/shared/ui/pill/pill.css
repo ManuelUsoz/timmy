@@ -95,6 +95,33 @@
 .as-pill__meta:empty { display: none; }
 .as-pill__action { flex: none; color: var(--link); }
 .as-pill__action:empty { display: none; }
+/* Large: the Mascot at the left, the state word over the text, no dot. */
+:host(.as-pill--lg) { height: 88px; }
+:host(.as-pill--lg) .as-pill__btn {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  grid-template-areas:
+    'lead state counts meta action'
+    'lead text counts meta action';
+  align-content: center;
+  column-gap: var(--spacing-04);
+  row-gap: var(--spacing-01);
+  padding: 0 var(--spacing-05) 0 var(--spacing-04);
+}
+:host(.as-pill--lg) .as-pill__lead { grid-area: lead; }
+:host(.as-pill--lg) .as-pill__state {
+  grid-area: state;
+  align-self: end;
+  color: var(--text-primary);
+  text-transform: none;
+  font: var(--text-heading-02);
+  letter-spacing: 0;
+}
+:host(.as-pill--lg) .as-pill__state .as-dot { display: none; }
+:host(.as-pill--lg) .as-pill__text { grid-area: text; align-self: start; }
+:host(.as-pill--lg) .as-pill__counts { grid-area: counts; }
+:host(.as-pill--lg) .as-pill__meta { grid-area: meta; }
+:host(.as-pill--lg) .as-pill__action { grid-area: action; }
 @keyframes as-pill-pulse { 50% { opacity: 0.4; } }
 @media (prefers-reduced-motion: reduce) {
   :host(.as-pill--pulse) .as-pill__state .as-dot { animation: none; }
