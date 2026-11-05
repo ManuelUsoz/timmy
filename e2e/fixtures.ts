@@ -22,6 +22,22 @@ export class Timmy {
     return this.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds());
   }
 
+  /**
+   * Puts the cursor Timmy sees at `point` on the desktop. The e2e app ignores the real cursor, which would move the Mascot's
+   * eyes in every screenshot; until a spec calls this, no cursor position is reported.
+   */
+  moveCursor(point: { x: number; y: number }) {
+    return this.app.evaluate((_, p) => {
+      (globalThis as { timmyE2eCursor?: { x: number; y: number } }).timmyE2eCursor = p;
+    }, point);
+  }
+
+  /** The center of a locator on the desktop: the window's origin plus its place in the page. */
+  async desktopCenter(locator: ReturnType<Page['locator']>) {
+    const [window, box] = await Promise.all([this.bounds(), locator.boundingBox()]);
+    return { x: window.x + box!.x + box!.width / 2, y: window.y + box!.y + box!.height / 2 };
+  }
+
   isMaximized() {
     return this.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isMaximized());
   }

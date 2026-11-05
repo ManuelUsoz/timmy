@@ -18,6 +18,8 @@ const windowHost = Layer.succeed(WindowHost, {
   minimize: Effect.void,
   toggleMaximize: Effect.void,
   maximized: Stream.empty,
+  visible: Stream.make(true),
+  cursor: Stream.empty,
 });
 
 // The handlers and the test share the bus and the window, as the app's handlers do.

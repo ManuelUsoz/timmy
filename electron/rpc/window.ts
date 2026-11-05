@@ -12,6 +12,7 @@ export const layerWindowHandlers = WindowRpcs.toLayer(
       'Window.minimize': () => windows.minimize,
       'Window.toggleMaximize': () => windows.toggleMaximize,
       'Window.maximized': () => windows.maximized,
+      'Window.cursor': () => windows.cursor,
     };
   }),
 );

@@ -46,6 +46,7 @@ const setup = async () => {
         ),
       'Window.maximized': () =>
         Stream.concat(Stream.fromEffect(Ref.get(maximized)), Stream.fromPubSub(maximizedChanges)),
+      'Window.cursor': () => Stream.empty,
     }),
     NotificationRpcs.toLayer({ 'Notification.subscribe': () => Stream.fromPubSub(notifications) }),
     layerFilesUnused,

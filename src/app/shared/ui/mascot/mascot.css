@@ -23,6 +23,12 @@ svg * {
   transform-origin: 50% 50%;
 }
 
+/* The eyes look toward the cursor: a few units of the 128-unit drawing, eased between the samples main sends. Their own animations sit on the groups inside. */
+.gaze {
+  transform: translate(calc(var(--gaze-x, 0) * 1px), calc(var(--gaze-y, 0) * 1px));
+  transition: transform 160ms ease-out;
+}
+
 /* The body takes the status color; a change of status crossfades. */
 .body {
   fill: var(--tone, var(--support-idle));
@@ -101,6 +107,10 @@ svg * {
     animation: none !important;
   }
   .body {
+    transition: none;
+  }
+  .gaze {
+    transform: none;
     transition: none;
   }
 }

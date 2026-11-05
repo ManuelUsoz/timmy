@@ -4,25 +4,27 @@
       class="body"
       d="M64 114C42 114 28 98 28 80C28 62 32 46 44 32C47 40 52 46 57 54C58 36 66 20 72 8C80 28 100 48 100 80C100 98 86 114 64 114Z"
     />
-    @switch (status()) {
-      @case ('Error') {
-        <g class="eyes" fill="none" stroke="var(--text-on-color)" stroke-width="2.6" stroke-dasharray="14 24" stroke-linecap="round">
-          <circle class="ring" cx="51" cy="70" r="6" />
-          <circle class="ring" cx="77" cy="70" r="6" />
-        </g>
+    <g class="gaze">
+      @switch (status()) {
+        @case ('Error') {
+          <g class="eyes" fill="none" stroke="var(--text-on-color)" stroke-width="2.6" stroke-dasharray="14 24" stroke-linecap="round">
+            <circle class="ring" cx="51" cy="70" r="6" />
+            <circle class="ring" cx="77" cy="70" r="6" />
+          </g>
+        }
+        @case ('Done') {
+          <g class="eyes" fill="none" stroke="var(--text-on-color)" stroke-width="3.5" stroke-linecap="round">
+            <path d="M46 73Q51 63 56 73" />
+            <path d="M72 73Q77 63 82 73" />
+          </g>
+        }
+        @default {
+          <g class="eyes" fill="var(--text-on-color)">
+            <rect class="e" x="47" y="62" width="8" height="16" rx="4" />
+            <rect class="e" x="73" y="62" width="8" height="16" rx="4" />
+          </g>
+        }
       }
-      @case ('Done') {
-        <g class="eyes" fill="none" stroke="var(--text-on-color)" stroke-width="3.5" stroke-linecap="round">
-          <path d="M46 73Q51 63 56 73" />
-          <path d="M72 73Q77 63 82 73" />
-        </g>
-      }
-      @default {
-        <g class="eyes" fill="var(--text-on-color)">
-          <rect class="e" x="47" y="62" width="8" height="16" rx="4" />
-          <rect class="e" x="73" y="62" width="8" height="16" rx="4" />
-        </g>
-      }
-    }
+    </g>
   </g>
 </svg>

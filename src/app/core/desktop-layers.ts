@@ -40,6 +40,7 @@ export const layerWindowUnused = WindowRpcs.toLayer({
   'Window.minimize': windowUnused,
   'Window.toggleMaximize': windowUnused,
   'Window.maximized': () => Stream.empty,
+  'Window.cursor': () => Stream.empty,
 });
 
 const terminalUnused = () => Effect.die('Terminal handler not under test');

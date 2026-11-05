@@ -16,6 +16,8 @@ const host = Layer.succeed(WindowHost, {
   minimize: Effect.void,
   toggleMaximize: Effect.void,
   maximized: Stream.empty,
+  visible: Stream.make(true),
+  cursor: Stream.empty,
 });
 
 const layer = layerOnScreen.pipe(
