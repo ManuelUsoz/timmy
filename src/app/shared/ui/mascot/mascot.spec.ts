@@ -1,6 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import type { TerminalStatus } from '../../../../shared/notification/notification.model';
+import { afterEach, vi } from 'vitest';
+import { CursorState } from '../../../core/cursor-state';
+import type { WindowPoint } from '../../../../shared/window/window.model';
 import { MascotComponent } from './mascot';
 
 @Component({
@@ -14,9 +17,17 @@ class Host {
 }
 
 describe('MascotComponent', () => {
+  /** Where main says the cursor is. */
+  const cursor = signal<WindowPoint | null>(null);
+
+  afterEach(() => {
+    cursor.set(null);
+    vi.restoreAllMocks();
+  });
+
   async function render(patch: Partial<Host> = {}) {
     TestBed.resetTestingModule();
-    await TestBed.configureTestingModule({ imports: [Host] }).compileComponents();
+    await TestBed.configureTestingModule({ imports: [Host], providers: [{ provide: CursorState, useValue: { point: cursor.asReadonly() } }] }).compileComponents();
     const fixture = TestBed.createComponent(Host);
     Object.assign(fixture.componentInstance, patch);
     await fixture.whenStable();
@@ -47,6 +58,37 @@ describe('MascotComponent', () => {
     const eyes = async (status: TerminalStatus) => (await render({ status })).querySelector('.eyes')!.innerHTML;
     const looks = new Set([await eyes('Working'), await eyes('Error'), await eyes('Done')]);
     expect(looks.size).toBe(3);
+  });
+
+  describe('gaze', () => {
+    const gaze = (el: HTMLElement) => ({ x: el.style.getPropertyValue('--gaze-x'), y: el.style.getPropertyValue('--gaze-y') });
+
+    it('looks straight ahead until it knows where the cursor is', async () => {
+      expect(gaze(await render())).toEqual({ x: '0', y: '0' });
+    });
+
+    it('moves its eyes toward a cursor on either side', async () => {
+      cursor.set({ x: 800, y: 0 });
+      expect(gaze(await render())).toEqual({ x: '4', y: '0' });
+      cursor.set({ x: -800, y: 0 });
+      expect(gaze(await render())).toEqual({ x: '-4', y: '0' });
+    });
+
+    it('looks from where it is drawn in the window, not from the corner of the window', async () => {
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ left: 100, top: 50, width: 72, height: 72 } as DOMRect);
+      // Its center is at (136, 86) in the window; the cursor is in the same coordinates.
+      cursor.set({ x: 236, y: 86 });
+      expect(gaze(await render())).toEqual({ x: '2', y: '0' });
+      cursor.set({ x: 136, y: -14 });
+      expect(gaze(await render())).toEqual({ x: '0', y: '-2' });
+    });
+
+    it('keeps the eyes in a group of their own, so the status animations do not fight the gaze', async () => {
+      for (const status of ['Idle', 'Working', 'Waiting', 'Done', 'Error'] as const) {
+        const el = await render({ status });
+        expect(el.querySelector('.gaze .eyes'), status).not.toBeNull();
+      }
+    });
   });
 
   it('is decorative unless it has a label, which makes it an image', async () => {

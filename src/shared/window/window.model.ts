@@ -6,6 +6,13 @@ export type WindowMode = typeof WindowMode.Type;
 
 export const startupMode: WindowMode = 'Pill';
 
+/**
+ * A point in the window's own coordinates, in CSS pixels from the top-left of its content: what `getBoundingClientRect`
+ * measures. It lies outside the window when it is negative or beyond the window's size, e.g. a cursor on another display.
+ */
+export const WindowPoint = Schema.Struct({ x: Schema.Number, y: Schema.Number }).annotate({ identifier: 'WindowPoint' });
+export type WindowPoint = typeof WindowPoint.Type;
+
 /** The modes the user can move to from `current`: every mode but the current one. */
 export const offeredModes = (current: WindowMode): ReadonlyArray<WindowMode> =>
   WindowMode.literals.filter((mode) => mode !== current);

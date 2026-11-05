@@ -1,6 +1,6 @@
 import { Schema } from 'effect';
 import { Rpc, RpcGroup } from 'effect/rpc';
-import { WindowMode } from './window.model';
+import { WindowPoint, WindowMode } from './window.model';
 
 /**
  * Main owns the window: the renderer asks for a mode and reads the current one,
@@ -26,4 +26,11 @@ export const WindowRpcs = RpcGroup.make(
 
   /** Pushes whether the window is maximized: the current value first, then every change. */
   Rpc.make('Window.maximized', { success: Schema.Boolean, stream: true }),
+
+  /**
+   * Pushes where the cursor is, in the window's own coordinates (about 30 Hz, only when it or the window moves), so the Mascot
+   * can look at it wherever it is on screen, over any display.
+   * Main only runs it while the Pill or Panel is visible: it is silent while the window is hidden, minimized or Expanded, and resumes by itself.
+   */
+  Rpc.make('Window.cursor', { success: WindowPoint, stream: true }),
 );
