@@ -4,7 +4,6 @@ import { Schema } from 'effect';
 import { I18n } from '../../core/i18n';
 import { NotificationsState } from './notifications-state';
 import { PanelTerminal } from './panel-terminal';
-import { TerminalsState } from '../workspace/terminals-state';
 import { WorkspaceComponent } from '../workspace/workspace';
 import { MascotComponent } from '../../shared/ui/mascot/mascot';
 import { MenuComponent } from '../../shared/ui/menu/menu';
@@ -25,11 +24,8 @@ import { WindowModeState } from './window-mode-state';
 export class ShellComponent {
   protected readonly windowMode = inject(WindowModeState);
   protected readonly i18n = inject(I18n);
-  private readonly terminals = inject(TerminalsState);
   private readonly notifications = inject(NotificationsState);
-  /** The Terminals whose output asked for the user. It is not a Notification yet, so it still comes from their activity. */
-  private readonly needingAttention = computed(() => new Set(this.terminals.entries().filter((entry) => entry.activity === 'NeedsAttention').map((entry) => entry.id)));
-  protected readonly pill = computed(() => pillView(this.notifications.notifications(), this.needingAttention()));
+  protected readonly pill = computed(() => pillView(this.notifications.notifications()));
   /** The Pill's state word and its sentence, translated here so the view model stays language-free. */
   protected readonly pillLabel = computed(() =>
     this.i18n.t(({ Working: 'state.live', Idle: 'state.idle', Waiting: 'activity.needsAttention', Done: 'state.done', Error: 'state.error' } as const)[this.pill().status]),

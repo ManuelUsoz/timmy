@@ -7,7 +7,7 @@ import type { NotificationEvent } from '../../src/shared/notification/notificati
 import type { TerminalId } from '../../src/shared/terminal/terminal.model';
 import { NotificationBus } from '../notification/notification-bus';
 import { TerminalId as TerminalIdSchema } from '../../src/shared/terminal/terminal.model';
-import type { HookSignal } from '../hooks/hook-integration';
+import type { HookSignal } from '../../src/shared/hooks/hooks.model';
 import { makeHookChannelTest } from '../hooks/hook-channel';
 import { HOOK_STALE_AFTER_MS, IDLE_AFTER_MS, TerminalService, layerTerminalServiceTest, type PtyProcess } from './terminal-service';
 
@@ -236,27 +236,28 @@ describe('TerminalService activity', () => {
   );
 });
 
+/** Collects what a Subscriber hears from now on; `heard` lets the pending fibers run first. */
+const listen = Effect.gen(function* () {
+  const bus = yield* NotificationBus;
+  const events: NotificationEvent[] = [];
+  yield* bus.subscribe.pipe(Stream.runForEach((event) => Effect.sync(() => void events.push(event))), Effect.forkScoped);
+  yield* Effect.yieldNow;
+  return {
+    heard: Effect.gen(function* () {
+      yield* Effect.yieldNow;
+      yield* Effect.yieldNow;
+      yield* Effect.yieldNow;
+      return [...events];
+    }),
+  };
+});
+
+const notified = (terminalId: TerminalId, type: 'Idle' | 'Working' | 'Waiting' | 'Done' | 'Error'): NotificationEvent => ({
+  _tag: 'Notified',
+  notification: { source: { _tag: 'Terminal', terminalId }, type },
+});
+
 describe('TerminalService notifications', () => {
-  /** Collects what a Subscriber hears from now on; `heard` lets the pending fibers run first. */
-  const listen = Effect.gen(function* () {
-    const bus = yield* NotificationBus;
-    const events: NotificationEvent[] = [];
-    yield* bus.subscribe.pipe(Stream.runForEach((event) => Effect.sync(() => void events.push(event))), Effect.forkScoped);
-    yield* Effect.yieldNow;
-    return {
-      heard: Effect.gen(function* () {
-        yield* Effect.yieldNow;
-        yield* Effect.yieldNow;
-        return [...events];
-      }),
-    };
-  });
-
-  const notified = (terminalId: TerminalId, type: 'Idle' | 'Working' | 'Done' | 'Error'): NotificationEvent => ({
-    _tag: 'Notified',
-    notification: { source: { _tag: 'Terminal', terminalId }, type },
-  });
-
   const withPty = <A, E>(
     use: (pty: ReturnType<typeof makePty>, service: typeof TerminalService.Service, subscriber: Effect.Success<typeof listen>) => Effect.Effect<A, E, NotificationBus | Scope.Scope>,
   ) => {
@@ -321,6 +322,155 @@ describe('TerminalService notifications', () => {
         ]);
         const late = yield* listen;
         expect(yield* late.heard).toEqual([]);
+      }),
+    ),
+  );
+});
+
+describe('TerminalService notifications from a Hook', () => {
+  /** A Terminal whose Provider has a Hook, with a Subscriber listening: `report` is the Hook posting to the local channel. */
+  const withHookedTerminal = <A, E>(
+    use: (ctx: {
+      readonly pty: ReturnType<typeof makePty>;
+      readonly id: TerminalId;
+      readonly report: (signal: HookSignal) => Effect.Effect<void>;
+      readonly subscriber: Effect.Success<typeof listen>;
+    }) => Effect.Effect<A, E, NotificationBus | Scope.Scope>,
+  ) =>
+    Effect.gen(function* () {
+      const pty = makePty();
+      const { channel, emit } = yield* makeHookChannelTest();
+      return yield* Effect.gen(function* () {
+        const subscriber = yield* listen;
+        const id = yield* (yield* TerminalService).create('C:/project', 'ClaudeCode');
+        return yield* use({ pty, id, subscriber, report: (signal) => emit({ terminalId: id, signal }) });
+      }).pipe(Effect.scoped, Effect.provide(layerTerminalServiceTest({ spawn: () => Effect.succeed(pty.process) }, channel)));
+    });
+
+  it.effect('a Hook that reports Waiting publishes Waiting', () =>
+    withHookedTerminal(({ id, report, subscriber }) =>
+      Effect.gen(function* () {
+        yield* report('Waiting');
+        expect(yield* subscriber.heard).toEqual([notified(id, 'Idle'), notified(id, 'Working'), notified(id, 'Waiting')]);
+      }),
+    ),
+  );
+
+  it.effect('the end of the agent\'s turn publishes Done, and its next prompt takes the Terminal back to Working', () =>
+    withHookedTerminal(({ id, report, subscriber }) =>
+      Effect.gen(function* () {
+        yield* report('Working');
+        yield* report('Done');
+        expect(yield* subscriber.heard).toEqual([notified(id, 'Idle'), notified(id, 'Working'), notified(id, 'Done')]);
+        yield* report('Working');
+        expect(yield* subscriber.heard).toEqual([notified(id, 'Idle'), notified(id, 'Working'), notified(id, 'Done'), notified(id, 'Working')]);
+      }),
+    ),
+  );
+
+  it.effect('a Hook that repeats the status the Terminal is already in publishes nothing new', () =>
+    withHookedTerminal(({ id, report, subscriber }) =>
+      Effect.gen(function* () {
+        yield* report('Waiting');
+        yield* report('Waiting');
+        yield* report('Working');
+        yield* report('Working');
+        yield* report('Working');
+        expect(yield* subscriber.heard).toEqual([notified(id, 'Idle'), notified(id, 'Working'), notified(id, 'Waiting'), notified(id, 'Working')]);
+      }),
+    ),
+  );
+
+  it.effect('when the Hook\'s session ends, the Terminal falls back to what its process and output say', () =>
+    withHookedTerminal(({ pty, id, report, subscriber }) =>
+      Effect.gen(function* () {
+        yield* report('Waiting');
+        yield* report('Ended');
+        expect(yield* subscriber.heard).toEqual([notified(id, 'Idle'), notified(id, 'Working'), notified(id, 'Waiting'), notified(id, 'Working')]);
+        pty.emit('\x07');
+        expect(yield* subscriber.heard).toEqual([
+          notified(id, 'Idle'),
+          notified(id, 'Working'),
+          notified(id, 'Waiting'),
+          notified(id, 'Working'),
+          notified(id, 'Waiting'),
+        ]);
+      }),
+    ),
+  );
+
+  it.effect('the output tap does not count while the Hook is reporting', () =>
+    withHookedTerminal(({ pty, id, report, subscriber }) =>
+      Effect.gen(function* () {
+        yield* report('Done');
+        // The report travels through the channel on its own fiber: let it land before the output arrives.
+        yield* subscriber.heard;
+        pty.emit('prompt redraw\x07');
+        expect(yield* subscriber.heard).toEqual([notified(id, 'Idle'), notified(id, 'Working'), notified(id, 'Done')]);
+      }),
+    ),
+  );
+
+  it.effect('a process that exits after the Hook reported keeps the exit\'s status, and nothing follows it', () =>
+    withHookedTerminal(({ pty, id, report, subscriber }) =>
+      Effect.gen(function* () {
+        yield* report('Waiting');
+        yield* subscriber.heard;
+        pty.exit(3);
+        expect(yield* subscriber.heard).toEqual([notified(id, 'Idle'), notified(id, 'Working'), notified(id, 'Waiting'), notified(id, 'Error')]);
+        yield* TestClock.adjust(HOOK_STALE_AFTER_MS * 2);
+        expect(yield* subscriber.heard).toEqual([notified(id, 'Idle'), notified(id, 'Working'), notified(id, 'Waiting'), notified(id, 'Error')]);
+      }),
+    ),
+  );
+});
+
+describe('TerminalService notifications from the output tap', () => {
+  const withPlainTerminal = <A, E>(
+    use: (ctx: {
+      readonly pty: ReturnType<typeof makePty>;
+      readonly service: typeof TerminalService.Service;
+      readonly id: TerminalId;
+      readonly subscriber: Effect.Success<typeof listen>;
+    }) => Effect.Effect<A, E, NotificationBus | Scope.Scope>,
+  ) =>
+    Effect.gen(function* () {
+      const pty = makePty();
+      return yield* Effect.gen(function* () {
+        const subscriber = yield* listen;
+        const service = yield* TerminalService;
+        const id = yield* service.create('C:/project');
+        return yield* use({ pty, service, id, subscriber });
+      }).pipe(Effect.scoped, Effect.provide(layerTerminalServiceTest({ spawn: () => Effect.succeed(pty.process) })));
+    });
+
+  it.effect('a bell puts a Terminal without a Hook in Waiting, and focusing it takes it back to Working', () =>
+    withPlainTerminal(({ pty, service, id, subscriber }) =>
+      Effect.gen(function* () {
+        pty.emit('build finished\x07');
+        expect(yield* subscriber.heard).toEqual([notified(id, 'Idle'), notified(id, 'Working'), notified(id, 'Waiting')]);
+        yield* service.focus(id);
+        expect(yield* subscriber.heard).toEqual([notified(id, 'Idle'), notified(id, 'Working'), notified(id, 'Waiting'), notified(id, 'Working')]);
+      }),
+    ),
+  );
+
+  it.effect('output going quiet never publishes a status', () =>
+    withPlainTerminal(({ pty, id, subscriber }) =>
+      Effect.gen(function* () {
+        pty.emit('building…');
+        yield* TestClock.adjust(IDLE_AFTER_MS * 5);
+        expect(yield* subscriber.heard).toEqual([notified(id, 'Idle'), notified(id, 'Working')]);
+      }),
+    ),
+  );
+
+  it.effect('a bell before the process exits does not outlive it: the exit\'s status is the last', () =>
+    withPlainTerminal(({ pty, id, subscriber }) =>
+      Effect.gen(function* () {
+        pty.emit('\x07');
+        pty.exit(0);
+        expect(yield* subscriber.heard).toEqual([notified(id, 'Idle'), notified(id, 'Working'), notified(id, 'Waiting'), notified(id, 'Done')]);
       }),
     ),
   );
