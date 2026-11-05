@@ -1,3 +1,5 @@
+import type { HookReportedStatus } from '../../src/shared/hooks/hooks.model';
+import type { TerminalStatus } from '../../src/shared/notification/notification.model';
 import type { TerminalActivity } from '../../src/shared/terminal/terminal.model';
 
 /** What the output tap, the idle timer and the user can say about a Terminal. They only count while no Hook is reporting. */
@@ -14,7 +16,7 @@ export interface ActivityState {
   readonly busy: boolean;
   readonly attention: boolean;
   /** What the Provider's Hook last reported. While it is set the generic events are ignored. */
-  readonly hook?: 'Working' | 'Waiting' | 'Done';
+  readonly hook?: HookReportedStatus;
 }
 
 export const initialActivity: ActivityState = { busy: false, attention: false };
@@ -56,6 +58,13 @@ const hookActivity: Readonly<Record<NonNullable<ActivityState['hook']>, Terminal
   Waiting: 'NeedsAttention',
   Done: 'Idle',
 };
+
+/**
+ * The status the Terminal Source publishes. Unlike `activityOf`, a Hook's Done stays Done: it is the end of the agent's
+ * turn, not an Idle terminal. Without a Hook a live Terminal is Working, or Waiting once its output rang a bell or sent
+ * a notification; output going quiet is not a status.
+ */
+export const statusOf = (state: ActivityState): TerminalStatus => state.hook ?? (state.attention ? 'Waiting' : 'Working');
 
 export const activityOf = (state: ActivityState): TerminalActivity => {
   if (state.hook !== undefined) return hookActivity[state.hook];

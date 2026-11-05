@@ -1,7 +1,7 @@
 import { Schema } from 'effect';
 import { TerminalId } from '../terminal/terminal.model';
 
-/** What a Terminal is doing (GLOSSARY: Terminal status). Waiting is not produced yet: the Hook and the output tap will. */
+/** What a Terminal is doing (GLOSSARY: Terminal status). Waiting comes from a Provider's Hook, or from a bell or notification in the output of a Terminal without one. */
 export const TerminalStatus = Schema.Literals(['Idle', 'Working', 'Waiting', 'Done', 'Error']).annotate({ identifier: 'TerminalStatus' });
 export type TerminalStatus = typeof TerminalStatus.Type;
 

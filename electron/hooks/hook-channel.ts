@@ -4,7 +4,7 @@ import { Context, Effect, Layer, Option, Queue, Schema, Stream } from 'effect';
 import type { Cause } from 'effect';
 import { Provider } from '../../src/shared/settings/settings.model';
 import { TerminalId } from '../../src/shared/terminal/terminal.model';
-import type { HookSignal } from './hook-integration';
+import type { HookSignal } from '../../src/shared/hooks/hooks.model';
 import { HookIntegrations } from './hook-integrations';
 
 /** What a Provider's Hook said about one Terminal. */

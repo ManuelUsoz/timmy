@@ -1,4 +1,4 @@
-import { Context, Duration, Effect, Fiber, Layer, Option, Queue, Ref, Scope, Semaphore, Stream, SubscriptionRef } from 'effect';
+import { Context, Deferred, Duration, Effect, Fiber, Layer, Option, Queue, Ref, Scope, Semaphore, Stream, SubscriptionRef } from 'effect';
 import type { Cause } from 'effect';
 import * as pty from 'node-pty';
 import type { IPty, IWindowsPtyForkOptions } from 'node-pty';
@@ -8,11 +8,11 @@ import { TerminalError } from '../../src/shared/terminal/terminal-error.model';
 import type { TerminalActivity, TerminalActivityEntry, TerminalEvent, TerminalId } from '../../src/shared/terminal/terminal.model';
 import { TerminalId as TerminalIdSchema } from '../../src/shared/terminal/terminal.model';
 import { HookChannel, quietHookChannel } from '../hooks/hook-channel';
-import type { HookSignal } from '../hooks/hook-integration';
+import { HookConstants, type HookSignal } from '../../src/shared/hooks/hooks.model';
 import { NotificationBus, layerNotificationBus } from '../notification/notification-bus';
 import { makeOutputTap } from './output-tap';
 import { providerCommand } from './provider-command';
-import { activityOf, initialActivity, nextActivity, type ActivityEvent } from './terminal-activity';
+import { activityOf, initialActivity, nextActivity, statusOf, type ActivityEvent } from './terminal-activity';
 
 export interface PtyProcess {
   readonly onData: (listener: (data: string) => void) => { dispose: () => void };
@@ -110,16 +110,31 @@ const layerTerminalServiceCore = Layer.effect(
      * Folds a Terminal's activity events into its activity. While it is busy, or its Hook says Working, the wait for the
      * next event is bounded: running out means it went quiet, or that the Hook went stale. Ends when the queue does (the process exited or the Terminal was closed).
      */
-    const trackActivity = Effect.fnUntraced(function* (id: TerminalId, events: Queue.Queue<ActivityEvent, Cause.Done>) {
+    const trackActivity = Effect.fnUntraced(function* (
+      id: TerminalId,
+      events: Queue.Queue<ActivityEvent, Cause.Done>,
+      exitStatus: Deferred.Deferred<TerminalStatus>,
+    ) {
       let state = initialActivity;
+      // A live Terminal starts out Working (see `create`).
+      let status: TerminalStatus = 'Working';
       while (true) {
         const hookWorking = state.hook === 'Working';
         const next =
           state.busy || hookWorking
             ? yield* Queue.take(events).pipe(Effect.timeoutOption(Duration.millis(hookWorking ? HOOK_STALE_AFTER_MS : IDLE_AFTER_MS)))
             : Option.some(yield* Queue.take(events));
-        state = nextActivity(state, Option.getOrElse(next, (): ActivityEvent => (hookWorking ? 'HookEnded' : 'Quiet')));
+        const event = Option.getOrElse(next, (): ActivityEvent => (hookWorking ? 'HookEnded' : 'Quiet'));
+        state = nextActivity(state, event);
         yield* publish(id, activityOf(state));
+        // The process ending is the last thing that happens to a Terminal. It is published from here, in the order the
+        // events arrived, so a bell or a report still queued behind it cannot publish after the exit's status.
+        if (event === 'Exited') return yield* Deferred.await(exitStatus).pipe(Effect.flatMap((exited) => enter(id, exited)));
+        const nextStatus = statusOf(state);
+        if (nextStatus !== status) {
+          status = nextStatus;
+          yield* enter(id, status);
+        }
       }
     });
 
@@ -173,7 +188,7 @@ const layerTerminalServiceCore = Layer.effect(
         if (cwd.trim() === '') return yield* new TerminalError({ reason: 'InvalidCwd', detail: 'A terminal needs a project folder' });
         const id = TerminalIdSchema.make(crypto.randomUUID());
         // Setting these is what turns a Provider's Hook on for this Terminal (ADR 0009).
-        const process = yield* host.spawn(cwd, { TIMMY_TERMINAL_ID: id, TIMMY_HOOK_URL: hooks.urlFor(id) });
+        const process = yield* host.spawn(cwd, { [HookConstants.terminalIdEnv]: id, [HookConstants.urlEnv]: hooks.urlFor(id) });
         const events = yield* Queue.unbounded<TerminalEvent, Cause.Done>();
         const activity = yield* Queue.unbounded<ActivityEvent, Cause.Done>();
         // The tap reads a copy of the output: what the renderer receives is not changed by it.
@@ -184,17 +199,18 @@ const layerTerminalServiceCore = Layer.effect(
           ),
         );
         yield* publish(id, 'Idle');
-        const tracker = yield* trackActivity(id, activity).pipe(Effect.ignore, Effect.forkIn(scope));
+        const exitStatus = yield* Deferred.make<TerminalStatus>();
+        const tracker = yield* trackActivity(id, activity, exitStatus).pipe(Effect.ignore, Effect.forkIn(scope));
         const terminal = { process, events, activity, tracker };
         yield* Ref.update(terminals, (all) => new Map(all).set(id, terminal));
         process.onExit(({ exitCode }) => {
           // The terminal stays listed until it is closed, so a screen opened after the exit still reads it.
           Effect.runFork(
-            Queue.offer(events, { _tag: 'Exit', exitCode }).pipe(
+            Deferred.succeed(exitStatus, statusOfExit(exitCode)).pipe(
+              Effect.andThen(Queue.offer(events, { _tag: 'Exit', exitCode })),
               Effect.andThen(Queue.end(events)),
               Effect.andThen(Queue.offer(activity, 'Exited')),
               Effect.andThen(Queue.end(activity)),
-              Effect.andThen(enter(id, statusOfExit(exitCode))),
             ),
           );
         });

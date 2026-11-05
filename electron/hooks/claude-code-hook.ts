@@ -2,19 +2,19 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Effect, Option } from 'effect';
 import { HooksError } from '../../src/shared/hooks/hooks-error.model';
-import type { HookIntegration, HookSignal } from './hook-integration';
+import { HookConstants, type HookSignal } from '../../src/shared/hooks/hooks.model';
+import type { HookIntegration } from './hook-integration';
 
 /** The events whose Hook entry Timmy owns. Each posts the same payload; `decode` tells them apart. */
 const EVENTS = ['UserPromptSubmit', 'PostToolUse', 'Notification', 'Stop', 'SessionEnd'] as const;
 
-/** Every entry Timmy writes carries this, so deactivating can tell Timmy's entries from the user's. */
-const MARKER = '# timmy-hook';
+const { terminalIdEnv, urlEnv, marker: MARKER } = HookConstants;
 
 /**
- * Outside a Terminal Timmy started `TIMMY_TERMINAL_ID` is empty and this does nothing. Inside one it posts the event
+ * Outside a Terminal Timmy started the terminal id is empty and this does nothing. Inside one it posts the event
  * (JSON on stdin) to the local channel, and whatever happens it exits 0 so Claude Code never shows a hook error.
  */
-const COMMAND = `[ -z "$TIMMY_TERMINAL_ID" ] || curl -s -m 2 -X POST -H 'Content-Type: application/json' --data-binary @- "$TIMMY_HOOK_URL/ClaudeCode" >/dev/null 2>&1; exit 0 ${MARKER}`;
+const COMMAND = `[ -z "$${terminalIdEnv}" ] || curl -s -m 2 -X POST -H 'Content-Type: application/json' --data-binary @- "$${urlEnv}/ClaudeCode" >/dev/null 2>&1; exit 0 ${MARKER}`;
 
 type Json = Record<string, unknown>;
 
