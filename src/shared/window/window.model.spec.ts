@@ -23,6 +23,10 @@ describe('window modes', () => {
     expect(panel.bounds.y + panel.bounds.height).toBe(pill.bounds.y + pill.bounds.height);
   });
 
+  it('makes the Panel 440x616: the 88 px Mascot band keeps the terminal area as tall as before', () => {
+    expect(planFor('Panel', workArea).bounds).toMatchObject({ width: 440, height: 616 });
+  });
+
   it('makes the Pill 440x88, led by the Mascot', () => {
     expect(planFor('Pill', workArea).bounds).toMatchObject({ width: 440, height: 88 });
   });

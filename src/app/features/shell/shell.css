@@ -27,25 +27,35 @@
   background: var(--pill);
 }
 
+/* The Mascot band: 88 px like the Pill, the Mascot at the left, the switcher and close at the right. */
 .panel-header {
   display: flex;
   align-items: center;
   gap: var(--spacing-04);
   flex: none;
-  padding: var(--spacing-03) var(--spacing-04);
+  height: 88px;
+  box-sizing: border-box;
+  padding: 0 var(--spacing-04);
   color: var(--text-helper);
   user-select: none;
 }
 
-.panel-icon {
-  flex: none;
-  color: var(--text-primary);
+.panel-heading {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: var(--spacing-01);
 }
 
 .panel-title {
-  flex: 1;
+  color: var(--text-helper);
+  font: var(--text-helper-text-01);
+}
+
+.panel-status {
   color: var(--text-primary);
-  font: var(--text-heading-01);
+  font: var(--text-heading-02);
 }
 
 .panel-body {

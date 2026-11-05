@@ -3,14 +3,14 @@ import { expect, test } from '../fixtures';
 test.describe('the Panel shows the current Terminal', () => {
   test.use({ language: 'en' });
 
-  test('opens at 440x560 with an empty state that sends the user to the Workspace when there is no Project', async ({ timmy }) => {
+  test('opens at 440x616 with an empty state that sends the user to the Workspace when there is no Project', async ({ timmy }) => {
     const { page } = timmy;
     await timmy.openPanel();
 
-    await test.step('panel is 440x560', async () => {
+    await test.step('panel is 440x616', async () => {
       const b = await timmy.bounds();
       expect(Math.abs(b.width - 440)).toBeLessThanOrEqual(8);
-      expect(Math.abs(b.height - 560)).toBeLessThanOrEqual(8);
+      expect(Math.abs(b.height - 616)).toBeLessThanOrEqual(8);
     });
 
     const panel = page.getByRole('region', { name: 'Timmy panel' });
