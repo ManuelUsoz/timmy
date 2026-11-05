@@ -38,6 +38,8 @@
   --overlay: #000000a6;
   --pill: #000000;
   --pill-inset: #0b0b0b;
+  /* The surface of the sidebars (Expanded's rail and Projects column, the Panel's rail): full black, like the Pill. */
+  --sidebar: #000000;
   --tag-green-bg: #044317;
   --tag-green-text: #a7f0ba;
   --tag-blue-bg: #002d9c;
@@ -62,6 +64,8 @@
 [data-theme='white'] {
   color-scheme: light;
   --background: #ffffff;
+  /* Black sidebars would hide the dark text of the light theme. */
+  --sidebar: #f4f4f4;
   --layer-01: #f4f4f4;
   --layer-02: #ffffff;
   --layer-hover: #e8e8e8;

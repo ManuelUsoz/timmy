@@ -3,7 +3,7 @@
   display: flex;
   height: 100%;
   min-height: 0;
-  background: var(--background);
+  background: var(--sidebar);
   color: var(--text-primary);
 }
 
@@ -15,8 +15,7 @@
   gap: var(--spacing-02);
   width: var(--control-lg);
   padding-block: var(--spacing-03);
-  border-right: 1px solid var(--border-subtle);
-  background: var(--layer-01);
+  background: var(--sidebar);
 }
 
 .rail-button {

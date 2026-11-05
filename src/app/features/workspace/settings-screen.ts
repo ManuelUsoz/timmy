@@ -118,7 +118,7 @@ const languageNames: ReadonlyArray<{ readonly value: Language; readonly label: s
     :host {
       display: flex;
       height: 100%;
-      background: var(--background);
+      background: var(--sidebar);
       color: var(--text-primary);
       font-family: var(--font-sans);
     }
@@ -138,8 +138,7 @@ const languageNames: ReadonlyArray<{ readonly value: Language; readonly label: s
       box-sizing: border-box;
       width: 224px;
       padding-block: var(--spacing-06);
-      border-right: 1px solid var(--border-subtle);
-      background: var(--layer-01);
+      background: var(--sidebar);
     }
     h1 {
       margin: 0 var(--spacing-05) var(--spacing-05);
@@ -175,8 +174,11 @@ const languageNames: ReadonlyArray<{ readonly value: Language; readonly label: s
       gap: var(--spacing-06);
       box-sizing: border-box;
       min-width: 0;
+      margin: 0 var(--spacing-04) var(--spacing-04) 0;
       padding: var(--spacing-06) var(--spacing-09);
       overflow: auto;
+      border-radius: var(--radius-panel);
+      background: var(--background);
     }
     h2 {
       margin: 0;

@@ -11,13 +11,24 @@
   flex: none;
   flex-direction: column;
   width: 224px;
-  border-right: 1px solid var(--border-subtle);
-  background: var(--layer-01);
+  background: var(--sidebar);
 }
 
 .projects.collapsed {
   width: var(--control-lg);
   align-items: center;
+}
+
+/* The Projects column is the sidebar; the content column and the stage are one card beside it, like the Panel's Terminal. */
+.card {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  margin: 0 var(--spacing-04) var(--spacing-04) 0;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  background: var(--background);
 }
 
 .content {
@@ -29,20 +40,13 @@
   background: var(--background);
 }
 
-/* Below lg the content floats over the stage, next to the Projects column. */
+/* Below lg the content floats over the stage, at the card's edge. */
 .content.overlay {
   position: absolute;
   inset-block: 0;
+  inset-inline-start: 0;
   z-index: 5;
   box-shadow: var(--shadow-overlay);
-}
-
-.projects.collapsed ~ .content.overlay {
-  inset-inline-start: var(--control-lg);
-}
-
-.projects:not(.collapsed) ~ .content.overlay {
-  inset-inline-start: 224px;
 }
 
 .stage {

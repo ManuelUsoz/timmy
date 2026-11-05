@@ -22,6 +22,7 @@
   }
 </aside>
 
+<div class="card">
 @if (state.selected() !== undefined && (layout.layout().content === 'column' || layout.contentOpen())) {
   <section
     class="content"
@@ -87,6 +88,7 @@
     <app-workspace-hero [title]="i18n.t('projects.pickTitle')" [detail]="i18n.t('projects.pickDetail')" />
   }
 </section>
+</div>
 
 @if (dialogOpen()) {
   <app-new-project-dialog (closed)="dialogOpen.set(false)" (created)="created($event)" />
