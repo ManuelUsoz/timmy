@@ -12,6 +12,7 @@ type TerminalApiShape = {
   readonly 'Terminal.output': (payload: { readonly terminalId: TerminalId }) => Stream.Stream<TerminalEvent, TerminalError | RpcClientError.RpcClientError>;
   readonly 'Terminal.activity': () => Stream.Stream<ReadonlyArray<TerminalActivityEntry>, RpcClientError.RpcClientError>;
   readonly 'Terminal.focus': (payload: { readonly terminalId: TerminalId }) => Effect.Effect<void, TerminalError | RpcClientError.RpcClientError>;
+  readonly 'Terminal.show': (payload: { readonly terminalId?: TerminalId }) => Effect.Effect<void, RpcClientError.RpcClientError>;
   readonly 'Terminal.write': (payload: { readonly terminalId: TerminalId; readonly data: string }) => Effect.Effect<void, TerminalError | RpcClientError.RpcClientError>;
   readonly 'Terminal.resize': (payload: { readonly terminalId: TerminalId; readonly cols: number; readonly rows: number }) => Effect.Effect<void, TerminalError | RpcClientError.RpcClientError>;
   readonly 'Terminal.close': (payload: { readonly terminalId: TerminalId }) => Effect.Effect<void, TerminalError | RpcClientError.RpcClientError>;

@@ -38,10 +38,8 @@ test.describe('the Pill is led by the Mascot, colored by the highest-priority Te
     expect(again.y + again.height).toBe(pillBounds.y + pillBounds.height);
 
     await timmy.switchMode('Expanded');
-    await page.locator('.xterm-helper-textarea').focus();
-    await page.keyboard.type('exit 1');
-    await page.keyboard.press('Enter');
-    await expect(page.getByRole('button', { name: 'Close terminal' })).toBeEnabled();
+    // It fails once the window is a Pill again: a Terminal that fails while on screen is Seen, and the Mascot stays calm.
+    await timmy.run('Start-Sleep -Seconds 3; exit 1');
     await timmy.switchMode('Pill');
     await expect(mascot).toHaveAttribute('data-status', 'Error');
     await expect(page.locator('ui-pill')).toContainText('1 terminal failed');
@@ -51,10 +49,7 @@ test.describe('the Pill is led by the Mascot, colored by the highest-priority Te
   test('turns purple when the process exits cleanly', async ({ timmy }) => {
     const { page } = timmy;
     await timmy.openProjectTerminal();
-    await page.locator('.xterm-helper-textarea').focus();
-    await page.keyboard.type('exit 0');
-    await page.keyboard.press('Enter');
-    await expect(page.getByRole('button', { name: 'Close terminal' })).toBeEnabled();
+    await timmy.run('Start-Sleep -Seconds 3; exit 0');
     await timmy.switchMode('Pill');
     await expect(page.locator('ui-pill ui-mascot')).toHaveAttribute('data-status', 'Done');
     await expect(page.locator('ui-pill')).toContainText('1 terminal done');

@@ -28,6 +28,14 @@ export const TerminalRpcs = RpcGroup.make(
     success: Schema.Void,
     error: TerminalError,
   }),
+  Rpc.make('Terminal.show', {
+    /**
+     * The Terminal the renderer's screen is showing, or none. Main decides whether that is on screen from the Window mode,
+     * and a Done or Error Terminal on screen is Seen (GLOSSARY: Seen).
+     */
+    payload: { terminalId: Schema.optional(TerminalId) },
+    success: Schema.Void,
+  }),
   Rpc.make('Terminal.write', {
     payload: { terminalId: TerminalId, data: Schema.String },
     success: Schema.Void,

@@ -1,4 +1,4 @@
-import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 import { Effect, Stream, pipe } from 'effect';
 import type { ProjectId } from '../../../shared/projects/projects.model';
 import type { Provider } from '../../../shared/settings/settings.model';
@@ -14,6 +14,8 @@ export class TerminalsState {
   /** The last activity main reported, kept for a Terminal whose entry is added after main already spoke of it. */
   private reported: ReadonlyArray<TerminalActivityEntry> = [];
   private readonly currentId = signal<TerminalId | undefined>(undefined);
+  /** The Terminal a screen is showing now, whichever place shows it; none while no screen does. */
+  private readonly shown = signal<TerminalId | undefined>(undefined);
   /** The Terminal the user is on, in the Workspace or the Panel: the one picked last, else the newest. Undefined when there are none. */
   readonly current = computed((): TerminalEntry | undefined => this.all().find((entry) => entry.id === this.currentId()) ?? this.all().at(-1));
 
@@ -27,6 +29,21 @@ export class TerminalsState {
       ),
       { signal: stop.signal },
     );
+    // Main alone decides whether what is shown is on screen (it knows the Window mode), so this only says what is shown.
+    effect(() => {
+      const terminalId = this.shown();
+      void this.runtime.run(Effect.flatMap(DesktopApi, (desktop) => desktop['Terminal.show'](terminalId === undefined ? {} : { terminalId })));
+    });
+  }
+
+  /** A screen shows this Terminal. It replaces whatever was shown. */
+  show(id: TerminalId): void {
+    this.shown.set(id);
+  }
+
+  /** A screen stopped showing this Terminal. Nothing changes if another one has taken the screen since. */
+  hide(id: TerminalId): void {
+    this.shown.update((shown) => (shown === id ? undefined : shown));
   }
 
   /** Opens a shell in the folder; with a Provider, that Provider's CLI runs in it. */

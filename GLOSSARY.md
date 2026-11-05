@@ -45,7 +45,7 @@ What a Terminal's output says it is doing while its process is alive: Active (pr
 _Avoid_: state.
 
 **Seen**
-A Done or Error Terminal the user has viewed: it was selected while its content was on screen (Panel or Expanded). A Seen Terminal counts as Idle for the Mascot. Working and Waiting are never Seen, and a restarted Terminal starts unseen.
+A Done or Error Terminal the user has viewed: its content was on screen (Panel or Expanded) when it was already Done or Error, or it became so while on screen. Selecting a Terminal while in Pill does not make it Seen. A Seen Terminal counts as Idle for the Mascot. Working and Waiting are never Seen, and a restarted Terminal starts unseen.
 
 **Mascot**
 Timmy's icon, shown large in Pill and Panel. It shows the highest-priority Terminal status across all Projects (Waiting, then Error, Working, Done, Idle) as its color, looks at the cursor wherever it is on screen, and stays subtly alive. It is a Subscriber: it is always on and is not a Channel.

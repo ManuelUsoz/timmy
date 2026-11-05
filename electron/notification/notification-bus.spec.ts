@@ -1,19 +1,20 @@
 import { describe, expect, it } from '@effect/vitest';
 import { Effect, Fiber, Stream } from 'effect';
-import type { Notification, Source } from '../../src/shared/notification/notification.model';
+import type { Entered, Notification, Source } from '../../src/shared/notification/notification.model';
 import { TerminalId } from '../../src/shared/terminal/terminal.model';
 import { NotificationBus, layerNotificationBus } from './notification-bus';
 
 const source = (id: string): Source => ({ _tag: 'Terminal', terminalId: TerminalId.make(id) });
-const notification = (id: string, type: Notification['type']): Notification => ({ source: source(id), type });
+const entered = (id: string, type: Notification['type']): Entered => ({ source: source(id), type });
+const notification = (id: string, type: Notification['type'], seen = false): Notification => ({ ...entered(id, type), seen });
 
 describe('NotificationBus', () => {
   it.effect('replays the latest Notification of every Source to a late Subscriber', () =>
     Effect.gen(function* () {
       const bus = yield* NotificationBus;
-      yield* bus.publish(notification('a', 'Idle'));
-      yield* bus.publish(notification('a', 'Working'));
-      yield* bus.publish(notification('b', 'Done'));
+      yield* bus.publish(entered('a', 'Idle'));
+      yield* bus.publish(entered('a', 'Working'));
+      yield* bus.publish(entered('b', 'Done'));
       const heard = yield* bus.subscribe.pipe(Stream.take(2), Stream.runCollect);
       expect(heard).toEqual([
         { _tag: 'Notified', notification: notification('a', 'Working') },
@@ -27,8 +28,8 @@ describe('NotificationBus', () => {
       const bus = yield* NotificationBus;
       const fiber = yield* bus.subscribe.pipe(Stream.take(2), Stream.runCollect, Effect.forkChild);
       yield* Effect.yieldNow;
-      yield* bus.publish(notification('a', 'Working'));
-      yield* bus.publish(notification('a', 'Error'));
+      yield* bus.publish(entered('a', 'Working'));
+      yield* bus.publish(entered('a', 'Error'));
       expect(yield* Fiber.join(fiber)).toEqual([
         { _tag: 'Notified', notification: notification('a', 'Working') },
         { _tag: 'Notified', notification: notification('a', 'Error') },
@@ -39,8 +40,8 @@ describe('NotificationBus', () => {
   it.effect('drops a retracted Source from the replay and tells the Subscribers it ended', () =>
     Effect.gen(function* () {
       const bus = yield* NotificationBus;
-      yield* bus.publish(notification('a', 'Working'));
-      yield* bus.publish(notification('b', 'Working'));
+      yield* bus.publish(entered('a', 'Working'));
+      yield* bus.publish(entered('b', 'Working'));
       const live = yield* bus.subscribe.pipe(Stream.take(3), Stream.runCollect, Effect.forkChild);
       yield* Effect.yieldNow;
       yield* bus.retract(source('a'));
@@ -60,13 +61,93 @@ describe('NotificationBus', () => {
       const fiber = yield* bus.subscribe.pipe(Stream.take(2), Stream.runCollect, Effect.forkChild);
       yield* Effect.yieldNow;
       yield* bus.retract(source('ghost'));
-      yield* bus.publish(notification('a', 'Working'));
-      yield* bus.publish(notification('a', 'Working'));
-      yield* bus.publish(notification('a', 'Done'));
+      yield* bus.publish(entered('a', 'Working'));
+      yield* bus.publish(entered('a', 'Working'));
+      yield* bus.publish(entered('a', 'Done'));
       expect(yield* Fiber.join(fiber)).toEqual([
         { _tag: 'Notified', notification: notification('a', 'Working') },
         { _tag: 'Notified', notification: notification('a', 'Done') },
       ]);
     }).pipe(Effect.provide(layerNotificationBus)),
   );
+
+  describe('Seen', () => {
+    it.effect('marks a Done or Error Source Seen when its content is on screen, and says so to the Subscribers', () =>
+      Effect.gen(function* () {
+        const bus = yield* NotificationBus;
+        yield* bus.publish(entered('a', 'Error'));
+        const fiber = yield* bus.subscribe.pipe(Stream.take(2), Stream.runCollect, Effect.forkChild);
+        yield* Effect.yieldNow;
+        yield* bus.view(source('a'));
+        expect(yield* Fiber.join(fiber)).toEqual([
+          { _tag: 'Notified', notification: notification('a', 'Error') },
+          { _tag: 'Notified', notification: notification('a', 'Error', true) },
+        ]);
+        const late = yield* bus.subscribe.pipe(Stream.take(1), Stream.runCollect);
+        expect(late).toEqual([{ _tag: 'Notified', notification: notification('a', 'Error', true) }]);
+      }).pipe(Effect.provide(layerNotificationBus)),
+    );
+
+    it.effect('does not mark a Source Seen when another one is on screen, or none', () =>
+      Effect.gen(function* () {
+        const bus = yield* NotificationBus;
+        yield* bus.publish(entered('a', 'Done'));
+        yield* bus.view(source('b'));
+        yield* bus.view(undefined);
+        const heard = yield* bus.subscribe.pipe(Stream.take(1), Stream.runCollect);
+        expect(heard).toEqual([{ _tag: 'Notified', notification: notification('a', 'Done') }]);
+      }).pipe(Effect.provide(layerNotificationBus)),
+    );
+
+    it.effect('marks a Done or Error Seen the moment it happens on a Source that is on screen', () =>
+      Effect.gen(function* () {
+        const bus = yield* NotificationBus;
+        yield* bus.view(source('a'));
+        yield* bus.publish(entered('a', 'Working'));
+        yield* bus.publish(entered('a', 'Done'));
+        const heard = yield* bus.subscribe.pipe(Stream.take(1), Stream.runCollect);
+        expect(heard).toEqual([{ _tag: 'Notified', notification: notification('a', 'Done', true) }]);
+      }).pipe(Effect.provide(layerNotificationBus)),
+    );
+
+    it.effect('never marks Working or Waiting Seen, on screen or not', () =>
+      Effect.gen(function* () {
+        const bus = yield* NotificationBus;
+        yield* bus.view(source('a'));
+        yield* bus.view(source('b'));
+        yield* bus.publish(entered('a', 'Working'));
+        yield* bus.publish(entered('b', 'Waiting'));
+        const heard = yield* bus.subscribe.pipe(Stream.take(2), Stream.runCollect);
+        expect(heard).toEqual([
+          { _tag: 'Notified', notification: notification('a', 'Working') },
+          { _tag: 'Notified', notification: notification('b', 'Waiting') },
+        ]);
+      }).pipe(Effect.provide(layerNotificationBus)),
+    );
+
+    it.effect('starts unseen again when the Source enters a new status, even after it was Seen', () =>
+      Effect.gen(function* () {
+        const bus = yield* NotificationBus;
+        yield* bus.publish(entered('a', 'Error'));
+        yield* bus.view(source('a'));
+        yield* bus.view(undefined);
+        yield* bus.publish(entered('a', 'Working'));
+        yield* bus.publish(entered('a', 'Done'));
+        const heard = yield* bus.subscribe.pipe(Stream.take(1), Stream.runCollect);
+        expect(heard).toEqual([{ _tag: 'Notified', notification: notification('a', 'Done') }]);
+      }).pipe(Effect.provide(layerNotificationBus)),
+    );
+
+    it.effect('keeps a Seen Source Seen when it re-enters the status it has', () =>
+      Effect.gen(function* () {
+        const bus = yield* NotificationBus;
+        yield* bus.publish(entered('a', 'Done'));
+        yield* bus.view(source('a'));
+        yield* bus.view(undefined);
+        yield* bus.publish(entered('a', 'Done'));
+        const heard = yield* bus.subscribe.pipe(Stream.take(1), Stream.runCollect);
+        expect(heard).toEqual([{ _tag: 'Notified', notification: notification('a', 'Done', true) }]);
+      }).pipe(Effect.provide(layerNotificationBus)),
+    );
+  });
 });

@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Ref, Stream } from 'effect';
+import { Context, Effect, Layer, Stream, SubscriptionRef } from 'effect';
 import { planFor, startupMode, type Rect, type WindowMode, type WindowPlan } from '../../src/shared/window/window.model';
 
 /** The window and screen, the only part of this service that touches Electron. */
@@ -21,6 +21,8 @@ export class WindowHost extends Context.Service<WindowHost, WindowHostShape>()('
 
 export interface WindowServiceShape {
   readonly current: Effect.Effect<WindowMode>;
+  /** The current mode, then every change. */
+  readonly modes: Stream.Stream<WindowMode>;
   readonly request: (mode: WindowMode) => Effect.Effect<WindowMode>;
   readonly close: Effect.Effect<void>;
   readonly minimize: Effect.Effect<void>;
@@ -35,18 +37,19 @@ export const layerWindowService: Layer.Layer<WindowService, never, WindowHost> =
   WindowService,
   Effect.gen(function* () {
     const host = yield* WindowHost;
-    const mode = yield* Ref.make<WindowMode>(startupMode);
+    const mode = yield* SubscriptionRef.make<WindowMode>(startupMode);
     return {
-      current: Ref.get(mode),
+      current: SubscriptionRef.get(mode),
+      modes: SubscriptionRef.changes(mode),
       close: host.close,
       minimize: host.minimize,
       toggleMaximize: host.toggleMaximize,
       maximized: host.maximized,
       request: Effect.fn('WindowService.request')(function* (target: WindowMode) {
-        if ((yield* Ref.get(mode)) === target) return target;
+        if ((yield* SubscriptionRef.get(mode)) === target) return target;
         const workArea = yield* host.workArea;
-        if (!(yield* host.apply(planFor(target, workArea)))) return yield* Ref.get(mode);
-        yield* Ref.set(mode, target);
+        if (!(yield* host.apply(planFor(target, workArea)))) return yield* SubscriptionRef.get(mode);
+        yield* SubscriptionRef.set(mode, target);
         return target;
       }),
     };

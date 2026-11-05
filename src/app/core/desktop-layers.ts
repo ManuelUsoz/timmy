@@ -50,6 +50,7 @@ export const layerTerminalUnused = TerminalRpcs.toLayer({
   'Terminal.output': terminalUnused,
   'Terminal.activity': terminalUnused,
   'Terminal.focus': terminalUnused,
+  'Terminal.show': terminalUnused,
   'Terminal.write': terminalUnused,
   'Terminal.resize': terminalUnused,
   'Terminal.close': terminalUnused,

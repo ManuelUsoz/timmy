@@ -10,12 +10,15 @@ export interface PillView {
 /** Most urgent first (GLOSSARY: Mascot). */
 export const PRIORITY: ReadonlyArray<TerminalStatus> = ['Waiting', 'Error', 'Working', 'Done', 'Idle'];
 
+/** The status the Mascot counts a Notification as: a Done or Error the user has Seen is Idle (GLOSSARY: Seen). */
+export const mascotStatus = (notification: Notification): TerminalStatus => (notification.seen ? 'Idle' : notification.type);
+
 /**
  * What the Pill shows, from the latest Notification of every Source: the highest-priority status and how many Terminals
  * are in it. Waiting is a status of its own: main publishes it when a Hook reports it or a bell reaches the output tap.
  */
 export const pillView = (notifications: ReadonlyArray<Notification>): PillView => {
-  const statuses = notifications.map((notification) => notification.type);
+  const statuses = notifications.map(mascotStatus);
   const status = PRIORITY.find((candidate) => statuses.includes(candidate)) ?? 'Idle';
   return { status, count: statuses.filter((candidate) => candidate === status).length };
 };
