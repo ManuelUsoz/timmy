@@ -18,13 +18,16 @@
 
 .dialog {
   --tone: var(--support-info);
+  /* Fields inside the dialog sit on the modal's own field colour. */
+  --field: var(--modal-field);
   position: relative;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
   width: min(448px, 100%);
   max-height: 100%;
-  background: var(--layer-02);
+  border: 1px solid var(--modal-border);
+  background: var(--modal);
   color: var(--text-primary);
   box-shadow: var(--shadow-overlay);
 }

@@ -76,7 +76,7 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
       fontSize: 14,
       lineHeight: 1.14,
       scrollback: 5000,
-      theme: terminalTheme({ background: token('--background') || '#161616', foreground: token('--text-primary') || '#f4f4f4', focus: token('--focus') || '#ffffff' }),
+      theme: terminalTheme({ background: token('--background') || '#000000', foreground: token('--text-primary') || '#ffffff', focus: token('--focus') || '#ffffff' }),
     });
     const fit = new FitAddon();
     const serializer = new SerializeAddon();

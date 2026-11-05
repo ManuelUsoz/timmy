@@ -100,3 +100,14 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+/* Filled buttons read as disabled by their colours, not by fading: a muted surface with muted text. */
+:host(.as-btn--primary:disabled),
+:host(.as-btn--primary[aria-disabled='true']),
+:host(.as-btn--secondary:disabled),
+:host(.as-btn--secondary[aria-disabled='true']),
+:host(.as-btn--danger:disabled),
+:host(.as-btn--danger[aria-disabled='true']) {
+  opacity: 1;
+  background: var(--layer-selected);
+  color: var(--text-disabled);
+}

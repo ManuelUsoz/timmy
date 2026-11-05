@@ -174,9 +174,10 @@ const languageNames: ReadonlyArray<{ readonly value: Language; readonly label: s
       gap: var(--spacing-06);
       box-sizing: border-box;
       min-width: 0;
-      margin: 0 var(--spacing-04) var(--spacing-04) 0;
+      margin: 0;
       padding: var(--spacing-06) var(--spacing-09);
       overflow: auto;
+      border: 1px solid var(--border-subtle);
       border-radius: var(--radius-panel);
       background: var(--background);
     }
