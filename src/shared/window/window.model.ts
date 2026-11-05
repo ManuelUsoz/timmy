@@ -43,7 +43,8 @@ export const restoredBounds = (geometry: WindowGeometry): Rect =>
 
 const MARGIN = 16;
 const PILL_SIZE = { width: 440, height: 88 } as const;
-const PANEL_SIZE = { width: 440, height: 560 } as const;
+/** The 88 px Mascot band replaces a 48 px header: 56 px more window, 16 px of it going to the terminal area, which is never shorter than before. */
+const PANEL_SIZE = { width: 440, height: 616 } as const;
 
 const EXPANDED_SIZE = { width: 1280, height: 800 } as const;
 const EXPANDED_MIN_WIDTH = 800;

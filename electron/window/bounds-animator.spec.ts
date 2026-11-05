@@ -56,7 +56,7 @@ describe('BoundsAnimator', () => {
     const { clock, advance } = makeClock();
     const writes: Rect[] = [];
     const animator = makeBoundsAnimator(clock, 200);
-    const other: Rect = { x: 9, y: 9, width: 440, height: 560 };
+    const other: Rect = { x: 9, y: 9, width: 440, height: 616 };
     animator.animate(from, to, (b) => writes.push(b));
     advance(50);
     animator.animate(writes.at(-1)!, other, (b) => writes.push(b));
