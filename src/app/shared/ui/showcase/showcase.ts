@@ -189,6 +189,7 @@ export class ShowcaseComponent {
   protected readonly treeChecked = new FormControl<string[]>(['app.ts']);
 
   protected readonly mascotStatuses = ['Idle', 'Working', 'Waiting', 'Error', 'Done'] as const;
+  protected readonly motionStatus = signal<(typeof this.mascotStatuses)[number]>('Idle');
   protected readonly pillTones = ['neutral', 'running', 'waiting', 'error', 'done'] as const;
   protected readonly rowSelected = signal('b');
   protected readonly chipTones =['blue', 'green', 'red', 'purple', 'outline', 'mono'] as const;

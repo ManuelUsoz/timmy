@@ -5,15 +5,17 @@ import { afterEach, vi } from 'vitest';
 import { CursorState } from '../../../core/cursor-state';
 import type { WindowPoint } from '../../../../shared/window/window.model';
 import { PageVisibility } from '../../../core/page-visibility';
+import { ReducedMotion } from '../../../core/reduced-motion';
 import { MASCOT_CLOCK } from './mascot-clock';
+import { HOP_FOR } from './mascot-hops';
 import { MascotComponent } from './mascot';
 
 @Component({
   imports: [MascotComponent],
-  template: `<ui-mascot [status]="status" [size]="size" [label]="label" />`,
+  template: `<ui-mascot [status]="status()" [size]="size" [label]="label" />`,
 })
 class Host {
-  status: TerminalStatus = 'Idle';
+  readonly status = signal<TerminalStatus>('Idle');
   size = 72;
   label = '';
 }
@@ -59,6 +61,8 @@ describe('MascotComponent', () => {
   const cursor = signal<WindowPoint | null>(null);
   /** Whether the page can be seen. */
   const visible = signal(true);
+  /** Whether the user asked for reduced motion. */
+  const reduced = signal(false);
   let clock = makeClock();
   let shown: ComponentFixture<Host>;
 
@@ -69,7 +73,7 @@ describe('MascotComponent', () => {
     vi.restoreAllMocks();
   });
 
-  async function render(patch: Partial<Host> = {}) {
+  async function render({ status, ...patch }: Partial<Pick<Host, 'size' | 'label'> & { status: TerminalStatus }> = {}) {
     TestBed.resetTestingModule();
     const chance = clock.chance; // a spec sets the draw before it renders
     clock = makeClock();
@@ -79,11 +83,13 @@ describe('MascotComponent', () => {
       providers: [
         { provide: CursorState, useValue: { point: cursor.asReadonly() } },
         { provide: PageVisibility, useValue: { visible: visible.asReadonly() } },
+        { provide: ReducedMotion, useValue: { reduced: reduced.asReadonly() } },
         { provide: MASCOT_CLOCK, useValue: clock },
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(Host);
     Object.assign(fixture.componentInstance, patch);
+    if (status) fixture.componentInstance.status.set(status);
     await fixture.whenStable();
     shown = fixture;
     return fixture.nativeElement.querySelector('ui-mascot') as HTMLElement;
@@ -92,6 +98,12 @@ describe('MascotComponent', () => {
   /** Lets `ms` of time pass, then lets the Mascot redraw. */
   async function pass(ms: number) {
     clock.advance(ms);
+    await shown.whenStable();
+  }
+
+  /** The aggregate status changes to `status`, as the Pill would pass it down. */
+  async function turn(status: TerminalStatus) {
+    shown.componentInstance.status.set(status);
     await shown.whenStable();
   }
 
@@ -287,6 +299,158 @@ describe('MascotComponent', () => {
       visible.set(false);
       await pass(0);
       expect(blinking(el)).toBe(false);
+    });
+  });
+
+  describe('hop', () => {
+    const hop = (el: HTMLElement) => el.getAttribute('data-hop');
+
+    it('hops after 10 s at the soonest while Working', async () => {
+      clock.chance = 0;
+      const el = await render({ status: 'Working' });
+      await pass(9999);
+      expect(hop(el)).toBeNull();
+      await pass(1);
+      expect(hop(el)).toBe('hop');
+    });
+
+    it('hops every 15 s at the latest while Working', async () => {
+      clock.chance = 0.9999;
+      const el = await render({ status: 'Working' });
+      await pass(14_999);
+      expect(hop(el)).toBeNull();
+      await pass(1);
+      expect(hop(el)).toBe('hop');
+    });
+
+    it('plays a hop once, lands, and hops again later', async () => {
+      clock.chance = 0;
+      const el = await render({ status: 'Working' });
+      await pass(10_000);
+      expect(hop(el)).toBe('hop');
+      await pass(HOP_FOR.hop);
+      expect(hop(el)).toBeNull();
+      await pass(10_000 - HOP_FOR.hop);
+      expect(hop(el)).toBe('hop');
+    });
+
+    it.each(['Done', 'Error'] as const)('hops every 20-40 s once %s', async (status) => {
+      clock.chance = 0;
+      const soon = await render({ status });
+      await pass(19_999);
+      expect(hop(soon)).toBeNull();
+      await pass(1);
+      expect(hop(soon)).toBe('hop');
+
+      clock.chance = 0.99999;
+      const late = await render({ status });
+      await pass(39_999);
+      expect(hop(late)).toBeNull();
+      await pass(1);
+      expect(hop(late)).toBe('hop');
+    });
+
+    it('never hops while Idle', async () => {
+      clock.chance = 0;
+      const el = await render({ status: 'Idle' });
+      for (let t = 0; t < 120; t++) {
+        await pass(1000);
+        expect(hop(el)).toBeNull();
+      }
+    });
+
+    it.each(['Done', 'Error'] as const)('hops once at once when the status turns %s, then rests', async (status) => {
+      clock.chance = 0.9999;
+      const el = await render({ status: 'Working' });
+      await turn(status);
+      await pass(0);
+      expect(hop(el)).toBe('hop');
+      await pass(HOP_FOR.hop);
+      expect(hop(el)).toBeNull();
+      await pass(39_000);
+      expect(hop(el)).toBeNull();
+    });
+
+    it('does not hop on entry for a status it already had when it was drawn', async () => {
+      clock.chance = 0.9999;
+      const el = await render({ status: 'Done' });
+      await pass(0);
+      expect(hop(el)).toBeNull();
+    });
+
+    it('double-hops when the status turns Waiting, then only pulses until it changes', async () => {
+      clock.chance = 0;
+      const el = await render({ status: 'Working' });
+      await turn('Waiting');
+      await pass(0);
+      expect(hop(el)).toBe('double');
+      await pass(HOP_FOR.double);
+      expect(hop(el)).toBeNull();
+      for (let t = 0; t < 120; t++) {
+        await pass(1000);
+        expect(hop(el)).toBeNull();
+      }
+      expect(el.getAttribute('data-status')).toBe('Waiting');
+    });
+
+    it('stops the hops of a status it leaves', async () => {
+      clock.chance = 0;
+      const el = await render({ status: 'Working' });
+      await pass(9000);
+      await turn('Idle');
+      await pass(0);
+      await pass(60_000);
+      expect(hop(el)).toBeNull();
+    });
+
+    it('lands at once when the status changes mid-hop', async () => {
+      clock.chance = 0;
+      const el = await render({ status: 'Working' });
+      await pass(10_000);
+      expect(hop(el)).toBe('hop');
+      await turn('Idle');
+      await pass(0);
+      expect(hop(el)).toBeNull();
+    });
+
+    it('does not hop while the page is hidden, nor replay the entry hop when it shows again', async () => {
+      clock.chance = 0;
+      const el = await render({ status: 'Working' });
+      visible.set(false);
+      await turn('Done');
+      await pass(0);
+      await pass(60_000);
+      expect(hop(el)).toBeNull();
+      visible.set(true);
+      await pass(0);
+      expect(hop(el)).toBeNull();
+      await pass(20_000);
+      expect(hop(el)).toBe('hop');
+    });
+
+    describe('under reduced motion', () => {
+      afterEach(() => reduced.set(false));
+
+      it('never hops, nor double-hops on Waiting', async () => {
+        reduced.set(true);
+        clock.chance = 0;
+        const el = await render({ status: 'Working' });
+        await pass(60_000);
+        expect(hop(el)).toBeNull();
+        await turn('Waiting');
+        await pass(0);
+        expect(hop(el)).toBeNull();
+      });
+
+      it('still blinks and glances', async () => {
+        reduced.set(true);
+        clock.chance = 0;
+        const el = await render({ status: 'Working' });
+        await pass(4000);
+        expect(el.classList.contains('blinking')).toBe(true);
+        await pass(1000);
+        expect(el.style.getPropertyValue('--gaze-x')).toBe('-4');
+      });
     });
   });
 
