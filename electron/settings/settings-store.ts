@@ -1,7 +1,16 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Context, Effect, Layer, Option, Ref, Schema, Semaphore } from 'effect';
-import { allProviders, defaultSettings, Settings, type Language, type Provider } from '../../src/shared/settings/settings.model';
+import {
+  allProviders,
+  defaultSettings,
+  Settings,
+  withChannelChange,
+  type Channel,
+  type ChannelChange,
+  type Language,
+  type Provider,
+} from '../../src/shared/settings/settings.model';
 
 /** The user's settings. Storage failures are defects: no caller can act on them. */
 export class SettingsStore extends Context.Service<
@@ -12,6 +21,8 @@ export class SettingsStore extends Context.Service<
     readonly setLanguage: (language: Language) => Effect.Effect<Settings>;
     /** Enables or disables a Provider and answers with the settings as they are afterwards. */
     readonly setProvider: (provider: Provider, enabled: boolean) => Effect.Effect<Settings>;
+    /** Applies one change to a Channel and answers with the settings as they are afterwards. */
+    readonly setChannel: (channel: Channel, change: ChannelChange) => Effect.Effect<Settings>;
   }
 >()('settings/SettingsStore') {}
 
@@ -59,6 +70,12 @@ const makeStore = (initial: Settings, persist: (settings: Settings) => Effect.Ef
       }),
       setProvider: Effect.fn('SettingsStore.setProvider')(function* (provider: Provider, enabled: boolean) {
         return yield* update((current) => ({ ...current, providers: withProvider(current.providers, provider, enabled) }));
+      }),
+      setChannel: Effect.fn('SettingsStore.setChannel')(function* (channel: Channel, change: ChannelChange) {
+        return yield* update((current) => ({
+          ...current,
+          channels: { ...current.channels, [channel]: withChannelChange(current.channels[channel], change) },
+        }));
       }),
     });
   });

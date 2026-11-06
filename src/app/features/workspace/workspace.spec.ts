@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { Effect, Layer, Ref } from 'effect';
-import type { Language } from '../../../shared/settings/settings.model';
+import { defaultChannels, type Language } from '../../../shared/settings/settings.model';
 import { SettingsRpcs } from '../../../shared/settings/settings.rpc';
 import { makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
@@ -15,9 +15,10 @@ const setup = async (width = 1400, backend = makeBackend({ projects: [project('t
   const stored = Ref.makeUnsafe<Language>('es');
   const handlers = Layer.mergeAll(
     SettingsRpcs.toLayer({
-      'Settings.get': () => Effect.map(Ref.get(stored), (language) => ({ language, providers: [] })),
+      'Settings.get': () => Effect.map(Ref.get(stored), (language) => ({ language, providers: [], channels: defaultChannels })),
       'Settings.setProvider': () => Effect.die('unused'),
-      'Settings.setLanguage': ({ language }) => Ref.set(stored, language).pipe(Effect.as({ language, providers: [] })),
+      'Settings.setChannel': () => Effect.die('unused'),
+      'Settings.setLanguage': ({ language }) => Ref.set(stored, language).pipe(Effect.as({ language, providers: [], channels: defaultChannels })),
     }),
     layerFakeProjects(backend),
   );
