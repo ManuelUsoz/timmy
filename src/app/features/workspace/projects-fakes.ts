@@ -4,6 +4,7 @@ import type { FolderInspection, Project } from '../../../shared/projects/project
 import { ProjectsError } from '../../../shared/projects/projects-error.model';
 import { ProjectsRpcs } from '../../../shared/projects/projects.rpc';
 import { ProjectId } from '../../../shared/projects/projects.model';
+import { defaultChannels } from '../../../shared/settings/settings.model';
 import { SettingsRpcs } from '../../../shared/settings/settings.rpc';
 import { layerFilesUnused, layerWindowUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
 
@@ -127,9 +128,10 @@ export const layerFakeBackend = (backend: FakeBackend) =>
   Layer.mergeAll(
     layerFakeProjects(backend),
     SettingsRpcs.toLayer({
-      'Settings.get': () => Effect.succeed({ language: 'es' as const, providers: [] }),
-      'Settings.setLanguage': ({ language }) => Effect.succeed({ language, providers: [] }),
-      'Settings.setProvider': ({ enabled, provider }) => Effect.succeed({ language: 'es' as const, providers: enabled ? [provider] : [] }),
+      'Settings.get': () => Effect.succeed({ language: 'es' as const, providers: [], channels: defaultChannels }),
+      'Settings.setLanguage': ({ language }) => Effect.succeed({ language, providers: [], channels: defaultChannels }),
+      'Settings.setProvider': ({ enabled, provider }) => Effect.succeed({ language: 'es' as const, providers: enabled ? [provider] : [], channels: defaultChannels }),
+      'Settings.setChannel': () => Effect.die('unused'),
     }),
   );
 

@@ -22,8 +22,8 @@ describe('Notification.subscribe', () => {
         return yield* api['Notification.subscribe']().pipe(Stream.take(3), Stream.runCollect);
       });
       expect(heard).toEqual([
-        { _tag: 'Notified', notification: { source, type: 'Working', seen: false } },
-        { _tag: 'Notified', notification: { source, type: 'Done', seen: false } },
+        { _tag: 'Notified', notification: { source, type: 'Working', seen: false, onScreen: false } },
+        { _tag: 'Notified', notification: { source, type: 'Done', seen: false, onScreen: false } },
         { _tag: 'Retracted', source },
       ]);
     }).pipe(Effect.provide(layer)),

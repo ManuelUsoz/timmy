@@ -3,7 +3,7 @@ import { Effect, Layer, Ref } from 'effect';
 import { HooksError } from '../../../shared/hooks/hooks-error.model';
 import type { HookStatus } from '../../../shared/hooks/hooks.model';
 import { HooksRpcs } from '../../../shared/hooks/hooks.rpc';
-import { defaultSettings, type Settings } from '../../../shared/settings/settings.model';
+import { defaultSettings, withChannelChange, type Settings } from '../../../shared/settings/settings.model';
 import { SettingsRpcs } from '../../../shared/settings/settings.rpc';
 import { makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
@@ -28,6 +28,10 @@ const setup = async (options: { stored?: Settings; failSave?: boolean; failLoad?
             providers: enabled ? [...s.providers.filter((p) => p !== provider), provider] : s.providers.filter((p) => p !== provider),
           })).pipe(Effect.tap(() => delay));
     },
+    'Settings.setChannel': ({ channel, change }) =>
+      options.failSave
+        ? Effect.die('disk full')
+        : Ref.updateAndGet(stored, (s) => ({ ...s, channels: { ...s.channels, [channel]: withChannelChange(s.channels[channel], change) } })),
   });
   const hooks = Ref.makeUnsafe<ReadonlyArray<HookStatus>>(options.hooks ?? []);
   const hooksHandlers = HooksRpcs.toLayer({
@@ -81,7 +85,7 @@ describe('SettingsScreen: Providers', () => {
   });
 
   it('shows the Providers that were stored as enabled', async () => {
-    const { rows, byLabel } = await setup({ stored: { language: 'es', providers: ['ClaudeCode'] } });
+    const { rows, byLabel } = await setup({ stored: { ...defaultSettings, language: 'es', providers: ['ClaudeCode'] } });
     expect(rows().map((r) => r.status)).toEqual(['Desactivado', 'Activado', 'Desactivado']);
     expect(byLabel('Desactivar Claude Code')).not.toBeNull();
     expect(byLabel('Activar OpenCode')).not.toBeNull();
@@ -97,7 +101,7 @@ describe('SettingsScreen: Providers', () => {
   });
 
   it('disables a Provider again', async () => {
-    const { rows, byLabel, stored, settle } = await setup({ stored: { language: 'es', providers: ['OpenCode', 'Codex'] } });
+    const { rows, byLabel, stored, settle } = await setup({ stored: { ...defaultSettings, language: 'es', providers: ['OpenCode', 'Codex'] } });
     byLabel('Desactivar OpenCode')!.click();
     await settle();
     expect(Effect.runSync(Ref.get(stored)).providers).toEqual(['Codex']);
@@ -129,7 +133,7 @@ describe('SettingsScreen: Providers', () => {
   });
 
   it('makes the enabled Providers available to the rest of the app', async () => {
-    const { byLabel, providers, settle } = await setup({ stored: { language: 'es', providers: ['OpenCode'] } });
+    const { byLabel, providers, settle } = await setup({ stored: { ...defaultSettings, language: 'es', providers: ['OpenCode'] } });
     expect(providers.enabled()).toEqual(['OpenCode']);
     byLabel('Activar Codex')!.click();
     await settle();
@@ -224,5 +228,65 @@ describe('SettingsScreen: Hooks', () => {
     section('Hooks').click();
     await settle();
     expect(hookRows()).toEqual([{ name: 'Claude Code', status: 'Inactivo' }]);
+  });
+});
+
+describe('SettingsScreen: Notifications', () => {
+  const openNotifications = async (options: Parameters<typeof setup>[0] = {}) => {
+    const screen = await setup(options);
+    screen.section('Notificaciones').click();
+    await screen.settle();
+    const channelRows = () =>
+      Array.from(screen.el.querySelectorAll<HTMLElement>('[data-testid="channel-row"]')).map((row) => ({
+        name: row.querySelector('.name')?.textContent?.trim(),
+        on: row.querySelector('[role="switch"]')?.getAttribute('aria-checked'),
+        types: Array.from(row.querySelectorAll<HTMLButtonElement>('[aria-pressed="true"]')).map((button) => button.textContent?.trim()),
+      }));
+    const type = (name: string) => Array.from(screen.el.querySelectorAll<HTMLButtonElement>('[aria-pressed]')).find((b) => b.textContent?.trim() === name)!;
+    return { ...screen, channelRows, type };
+  };
+
+  it('shows one row for the toast Channel, on for Waiting, Done and Error by default', async () => {
+    const { channelRows, byLabel } = await openNotifications();
+    expect(channelRows()).toEqual([{ name: 'Avisos en la app', on: 'true', types: ['Esperando', 'Terminado', 'Con error'] }]);
+    expect(byLabel('Avisar con Avisos en la app')).not.toBeNull();
+  });
+
+  it('switches the Channel off, which main stores, and on again', async () => {
+    const { channelRows, byLabel, stored, settle } = await openNotifications();
+    byLabel('Avisar con Avisos en la app')!.click();
+    await settle();
+    expect(Effect.runSync(Ref.get(stored)).channels.Toast.enabled).toBe(false);
+    expect(channelRows()[0].on).toBe('false');
+    byLabel('Avisar con Avisos en la app')!.click();
+    await settle();
+    expect(channelRows()[0].on).toBe('true');
+  });
+
+  it('switches one type off and keeps the others', async () => {
+    const { channelRows, type, stored, settle } = await openNotifications();
+    type('Terminado').click();
+    await settle();
+    expect(Effect.runSync(Ref.get(stored)).channels.Toast.types).toEqual(['Waiting', 'Error']);
+    expect(channelRows()[0].types).toEqual(['Esperando', 'Con error']);
+  });
+
+  it('shows what was stored', async () => {
+    const { channelRows } = await openNotifications({ stored: { ...defaultSettings, channels: { Toast: { enabled: false, types: ['Error'] } } } });
+    expect(channelRows()).toEqual([{ name: 'Avisos en la app', on: 'false', types: ['Con error'] }]);
+  });
+
+  it('leaves the Channel as it was and says so when storing fails', async () => {
+    const { channelRows, byLabel, settle } = await openNotifications({ failSave: true });
+    byLabel('Avisar con Avisos en la app')!.click();
+    await settle();
+    expect(channelRows()[0].on).toBe('true');
+    expect(TestBed.inject(ToastService).toasts().map((toast) => [toast.tone, toast.body])).toEqual([['error', 'settings.notifications.saveFailed']]);
+  });
+
+  it('says the settings could not be read, instead of showing Channels that are not known', async () => {
+    const { el, channelRows } = await openNotifications({ failLoad: true });
+    expect(el.querySelector('[role="alert"]')?.textContent).toContain('No se pudieron leer los ajustes');
+    expect(channelRows()).toEqual([]);
   });
 });

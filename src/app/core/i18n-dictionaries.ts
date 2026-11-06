@@ -144,6 +144,21 @@ export const es = {
   'toast.title.info': 'Información',
   'toast.title.warning': 'Aviso',
   'toast.title.error': 'Error',
+  'settings.notifications': 'Notificaciones',
+  'settings.notifications.help': 'Cómo te avisa Timmy cuando un terminal te espera, termina o falla. Nunca avisa de un terminal que ya tienes en pantalla.',
+  'settings.notifications.channel.Toast': 'Avisos en la app',
+  'settings.notifications.channelLabel': 'Avisar con {name}',
+  'settings.notifications.type.Waiting': 'Esperando',
+  'settings.notifications.type.Done': 'Terminado',
+  'settings.notifications.type.Error': 'Con error',
+  'settings.notifications.loadFailed': 'No se pudieron leer los ajustes. Reinicia Timmy e inténtalo de nuevo.',
+  'settings.notifications.saveFailed': 'No se pudo guardar el cambio. Las notificaciones siguen como estaban; inténtalo de nuevo.',
+  'notifications.waiting.title': 'Esperando',
+  'notifications.waiting.body': 'Terminal {number} de {project} te espera.',
+  'notifications.done.title': 'Terminado',
+  'notifications.done.body': 'Terminal {number} de {project} ha terminado.',
+  'notifications.error.title': 'Error',
+  'notifications.error.body': 'Terminal {number} de {project} ha fallado.',
 } as const;
 
 export type MessageKey = keyof typeof es;
@@ -292,6 +307,21 @@ export const en: Dictionary = {
   'toast.title.info': 'Info',
   'toast.title.warning': 'Warning',
   'toast.title.error': 'Error',
+  'settings.notifications': 'Notifications',
+  'settings.notifications.help': 'How Timmy tells you that a Terminal is waiting for you, is done or failed. It never tells you about a Terminal you already have on screen.',
+  'settings.notifications.channel.Toast': 'In-app toasts',
+  'settings.notifications.channelLabel': 'Notify with {name}',
+  'settings.notifications.type.Waiting': 'Waiting',
+  'settings.notifications.type.Done': 'Done',
+  'settings.notifications.type.Error': 'Error',
+  'settings.notifications.loadFailed': 'The settings could not be read. Restart Timmy and try again.',
+  'settings.notifications.saveFailed': 'The change could not be saved. Notifications stay as they were; try again.',
+  'notifications.waiting.title': 'Waiting',
+  'notifications.waiting.body': 'Terminal {number} in {project} is waiting for you.',
+  'notifications.done.title': 'Done',
+  'notifications.done.body': 'Terminal {number} in {project} is done.',
+  'notifications.error.title': 'Error',
+  'notifications.error.body': 'Terminal {number} in {project} failed.',
 };
 
 export const dictionaries: Readonly<Record<Language, Dictionary>> = { es, en };

@@ -34,8 +34,8 @@ export const layerNotificationBus: Layer.Layer<NotificationBus> = Layer.effect(
           const key = sourceKey(entered.source);
           const known = (yield* Ref.get(latest)).get(key);
           if (known?.type === entered.type) return;
-          const seen = canBeSeen(entered.type) && (yield* Ref.get(onScreen)) === key;
-          const notification: Notification = { ...entered, seen };
+          const shown = (yield* Ref.get(onScreen)) === key;
+          const notification: Notification = { ...entered, seen: canBeSeen(entered.type) && shown, onScreen: shown };
           yield* Ref.update(latest, (all) => new Map(all).set(key, notification));
           yield* PubSub.publish(events, { _tag: 'Notified', notification });
         }),
@@ -49,7 +49,7 @@ export const layerNotificationBus: Layer.Layer<NotificationBus> = Layer.effect(
           yield* Ref.set(onScreen, key);
           const known = key === undefined ? undefined : (yield* Ref.get(latest)).get(key);
           if (known === undefined || known.seen || !canBeSeen(known.type)) return;
-          const notification: Notification = { ...known, seen: true };
+          const notification: Notification = { ...known, seen: true, onScreen: true };
           yield* Ref.update(latest, (all) => new Map(all).set(sourceKey(known.source), notification));
           yield* PubSub.publish(events, { _tag: 'Notified', notification });
         }),
@@ -76,7 +76,12 @@ export const layerNotificationBus: Layer.Layer<NotificationBus> = Layer.effect(
       writing.withPermits(1)(
         Effect.gen(function* () {
           const subscription = yield* PubSub.subscribe(events);
-          const replay = Array.from((yield* Ref.get(latest)).values(), (notification): NotificationEvent => ({ _tag: 'Notified', notification }));
+          // What is on screen is told as it is now: the Source may have come on screen, or left it, since it entered its status.
+          const shown = yield* Ref.get(onScreen);
+          const replay = Array.from(
+            (yield* Ref.get(latest)).entries(),
+            ([key, notification]): NotificationEvent => ({ _tag: 'Notified', notification: { ...notification, onScreen: key === shown } }),
+          );
           return Stream.concat(Stream.fromIterable(replay), Stream.fromSubscription(subscription));
         }),
       ),

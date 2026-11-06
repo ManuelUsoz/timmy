@@ -14,12 +14,56 @@ export type Provider = typeof Provider.Type;
 /** Every Provider, in the order Settings lists them. */
 export const allProviders: ReadonlyArray<Provider> = Provider.literals;
 
+/** The statuses a Channel can alert about. Working and Idle never alert (GLOSSARY: Channel). */
+export const AlertType = Schema.Literals(['Waiting', 'Done', 'Error']).annotate({ identifier: 'AlertType' });
+export type AlertType = typeof AlertType.Type;
+
+/** Every alertable type, in the order Settings lists them. */
+export const allAlertTypes: ReadonlyArray<AlertType> = AlertType.literals;
+
+/** A Subscriber that alerts the user in some form (GLOSSARY: Channel). The Mascot is a Subscriber but not a Channel. */
+export const Channel = Schema.Literals(['Toast']).annotate({ identifier: 'Channel' });
+export type Channel = typeof Channel.Type;
+
+/** Every Channel, in the order Settings lists them. */
+export const allChannels: ReadonlyArray<Channel> = Channel.literals;
+
+/** How the user configured one Channel: on or off, and which types it alerts for, in `allAlertTypes` order. */
+export const ChannelSettings = Schema.Struct({ enabled: Schema.Boolean, types: Schema.Array(AlertType) }).annotate({ identifier: 'ChannelSettings' });
+export type ChannelSettings = typeof ChannelSettings.Type;
+
+/** A Channel the user has not touched alerts for every type. */
+const alertsForAll: ChannelSettings = { enabled: true, types: allAlertTypes };
+
+/** Each Channel's configuration. A file written before a Channel existed gets its default. Adding a Channel adds a key here. */
+export const ChannelsSettings = Schema.Struct({
+  Toast: ChannelSettings.pipe(Schema.withDecodingDefaultKey(Effect.succeed(alertsForAll))),
+}).annotate({ identifier: 'ChannelsSettings' });
+export type ChannelsSettings = typeof ChannelsSettings.Type;
+
+export const defaultChannels: ChannelsSettings = { Toast: alertsForAll };
+
+/** One change the user makes to a Channel: switch it on or off, or switch one of its types. */
+export const ChannelChange = Schema.Union([
+  Schema.TaggedStruct('Switch', { enabled: Schema.Boolean }),
+  Schema.TaggedStruct('Type', { type: AlertType, enabled: Schema.Boolean }),
+]).annotate({ identifier: 'ChannelChange' });
+export type ChannelChange = typeof ChannelChange.Type;
+
+/** The Channel after `change`; its types stay in `allAlertTypes` order. */
+export const withChannelChange = (current: ChannelSettings, change: ChannelChange): ChannelSettings =>
+  change._tag === 'Switch'
+    ? { ...current, enabled: change.enabled }
+    : { ...current, types: allAlertTypes.filter((type) => (type === change.type ? change.enabled : current.types.includes(type))) };
+
 /** Everything the user can configure, stored by main so it survives restarts. */
 export const Settings = Schema.Struct({
   language: Language,
   /** The Providers the user chose to use, in `allProviders` order. None until the user picks. */
   providers: Schema.Array(Provider).pipe(Schema.withDecodingDefaultKey(Effect.succeed([]))),
+  /** Each Channel's configuration; every Channel alerts for every type until the user says otherwise. */
+  channels: ChannelsSettings.pipe(Schema.withDecodingDefaultKey(Effect.succeed(defaultChannels))),
 }).annotate({ identifier: 'Settings' });
 export type Settings = typeof Settings.Type;
 
-export const defaultSettings: Settings = { language: defaultLanguage, providers: [] };
+export const defaultSettings: Settings = { language: defaultLanguage, providers: [], channels: defaultChannels };

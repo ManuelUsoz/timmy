@@ -254,7 +254,7 @@ const listen = Effect.gen(function* () {
 
 const notified = (terminalId: TerminalId, type: 'Idle' | 'Working' | 'Waiting' | 'Done' | 'Error'): NotificationEvent => ({
   _tag: 'Notified',
-  notification: { source: { _tag: 'Terminal', terminalId }, type, seen: false },
+  notification: { source: { _tag: 'Terminal', terminalId }, type, seen: false, onScreen: false },
 });
 
 describe('TerminalService notifications', () => {

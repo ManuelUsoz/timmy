@@ -4,6 +4,7 @@ import { AppInfoRpcs } from '../../../shared/app-info/app-info.rpc';
 import type { NotificationEvent, TerminalStatus } from '../../../shared/notification/notification.model';
 import { NotificationRpcs } from '../../../shared/notification/notification.rpc';
 import { TerminalId } from '../../../shared/terminal/terminal.model';
+import { defaultChannels } from '../../../shared/settings/settings.model';
 import { SettingsRpcs } from '../../../shared/settings/settings.rpc';
 import { WindowRpcs } from '../../../shared/window/window.rpc';
 import type { WindowMode } from '../../../shared/window/window.model';
@@ -52,9 +53,10 @@ const setup = async () => {
     layerFilesUnused,
     layerProjectsUnused,
     SettingsRpcs.toLayer({
-      'Settings.get': () => Effect.succeed({ language: 'es' as const, providers: [] }),
-      'Settings.setLanguage': ({ language }) => Effect.succeed({ language, providers: [] }),
-      'Settings.setProvider': ({ enabled, provider }) => Effect.succeed({ language: 'es' as const, providers: enabled ? [provider] : [] }),
+      'Settings.get': () => Effect.succeed({ language: 'es' as const, providers: [], channels: defaultChannels }),
+      'Settings.setLanguage': ({ language }) => Effect.succeed({ language, providers: [], channels: defaultChannels }),
+      'Settings.setProvider': ({ enabled, provider }) => Effect.succeed({ language: 'es' as const, providers: enabled ? [provider] : [], channels: defaultChannels }),
+      'Settings.setChannel': () => Effect.die('unused'),
     }),
   );
   const layer = makeDesktopTestLayer(handlers);
@@ -254,15 +256,15 @@ describe('ShellComponent', () => {
 
     it('shows the same status as the Pill, from the same Notifications, and tallies every status', async () => {
       const ctx = await setup();
-      await ctx.hear({ _tag: 'Notified', notification: { source: source('a'), type: 'Waiting', seen: false } });
-      await ctx.hear({ _tag: 'Notified', notification: { source: source('b'), type: 'Working', seen: false } });
-      await ctx.hear({ _tag: 'Notified', notification: { source: source('c'), type: 'Working', seen: false } });
+      await ctx.hear({ _tag: 'Notified', notification: { source: source('a'), type: 'Waiting', seen: false, onScreen: false } });
+      await ctx.hear({ _tag: 'Notified', notification: { source: source('b'), type: 'Working', seen: false, onScreen: false } });
+      await ctx.hear({ _tag: 'Notified', notification: { source: source('c'), type: 'Working', seen: false, onScreen: false } });
       await ctx.settle();
       await openPanel(ctx);
       expect(mascot(ctx)?.getAttribute('data-status')).toBe('Waiting');
       expect(tally(ctx)).toEqual(['1 esperando', '2 en marcha']);
 
-      await ctx.hear({ _tag: 'Notified', notification: { source: source('a'), type: 'Error', seen: false } });
+      await ctx.hear({ _tag: 'Notified', notification: { source: source('a'), type: 'Error', seen: false, onScreen: false } });
       await ctx.settle();
       expect(mascot(ctx)?.getAttribute('data-status')).toBe('Error');
       expect(tally(ctx)).toEqual(['1 con error', '2 en marcha']);
@@ -274,8 +276,8 @@ describe('ShellComponent', () => {
       const working = terminals.create(ProjectId.make('p1'));
       const asking = terminals.create(ProjectId.make('p1'));
       for (const entry of [working, asking]) terminals.setState(entry.id, 'Live');
-      await ctx.hear({ _tag: 'Notified', notification: { source: source(working.id), type: 'Working', seen: false } });
-      await ctx.hear({ _tag: 'Notified', notification: { source: source(asking.id), type: 'Waiting', seen: false } });
+      await ctx.hear({ _tag: 'Notified', notification: { source: source(working.id), type: 'Working', seen: false, onScreen: false } });
+      await ctx.hear({ _tag: 'Notified', notification: { source: source(asking.id), type: 'Waiting', seen: false, onScreen: false } });
       terminals.setCurrent(working.id);
       await ctx.settle();
       await openPanel(ctx);
@@ -305,7 +307,7 @@ describe('ShellComponent', () => {
     const mascot = (ctx: Awaited<ReturnType<typeof setup>>) => ctx.el.querySelector('ui-pill ui-mascot');
     const source = (id: string) => ({ _tag: 'Terminal', terminalId: TerminalId.make(id) }) as const;
     const enter = (ctx: Awaited<ReturnType<typeof setup>>, id: string, type: TerminalStatus) =>
-      ctx.hear({ _tag: 'Notified', notification: { source: source(id), type, seen: false } });
+      ctx.hear({ _tag: 'Notified', notification: { source: source(id), type, seen: false, onScreen: false } });
 
     it('leads with the Mascot, gray when nothing is running, and has no state dot', async () => {
       const ctx = await setup();

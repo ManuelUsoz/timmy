@@ -3,7 +3,7 @@ import type { Notification, TerminalStatus } from '../../../shared/notification/
 import { TerminalId } from '../../../shared/terminal/terminal.model';
 import { pillView } from './pill-view';
 
-const notification = (id: string, type: TerminalStatus, seen = false): Notification => ({ source: { _tag: 'Terminal', terminalId: TerminalId.make(id) }, type, seen });
+const notification = (id: string, type: TerminalStatus, seen = false): Notification => ({ source: { _tag: 'Terminal', terminalId: TerminalId.make(id) }, type, seen, onScreen: false });
 
 describe('pillView', () => {
   it('is Idle, with nothing to count, when there are no Notifications', () => {

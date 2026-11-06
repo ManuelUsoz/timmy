@@ -1,12 +1,30 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Schema } from 'effect';
-import { allProviders, Language, type Provider } from '../../../shared/settings/settings.model';
+import {
+  allAlertTypes,
+  allChannels,
+  allProviders,
+  Language,
+  type AlertType,
+  type Channel,
+  type Provider,
+} from '../../../shared/settings/settings.model';
 import { I18n } from '../../core/i18n';
 import type { MessageKey } from '../../core/i18n-dictionaries';
 import { HookSettings } from '../../core/hook-settings';
+import { NotificationSettings } from '../../core/notification-settings';
 import { ProviderSettings, providerNames } from '../../core/provider-settings';
 
-type Section = 'providers' | 'hooks' | 'language';
+type Section = 'providers' | 'hooks' | 'notifications' | 'language';
+
+/** What Settings calls each Channel. Adding a Channel adds its name here. */
+const channelNames: Readonly<Record<Channel, MessageKey>> = { Toast: 'settings.notifications.channel.Toast' };
+
+const typeNames: Readonly<Record<AlertType, MessageKey>> = {
+  Waiting: 'settings.notifications.type.Waiting',
+  Done: 'settings.notifications.type.Done',
+  Error: 'settings.notifications.type.Error',
+};
 
 /** Language names are shown in their own language, whatever the interface language is. */
 const languageNames: ReadonlyArray<{ readonly value: Language; readonly label: string }> = [
@@ -96,6 +114,43 @@ const languageNames: ReadonlyArray<{ readonly value: Language; readonly label: s
               </div>
             }
           }
+        }
+      } @else if (section() === 'notifications') {
+        <h2>{{ i18n.t('settings.notifications') }}</h2>
+        <p class="help">{{ i18n.t('settings.notifications.help') }}</p>
+        @let notifications = notificationSettings.state();
+        <!-- Nothing shows while loading: reading the file takes a moment. -->
+        @if (notifications.status === 'failed') {
+          <p class="failed" role="alert">{{ i18n.t('settings.notifications.loadFailed') }}</p>
+        } @else if (notifications.status === 'ready') {
+          @let configured = notifications.channels;
+          <div class="rows">
+            @for (channel of channels; track channel) {
+              @let config = configured[channel];
+              @let name = i18n.t(channelNames[channel]);
+              <div class="row channel" data-testid="channel-row" [class.muted]="!config.enabled">
+                <span class="name">{{ name }}</span>
+                <div class="types" role="group" [attr.aria-label]="name">
+                  @for (type of alertTypes; track type) {
+                    @let on = config.types.includes(type);
+                    <button type="button" class="type" [class.on]="on" [attr.aria-pressed]="on" (click)="notificationSettings.setType(channel, type, !on)">
+                      {{ i18n.t(typeNames[type]) }}
+                    </button>
+                  }
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  class="switch"
+                  [attr.aria-checked]="config.enabled"
+                  [attr.aria-label]="i18n.t('settings.notifications.channelLabel', { name })"
+                  (click)="notificationSettings.setEnabled(channel, !config.enabled)"
+                >
+                  <span class="thumb"></span>
+                </button>
+              </div>
+            }
+          </div>
         }
       } @else {
         <h2>{{ i18n.t('settings.language') }}</h2>
@@ -265,6 +320,59 @@ const languageNames: ReadonlyArray<{ readonly value: Language; readonly label: s
       line-height: var(--text-body-01--line-height);
       letter-spacing: var(--text-body-01--letter-spacing);
     }
+    .types {
+      display: inline-flex;
+      gap: var(--spacing-02);
+    }
+    .type {
+      box-sizing: border-box;
+      height: var(--control-sm);
+      padding: 0 var(--spacing-04);
+      border: 1px solid var(--border-subtle);
+      border-radius: calc(var(--control-sm) / 2);
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: var(--text-body-compact-01);
+      line-height: var(--text-body-compact-01--line-height);
+      letter-spacing: var(--text-body-compact-01--letter-spacing);
+    }
+    .type:hover {
+      background: var(--layer-hover);
+    }
+    .type.on {
+      border-color: var(--link);
+      color: var(--text-primary);
+    }
+    .channel.muted .types {
+      opacity: 0.5;
+    }
+    .switch {
+      position: relative;
+      flex: none;
+      box-sizing: border-box;
+      width: 36px;
+      height: 20px;
+      padding: 0;
+      border: 0;
+      border-radius: 10px;
+      background: var(--support-idle);
+    }
+    .switch[aria-checked='true'] {
+      background: var(--support-success);
+    }
+    .thumb {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      border-radius: var(--radius-full);
+      background: var(--background);
+      transition: transform 120ms ease;
+    }
+    .switch[aria-checked='true'] .thumb {
+      transform: translateX(16px);
+    }
     .failed {
       margin: 0;
       color: var(--text-error);
@@ -278,17 +386,23 @@ export class SettingsScreen {
   protected readonly i18n = inject(I18n);
   protected readonly providerSettings = inject(ProviderSettings);
   protected readonly hookSettings = inject(HookSettings);
+  protected readonly notificationSettings = inject(NotificationSettings);
 
   protected readonly section = signal<Section>('providers');
   protected readonly sections: ReadonlyArray<{ readonly id: Section; readonly label: MessageKey }> = [
     { id: 'providers', label: 'settings.providers' },
     { id: 'hooks', label: 'settings.hooks' },
+    { id: 'notifications', label: 'settings.notifications' },
     { id: 'language', label: 'settings.language' },
   ];
 
   protected readonly providers = allProviders;
   protected readonly names = providerNames;
   protected readonly languages = languageNames;
+  protected readonly channels = allChannels;
+  protected readonly channelNames = channelNames;
+  protected readonly alertTypes = allAlertTypes;
+  protected readonly typeNames = typeNames;
 
   /** The Hooks of the Providers; empty while loading or when reading failed. */
   protected readonly hooks = computed(() => {

@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Effect, Layer, Ref } from 'effect';
 import { AppInfoRpcs } from '../../shared/app-info/app-info.rpc';
-import type { Language } from '../../shared/settings/settings.model';
+import { defaultChannels, type Language } from '../../shared/settings/settings.model';
 import { SettingsRpcs } from '../../shared/settings/settings.rpc';
 import { layerFilesUnused, layerProjectsUnused, layerWindowUnused, makeDesktopTestLayer } from './desktop-layers';
 import { EffectRuntime } from './effect-runtime';
@@ -15,14 +15,15 @@ const setup = (options: { stored?: Language; failSave?: boolean } = {}) => {
   const saves: Language[] = [];
   const handlers = Layer.mergeAll(
     SettingsRpcs.toLayer({
-      'Settings.get': () => Effect.map(Ref.get(stored), (language) => ({ language, providers: [] })),
+      'Settings.get': () => Effect.map(Ref.get(stored), (language) => ({ language, providers: [], channels: defaultChannels })),
       'Settings.setProvider': () => Effect.die('unused'),
+      'Settings.setChannel': () => Effect.die('unused'),
       'Settings.setLanguage': ({ language }) =>
         options.failSave
           ? Effect.die('disk full')
           : Effect.sync(() => void saves.push(language)).pipe(
               Effect.andThen(Ref.set(stored, language)),
-              Effect.as({ language, providers: [] }),
+              Effect.as({ language, providers: [], channels: defaultChannels }),
             ),
     }),
     AppInfoRpcs.toLayer({ 'AppInfo.get': () => Effect.die('unused') }),

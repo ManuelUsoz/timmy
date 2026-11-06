@@ -32,7 +32,7 @@ const latest = Effect.gen(function* () {
   return heard;
 });
 
-const notified = (seen: boolean) => ({ _tag: 'Notified', notification: { source, type: 'Error', seen } satisfies Notification });
+const notified = (seen: boolean) => ({ _tag: 'Notified', notification: { source, type: 'Error', seen, onScreen: seen } satisfies Notification });
 
 describe('OnScreen', () => {
   it.effect('a Terminal that errors while the window is a Pill stays unseen, and is Seen once the Panel opens on it', () =>

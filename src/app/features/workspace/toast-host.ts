@@ -4,7 +4,7 @@ import { ToastService, type Toast } from '../../core/toast';
 import { NotificationComponent } from '../../shared/ui/notification/notification';
 
 /**
- * The stack of toasts of the Workspace, at its top-right corner. It floats over the content, so showing or
+ * The stack of toasts of the Workspace and of the Panel, at their top-right corner. It floats over the content, so showing or
  * dismissing a toast never moves what is behind it. Newest first. Errors are announced at once, the rest politely.
  */
 @Component({

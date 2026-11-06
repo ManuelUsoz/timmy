@@ -15,6 +15,7 @@ const setup = async (enabled: ReadonlyArray<Provider> = []) => {
     'Settings.setLanguage': ({ language }) => Ref.updateAndGet(stored, (s) => ({ ...s, language })),
     'Settings.setProvider': ({ provider, enabled }) =>
       Ref.updateAndGet(stored, (s) => ({ ...s, providers: enabled ? [...s.providers, provider] : s.providers.filter((p) => p !== provider) })),
+    'Settings.setChannel': () => Effect.die('unused'),
   });
   const layer = makeDesktopTestLayer(handlers);
   TestBed.configureTestingModule({

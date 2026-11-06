@@ -39,11 +39,11 @@ describe('Terminal.show', () => {
       yield* bus.publish({ source, type: 'Error' });
 
       yield* api['Terminal.show']({ terminalId: source.terminalId });
-      expect(yield* heard).toEqual({ _tag: 'Notified', notification: { source, type: 'Error', seen: false } });
+      expect(yield* heard).toEqual({ _tag: 'Notified', notification: { source, type: 'Error', seen: false, onScreen: false } });
 
       yield* windows.request('Panel');
       yield* api['Terminal.show']({ terminalId: source.terminalId });
-      expect(yield* heard).toEqual({ _tag: 'Notified', notification: { source, type: 'Error', seen: true } });
+      expect(yield* heard).toEqual({ _tag: 'Notified', notification: { source, type: 'Error', seen: true, onScreen: true } });
     }).pipe(Effect.provide(layer)),
   );
 });
