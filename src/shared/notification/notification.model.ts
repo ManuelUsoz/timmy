@@ -20,9 +20,12 @@ export type Entered = typeof Entered.Type;
 
 /**
  * A Source entering a status. `seen` is true for a Done or Error the user has viewed (GLOSSARY: Seen); it is never true
- * for any other status.
+ * for any other status. `onScreen` says whether the Source's content is on screen as the Subscriber hears it, whatever
+ * the status: a Channel does not alert about it then.
  */
-export const Notification = Schema.Struct({ ...Entered.fields, seen: Schema.Boolean }).annotate({ identifier: 'Notification' });
+export const Notification = Schema.Struct({ ...Entered.fields, seen: Schema.Boolean, onScreen: Schema.Boolean }).annotate({
+  identifier: 'Notification',
+});
 export type Notification = typeof Notification.Type;
 
 /** The statuses that can be Seen: what is over, not what is going on or asking for the user. */

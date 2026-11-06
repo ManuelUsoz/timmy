@@ -20,7 +20,7 @@ const entry = (id: string, projectId: ProjectId, number: number, provider?: Term
   activity: 'Idle',
   ...(provider === undefined ? {} : { provider }),
 });
-const said = (id: string, type: TerminalStatus, seen = false): Notification => ({ source: { _tag: 'Terminal', terminalId: TerminalId.make(id) }, type, seen });
+const said = (id: string, type: TerminalStatus, seen = false): Notification => ({ source: { _tag: 'Terminal', terminalId: TerminalId.make(id) }, type, seen, onScreen: false });
 
 describe('railView', () => {
   it('is empty with no Terminals', () => {
