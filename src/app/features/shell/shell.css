@@ -20,7 +20,9 @@
   min-width: 0;
 }
 
+/* Relative so its toasts float over its top-right corner, as they do in the Workspace. */
 .panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;

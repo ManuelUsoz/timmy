@@ -4,6 +4,7 @@ import { Schema } from 'effect';
 import { I18n } from '../../core/i18n';
 import { NotificationsState } from './notifications-state';
 import { PanelTerminal } from './panel-terminal';
+import { ToastHost } from '../workspace/toast-host';
 import { WorkspaceComponent } from '../workspace/workspace';
 import { MascotComponent } from '../../shared/ui/mascot/mascot';
 import { MenuComponent } from '../../shared/ui/menu/menu';
@@ -16,7 +17,7 @@ import { WindowModeState } from './window-mode-state';
 /** Picks the content for the current Window mode. Nothing here changes the mode on its own: only the switcher and double-clicks do. */
 @Component({
   selector: 'app-shell',
-  imports: [NgTemplateOutlet, PanelTerminal, WorkspaceComponent, PillComponent, MascotComponent, MenuComponent, OptionComponent],
+  imports: [NgTemplateOutlet, PanelTerminal, ToastHost, WorkspaceComponent, PillComponent, MascotComponent, MenuComponent, OptionComponent],
   templateUrl: './shell.html',
   styleUrl: './shell.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
