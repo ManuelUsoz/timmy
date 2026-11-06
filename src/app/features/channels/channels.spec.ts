@@ -15,7 +15,7 @@ import { TerminalsState } from '../workspace/terminals-state';
 import { Channels } from './channels';
 
 /** The real client against a main whose settings are a Ref and whose bus is a PubSub the test speaks into. */
-const setup = async (stored: Settings = defaultSettings) => {
+const setup = async (stored: Settings = defaultSettings, options: { slowSettingsMs?: number } = {}) => {
   const settings = Ref.makeUnsafe(stored);
   const bus = Effect.runSync(PubSub.unbounded<NotificationEvent>());
   const demo = project('demo');
@@ -23,7 +23,7 @@ const setup = async (stored: Settings = defaultSettings) => {
     layerFakeProjects(makeBackend({ projects: [demo] })),
     NotificationRpcs.toLayer({ 'Notification.subscribe': () => Stream.fromPubSub(bus) }),
     SettingsRpcs.toLayer({
-      'Settings.get': () => Ref.get(settings),
+      'Settings.get': () => Ref.get(settings).pipe(Effect.delay(options.slowSettingsMs ?? 0)),
       'Settings.setLanguage': ({ language }) => Ref.updateAndGet(settings, (s) => ({ ...s, language })),
       'Settings.setProvider': () => Ref.get(settings),
       'Settings.setChannel': ({ channel, change }) =>
@@ -108,6 +108,22 @@ describe('Channels: the toast Channel', () => {
   it('follows what the user stored: a Channel switched off before the app started stays silent', async () => {
     const { hear, shown } = await setup({ ...defaultSettings, channels: { Toast: { enabled: false, types: ['Waiting', 'Done', 'Error'] } } });
     await hear('Error');
+    expect(shown()).toEqual([]);
+  });
+
+  it('keeps what happens while the settings are loading, and alerts once they are known', async () => {
+    const { hear, shown } = await setup(defaultSettings, { slowSettingsMs: 150 });
+    await hear('Error');
+    expect(shown()).toEqual([]);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(shown().map((toast) => toast.tone)).toEqual(['error']);
+  });
+
+  it('drops what is no longer the latest status once the settings are known', async () => {
+    const { hear, shown } = await setup(defaultSettings, { slowSettingsMs: 150 });
+    await hear('Waiting');
+    await hear('Working');
+    await new Promise((resolve) => setTimeout(resolve, 200));
     expect(shown()).toEqual([]);
   });
 });

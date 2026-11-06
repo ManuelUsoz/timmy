@@ -1,7 +1,7 @@
 import type { Notification, NotificationEvent, TerminalStatus } from '../../../shared/notification/notification.model';
 import type { ChannelSettings } from '../../../shared/settings/settings.model';
 import { TerminalId } from '../../../shared/terminal/terminal.model';
-import { alerts, hear, type Heard } from './channel-alerts';
+import { alerts, news, type Heard } from './channel-alerts';
 
 const source = (id: string) => ({ _tag: 'Terminal', terminalId: TerminalId.make(id) }) as const;
 const notification = (id: string, type: TerminalStatus, extra: Partial<Pick<Notification, 'seen' | 'onScreen'>> = {}): Notification => ({
@@ -49,25 +49,25 @@ describe('alerts: which Notifications a Channel alerts about', () => {
   });
 });
 
-describe('hear: which events are a Source entering a status', () => {
+describe('news: which events are a Source entering a status', () => {
   const start: Heard = new Map();
 
   it('a Source entering a status is news, each time the status changes', () => {
-    const first = hear(start, notified(notification('a', 'Working')));
-    expect(first.entered).toEqual(notification('a', 'Working'));
-    const second = hear(first.heard, notified(notification('a', 'Waiting')));
-    expect(second.entered).toEqual(notification('a', 'Waiting'));
+    const first = news(start, notified(notification('a', 'Working')));
+    expect(first.news).toEqual(notification('a', 'Working'));
+    const second = news(first.heard, notified(notification('a', 'Waiting')));
+    expect(second.news).toEqual(notification('a', 'Waiting'));
   });
 
   it('a Done becoming Seen is not news: the Source did not enter a status', () => {
-    const done = hear(start, notified(notification('a', 'Done')));
-    expect(hear(done.heard, notified(notification('a', 'Done', { seen: true, onScreen: true }))).entered).toBeUndefined();
+    const done = news(start, notified(notification('a', 'Done')));
+    expect(news(done.heard, notified(notification('a', 'Done', { seen: true, onScreen: true }))).news).toBeUndefined();
   });
 
   it('a retracted Source is forgotten, so a Source with the same id is news again', () => {
-    const done = hear(start, notified(notification('a', 'Done')));
-    const gone = hear(done.heard, { _tag: 'Retracted', source: source('a') });
-    expect(gone.entered).toBeUndefined();
-    expect(hear(gone.heard, notified(notification('a', 'Done'))).entered).toEqual(notification('a', 'Done'));
+    const done = news(start, notified(notification('a', 'Done')));
+    const gone = news(done.heard, { _tag: 'Retracted', source: source('a') });
+    expect(gone.news).toBeUndefined();
+    expect(news(gone.heard, notified(notification('a', 'Done'))).news).toEqual(notification('a', 'Done'));
   });
 });

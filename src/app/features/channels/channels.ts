@@ -1,11 +1,11 @@
-import { DestroyRef, Injectable, inject } from '@angular/core';
+import { DestroyRef, Injectable, effect, inject, untracked } from '@angular/core';
 import { Effect, Stream } from 'effect';
-import type { NotificationEvent } from '../../../shared/notification/notification.model';
-import { allChannels, type Channel } from '../../../shared/settings/settings.model';
+import { sourceKey, type Notification, type NotificationEvent } from '../../../shared/notification/notification.model';
+import { allChannels, type Channel, type ChannelsSettings } from '../../../shared/settings/settings.model';
 import { DesktopApi } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { NotificationSettings } from '../../core/notification-settings';
-import { alerts, hear, type ChannelDelivery, type Heard } from './channel-alerts';
+import { alerts, news, type ChannelDelivery, type Heard } from './channel-alerts';
 import { ToastChannel } from './toast-channel';
 
 /**
@@ -20,6 +20,8 @@ export class Channels {
   /** One delivery per Channel: adding a Channel adds its line here. */
   private readonly deliveries: Readonly<Record<Channel, ChannelDelivery>> = { Toast: inject(ToastChannel) };
   private heard: Heard = new Map();
+  /** What was news while the settings were still loading: it waits for them instead of being lost. */
+  private pending: ReadonlyArray<Notification> = [];
 
   constructor() {
     const stop = new AbortController();
@@ -28,16 +30,32 @@ export class Channels {
       Effect.flatMap(DesktopApi, (desktop) => Stream.runForEach(desktop['Notification.subscribe'](), (event) => Effect.sync(() => this.hear(event)))),
       { signal: stop.signal },
     );
+    effect(() => {
+      const state = this.settings.state();
+      if (state.status === 'loading') return;
+      untracked(() => {
+        const waited = this.pending;
+        this.pending = [];
+        if (state.status !== 'ready') return;
+        // Only what is still the latest status of its Source: an older one is no longer news.
+        for (const notification of waited) {
+          if (this.heard.get(sourceKey(notification.source)) === notification.type) this.alert(state.channels, notification);
+        }
+      });
+    });
   }
 
   private hear(event: NotificationEvent): void {
-    const { heard, entered } = hear(this.heard, event);
-    this.heard = heard;
+    const heard = news(this.heard, event);
+    this.heard = heard.heard;
+    if (heard.news === undefined) return;
     const state = this.settings.state();
-    // Until the settings are known, no Channel can say whether the user wants to hear about it.
-    if (entered === undefined || state.status !== 'ready') return;
-    for (const channel of allChannels) {
-      if (alerts(state.channels[channel], entered)) this.deliveries[channel].alert(entered);
-    }
+    if (state.status === 'loading') this.pending = [...this.pending, heard.news];
+    // Settings that could not be read cannot say whether the user wants to hear about it.
+    else if (state.status === 'ready') this.alert(state.channels, heard.news);
+  }
+
+  private alert(channels: ChannelsSettings, notification: Notification): void {
+    for (const channel of allChannels) if (alerts(channels[channel], notification)) this.deliveries[channel].alert(notification);
   }
 }

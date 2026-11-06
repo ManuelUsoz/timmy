@@ -14,20 +14,20 @@ export interface ChannelDelivery {
 export type Heard = ReadonlyMap<string, TerminalStatus>;
 
 /**
- * What hearing `event` means: the Notification of a Source that entered a status, if it did. A Done or Error becoming
+ * What is news in `event`: the Notification of a Source that entered a status, if it did. A Done or Error becoming
  * Seen repeats the status the Source already had, and a retraction is not a status, so neither is news.
  */
-export const hear = (heard: Heard, event: NotificationEvent): { readonly heard: Heard; readonly entered: Notification | undefined } => {
+export const news = (heard: Heard, event: NotificationEvent): { readonly heard: Heard; readonly news: Notification | undefined } => {
   const next = new Map(heard);
   if (event._tag === 'Retracted') {
     next.delete(sourceKey(event.source));
-    return { heard: next, entered: undefined };
+    return { heard: next, news: undefined };
   }
   const { notification } = event;
   const key = sourceKey(notification.source);
-  const news = heard.get(key) !== notification.type;
+  const changed = heard.get(key) !== notification.type;
   next.set(key, notification.type);
-  return { heard: next, entered: news ? notification : undefined };
+  return { heard: next, news: changed ? notification : undefined };
 };
 
 const isAlertType = Schema.is(AlertType);

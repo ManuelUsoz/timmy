@@ -4,11 +4,9 @@ import {
   allAlertTypes,
   allChannels,
   allProviders,
-  defaultChannels,
   Language,
   type AlertType,
   type Channel,
-  type ChannelSettings,
   type Provider,
 } from '../../../shared/settings/settings.model';
 import { I18n } from '../../core/i18n';
@@ -120,42 +118,39 @@ const languageNames: ReadonlyArray<{ readonly value: Language; readonly label: s
       } @else if (section() === 'notifications') {
         <h2>{{ i18n.t('settings.notifications') }}</h2>
         <p class="help">{{ i18n.t('settings.notifications.help') }}</p>
-        @switch (notificationSettings.state().status) {
-          @case ('loading') {
-            <!-- Nothing to say yet: reading the file takes a moment. -->
-          }
-          @case ('failed') {
-            <p class="failed" role="alert">{{ i18n.t('settings.notifications.loadFailed') }}</p>
-          }
-          @default {
-            <div class="rows">
-              @for (channel of channels; track channel) {
-                @let config = channelSettings(channel);
-                @let name = i18n.t(channelNames[channel]);
-                <div class="row channel" data-testid="channel-row" [class.muted]="!config.enabled">
-                  <span class="name">{{ name }}</span>
-                  <div class="types" role="group" [attr.aria-label]="name">
-                    @for (type of alertTypes; track type) {
-                      @let on = config.types.includes(type);
-                      <button type="button" class="type" [class.on]="on" [attr.aria-pressed]="on" (click)="notificationSettings.setType(channel, type, !on)">
-                        {{ i18n.t(typeNames[type]) }}
-                      </button>
-                    }
-                  </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    class="switch"
-                    [attr.aria-checked]="config.enabled"
-                    [attr.aria-label]="i18n.t('settings.notifications.channelLabel', { name })"
-                    (click)="notificationSettings.setEnabled(channel, !config.enabled)"
-                  >
-                    <span class="thumb"></span>
-                  </button>
+        @let notifications = notificationSettings.state();
+        <!-- Nothing shows while loading: reading the file takes a moment. -->
+        @if (notifications.status === 'failed') {
+          <p class="failed" role="alert">{{ i18n.t('settings.notifications.loadFailed') }}</p>
+        } @else if (notifications.status === 'ready') {
+          @let configured = notifications.channels;
+          <div class="rows">
+            @for (channel of channels; track channel) {
+              @let config = configured[channel];
+              @let name = i18n.t(channelNames[channel]);
+              <div class="row channel" data-testid="channel-row" [class.muted]="!config.enabled">
+                <span class="name">{{ name }}</span>
+                <div class="types" role="group" [attr.aria-label]="name">
+                  @for (type of alertTypes; track type) {
+                    @let on = config.types.includes(type);
+                    <button type="button" class="type" [class.on]="on" [attr.aria-pressed]="on" (click)="notificationSettings.setType(channel, type, !on)">
+                      {{ i18n.t(typeNames[type]) }}
+                    </button>
+                  }
                 </div>
-              }
-            </div>
-          }
+                <button
+                  type="button"
+                  role="switch"
+                  class="switch"
+                  [attr.aria-checked]="config.enabled"
+                  [attr.aria-label]="i18n.t('settings.notifications.channelLabel', { name })"
+                  (click)="notificationSettings.setEnabled(channel, !config.enabled)"
+                >
+                  <span class="thumb"></span>
+                </button>
+              </div>
+            }
+          </div>
         }
       } @else {
         <h2>{{ i18n.t('settings.language') }}</h2>
@@ -408,12 +403,6 @@ export class SettingsScreen {
   protected readonly channelNames = channelNames;
   protected readonly alertTypes = allAlertTypes;
   protected readonly typeNames = typeNames;
-
-  /** How the user configured a Channel; its default while the settings are not known (the section shows none then). */
-  protected channelSettings(channel: Channel): ChannelSettings {
-    const state = this.notificationSettings.state();
-    return state.status === 'ready' ? state.channels[channel] : defaultChannels[channel];
-  }
 
   /** The Hooks of the Providers; empty while loading or when reading failed. */
   protected readonly hooks = computed(() => {
