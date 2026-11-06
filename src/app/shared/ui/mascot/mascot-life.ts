@@ -10,7 +10,7 @@ export interface LifeSink {
 }
 
 export interface Life {
-  /** The cursor moved: the stillness a glance waits for starts over, and the eyes go back to following it. */
+  /** The cursor moved: the stillness a glance waits for starts over, and the eyes go back to following it. Cheap enough to call on every sample. */
   readonly cursorMoved: () => void;
   /** Cancels every timer and puts the Mascot at rest. */
   readonly stop: () => void;
@@ -39,10 +39,6 @@ export const startLife = (clock: MascotClock, sink: LifeSink): Life => {
     timers.add(cancel);
     return cancel;
   };
-  const cancel = (timer: () => void) => {
-    timer();
-    timers.delete(timer);
-  };
   const between = ({ min, max }: { readonly min: number; readonly max: number }) => min + clock.random() * (max - min);
 
   const scheduleBlink = (): void => {
@@ -53,23 +49,32 @@ export const startLife = (clock: MascotClock, sink: LifeSink): Life => {
     });
   };
 
-  let stillTimer: (() => void) | null = null;
-  const scheduleGlance = (): void => {
-    stillTimer = wait(between(STILL_FOR), () => {
-      scheduleGlance();
+  // The cursor reports many times a second while it moves, so a move only notes when it happened: the glance timer, drawn
+  // once per stretch, checks on firing whether the cursor has been still long enough and waits out the rest if not.
+  let stillFor = 0;
+  let lastMove = 0;
+  const beginStillStretch = (): void => {
+    stillFor = between(STILL_FOR);
+    lastMove = clock.now();
+    waitForStill(stillFor);
+  };
+  const waitForStill = (ms: number): void => {
+    wait(ms, () => {
+      const left = stillFor - (clock.now() - lastMove);
+      if (left > 0) return waitForStill(left);
+      beginStillStretch();
       sink.glance(clock.random() < 0.5 ? -1 : 1);
       wait(GLANCE_FOR, () => sink.glance(0));
     });
   };
 
   scheduleBlink();
-  scheduleGlance();
+  beginStillStretch();
 
   return {
     cursorMoved: () => {
-      if (stillTimer) cancel(stillTimer);
+      lastMove = clock.now();
       sink.glance(0);
-      scheduleGlance();
     },
     stop: () => {
       timers.forEach((timer) => timer());

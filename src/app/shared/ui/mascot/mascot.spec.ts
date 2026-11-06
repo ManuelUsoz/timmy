@@ -24,7 +24,13 @@ const makeClock = () => {
   let pending: Array<{ at: number; run: () => void; live: boolean }> = [];
   const clock = {
     chance: 0,
-    random: () => clock.chance,
+    /** How many times the Mascot has drawn a random number. */
+    draws: 0,
+    random: () => {
+      clock.draws += 1;
+      return clock.chance;
+    },
+    now: () => now,
     after: (ms: number, run: () => void) => {
       const timer = { at: now + ms, run, live: true };
       pending.push(timer);
@@ -221,6 +227,17 @@ describe('MascotComponent', () => {
       expect(gazeX(el)).toBe('4');
       await pass(1);
       expect(gazeX(el)).toBe('-4');
+    });
+
+    it('does not draw a new wait for every cursor sample', async () => {
+      const el = await render();
+      const drawn = clock.draws;
+      for (let x = 1; x <= 20; x++) {
+        cursor.set({ x, y: 0 });
+        await pass(33);
+      }
+      expect(clock.draws).toBe(drawn);
+      expect(el.style.getPropertyValue('--gaze-x')).not.toBe('');
     });
 
     it('glances once, then waits for another still stretch', async () => {
