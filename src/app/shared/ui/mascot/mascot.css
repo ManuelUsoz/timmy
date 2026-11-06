@@ -38,9 +38,9 @@ svg * {
 :host([data-status='Idle']) .b {
   animation: as-mascot-breathe 4s ease-in-out infinite;
 }
-:host([data-status='Idle']) .e,
-:host([data-status='Working']) .e {
-  animation: as-mascot-blink 5s ease-in-out infinite;
+/* A blink plays once each time the component adds .blinking; its length is BLINK_FOR in mascot-life.ts. */
+:host(.blinking) .e {
+  animation: as-mascot-blink 160ms ease-in-out;
 }
 :host([data-status='Working']) .b {
   animation: as-mascot-flick 1.4s ease-in-out infinite;
@@ -69,8 +69,7 @@ svg * {
   50% { transform: scale(1, 1.035); }
 }
 @keyframes as-mascot-blink {
-  0%, 93%, 100% { transform: scaleY(1); }
-  96% { transform: scaleY(0.12); }
+  50% { transform: scaleY(0.12); }
 }
 @keyframes as-mascot-flick {
   0%, 100% { transform: rotate(0) scale(1, 1); }
@@ -102,15 +101,14 @@ svg * {
   to { transform: rotate(360deg); }
 }
 
+/* Blinks and eye movement stay: they are small. Everything that moves the body or the eyes on its own stops. */
 @media (prefers-reduced-motion: reduce) {
-  svg * {
+  .b,
+  .eyes,
+  .ring {
     animation: none !important;
   }
   .body {
-    transition: none;
-  }
-  .gaze {
-    transform: none;
     transition: none;
   }
 }

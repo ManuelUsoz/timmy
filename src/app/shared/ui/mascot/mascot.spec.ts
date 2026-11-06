@@ -1,9 +1,11 @@
 import { Component, signal } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import type { TerminalStatus } from '../../../../shared/notification/notification.model';
 import { afterEach, vi } from 'vitest';
 import { CursorState } from '../../../core/cursor-state';
 import type { WindowPoint } from '../../../../shared/window/window.model';
+import { PageVisibility } from '../../../core/page-visibility';
+import { MASCOT_CLOCK } from './mascot-clock';
 import { MascotComponent } from './mascot';
 
 @Component({
@@ -16,22 +18,81 @@ class Host {
   label = '';
 }
 
+/** A clock the spec moves by hand: timers fire as `advance` passes their time, and every draw of chance is `chance`. */
+const makeClock = () => {
+  let now = 0;
+  let pending: Array<{ at: number; run: () => void; live: boolean }> = [];
+  const clock = {
+    chance: 0,
+    /** How many times the Mascot has drawn a random number. */
+    draws: 0,
+    random: () => {
+      clock.draws += 1;
+      return clock.chance;
+    },
+    now: () => now,
+    after: (ms: number, run: () => void) => {
+      const timer = { at: now + ms, run, live: true };
+      pending.push(timer);
+      return () => {
+        timer.live = false;
+      };
+    },
+    advance: (ms: number) => {
+      const end = now + ms;
+      for (;;) {
+        const due = pending.filter((t) => t.live && t.at <= end).sort((a, b) => a.at - b.at)[0];
+        if (!due) break;
+        now = due.at;
+        due.live = false;
+        due.run();
+      }
+      now = end;
+      pending = pending.filter((t) => t.live);
+    },
+  };
+  return clock;
+};
+
 describe('MascotComponent', () => {
   /** Where main says the cursor is. */
   const cursor = signal<WindowPoint | null>(null);
+  /** Whether the page can be seen. */
+  const visible = signal(true);
+  let clock = makeClock();
+  let shown: ComponentFixture<Host>;
 
   afterEach(() => {
     cursor.set(null);
+    visible.set(true);
+    clock = makeClock();
     vi.restoreAllMocks();
   });
 
   async function render(patch: Partial<Host> = {}) {
     TestBed.resetTestingModule();
-    await TestBed.configureTestingModule({ imports: [Host], providers: [{ provide: CursorState, useValue: { point: cursor.asReadonly() } }] }).compileComponents();
+    const chance = clock.chance; // a spec sets the draw before it renders
+    clock = makeClock();
+    clock.chance = chance;
+    await TestBed.configureTestingModule({
+      imports: [Host],
+      providers: [
+        { provide: CursorState, useValue: { point: cursor.asReadonly() } },
+        { provide: PageVisibility, useValue: { visible: visible.asReadonly() } },
+        { provide: MASCOT_CLOCK, useValue: clock },
+      ],
+    }).compileComponents();
     const fixture = TestBed.createComponent(Host);
     Object.assign(fixture.componentInstance, patch);
     await fixture.whenStable();
+    shown = fixture;
     return fixture.nativeElement.querySelector('ui-mascot') as HTMLElement;
+  }
+
+  /** Lets `ms` of time pass, then lets the Mascot redraw. */
+  async function pass(ms: number) {
+    clock.advance(ms);
+    await shown.whenStable();
   }
 
   const tones: ReadonlyArray<[TerminalStatus, string]> = [
@@ -88,6 +149,144 @@ describe('MascotComponent', () => {
         const el = await render({ status });
         expect(el.querySelector('.gaze .eyes'), status).not.toBeNull();
       }
+    });
+  });
+
+  describe('blink', () => {
+    const blinking = (el: HTMLElement) => el.classList.contains('blinking');
+
+    it('blinks after 4 s at the soonest', async () => {
+      clock.chance = 0;
+      const el = await render();
+      await pass(3999);
+      expect(blinking(el)).toBe(false);
+      await pass(1);
+      expect(blinking(el)).toBe(true);
+    });
+
+    it('blinks after 7 s at the latest', async () => {
+      clock.chance = 0.9999;
+      const el = await render();
+      await pass(6999);
+      expect(blinking(el)).toBe(false);
+      await pass(1);
+      expect(blinking(el)).toBe(true);
+    });
+
+    it('plays each blink once, rests, and blinks again later', async () => {
+      clock.chance = 0;
+      const el = await render();
+      await pass(4000);
+      expect(blinking(el)).toBe(true);
+      await pass(1000);
+      expect(blinking(el)).toBe(false);
+      await pass(3000);
+      expect(blinking(el)).toBe(true);
+    });
+  });
+
+  describe('glance', () => {
+    const gazeX = (el: HTMLElement) => el.style.getPropertyValue('--gaze-x');
+
+    it('glances to the left once the cursor has been still for 5 s, and comes back', async () => {
+      clock.chance = 0;
+      const el = await render();
+      await pass(4999);
+      expect(gazeX(el)).toBe('0');
+      await pass(1);
+      expect(gazeX(el)).toBe('-4');
+      await pass(1000);
+      expect(gazeX(el)).toBe('0');
+    });
+
+    it('glances to the right when the draw says so', async () => {
+      clock.chance = 0.9999;
+      const el = await render();
+      await pass(9000);
+      expect(gazeX(el)).toBe('4');
+    });
+
+    it('returns to looking at the cursor', async () => {
+      cursor.set({ x: 800, y: 0 });
+      clock.chance = 0;
+      const el = await render();
+      expect(gazeX(el)).toBe('4');
+      await pass(5000);
+      expect(gazeX(el)).toBe('-4');
+      await pass(1000);
+      expect(gazeX(el)).toBe('4');
+    });
+
+    it('waits for the cursor to be still again whenever it moves', async () => {
+      clock.chance = 0;
+      const el = await render();
+      await pass(4000);
+      cursor.set({ x: 800, y: 0 });
+      await pass(0);
+      await pass(4999);
+      expect(gazeX(el)).toBe('4');
+      await pass(1);
+      expect(gazeX(el)).toBe('-4');
+    });
+
+    it('does not draw a new wait for every cursor sample', async () => {
+      const el = await render();
+      const drawn = clock.draws;
+      for (let x = 1; x <= 20; x++) {
+        cursor.set({ x, y: 0 });
+        await pass(33);
+      }
+      expect(clock.draws).toBe(drawn);
+      expect(el.style.getPropertyValue('--gaze-x')).not.toBe('');
+    });
+
+    it('glances once, then waits for another still stretch', async () => {
+      clock.chance = 0;
+      const el = await render();
+      await pass(6000);
+      expect(gazeX(el)).toBe('0');
+      await pass(3999);
+      expect(gazeX(el)).toBe('0');
+      await pass(1);
+      expect(gazeX(el)).toBe('-4');
+    });
+  });
+
+  describe('when it cannot be seen', () => {
+    const blinking = (el: HTMLElement) => el.classList.contains('blinking');
+
+    it('does not blink or glance while the page is hidden', async () => {
+      visible.set(false);
+      clock.chance = 0;
+      const el = await render();
+      await pass(60_000);
+      expect(blinking(el)).toBe(false);
+      expect(el.style.getPropertyValue('--gaze-x')).toBe('0');
+    });
+
+    it('stops its timers when the page is hidden, and starts over when it shows again', async () => {
+      clock.chance = 0;
+      const el = await render();
+      await pass(3000);
+      visible.set(false);
+      await pass(60_000);
+      expect(blinking(el)).toBe(false);
+      visible.set(true);
+      await pass(0);
+      await pass(3999);
+      expect(blinking(el)).toBe(false);
+      await pass(1);
+      expect(blinking(el)).toBe(true);
+    });
+
+    it('rests when hidden in the middle of a blink', async () => {
+      clock.chance = 0;
+      const el = await render();
+      await pass(4000);
+      expect(blinking(el)).toBe(true);
+      visible.set(false);
+      await pass(0);
+      expect(blinking(el)).toBe(false);
     });
   });
 
