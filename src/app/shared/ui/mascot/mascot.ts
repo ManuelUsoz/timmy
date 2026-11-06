@@ -2,9 +2,11 @@ import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, injec
 import type { TerminalStatus } from '../../../../shared/notification/notification.model';
 import { CursorState } from '../../../core/cursor-state';
 import { PageVisibility } from '../../../core/page-visibility';
+import { ReducedMotion } from '../../../core/reduced-motion';
 import type { StateTone } from '../state/state';
 import { MAX_GAZE_SHIFT, gazeOffset } from './gaze';
 import { MASCOT_CLOCK } from './mascot-clock';
+import { startHops, type Hop } from './mascot-hops';
 import { startLife, type GlanceSide, type Life } from './mascot-life';
 
 /** The tone palette per Terminal status (GLOSSARY: Mascot). */
@@ -17,10 +19,11 @@ export const statusTone: Record<TerminalStatus, StateTone> = {
 };
 
 /**
- * Timmy's icon, colored by a Terminal status. The body crossfades between colors; the eyes and the movement change with
- * the status. The eyes look at the cursor wherever it is on screen, blink every few seconds, and flick to a side when the
- * cursor has been still for a while. Those timers run only while the page can be seen. Under reduced motion the body and
- * the status animations stop and the color change becomes instant; blinks and eye movement stay, being small.
+ * Timmy's icon, colored by a Terminal status. The body crossfades between colors; the eyes change with the status. The
+ * eyes look at the cursor wherever it is on screen, blink every few seconds, and flick to a side when the cursor has been
+ * still for a while. The body moves only by hopping, as often as the status says (mascot-hops.ts), apart from the slow
+ * pulse of Waiting. Every timer runs only while the page can be seen. Under reduced motion the hops, the pulse and the
+ * status animations stop and the color change becomes instant; blinks and eye movement stay, being small.
  */
 @Component({
   selector: 'ui-mascot',
@@ -32,6 +35,7 @@ export const statusTone: Record<TerminalStatus, StateTone> = {
     '[attr.data-status]': 'status()',
     '[style.--tone]': 'tone()',
     '[class.blinking]': 'blinking()',
+    '[attr.data-hop]': 'hop()',
     '[style.--gaze-x]': 'eyes().x',
     '[style.--gaze-y]': 'eyes().y',
     '[attr.role]': "label() ? 'img' : null",
@@ -48,11 +52,15 @@ export class MascotComponent {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly cursor = inject(CursorState);
   private readonly page = inject(PageVisibility);
+  private readonly motion = inject(ReducedMotion);
   private readonly clock = inject(MASCOT_CLOCK);
 
   protected readonly blinking = signal(false);
   private readonly glance = signal<GlanceSide>(0);
+  protected readonly hop = signal<Hop | null>(null);
   private life: Life | null = null;
+  /** The status the hops last saw, to tell a status the Mascot turns to from the one it was drawn with. */
+  private lastStatus: TerminalStatus | null = null;
 
   constructor() {
     // The idle life runs only while the page can be seen, and starts over each time it shows again.
@@ -64,6 +72,16 @@ export class MascotComponent {
         life.stop();
         this.life = null;
       });
+    });
+    // The hops follow the status. Only a change of status plays the entry hop: not the status it was drawn with, nor the
+    // page showing again. A change while hidden or under reduced motion is not replayed later.
+    effect((onCleanup) => {
+      const status = this.status();
+      const entered = this.lastStatus !== null && this.lastStatus !== status;
+      this.lastStatus = status;
+      if (!this.page.visible() || this.motion.reduced()) return;
+      const hops = startHops(this.clock, status, entered, (hop) => this.hop.set(hop));
+      onCleanup(() => hops.stop());
     });
     effect(() => {
       this.cursor.point();

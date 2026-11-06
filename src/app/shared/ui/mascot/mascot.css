@@ -35,67 +35,58 @@ svg * {
   transition: fill 300ms ease-in-out;
 }
 
-:host([data-status='Idle']) .b {
-  animation: as-mascot-breathe 4s ease-in-out infinite;
+/* The body moves only by hopping (data-hop, played by the component for HOP_FOR in mascot-hops.ts), and in Waiting by a slow pulse. */
+:host([data-status='Waiting']) .b {
+  animation: as-mascot-pulse 3.2s ease-in-out infinite;
 }
 /* A blink plays once each time the component adds .blinking; its length is BLINK_FOR in mascot-life.ts. */
 :host(.blinking) .e {
   animation: as-mascot-blink 160ms ease-in-out;
 }
-:host([data-status='Working']) .b {
-  animation: as-mascot-flick 1.4s ease-in-out infinite;
-}
 :host([data-status='Working']) .eyes {
   animation: as-mascot-scan 2.8s ease-in-out infinite;
-}
-:host([data-status='Waiting']) .b {
-  animation: as-mascot-hop 1.8s ease-in-out infinite;
 }
 :host([data-status='Waiting']) .e {
   transform: scaleY(1.18);
 }
-:host([data-status='Done']) .b {
-  animation: as-mascot-hop-once 6s ease-in-out infinite;
-}
-:host([data-status='Error']) .b {
-  animation: as-mascot-wobble 0.9s ease-in-out infinite;
-}
 :host([data-status='Error']) .ring {
   animation: as-mascot-spin 1.1s linear infinite;
 }
+/* After the status rules, so a hop wins over the pulse and the pulse starts over once it lands. */
+:host([data-hop='hop']) .b {
+  animation: as-mascot-hop 560ms ease-in-out;
+}
+:host([data-hop='double']) .b {
+  animation: as-mascot-double-hop 900ms ease-in-out;
+}
 
-@keyframes as-mascot-breathe {
+/* About 6% of its height, then a slight squash as it lands. */
+@keyframes as-mascot-hop {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  10% { transform: translateY(0) scale(1.03, 0.97); }
+  40% { transform: translateY(-6%) scale(0.98, 1.02); }
+  70% { transform: translateY(0) scale(1, 1); }
+  82% { transform: translateY(0) scale(1.06, 0.94); }
+}
+@keyframes as-mascot-double-hop {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  20% { transform: translateY(-6%) scale(0.98, 1.02); }
+  38% { transform: translateY(0) scale(1.05, 0.95); }
+  44% { transform: translateY(0) scale(1, 1); }
+  64% { transform: translateY(-4%) scale(0.99, 1.01); }
+  82% { transform: translateY(0) scale(1.05, 0.95); }
+}
+@keyframes as-mascot-pulse {
   0%, 100% { transform: scale(1, 1); }
-  50% { transform: scale(1, 1.035); }
+  50% { transform: scale(1.03, 1.03); }
 }
 @keyframes as-mascot-blink {
   50% { transform: scaleY(0.12); }
-}
-@keyframes as-mascot-flick {
-  0%, 100% { transform: rotate(0) scale(1, 1); }
-  30% { transform: rotate(-2.5deg) scale(0.99, 1.03); }
-  65% { transform: rotate(2deg) scale(1, 0.98); }
 }
 @keyframes as-mascot-scan {
   0%, 100% { transform: translateX(0); }
   30% { transform: translateX(-3px); }
   65% { transform: translateX(3px); }
-}
-@keyframes as-mascot-hop {
-  0%, 55%, 100% { transform: translateY(0); }
-  20% { transform: translateY(-8px); }
-  35% { transform: translateY(0); }
-  45% { transform: translateY(-3px); }
-}
-@keyframes as-mascot-hop-once {
-  0%, 14%, 100% { transform: translateY(0); }
-  5% { transform: translateY(-9px); }
-  9% { transform: translateY(0); }
-  12% { transform: translateY(-3px); }
-}
-@keyframes as-mascot-wobble {
-  0%, 100% { transform: rotate(-4deg); }
-  50% { transform: rotate(4deg); }
 }
 @keyframes as-mascot-spin {
   to { transform: rotate(360deg); }
