@@ -8,6 +8,7 @@ import { MAX_GAZE_SHIFT, gazeOffset } from './gaze';
 import { MASCOT_CLOCK } from './mascot-clock';
 import { startHops, type Hop } from './mascot-hops';
 import { startLife, type GlanceSide, type Life } from './mascot-life';
+import { STROKE_FOR, startRally, type Rally, type Stroke } from './mascot-rally';
 
 /** The tone palette per Terminal status (GLOSSARY: Mascot). */
 export const statusTone: Record<TerminalStatus, StateTone> = {
@@ -22,8 +23,9 @@ export const statusTone: Record<TerminalStatus, StateTone> = {
  * Timmy's icon, colored by a Terminal status. The body crossfades between colors; the eyes change with the status. The
  * eyes look at the cursor wherever it is on screen, blink every few seconds, and flick to a side when the cursor has been
  * still for a while. The body moves only by hopping, as often as the status says (mascot-hops.ts), apart from the slow
- * pulse of Waiting. Every timer runs only while the page can be seen. Under reduced motion the hops, the pulse and the
- * status animations stop and the color change becomes instant; blinks and eye movement stay, being small.
+ * pulse of Waiting and, while Idle, a tennis rally now and then (mascot-rally.ts), whose ball the eyes follow. Every timer
+ * runs only while the page can be seen. Under reduced motion the hops, the pulse, the rally and the status animations stop
+ * and the color change becomes instant; blinks and eye movement stay, being small.
  */
 @Component({
   selector: 'ui-mascot',
@@ -36,6 +38,8 @@ export const statusTone: Record<TerminalStatus, StateTone> = {
     '[style.--tone]': 'tone()',
     '[class.blinking]': 'blinking()',
     '[attr.data-hop]': 'hop()',
+    '[attr.data-rally]': 'stroke()',
+    '[style.--stroke-for]': 'strokeFor',
     '[style.--gaze-x]': 'eyes().x',
     '[style.--gaze-y]': 'eyes().y',
     '[attr.role]': "label() ? 'img' : null",
@@ -58,7 +62,11 @@ export class MascotComponent {
   protected readonly blinking = signal(false);
   private readonly glance = signal<GlanceSide>(0);
   protected readonly hop = signal<Hop | null>(null);
+  protected readonly stroke = signal<Stroke | null>(null);
+  /** The length of a stroke, so the animations in mascot.css last exactly as long as the component shows each stroke. */
+  protected readonly strokeFor = `${STROKE_FOR}ms`;
   private life: Life | null = null;
+  private rally: Rally | null = null;
   /** The status the hops last saw, to tell a status the Mascot turns to from the one it was drawn with. */
   private lastStatus: TerminalStatus | null = null;
 
@@ -83,11 +91,32 @@ export class MascotComponent {
       const hops = startHops(this.clock, status, entered, (hop) => this.hop.set(hop));
       onCleanup(() => hops.stop());
     });
+    // The rally is Idle's only motion. Any other status, the page hiding or reduced motion ends it at once.
+    effect((onCleanup) => {
+      if (this.status() !== 'Idle' || !this.page.visible() || this.motion.reduced()) return;
+      const rally = startRally(this.clock, (stroke) => this.stroke.set(stroke));
+      this.rally = rally;
+      onCleanup(() => {
+        rally.stop();
+        this.rally = null;
+      });
+    });
     effect(() => {
       this.cursor.point();
       this.life?.cursorMoved();
     });
   }
+
+  /** Plays a rally now, for the showcase. Does nothing where no rally could start on its own: outside Idle, off screen or under reduced motion. */
+  playRally(): void {
+    this.rally?.play();
+  }
+
+  /** The stroke being played, as a list the template can key its court by. */
+  protected readonly court = computed(() => {
+    const stroke = this.stroke();
+    return stroke === null ? [] : [stroke];
+  });
 
   protected readonly tone = computed(() => `var(--support-${statusTone[this.status()]})`);
 
@@ -103,8 +132,10 @@ export class MascotComponent {
     return gazeOffset(cursor, { x: box.left + box.width / 2, y: box.top + box.height / 2 });
   });
 
-  /** Where the eyes are: at the cursor, or all the way to a side while they glance. */
+  /** Where the eyes are: on the ball during a rally (the side of the stroke), all the way to a side while they glance, or at the cursor. */
   protected readonly eyes = computed(() => {
+    const stroke = this.stroke();
+    if (stroke !== null) return { x: (stroke === 'forehand' ? 1 : -1) * MAX_GAZE_SHIFT, y: 0 };
     const side = this.glance();
     const gaze = this.gaze();
     return side === 0 ? gaze : { x: side * MAX_GAZE_SHIFT, y: gaze.y };

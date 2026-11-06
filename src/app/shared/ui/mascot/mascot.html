@@ -27,4 +27,16 @@
       }
     </g>
   </g>
+  <!-- Keyed by the stroke, so each stroke draws a fresh court and its animations play from the start. -->
+  @for (stroke of court(); track stroke) {
+    <!-- Drawn for a forehand, on the Mascot's right; a backhand mirrors it to the left. -->
+    <g class="court">
+      <g class="racket" fill="none" stroke="var(--text-primary)" stroke-linecap="round">
+        <ellipse cx="112" cy="62" rx="10" ry="13" stroke-width="3" />
+        <path d="M107 55L117 69M117 55L107 69" stroke-width="1" />
+        <path d="M110 75L106 96" stroke-width="4" />
+      </g>
+      <circle class="ball" cx="118" cy="54" r="4.5" fill="var(--support-warning)" />
+    </g>
+  }
 </svg>
