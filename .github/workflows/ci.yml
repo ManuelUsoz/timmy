@@ -66,6 +66,10 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # The runner's desktop is 1024x768: too narrow for the Expanded window, which then collapses its sidebar.
+      - name: Desktop at 1920x1080
+        shell: pwsh
+        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
       - name: Build
         run: npm run build
       - name: E2E (no screenshot comparison)
