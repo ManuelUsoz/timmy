@@ -5,21 +5,21 @@ export const BREAKPOINT_LG = 1024;
 export const BREAKPOINT_XL = 1280;
 
 /** What the user chose by hand; `null` means they have not, so the width decides. */
-export type ManualProjects = 'expanded' | 'collapsed' | null;
+export type ManualSidebar = 'expanded' | 'collapsed' | null;
 
 export interface WorkspaceLayout {
-  /** The Projects list: full, or collapsed to the rail. */
-  readonly projects: 'expanded' | 'collapsed';
+  /** The sidebar: full, or collapsed to its 48 px strip. */
+  readonly sidebar: 'expanded' | 'collapsed';
   /** The project's content: its own column, or an overlay opened on demand. */
   readonly content: 'column' | 'overlay';
 }
 
 /**
- * Three columns from `xl`; between `lg` and `xl` Projects collapses to the rail; below `lg` the content
- * becomes an overlay too. A manual choice for Projects wins over the automatic one at every width.
+ * The sidebar is full from `xl` and collapses below it; below `lg` the content becomes an overlay too. A manual
+ * choice for the sidebar wins over the automatic one at every width.
  */
-export const layoutFor = (width: number, manual: ManualProjects): WorkspaceLayout => ({
-  projects: manual ?? (width >= BREAKPOINT_XL ? 'expanded' : 'collapsed'),
+export const layoutFor = (width: number, manual: ManualSidebar): WorkspaceLayout => ({
+  sidebar: manual ?? (width >= BREAKPOINT_XL ? 'expanded' : 'collapsed'),
   content: width >= BREAKPOINT_LG ? 'column' : 'overlay',
 });
 
@@ -27,7 +27,7 @@ export const layoutFor = (width: number, manual: ManualProjects): WorkspaceLayou
 @Injectable({ providedIn: 'root' })
 export class WorkspaceLayoutState {
   readonly width = signal(window.innerWidth);
-  private readonly manual = signal<ManualProjects>(null);
+  private readonly manual = signal<ManualSidebar>(null);
   private readonly overlayRequested = signal(false);
 
   readonly layout = computed(() => layoutFor(this.width(), this.manual()));
@@ -40,8 +40,9 @@ export class WorkspaceLayoutState {
     inject(DestroyRef).onDestroy(() => window.removeEventListener('resize', onResize));
   }
 
-  toggleProjects(): void {
-    this.manual.set(this.layout().projects === 'expanded' ? 'collapsed' : 'expanded');
+  /** Ctrl+B, or the sidebar's own button: flips what is showing, and the choice then sticks through resizes. */
+  toggleSidebar(): void {
+    this.manual.set(this.layout().sidebar === 'expanded' ? 'collapsed' : 'expanded');
   }
 
   toggleContent(): void {

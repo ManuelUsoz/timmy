@@ -28,7 +28,7 @@ test.describe('Notifications: the toast Channel', () => {
     // Switched off, the Channel stays silent about the next failure.
     await toggle.click();
     await expect(toggle).toHaveAttribute('aria-checked', 'false');
-    await page.getByRole('link', { name: 'Projects' }).click();
+    await page.getByRole('listbox', { name: 'Projects' }).getByRole('option', { name: /demo-project/ }).click();
     await timmy.newTerminal();
     await timmy.run('Start-Sleep -Seconds 2; exit 1');
     await page.getByRole('link', { name: 'Settings' }).click();

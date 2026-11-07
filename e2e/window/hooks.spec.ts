@@ -95,7 +95,6 @@ test.describe('Terminal state from the Claude Code Hook', () => {
       const send = (payload: object) => timmy.run(`'${JSON.stringify(payload)}' | & '${bashPath}' '${script}'`);
 
       // Already in Expanded, so add the project here instead of through addDemoProject (which switches mode).
-      await page.getByRole('link', { name: 'Projects' }).click();
       await page.getByRole('button', { name: 'New project' }).first().click();
       const dialog = page.getByRole('dialog', { name: 'New project' });
       await dialog.getByRole('button', { name: 'Browse' }).click();

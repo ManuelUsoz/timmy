@@ -17,9 +17,13 @@ export const mascotStatus = (notification: Notification): TerminalStatus => (not
  * What the Pill shows, from the latest Notification of every Source: the highest-priority status and how many Terminals
  * are in it. Waiting is a status of its own: main publishes it when a Hook reports it or a bell reaches the output tap.
  */
+/** The highest-priority status among `statuses`; undefined when there are none. */
+export const mostUrgent = (statuses: ReadonlyArray<TerminalStatus>): TerminalStatus | undefined =>
+  PRIORITY.find((candidate) => statuses.includes(candidate));
+
 export const pillView = (notifications: ReadonlyArray<Notification>): PillView => {
   const statuses = notifications.map(mascotStatus);
-  const status = PRIORITY.find((candidate) => statuses.includes(candidate)) ?? 'Idle';
+  const status = mostUrgent(statuses) ?? 'Idle';
   return { status, count: statuses.filter((candidate) => candidate === status).length };
 };
 

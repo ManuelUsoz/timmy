@@ -1,32 +1,22 @@
 @if (collapsed()) {
   <div class="rail" role="list" [attr.aria-label]="i18n.t('projects.title')">
     @for (project of state.all(); track project.projectId) {
+      @let tally = tallies().get(project.projectId);
       <button
         type="button"
         class="rail-project"
         [class.on]="project.projectId === state.selectedId()"
         [attr.aria-label]="project.name"
-        [attr.title]="project.name"
+        [attr.title]="project.name + ' · ' + project.cwd"
         [attr.aria-current]="project.projectId === state.selectedId() ? 'true' : null"
         (click)="opened.emit(project.projectId)"
       >
         <span class="tile" aria-hidden="true">{{ initials(project.name) }}</span>
+        @if (tally !== undefined) {
+          <i class="dot rail-dot" [style.--tone]="tone(tally)" [attr.data-status]="tally.status" aria-hidden="true"></i>
+        }
       </button>
     }
-  </div>
-  <div class="rail-footer">
-    <button
-      uiButton
-      kind="ghost"
-      iconOnly
-      type="button"
-      class="rail-new"
-      [attr.aria-label]="i18n.t('projects.new')"
-      [attr.title]="i18n.t('projects.new')"
-      (click)="newProject.emit()"
-    >
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
-    </button>
   </div>
 } @else {
   <div class="search">
@@ -57,27 +47,24 @@
           <p class="note">{{ i18n.t('projects.searchEmpty') }}</p>
         }
         @for (project of state.visible(); track project.projectId) {
+          @let tally = tallies().get(project.projectId);
           <as-list-row
-            lead
+            class="row"
             [label]="project.name"
-            [meta]="project.cwd"
             [selected]="project.projectId === state.selectedId()"
+            [attr.title]="project.cwd"
             [attr.aria-current]="project.projectId === state.selectedId() ? 'true' : null"
             (activate)="opened.emit(project.projectId)"
           >
-            <svg leading class="folder" viewBox="0 0 16 16" aria-hidden="true">
-              <path d="M2 4.5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" />
-            </svg>
+            <span leading class="tile" aria-hidden="true">{{ initials(project.name) }}</span>
+            @if (tally !== undefined) {
+              <span trailing class="count" [attr.data-status]="tally.status">
+                <i class="dot" [style.--tone]="tone(tally)" aria-hidden="true"></i>{{ tally.count }}
+              </span>
+            }
           </as-list-row>
         }
       }
     }
-  </div>
-
-  <div class="footer">
-    <button uiButton kind="tertiary" block type="button" (click)="newProject.emit()">
-      {{ i18n.t('projects.new') }}
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
-    </button>
   </div>
 }

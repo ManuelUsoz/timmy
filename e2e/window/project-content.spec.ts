@@ -2,15 +2,16 @@ import { expect, test } from '../fixtures';
 
 test.use({ language: 'en' });
 
-test('the rail has Projects and Settings, and a Project shows its Terminals and files', async ({ timmy }) => {
+test('the sidebar has Projects, Terminals and Settings, and a Project shows its Terminals and files', async ({ timmy }) => {
   const { page } = timmy;
   await timmy.addDemoProject();
 
-  await test.step('the rail has no Chat or History', async () => {
-    const rail = page.getByRole('navigation', { name: 'Primary' });
-    await expect(rail.getByRole('link')).toHaveCount(2);
-    await expect(rail.getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
-    await expect(rail.getByRole('link', { name: 'Settings' })).toBeVisible();
+  await test.step('the sidebar has no Chat or History, only Settings to go to', async () => {
+    const sidebar = page.getByRole('complementary', { name: 'Sidebar' });
+    await expect(sidebar.getByRole('link')).toHaveCount(1);
+    await expect(sidebar.getByRole('link', { name: 'Settings' })).toBeVisible();
+    await expect(sidebar.getByRole('listbox', { name: 'Projects' }).getByRole('option', { name: 'demo-project' })).toHaveAttribute('aria-current', 'true');
+    await expect(sidebar.getByRole('listbox', { name: 'Terminals' })).toContainText('No terminals yet.');
   });
 
   await test.step('the Project content has only Terminals and Files', async () => {
@@ -20,6 +21,6 @@ test('the rail has Projects and Settings, and a Project shows its Terminals and 
     await expect(content.getByRole('region')).toHaveCount(2);
   });
 
-  // Rail of two areas; Projects column; Project content with Terminals (empty) and Files; main area inviting to start a terminal.
-  await timmy.shot('project-content-empty', { mask: [page.locator('.as-row__sub'), page.locator('.path')] });
+  // Sidebar with Projects, Terminals (none yet) and Settings; Project content with Terminals (empty) and Files; main area inviting to start a terminal.
+  await timmy.shot('project-content-empty', { mask: [page.locator('.path')] });
 });

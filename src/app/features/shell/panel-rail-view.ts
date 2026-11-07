@@ -7,6 +7,8 @@ import { PRIORITY, mascotStatus } from './pill-view';
 /** A Terminal as a line of the Panel's rail. */
 export interface RailRow {
   readonly id: TerminalId;
+  /** The Project it runs in. */
+  readonly projectId: ProjectId;
   readonly number: number;
   readonly status: TerminalStatus;
   /** A Done or Error the user has viewed: it no longer counts for the Mascot (GLOSSARY: Seen). */
@@ -54,6 +56,7 @@ export const railView = (
     projectId: entry.projectId,
     row: {
       id: entry.id,
+      projectId: entry.projectId,
       number: entry.number,
       status: said.get(entry.id)?.type ?? 'Idle',
       seen: said.get(entry.id)?.seen ?? false,
