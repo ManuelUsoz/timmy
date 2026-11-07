@@ -4,8 +4,8 @@
 A repository on disk that Terminals belong to.
 
 **Terminal**
-A shell process hosted by Timmy in a Project's folder, in which the user runs whatever they want, typically a Provider's agent CLI. It is the entity Timmy owns and lists in the Workspace.
-_Avoid_: console, tab.
+A shell process hosted by Timmy in a Project's folder, in which the user runs whatever they want, typically a Provider's agent CLI. It is the entity Timmy owns and lists in the Workspace. It is shown in exactly one View, and closing that View's Tab closes it.
+_Avoid_: console, agent.
 
 **Provider**
 An agent CLI Timmy can host (OpenCode, Claude Code, Codex). The user chooses in Settings which Providers they use. Timmy does not supply or resell models or tokens: the user installs the Provider's own tooling and signs in to it themselves.
@@ -34,7 +34,27 @@ The second Window mode: a surface anchored at the same corner as the Pill, with 
 The third Window mode: the Workspace, centered on the screen. The user can maximize it.
 
 **Workspace**
-The full navigation shell shown in Expanded: a rail of areas (Projects, Settings), the list of Projects, and the content of the selected Project (its Terminals and files).
+The full navigation shell shown in Expanded: a sidebar with the Projects, every Terminal across them and Settings, and the Tabs of the selected Project.
+
+**Tab**
+A named layout of Panes inside a Project. A Project has one or more Tabs; one is shown at a time.
+_Avoid_: workspace (for a Tab).
+
+**Pane**
+A region of a Tab, made by splitting another Pane to the right or down. It shows one View, or a Stack.
+_Avoid_: panel (Panel is a Window mode), split.
+
+**View**
+What a Pane shows: a Terminal, a diff or a pull request. Files are never a View; they are read in the Files browser.
+
+**Files browser**
+A large modal over the Workspace with the selected Project's folder as a tree on one side and the chosen file, read-only, on the other.
+
+**Stack**
+A Pane holding two or three Views, one expanded and the others collapsed to their headers.
+
+**Switcher**
+The modal for jumping to any Tab of any Project from the keyboard, most recent first.
 
 **Terminal status**
 What a Terminal is doing: Working, Waiting (a live agent is stalled until the user acts), Done (exited cleanly, or its agent's turn ended), Error (exited otherwise) or Idle (not started).
