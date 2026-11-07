@@ -32,9 +32,18 @@ test('the sidebar lists every Terminal, opens one, and collapses to 48 px with C
     await expect(sidebar).not.toHaveClass(/collapsed/);
   });
 
-  await test.step('Ctrl+, opens Settings', async () => {
+  const settingsButton = sidebar.getByRole('button', { name: 'Settings', exact: true });
+  const settings = page.getByRole('dialog', { name: 'Settings' });
+
+  await test.step('Ctrl+, opens the Settings dialog', async () => {
     await page.keyboard.press('Control+,');
-    await expect(page.locator('app-settings-screen')).toBeVisible();
-    await expect(sidebar.getByRole('link', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
+    await expect(settings).toBeVisible();
+    await expect(settingsButton).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  await test.step('Ctrl+, again closes it', async () => {
+    await page.keyboard.press('Control+,');
+    await expect(settings).toBeHidden();
+    await expect(settingsButton).toHaveAttribute('aria-expanded', 'false');
   });
 });

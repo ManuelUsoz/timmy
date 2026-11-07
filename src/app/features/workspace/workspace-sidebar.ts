@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
-import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
 import type { TerminalStatus } from '../../../shared/notification/notification.model';
 import type { ProjectId } from '../../../shared/projects/projects.model';
 import type { Provider } from '../../../shared/settings/settings.model';
@@ -15,6 +15,7 @@ import { railView, type RailRow } from '../shell/panel-rail-view';
 import { mostUrgent } from '../shell/pill-view';
 import { ProjectList } from './project-list';
 import { ProjectsState } from './projects-state';
+import { SettingsDialogState } from './settings-dialog-state';
 import { TerminalsState } from './terminals-state';
 import { WorkspaceLayoutState } from './workspace-layout';
 import { projectTallies } from './workspace-sidebar-view';
@@ -37,11 +38,12 @@ const PROVIDER_MARK: Readonly<Record<Provider, ProviderMark>> = {
 
 /**
  * The Workspace's sidebar: the Projects, every Terminal across them (ordered and grouped as in the Panel's rail) and
- * Settings. Ctrl+B (see `WorkspaceComponent`) or its own button collapses it to a 48 px strip.
+ * the button that opens Settings over the Workspace. Ctrl+B (see `WorkspaceComponent`) or its own button collapses it
+ * to a 48 px strip.
  */
 @Component({
   selector: 'app-workspace-sidebar',
-  imports: [ListGroupLabel, ListRow, ProjectList, ProviderIconComponent, RouterLink, RouterLinkActive, StateComponent],
+  imports: [ListGroupLabel, ListRow, ProjectList, ProviderIconComponent, StateComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './workspace-sidebar.html',
   styleUrl: './workspace-sidebar.css',
@@ -54,6 +56,7 @@ const PROVIDER_MARK: Readonly<Record<Provider, ProviderMark>> = {
 export class WorkspaceSidebar {
   protected readonly i18n = inject(I18n);
   protected readonly layout = inject(WorkspaceLayoutState);
+  protected readonly settingsDialog = inject(SettingsDialogState);
   private readonly projects = inject(ProjectsState);
   private readonly terminals = inject(TerminalsState);
   private readonly notifications = inject(NotificationsState);

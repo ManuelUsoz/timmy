@@ -28,7 +28,6 @@ export const projectsMatcher: NonNullable<Route['matcher']> = (segments: UrlSegm
 export const workspaceRoutes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'projects' },
   { matcher: projectsMatcher, loadComponent: () => import('./projects-screen').then((m) => m.ProjectsScreen) },
-  { path: 'settings', loadComponent: () => import('./settings-screen').then((m) => m.SettingsScreen) },
   { path: '**', redirectTo: 'projects' },
 ];
 

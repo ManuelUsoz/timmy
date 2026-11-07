@@ -88,18 +88,20 @@
 }
 
 <div class="foot">
-  <a
+  <button
+    type="button"
     class="settings"
-    routerLink="/settings"
-    routerLinkActive="on"
-    ariaCurrentWhenActive="page"
+    aria-haspopup="dialog"
+    [class.on]="settingsDialog.open()"
+    [attr.aria-expanded]="settingsDialog.open()"
     [attr.aria-label]="collapsed() ? i18n.t('settings.title') : null"
     [attr.title]="collapsed() ? i18n.t('settings.title') + ' (Ctrl+,)' : null"
+    (click)="settingsDialog.toggle()"
   >
     <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5h6M11 5h3M2 11h3M8 11h6" /><circle cx="9.5" cy="5" r="1.5" /><circle cx="6.5" cy="11" r="1.5" /></svg>
     @if (!collapsed()) {
       <span class="settings-label">{{ i18n.t('settings.title') }}</span>
       <span class="keys" aria-hidden="true"><kbd>Ctrl</kbd><kbd>,</kbd></span>
     }
-  </a>
+  </button>
 </div>

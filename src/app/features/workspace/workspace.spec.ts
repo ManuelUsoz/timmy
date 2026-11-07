@@ -56,7 +56,8 @@ const setup = async (width = 1400, backend = makeBackend({ projects: [timmy, asc
   fixture.detectChanges();
   await settle();
   const sidebar = () => el.querySelector<HTMLElement>('app-workspace-sidebar')!;
-  const settings = () => sidebar().querySelector<HTMLAnchorElement>('a[href="#/settings"]')!;
+  const settings = () => sidebar().querySelector<HTMLButtonElement>('button.settings')!;
+  const dialog = () => el.querySelector<HTMLElement>('app-settings-dialog');
   const key = async (init: KeyboardEventInit) => {
     const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init });
     document.body.dispatchEvent(event);
@@ -68,7 +69,7 @@ const setup = async (width = 1400, backend = makeBackend({ projects: [timmy, asc
     await settle();
   };
   const terminalRows = () => Array.from(sidebar().querySelectorAll<HTMLElement>('[role=listbox].terminals as-list-row'));
-  return { el, settle, sidebar, settings, key, say, terminalRows, layoutState, stored };
+  return { el, settle, sidebar, settings, dialog, key, say, terminalRows, layoutState, stored };
 };
 
 describe('WorkspaceComponent', () => {
@@ -90,32 +91,43 @@ describe('WorkspaceComponent', () => {
     expect(row.textContent).not.toContain('/work/ascua');
   });
 
-  it('goes to Settings from the footer and back to a Project from its row', async () => {
-    const { el, sidebar, settings, settle } = await setup();
+  it('opens Settings over the screen from the footer, which stays underneath, and closes it from the footer again', async () => {
+    const { el, settings, dialog, settle } = await setup();
+    expect(settings().getAttribute('aria-haspopup')).toBe('dialog');
+    expect(settings().getAttribute('aria-expanded')).toBe('false');
     settings().click();
     await settle();
-    expect(el.querySelector('app-settings-screen')).not.toBeNull();
-    expect(settings().getAttribute('aria-current')).toBe('page');
-    Array.from(sidebar().querySelectorAll<HTMLElement>('app-project-list as-list-row')).find((r) => r.textContent?.includes('ascua'))!.click();
+    expect(dialog()).not.toBeNull();
+    expect(settings().getAttribute('aria-expanded')).toBe('true');
+    expect(el.querySelector('app-projects-screen')).not.toBeNull();
+    expect(TestBed.inject(Router).url).toBe('/projects/p-timmy');
+    settings().click();
+    await settle();
+    expect(dialog()).toBeNull();
+  });
+
+  it('opens and closes Settings with Ctrl+,', async () => {
+    const { dialog, key } = await setup();
+    const event = await key({ key: ',', ctrlKey: true });
+    expect(dialog()).not.toBeNull();
+    expect(event.defaultPrevented).toBe(true);
+    await key({ key: ',', ctrlKey: true });
+    expect(dialog()).toBeNull();
+  });
+
+  it('leaves Ctrl+, alone when another modifier is held', async () => {
+    const { dialog, key } = await setup();
+    const event = await key({ key: ',', ctrlKey: true, shiftKey: true });
+    expect(dialog()).toBeNull();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('sends the old Settings route to Projects, without opening Settings', async () => {
+    const { el, dialog, settle } = await setup();
+    await TestBed.inject(Router).navigateByUrl('/settings');
     await settle();
     expect(el.querySelector('app-projects-screen')).not.toBeNull();
-    expect(TestBed.inject(Router).url).toBe('/projects/p-ascua');
-  });
-
-  it('opens Settings with Ctrl+,', async () => {
-    const { el, key } = await setup();
-    const event = await key({ key: ',', ctrlKey: true });
-    expect(el.querySelector('app-settings-screen')).not.toBeNull();
-    expect(event.defaultPrevented).toBe(true);
-  });
-
-  it('opens New project from the sidebar, from Settings too', async () => {
-    const { el, sidebar, settings, settle } = await setup();
-    settings().click();
-    await settle();
-    sidebar().querySelector<HTMLButtonElement>('button[aria-label="Nuevo proyecto"]')!.click();
-    await settle();
-    expect(el.querySelector('app-new-project-dialog')).not.toBeNull();
+    expect(dialog()).toBeNull();
   });
 
   it('sends the routes of the removed areas to Projects', async () => {
@@ -131,14 +143,12 @@ describe('WorkspaceComponent', () => {
     const { el, settings, settle, sidebar, stored } = await setup();
     settings().click();
     await settle();
-    Array.from(el.querySelectorAll<HTMLButtonElement>('app-settings-screen nav button')).find((b) => b.textContent?.trim() === 'Idioma')!.click();
-    await settle();
-    const english = Array.from(el.querySelectorAll<HTMLButtonElement>('app-settings-screen [role="radio"]')).find((b) => b.textContent?.trim() === 'English')!;
+    const english = Array.from(el.querySelectorAll<HTMLButtonElement>('app-settings-dialog [role="radio"]')).find((b) => b.textContent?.trim() === 'English')!;
     english.click();
     await settle();
     expect(settings().textContent).toContain('Settings');
     expect(sidebar().querySelector('.section-label')?.textContent?.trim()).toBe('Projects');
-    expect(el.querySelector('app-settings-screen h1')?.textContent).toBe('Settings');
+    expect(el.querySelector('app-settings-dialog [role="dialog"]')?.getAttribute('aria-label')).toBe('Settings');
     expect(Effect.runSync(Ref.get(stored))).toBe('en');
   });
 
@@ -202,8 +212,8 @@ describe('WorkspaceComponent', () => {
       expect(sidebar().classList).not.toContain('collapsed');
     });
 
-    it('collapsed, keeps an avatar per Project and Settings, which still navigate', async () => {
-      const { el, sidebar, settings, settle } = await setup(1100);
+    it('collapsed, keeps an avatar per Project and Settings, which still work', async () => {
+      const { sidebar, settings, dialog, settle } = await setup(1100);
       const tiles = Array.from(sidebar().querySelectorAll<HTMLButtonElement>('app-project-list .rail-project'));
       expect(tiles.map((b) => b.getAttribute('aria-label'))).toEqual(['ascua', 'timmy']);
       expect(tiles.map((b) => b.getAttribute('title'))).toEqual(['ascua · /work/ascua', 'timmy · /work/timmy']);
@@ -212,7 +222,7 @@ describe('WorkspaceComponent', () => {
       expect(TestBed.inject(Router).url).toBe('/projects/p-ascua');
       settings().click();
       await settle();
-      expect(el.querySelector('app-settings-screen')).not.toBeNull();
+      expect(dialog()).not.toBeNull();
     });
 
     it('follows the window as it is resized, until the user collapses it by hand', async () => {

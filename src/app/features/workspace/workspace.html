@@ -2,6 +2,9 @@
 <main class="screen">
   <router-outlet />
 </main>
+@if (settingsDialog.open()) {
+  <app-settings-dialog />
+}
 <app-toast-host />
 @if (projects.creating()) {
   <app-new-project-dialog (closed)="projects.creating.set(false)" (created)="created($event)" />

@@ -19,18 +19,30 @@ const findBash = (): string | undefined => {
 const claudeSettings = (timmy: Timmy) => path.join(timmy.userData, 'claude', 'settings.json');
 const hookCommand = (timmy: Timmy): string => JSON.parse(readFileSync(claudeSettings(timmy), 'utf8')).hooks.Stop[0].hooks[0].command;
 
-/** Settings → Hooks, in Expanded. */
+/** Settings → Agents and providers, in Expanded: the Claude Code card (the spec enables Claude Code from the start). */
 const openHooks = async (timmy: Timmy) => {
   const { page } = timmy;
   await timmy.openPanel();
   await timmy.switchMode('Expanded');
-  await page.getByRole('link', { name: 'Settings' }).click();
-  const settings = page.locator('app-settings-screen');
-  await settings.getByRole('button', { name: 'Hooks' }).click();
-  return settings;
+  await page.getByRole('complementary', { name: 'Sidebar' }).getByRole('button', { name: 'Settings', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Settings' });
+  await dialog.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Agents and providers' }).click();
+  const card = dialog.getByTestId('provider-card').filter({ hasText: 'Claude Code' });
+  await expect(card).toContainText('Enabled');
+  return card;
 };
 
-test.describe('Settings → Hooks: Claude Code', () => {
+/** The Claude Code Hook switch inside its card. */
+const hookSwitch = (card: Awaited<ReturnType<typeof openHooks>>) => card.getByTestId('hook-row').getByRole('switch', { name: 'Claude Code Hook' });
+
+/** Turns the Hook on from its card and waits until it says so. */
+const activateHook = async (timmy: Timmy) => {
+  const toggle = hookSwitch(await openHooks(timmy));
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-checked', 'true');
+};
+
+test.describe('Settings → Agents and providers: the Claude Code Hook', () => {
   test.use({ language: 'en', providers: ['ClaudeCode'] });
 
   test('activates and deactivates the Hook, touching only its own entries', async ({ timmy }) => {
@@ -39,33 +51,29 @@ test.describe('Settings → Hooks: Claude Code', () => {
     const theirs = { model: 'opus', hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo theirs' }] }] } };
     writeFileSync(claudeSettings(timmy), JSON.stringify(theirs));
 
-    const settings = await openHooks(timmy);
-    const rows = settings.getByTestId('hook-row');
-    await expect(rows).toHaveCount(1);
-    await expect(rows.first()).toContainText('Claude Code');
-    await expect(rows.first()).toContainText('Inactive');
+    const card = await openHooks(timmy);
+    await expect(card.getByTestId('hook-row')).toHaveCount(1);
+    const toggle = hookSwitch(card);
+    await expect(toggle).toHaveAttribute('aria-checked', 'false');
     await timmy.shot('hooks-inactive');
 
-    await settings.getByRole('button', { name: 'Activate Claude Code Hook' }).click();
-    await expect(rows.first()).toContainText('Active');
-    await expect(settings.getByRole('button', { name: 'Deactivate Claude Code Hook' })).toBeVisible();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'true');
     await timmy.shot('hooks-active');
     const written = JSON.parse(readFileSync(claudeSettings(timmy), 'utf8'));
     expect(written.model).toBe('opus');
     expect(written.hooks.Stop[0]).toEqual(theirs.hooks.Stop[0]);
     expect(JSON.stringify(written)).toContain('TIMMY_TERMINAL_ID');
 
-    await settings.getByRole('button', { name: 'Deactivate Claude Code Hook' }).click();
-    await expect(rows.first()).toContainText('Inactive');
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'false');
     expect(JSON.parse(readFileSync(claudeSettings(timmy), 'utf8'))).toEqual(theirs);
   });
 
   test('the Hook command does nothing outside a Terminal started by Timmy', async ({ timmy }) => {
     const bash = findBash();
     test.skip(bash === undefined, 'needs bash (Git for Windows)');
-    const settings = await openHooks(timmy);
-    await settings.getByRole('button', { name: 'Activate Claude Code Hook' }).click();
-    await expect(settings.getByTestId('hook-row').first()).toContainText('Active');
+    await activateHook(timmy);
 
     const env = { ...process.env };
     delete env['TIMMY_TERMINAL_ID'];
@@ -82,9 +90,10 @@ test.describe('Terminal state from the Claude Code Hook', () => {
     const bash = findBash();
     test.skip(bash === undefined, 'needs bash (Git for Windows)');
     const { page } = timmy;
-    const settings = await openHooks(timmy);
-    await settings.getByRole('button', { name: 'Activate Claude Code Hook' }).click();
-    await expect(settings.getByTestId('hook-row').first()).toContainText('Active');
+    await activateHook(timmy);
+    // Settings is a dialog over the Workspace: close it to reach the sidebar.
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog', { name: 'Settings' })).toBeHidden();
 
     // The command Timmy wrote into Claude Code's settings, run by bash as Claude Code would run it.
     const scripts = mkdtempSync(path.join(tmpdir(), 'timmy-e2e-hook-'));

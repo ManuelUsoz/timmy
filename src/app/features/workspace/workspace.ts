@@ -1,19 +1,23 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
 import type { Project } from '../../../shared/projects/projects.model';
+import { globalShortcut } from '../../core/shortcuts';
 import { NewProjectDialog } from './new-project-dialog';
 import { ProjectsState } from './projects-state';
+import { SettingsDialog } from './settings-dialog';
+import { SettingsDialogState } from './settings-dialog-state';
 import { ToastHost } from './toast-host';
 import { WorkspaceLayoutState } from './workspace-layout';
 import { WorkspaceSidebar } from './workspace-sidebar';
 
 /**
- * The Workspace shown in Expanded: the sidebar (Projects, Terminals, Settings) and the routed screen beside it.
- * Ctrl+B collapses or expands the sidebar and Ctrl+, opens Settings, wherever the focus is, a Terminal included.
+ * The Workspace shown in Expanded: the sidebar (Projects, Terminals, Settings), the routed screen beside it, and
+ * Settings as a dialog over both. The global shortcuts (`shortcuts.ts`) work wherever the focus is, a Terminal included:
+ * Ctrl+B collapses or expands the sidebar and Ctrl+, opens or closes Settings.
  */
 @Component({
   selector: 'app-workspace',
-  imports: [NewProjectDialog, RouterOutlet, ToastHost, WorkspaceSidebar],
+  imports: [NewProjectDialog, RouterOutlet, SettingsDialog, ToastHost, WorkspaceSidebar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './workspace.html',
   styleUrl: './workspace.css',
@@ -21,6 +25,7 @@ import { WorkspaceSidebar } from './workspace-sidebar';
 export class WorkspaceComponent {
   protected readonly projects = inject(ProjectsState);
   private readonly layout = inject(WorkspaceLayoutState);
+  protected readonly settingsDialog = inject(SettingsDialogState);
   private readonly router = inject(Router);
 
   constructor() {
@@ -34,13 +39,12 @@ export class WorkspaceComponent {
   }
 
   private shortcut(event: KeyboardEvent): void {
-    if (!event.ctrlKey || event.altKey || event.shiftKey || event.metaKey) return;
-    const key = event.key.toLowerCase();
-    if (key !== 'b' && key !== ',') return;
+    const shortcut = globalShortcut(event);
+    if (shortcut === null) return;
     event.preventDefault();
     event.stopPropagation();
-    if (key === 'b') this.layout.toggleSidebar();
-    else void this.router.navigate(['/settings']);
+    if (shortcut === 'toggleSidebar') this.layout.toggleSidebar();
+    else this.settingsDialog.toggle();
   }
 
   protected async created(project: Project): Promise<void> {
