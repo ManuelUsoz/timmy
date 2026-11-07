@@ -65,12 +65,14 @@ test.describe('the Mascot looks at the cursor wherever it is on screen', () => {
     await expect.poll(async () => (await eyeShift(timmy, pillMascot)).x).toBeGreaterThan(0);
   });
 
-  test('looks straight ahead under reduced motion', async ({ timmy }) => {
+  // Eye movement is small, so it stays under reduced motion (#93); only the body's motion stops.
+  test('keeps following the cursor under reduced motion', async ({ timmy }) => {
     const mascot = timmy.page.locator('ui-pill ui-mascot');
     const center = await timmy.desktopCenter(mascot);
+    await timmy.page.emulateMedia({ reducedMotion: 'reduce' });
     await timmy.moveCursor({ x: center.x + 600, y: center.y });
     await expect.poll(() => eyeShift(timmy, mascot)).toEqual({ x: 4, y: 0 });
-    await timmy.page.emulateMedia({ reducedMotion: 'reduce' });
-    await expect.poll(() => eyeShift(timmy, mascot)).toEqual({ x: 0, y: 0 });
+    await timmy.moveCursor({ x: center.x - 600, y: center.y });
+    await expect.poll(() => eyeShift(timmy, mascot)).toEqual({ x: -4, y: 0 });
   });
 });
