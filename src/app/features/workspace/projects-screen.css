@@ -5,7 +5,7 @@
   position: relative;
 }
 
-/* The content column and the stage are one card beside the sidebar, like the Panel's Terminal. */
+/* The stage is one card beside the sidebar, like the Panel's Terminal. */
 .card {
   position: relative;
   display: flex;
@@ -16,24 +16,6 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-panel);
   background: var(--background);
-}
-
-.content {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  width: 280px;
-  border-right: 1px solid var(--border-subtle);
-  background: var(--background);
-}
-
-/* Below lg the content floats over the stage, at the card's edge. */
-.content.overlay {
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 0;
-  z-index: 5;
-  box-shadow: var(--shadow-overlay);
 }
 
 .stage {
@@ -118,27 +100,3 @@
   color: var(--text-secondary);
 }
 
-.content-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  background: transparent;
-  color: var(--text-helper);
-  cursor: pointer;
-}
-
-.content-toggle {
-  align-self: flex-start;
-  height: var(--control-sm);
-  margin: var(--spacing-03);
-  padding-inline: var(--spacing-04);
-  background: var(--layer-01);
-  color: var(--text-primary);
-  font: var(--text-body-compact-01);
-}
-
-.content-toggle:hover {
-  background: var(--layer-hover);
-  color: var(--text-primary);
-}

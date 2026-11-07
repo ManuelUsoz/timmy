@@ -7,7 +7,6 @@ import { I18n } from '../../core/i18n';
 import { shortcutKeys } from '../../core/shortcuts';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { NewTerminal } from './new-terminal';
-import { ProjectContent } from './project-content';
 import { ProjectsState } from './projects-state';
 import { TabBar } from './tab-bar';
 import { neighbourOf, tabPath, type Tab } from './tabs';
@@ -16,25 +15,23 @@ import type { TerminalEntry } from './terminal-entries';
 import { TerminalScreen } from './terminal-screen';
 import { TerminalsState } from './terminals-state';
 import { WorkspaceHero } from './workspace-hero';
-import { WorkspaceLayoutState } from './workspace-layout';
 import { entryPath, entryTarget } from './workspace-entry';
 
 /**
- * Projects: the content of the selected project and the open Terminal (the list is in the sidebar). One component serves
+ * Projects: the selected Project's Tab bar and the Tab on screen (the list is in the sidebar). One component serves
  * `/projects`, `/projects/:projectId` and `/projects/:projectId/terminals/:terminalId` (see `workspace.routes`),
  * so moving between them keeps the columns in place. The route decides what is open; this screen makes the
  * state follow it.
  */
 @Component({
   selector: 'app-projects-screen',
-  imports: [ButtonComponent, NewTerminal, ProjectContent, TabBar, TerminalScreen, WorkspaceHero],
+  imports: [ButtonComponent, NewTerminal, TabBar, TerminalScreen, WorkspaceHero],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './projects-screen.html',
   styleUrl: './projects-screen.css',
 })
 export class ProjectsScreen {
   protected readonly i18n = inject(I18n);
-  protected readonly layout = inject(WorkspaceLayoutState);
   protected readonly state = inject(ProjectsState);
   private readonly router = inject(Router);
   private readonly terminals = inject(TerminalsState);

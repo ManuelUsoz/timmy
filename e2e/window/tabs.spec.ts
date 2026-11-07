@@ -12,9 +12,11 @@ test.describe('Tabs per Project', () => {
     const prompt = [page.locator('.xterm-screen')];
 
     await timmy.addDemoProject();
-    // A Project with no Tabs shows only the New Tab action.
-    await expect(bar).toHaveCount(0);
-    await expect(page.locator('.stage').getByRole('button')).toHaveText(/New tab\s*CtrlT/);
+    // A Project with no Tabs shows the bar, with its tools and no Tabs, and the New Tab action.
+    await expect(bar).toBeVisible();
+    await expect(bar.locator('.tab-button')).toHaveCount(0);
+    await expect(bar.locator('.tool')).toHaveCount(5);
+    await expect(page.locator('.no-tabs').getByRole('button')).toHaveText(/New tab\s*CtrlT/);
     await timmy.shot('tabs-empty');
 
     // Ctrl+T opens a Tab; with no Provider enabled the picker goes straight to a shell.
@@ -56,7 +58,7 @@ test.describe('Tabs per Project', () => {
     await expect(page.locator('app-terminal-screen')).toContainText('No active process', { timeout: 15_000 });
     await bar.getByRole('button', { name: 'Close tab Terminal 2' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await expect(bar).toHaveCount(0);
-    await expect(page.locator('.stage').getByRole('button', { name: 'New tab' })).toBeVisible();
+    await expect(bar.locator('.tab-button')).toHaveCount(0);
+    await expect(page.locator('.no-tabs').getByRole('button', { name: 'New tab' })).toBeVisible();
   });
 });

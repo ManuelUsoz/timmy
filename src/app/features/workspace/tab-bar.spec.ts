@@ -70,12 +70,13 @@ const setup = async () => {
 };
 
 describe('Tabs of a Project', () => {
-  it('shows only the New Tab action, with its key hint, while the Project has no Tabs', async () => {
-    const { el, bar } = await setup();
-    expect(bar()).toBeNull();
+  it('shows the bar with no Tabs, and the New Tab action with its key hint, while the Project has no Tabs', async () => {
+    const { el, bar, tabNames } = await setup();
+    expect(bar()?.getAttribute('aria-label')).toBe('Pestañas de timmy');
+    expect(tabNames()).toEqual([]);
     const stage = el.querySelector('app-projects-screen .stage')!;
     expect(stage.querySelector('app-workspace-hero')).toBeNull();
-    const buttons = Array.from(stage.querySelectorAll('button'));
+    const buttons = Array.from(stage.querySelectorAll('.no-tabs button'));
     expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual(['Nueva pestaña']);
     expect(Array.from(buttons[0].querySelectorAll('kbd')).map((key) => key.textContent)).toEqual(['Ctrl', 'T']);
   });
@@ -199,16 +200,16 @@ describe('Tabs of a Project', () => {
     await hear(terminalOfTab(0), 'Waiting');
     await click(closeButton('Terminal 1'));
     await click(el.querySelector<HTMLButtonElement>('ui-modal .primary'));
-    expect(bar()).toBeNull();
+    expect(tabNames()).toEqual([]);
     expect(el.querySelector('.no-tabs button')).not.toBeNull();
   });
 
   it('keeps each Project\'s Tabs apart', async () => {
-    const { router, settle, press, tabNames, bar } = await setup();
+    const { router, settle, press, tabNames } = await setup();
     await press('t');
     await router.navigate(['/projects', ascua.projectId]);
     await settle();
-    expect(bar()).toBeNull();
+    expect(tabNames()).toEqual([]);
     await press('t');
     expect(tabNames()).toEqual(['Terminal 1']);
     await press('1');
