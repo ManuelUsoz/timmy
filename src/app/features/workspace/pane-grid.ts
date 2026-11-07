@@ -1,7 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, inject, input, signal } from '@angular/core';
 import { I18n } from '../../core/i18n';
-import { MIN_PANE, canSplit, panesOf, resizeSplit, type LayoutNode, type PaneId, type SplitDirection } from './pane-layout';
+import { MIN_PANE, canSplit, panesOf, resizeSplit, type DropEdge, type LayoutNode, type PaneId, type SplitDirection } from './pane-layout';
 import { PaneStack } from './pane-stack';
 import type { Tab } from './tabs';
 import { TabsState } from './tabs-state';
@@ -37,6 +37,33 @@ export const dragDivider = (
   if (minBefore + minAfter > pair) return start;
   const before = Math.min(Math.max(start[index] + deltaPx / lengthPx, minBefore), pair - minAfter);
   return start.map((size, at) => (at === index ? before : at === index + 1 ? pair - before : size));
+};
+
+/** The part of a Pane a dragged View is over: one of its edges, or its centre. */
+export type DropZone = DropEdge | 'center';
+
+/** How deep an edge zone reaches into the Pane, as a share of its width or height. */
+const EDGE_SHARE = 0.25;
+
+/**
+ * The zone of the Pane at `rect` (px) under `point`: an edge in the outer quarter on that side, the nearer edge in a
+ * corner, the centre elsewhere; undefined outside the Pane.
+ */
+export const zoneAt = (
+  rect: { readonly left: number; readonly top: number; readonly width: number; readonly height: number },
+  point: { readonly x: number; readonly y: number },
+): DropZone | undefined => {
+  const x = point.x - rect.left;
+  const y = point.y - rect.top;
+  if (x < 0 || y < 0 || x > rect.width || y > rect.height) return undefined;
+  const edges = [
+    { zone: 'left', distance: x, reach: rect.width },
+    { zone: 'right', distance: rect.width - x, reach: rect.width },
+    { zone: 'up', distance: y, reach: rect.height },
+    { zone: 'down', distance: rect.height - y, reach: rect.height },
+  ] as const;
+  const near = edges.filter((edge) => edge.distance < edge.reach * EDGE_SHARE).sort((a, b) => a.distance - b.distance);
+  return near[0]?.zone ?? 'center';
 };
 
 /** A node of the layout with where it sits, so a divider knows which split it resizes. */

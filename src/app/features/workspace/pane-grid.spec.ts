@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { ProjectId } from '../../../shared/projects/projects.model';
 import { EffectRuntime } from '../../core/effect-runtime';
-import { DIVIDER_STEP, PaneGrid, dragDivider, minAlong } from './pane-grid';
+import { DIVIDER_STEP, PaneGrid, dragDivider, minAlong, zoneAt } from './pane-grid';
 import { MIN_PANE, PaneId, addToStack, panesOf, singlePane, split, type LayoutNode } from './pane-layout';
 import { PaneStack } from './pane-stack';
 import { fakeRuntime, makeBackend } from './projects-fakes';
@@ -36,6 +36,35 @@ describe('dragging a divider', () => {
 
   it('leaves a split too small for its Panes as it is', () => {
     expect(dragDivider(three, [0.5, 0.25, 0.25], 1, 50, 600)).toEqual([0.5, 0.25, 0.25]);
+  });
+});
+
+describe('the zone of a Pane under a dragged View', () => {
+  const rect = { left: 100, top: 50, width: 800, height: 400 };
+
+  it('is an edge in the outer quarter of the Pane on that side, else the centre', () => {
+    expect(zoneAt(rect, { x: 150, y: 250 })).toBe('left');
+    expect(zoneAt(rect, { x: 850, y: 250 })).toBe('right');
+    expect(zoneAt(rect, { x: 500, y: 100 })).toBe('up');
+    expect(zoneAt(rect, { x: 500, y: 400 })).toBe('down');
+    expect(zoneAt(rect, { x: 500, y: 250 })).toBe('center');
+    // Just inside the quarter (200 px of 800 wide, 100 px of 400 tall) and just past it.
+    expect(zoneAt(rect, { x: 299, y: 250 })).toBe('left');
+    expect(zoneAt(rect, { x: 300, y: 250 })).toBe('center');
+    expect(zoneAt(rect, { x: 500, y: 149 })).toBe('up');
+    expect(zoneAt(rect, { x: 500, y: 150 })).toBe('center');
+  });
+
+  it('gives a corner to the nearer edge', () => {
+    // 20 px from the left edge, 60 px from the top one.
+    expect(zoneAt(rect, { x: 120, y: 110 })).toBe('left');
+    // 80 px from the right edge, 10 px from the bottom one.
+    expect(zoneAt(rect, { x: 820, y: 440 })).toBe('down');
+  });
+
+  it('is no zone outside the Pane', () => {
+    expect(zoneAt(rect, { x: 99, y: 250 })).toBeUndefined();
+    expect(zoneAt(rect, { x: 500, y: 451 })).toBeUndefined();
   });
 });
 
