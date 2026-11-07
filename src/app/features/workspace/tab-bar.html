@@ -1,0 +1,77 @@
+<nav class="tabs" [attr.aria-label]="i18n.t('tabs.label', { name: projectName() })">
+  @for (tab of tabs(); track tab.id; let i = $index) {
+    @let name = nameOf(tab);
+    @let active = tab.id === activeTabId();
+    <div class="tab" [class.on]="active">
+      @if (editing() === tab.id) {
+        <input
+          #renameInput
+          class="rename"
+          type="text"
+          [attr.aria-label]="i18n.t('tabs.rename')"
+          [value]="name"
+          (keydown.enter)="commitRename(tab, renameInput.value)"
+          (keydown.escape)="$event.stopPropagation(); cancelRename()"
+          (blur)="commitRename(tab, renameInput.value)"
+        />
+      } @else {
+        <button
+          type="button"
+          class="tab-button"
+          [attr.aria-current]="active ? 'page' : null"
+          (click)="selected.emit(tab)"
+          (dblclick)="startRename(tab)"
+        >
+          @if (i < 9) {
+            <kbd class="ix" aria-hidden="true">{{ i + 1 }}</kbd>
+          }
+          <svg class="glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
+          <span class="name">{{ name }}</span>
+          @if (dot(tab); as status) {
+            <i class="dot" [attr.data-status]="status" role="img" [attr.aria-label]="i18n.t(status === 'Waiting' ? 'state.waiting' : 'state.error')"></i>
+          }
+        </button>
+      }
+      <button type="button" class="close" [attr.aria-label]="i18n.t('tabs.close', { name })" [attr.title]="i18n.t('tabs.close', { name })" (click)="askClose(tab)">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+      </button>
+    </div>
+  }
+  <app-new-terminal
+    class="new"
+    kind="ghost"
+    size="sm"
+    iconOnly
+    answersNewTab
+    [label]="i18n.t('tabs.new')"
+    [hint]="i18n.t('tabs.new') + ' (' + newTabHint + ')'"
+    (chosen)="newTab.emit($event)"
+  >
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+  </app-new-terminal>
+
+  <div class="tools">
+    @for (item of soon; track item.key) {
+      @let label = i18n.t(item.key);
+      <ui-tooltip placement="bottom" align="end" [text]="i18n.t('tabs.soon', { name: label })">
+        <button type="button" class="tool" aria-disabled="true" [attr.aria-label]="label">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path [attr.d]="item.path" /></svg>
+        </button>
+      </ui-tooltip>
+    }
+  </div>
+</nav>
+
+@if (confirming(); as tab) {
+  <ui-modal
+    size="sm"
+    [stateLabel]="i18n.t('tabs.confirmState')"
+    [heading]="i18n.t('tabs.confirmTitle', { name: nameOf(tab) })"
+    [primaryLabel]="i18n.t('tabs.confirmClose')"
+    [closeLabel]="i18n.t('tabs.cancel')"
+    (primary)="confirmClose()"
+    (closed)="cancelClose()"
+  >
+    <p class="confirm">{{ i18n.t('tabs.confirmBody') }}</p>
+  </ui-modal>
+}

@@ -140,20 +140,18 @@ describe('Projects screen', () => {
       expect(groups).toEqual(['Terminales', 'Archivos']);
     });
 
-    it('says there are no terminals, with a "Nueva terminal" button in the list and in the main area, and no counter', async () => {
+    it('says there are no terminals, with a "Nueva terminal" button in the list, and no counter', async () => {
       const { el } = await setup({ backend: makeBackend({ projects: [timmy] }) });
       const group = terminalGroup(el);
       expect(group.querySelector('.empty-title')?.textContent).toBe('Aún no hay terminales');
       expect(group.querySelector('.empty small')?.textContent).toBe('Se abren en la carpeta del proyecto.');
       expect(group.querySelector('ui-tag')).toBeNull();
       expect(textOf(group, '.empty button')).toEqual(['Nueva terminal']);
-      expect(el.querySelector('app-workspace-hero h2')?.textContent).toBe('Empieza en timmy');
-      expect(textOf(el, 'app-workspace-hero button')).toEqual(['Nueva terminal']);
     });
 
-    it('opens the first terminal from the main area', async () => {
+    it('opens the first terminal from the New Tab action of the main area', async () => {
       const { el, router, settle } = await setup({ backend: makeBackend({ projects: [timmy] }) });
-      el.querySelector<HTMLButtonElement>('app-workspace-hero button')!.click();
+      el.querySelector<HTMLButtonElement>('.no-tabs button')!.click();
       await settle();
       expect(router.url).toMatch(/^\/projects\/p-timmy\/terminals\/.+/);
       expect(textOf(terminalGroup(el), 'as-list-row .as-row__title')).toEqual(['Terminal 1']);

@@ -49,6 +49,34 @@
   min-height: 0;
 }
 
+/* A Project with no Tabs: only the New Tab action, centred, with its key hint inline. */
+.no-tabs {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+}
+
+.keys {
+  display: inline-flex;
+  gap: var(--spacing-02);
+  margin-inline-start: var(--spacing-03);
+}
+
+.keys kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 var(--spacing-02);
+  box-sizing: border-box;
+  border-bottom: 2px solid currentColor;
+  font: 400 12px/16px var(--font-mono);
+  letter-spacing: 0.32px;
+  opacity: 0.8;
+}
+
 .path {
   max-width: 100%;
   overflow-wrap: anywhere;

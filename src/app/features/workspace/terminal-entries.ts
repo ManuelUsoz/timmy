@@ -1,6 +1,7 @@
 import { TerminalId, type TerminalActivity, type TerminalActivityEntry } from '../../../shared/terminal/terminal.model';
 import type { ProjectId } from '../../../shared/projects/projects.model';
 import type { Provider } from '../../../shared/settings/settings.model';
+import type { TabId } from './tabs';
 
 export { TerminalId } from '../../../shared/terminal/terminal.model';
 export type { TerminalActivity, TerminalEvent } from '../../../shared/terminal/terminal.model';
@@ -19,6 +20,8 @@ export interface TerminalScreenSnapshot {
 export interface TerminalEntry {
   readonly id: TerminalId;
   readonly projectId: ProjectId;
+  /** The Tab it is in (GLOSSARY: Tab). Closing that Tab closes it. */
+  readonly tabId: TabId;
   /** Its position among the terminals the project has had, which names it ("Terminal 2"). */
   readonly number: number;
   readonly state: TerminalState;
@@ -36,10 +39,10 @@ export interface TerminalEntry {
 export const terminalsOf = (entries: ReadonlyArray<TerminalEntry>, projectId: ProjectId): ReadonlyArray<TerminalEntry> =>
   entries.filter((entry) => entry.projectId === projectId);
 
-/** A new, Idle terminal for the project, numbered after the last one it has. */
-export const addTerminal = (entries: ReadonlyArray<TerminalEntry>, projectId: ProjectId, id: TerminalId, provider?: Provider): ReadonlyArray<TerminalEntry> => {
+/** A new, Idle terminal for the project, in the given Tab, numbered after the last one the project has. */
+export const addTerminal = (entries: ReadonlyArray<TerminalEntry>, projectId: ProjectId, tabId: TabId, id: TerminalId, provider?: Provider): ReadonlyArray<TerminalEntry> => {
   const last = terminalsOf(entries, projectId).reduce((max, entry) => Math.max(max, entry.number), 0);
-  return [...entries, { id, projectId, number: last + 1, state: 'Idle', activity: 'Idle', ...(provider === undefined ? {} : { provider }) }];
+  return [...entries, { id, projectId, tabId, number: last + 1, state: 'Idle', activity: 'Idle', ...(provider === undefined ? {} : { provider }) }];
 };
 
 export const withState = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, state: TerminalState): ReadonlyArray<TerminalEntry> =>
@@ -59,6 +62,6 @@ export const withScreen = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId
 export const withExit = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, exitCode: number): ReadonlyArray<TerminalEntry> =>
   entries.map((entry) => (entry.id === id ? { ...entry, state: exitCode === 0 ? 'Done' : 'Error', exitCode } : entry));
 
-/** A fresh Live process takes the place of an entry: same project, number and Provider, new id, no screen carried over. */
+/** A fresh Live process takes the place of an entry: same project, Tab, number and Provider, new id, no screen carried over. */
 export const restarted = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, next: TerminalId): ReadonlyArray<TerminalEntry> =>
-  entries.map((entry) => (entry.id === id ? { id: next, projectId: entry.projectId, number: entry.number, state: 'Live', activity: 'Idle', ...(entry.provider === undefined ? {} : { provider: entry.provider }) } : entry));
+  entries.map((entry) => (entry.id === id ? { id: next, projectId: entry.projectId, tabId: entry.tabId, number: entry.number, state: 'Live', activity: 'Idle', ...(entry.provider === undefined ? {} : { provider: entry.provider }) } : entry));

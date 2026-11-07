@@ -65,16 +65,20 @@ test.describe('Settings', () => {
     });
     await timmy.shot('settings-agent-enabled');
 
-    await test.step('Shortcuts lists the three keyboard shortcuts', async () => {
+    await test.step('Shortcuts lists the five keyboard shortcuts', async () => {
       await section('Shortcuts').click();
       const rows = dialog.getByTestId('shortcut-row');
-      await expect(rows).toHaveCount(3);
+      await expect(rows).toHaveCount(5);
       await expect(rows.nth(0)).toContainText('Collapse or expand the sidebar');
       await expect(rows.nth(0)).toContainText(/Ctrl\s*B/);
       await expect(rows.nth(1)).toContainText('Open or close Settings');
       await expect(rows.nth(1)).toContainText(/Ctrl\s*,/);
-      await expect(rows.nth(2)).toContainText('Close Settings or a dialog');
-      await expect(rows.nth(2)).toContainText('Esc');
+      await expect(rows.nth(2)).toContainText('New tab');
+      await expect(rows.nth(2)).toContainText(/Ctrl\s*T/);
+      await expect(rows.nth(3)).toContainText('Go to the tab with that number');
+      await expect(rows.nth(3)).toContainText(/Ctrl\s*1–9/);
+      await expect(rows.nth(4)).toContainText('Close Settings or a dialog');
+      await expect(rows.nth(4)).toContainText('Esc');
     });
     await timmy.shot('settings-shortcuts');
 
