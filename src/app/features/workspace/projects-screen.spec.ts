@@ -1,8 +1,14 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
+import { Effect, Layer, Stream } from 'effect';
+import { TerminalId } from '../../../shared/terminal/terminal.model';
+import { TerminalRpcs } from '../../../shared/terminal/terminal.rpc';
+import { makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { I18n } from '../../core/i18n';
-import { fakeRuntime, makeBackend, project, type FakeBackend } from './projects-fakes';
+import { fakeRuntime, layerFakeBackend, makeBackend, project, type FakeBackend } from './projects-fakes';
+import { panesOf, split } from './pane-layout';
+import { TabsState } from './tabs-state';
 import { TerminalsState } from './terminals-state';
 import { WorkspaceComponent } from './workspace';
 import { WorkspaceLayoutState } from './workspace-layout';
@@ -171,7 +177,7 @@ describe('Projects screen', () => {
       expect(router.url).toMatch(/^\/projects\/p-timmy\/terminals\/.+/);
       expect(tabNames(el)).toEqual(['Terminal 1']);
       expect(el.querySelector('app-tab-bar .tab-button')?.getAttribute('aria-current')).toBe('page');
-      expect(el.querySelector('app-terminal-screen h1')?.textContent).toBe('Terminal 1');
+      expect(el.querySelector('app-pane-stack .view-header.act .name')?.textContent).toBe('Terminal 1');
       // Nothing about terminals goes to main.
       expect(backend.calls).toEqual(calls);
     });
@@ -185,7 +191,7 @@ describe('Projects screen', () => {
       el.querySelector<HTMLButtonElement>('app-tab-bar .tab-button')!.click();
       await settle();
       expect(router.url).not.toBe(second);
-      expect(el.querySelector('app-terminal-screen h1')?.textContent).toBe('Terminal 1');
+      expect(el.querySelector('app-pane-stack .view-header.act .name')?.textContent).toBe('Terminal 1');
     });
 
     it('keeps the terminals of each project apart', async () => {
@@ -197,16 +203,16 @@ describe('Projects screen', () => {
       expect(el.querySelector('.no-tabs')).not.toBeNull();
     });
 
-    it('shows the terminal screen with its header, output and status bar', async () => {
+    it('shows the Terminal in a Pane: its name and state in the Pane header, its output below', async () => {
       const { el, click } = await setup({ backend: makeBackend({ projects: [timmy] }) });
       await click('Nueva pestaña');
-      const screen = el.querySelector('app-terminal-screen')!;
-      expect(screen.querySelector('header ui-state')?.textContent?.trim()).toBe('Idle');
-      expect(screen.querySelector('.cwd')?.textContent).toBe('/work/timmy');
+      expect(el.querySelectorAll('app-pane-grid app-pane-stack')).toHaveLength(1);
+      expect(el.querySelector('app-pane-stack .view-header.act ui-state')?.textContent?.trim()).toBe('Idle');
+      const screen = el.querySelector('app-pane-stack app-terminal-screen')!;
       expect(screen.querySelector('.output')?.textContent).toContain('…/timmy');
-      expect(screen.querySelector('footer')?.textContent).toContain('Sin proceso activo');
+      // The Pane header stands for the Terminal's own: one header per View, not two.
+      expect(screen.querySelector('header')).toBeNull();
       expect(screen.querySelector('[role=alert]')).toBeNull();
-      expect(Array.from(screen.querySelectorAll('button')).every((button) => button.disabled)).toBe(true);
     });
 
     it('shows the failure screen, not a toast, when the terminal failed', async () => {
@@ -216,24 +222,89 @@ describe('Projects screen', () => {
       terminals.setState(terminals.entries()[0].id, 'Error');
       await settle();
       const screen = el.querySelector('app-terminal-screen')!;
-      expect(screen.querySelector('header ui-state')?.textContent?.trim()).toBe('Error');
+      expect(el.querySelector('app-pane-stack .view-header.act ui-state')?.textContent?.trim()).toBe('Error');
       expect(screen.querySelector('[role=alert]')?.textContent).toContain('El proceso terminó con código 1.');
       expect(screen.querySelector('[role=alert]')?.textContent).toContain('Revisa la salida de abajo o reinicia la terminal.');
       expect(screen.querySelector('.output')?.textContent).toContain('FAILED');
-      expect(screen.querySelector('footer')?.textContent).toContain('Sin proceso activo');
       expect(toastTexts()).toEqual([]);
     });
 
-    it('shows a Live terminal with its output and a "Detener" button', async () => {
+    it('shows a Live terminal by what it is doing in its Pane header, as the sidebar does', async () => {
       const { el, click, settle } = await setup({ backend: makeBackend({ projects: [timmy] }) });
       await click('Nueva pestaña');
       const terminals = TestBed.inject(TerminalsState);
       terminals.setState(terminals.entries()[0].id, 'Live');
       await settle();
-      const screen = el.querySelector<HTMLElement>('app-terminal-screen')!;
-      expect(screen.querySelector('header ui-state')?.textContent?.trim()).toBe('Live');
-      expect(textOf(screen, 'header button')).toContain('Detener');
-      expect(screen.querySelector('footer')?.textContent).toContain('120×34');
+      // A live shell with no output going on is at rest.
+      expect(el.querySelector('app-pane-stack .view-header.act ui-state')?.textContent?.trim()).toBe('En reposo');
+    });
+
+    describe('Panes and the route', () => {
+      /** A Tab split in two: Terminal 1 left, Terminal 2 right (focused, so on the route). */
+      const splitTab = async () => {
+        const context = await setup({ backend: makeBackend({ projects: [timmy] }) });
+        await context.click('Nueva pestaña');
+        const tabs = TestBed.inject(TabsState);
+        const tab = tabs.tabsOf(timmy.projectId)[0];
+        const second = await tabs.openInTab(tab, '/work/timmy', undefined, (layout, terminal) => split(layout, layout.focused, 'right', terminal));
+        await context.settle();
+        const first = tab.terminals[0];
+        return { ...context, tabs, first, second, tab: () => tabs.tabsOf(timmy.projectId)[0] };
+      };
+
+      it('follows a split to the new Terminal, keeping one Tab with both Panes', async () => {
+        const { el, router, second } = await splitTab();
+        expect(router.url).toBe(`/projects/p-timmy/terminals/${second.id}`);
+        expect(tabNames(el)).toEqual(['Terminal 1']);
+        expect(el.querySelectorAll('app-pane-grid app-pane-stack')).toHaveLength(2);
+      });
+
+      it('follows the focused Pane when the user clicks another one', async () => {
+        const { el, router, settle, first } = await splitTab();
+        el.querySelector<HTMLElement>('app-pane-grid .pane')!.dispatchEvent(new Event('pointerdown'));
+        await settle();
+        expect(router.url).toBe(`/projects/p-timmy/terminals/${first.id}`);
+      });
+
+      it('focuses the Pane of a Terminal the route goes to from elsewhere (the sidebar, the Panel)', async () => {
+        const { router, settle, tabs, first, tab } = await splitTab();
+        await router.navigate(['/projects', timmy.projectId, 'terminals', first.id]);
+        await settle();
+        expect(tabs.layoutOf(tab())?.focused).toBe(first.id);
+        expect(router.url).toBe(`/projects/p-timmy/terminals/${first.id}`);
+      });
+
+      it('follows a restarted Terminal to its new id, in its place, instead of leaving the Tab', async () => {
+        const { router, settle, tabs, second, tab, backend } = await splitTab();
+        // Main answers restarts here: a fresh process under a new id.
+        const layer = makeDesktopTestLayer(
+          Layer.mergeAll(
+            layerFakeBackend(backend),
+            TerminalRpcs.toLayer({
+              'Terminal.create': () => Effect.succeed({ terminalId: TerminalId.make('restarted') }),
+              'Terminal.close': () => Effect.void,
+              'Terminal.output': () => Stream.empty,
+              'Terminal.activity': () => Stream.empty,
+              'Terminal.focus': () => Effect.void,
+              'Terminal.write': () => Effect.void,
+              'Terminal.resize': () => Effect.void,
+              'Terminal.show': () => Effect.void,
+            }),
+          ),
+        );
+        Object.assign(TestBed.inject(EffectRuntime), { run: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromiseExit(Effect.provide(effect as never, layer)) });
+        await TestBed.inject(TerminalsState).restart(second.id, '/work/timmy');
+        await settle();
+        expect(router.url).toBe('/projects/p-timmy/terminals/restarted');
+        expect(panesOf(tabs.layoutOf(tab())!).map((pane) => pane.views)).toEqual([[tab().terminals[0].id], [TerminalId.make('restarted')]]);
+      });
+
+      it('stays in the Tab when the Terminal on the route closes and another is left', async () => {
+        const { router, settle, tabs, first, second } = await splitTab();
+        await tabs.closeTerminals([second.id]);
+        await settle();
+        expect(router.url).toBe(`/projects/p-timmy/terminals/${first.id}`);
+      });
     });
 
     it('goes back to the project when the route names a terminal that is not there', async () => {
@@ -250,7 +321,7 @@ describe('Projects screen', () => {
       await settle();
       expect(tabNames(el)).toEqual(['Terminal 1']);
       expect(el.querySelector('app-tab-bar nav')?.getAttribute('aria-label')).toBe('Tabs of timmy');
-      expect(el.querySelector('app-terminal-screen footer')?.textContent).toContain('No active process');
+      expect(el.querySelector('app-pane-stack .view-header.act ui-state')?.textContent?.trim()).toBe('Idle');
     });
   });
 

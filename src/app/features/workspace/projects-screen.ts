@@ -9,13 +9,20 @@ import { ButtonComponent } from '../../shared/ui/button/button';
 import { NewTerminal } from './new-terminal';
 import { ProjectsState } from './projects-state';
 import { TabBar } from './tab-bar';
-import { neighbourOf, tabPath, type Tab } from './tabs';
+import { PaneGrid } from './pane-grid';
+import { focusPane, panesOf, showView, type TabLayout } from './pane-layout';
+import { neighbourOf, tabPath, type Tab, type TabId } from './tabs';
 import { TabsState } from './tabs-state';
-import type { TerminalEntry } from './terminal-entries';
-import { TerminalScreen } from './terminal-screen';
+import type { TerminalEntry, TerminalId } from './terminal-entries';
 import { TerminalsState } from './terminals-state';
 import { WorkspaceHero } from './workspace-hero';
 import { entryPath, entryTarget } from './workspace-entry';
+
+/** The layout with the Pane holding this Terminal focused and its View expanded; unchanged when no Pane holds it. */
+const bringForward = (layout: TabLayout, terminal: TerminalId): TabLayout => {
+  const pane = panesOf(layout).find((candidate) => candidate.views.includes(terminal));
+  return pane === undefined ? layout : showView(focusPane(layout, pane.id), pane.id, pane.views.indexOf(terminal));
+};
 
 /**
  * Projects: the selected Project's Tab bar and the Tab on screen (the list is in the sidebar). One component serves
@@ -25,7 +32,7 @@ import { entryPath, entryTarget } from './workspace-entry';
  */
 @Component({
   selector: 'app-projects-screen',
-  imports: [ButtonComponent, NewTerminal, TabBar, TerminalScreen, WorkspaceHero],
+  imports: [ButtonComponent, NewTerminal, PaneGrid, TabBar, WorkspaceHero],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './projects-screen.html',
   styleUrl: './projects-screen.css',
@@ -54,6 +61,35 @@ export class ProjectsScreen {
     return selected === undefined ? [] : this.tabsState.tabsOf(selected);
   });
 
+  /** The Tab on screen: the route Terminal's. */
+  protected readonly routeTab = computed(() => {
+    const terminal = this.routeTerminal();
+    return terminal === undefined ? undefined : this.tabs().find((tab) => tab.id === terminal.tabId);
+  });
+
+  /** The route by ids only, so what follows it does not rerun on every change of a Terminal's state. */
+  private readonly routeIds = computed(
+    () => {
+      const terminal = this.routeTerminal();
+      return terminal === undefined ? undefined : { terminal: terminal.id, tab: terminal.tabId };
+    },
+    { equal: (a, b) => a?.terminal === b?.terminal && a?.tab === b?.tab },
+  );
+
+  /** What the Tab on screen has in front: its focused Pane's expanded View. */
+  private readonly front = computed(
+    () => {
+      const tab = this.routeTab();
+      const layout = tab === undefined ? undefined : this.tabsState.layoutOf(tab);
+      const view = layout === undefined ? undefined : panesOf(layout).find((pane) => pane.id === layout.focused)?.expanded;
+      return tab === undefined || view === undefined ? undefined : { tab: tab.id, view };
+    },
+    { equal: (a, b) => a?.tab === b?.tab && a?.view === b?.view },
+  );
+
+  /** The last Tab the route was on: when its Terminal goes (closed, restarted), the route stays in that Tab if it can. */
+  private lastTabId: TabId | undefined;
+
   protected readonly newTabKeys = shortcutKeys('newTab');
   protected readonly listReady = computed(() => this.state.projects().status === 'ready');
   protected readonly hasProjects = computed(() => this.state.all().length > 0);
@@ -76,12 +112,45 @@ export class ProjectsScreen {
       if (terminal !== undefined) untracked(() => this.terminals.setCurrent(terminal.id));
     });
 
-    // A terminal that does not exist (a stale route) sends the user back to the project.
+    // The route is the focused Pane's expanded View: a route to another Terminal of the Tab (the sidebar, a Tab, the
+    // Panel) brings its Pane into focus and its View to the front of its Stack.
+    effect(() => {
+      const ids = this.routeIds();
+      if (ids === undefined) return;
+      this.lastTabId = ids.tab;
+      untracked(() => {
+        const tab = this.routeTab();
+        const layout = tab === undefined ? undefined : this.tabsState.layoutOf(tab);
+        if (tab === undefined || layout === undefined || this.front()?.view === ids.terminal) return;
+        this.tabsState.update(tab, (current) => bringForward(current, ids.terminal));
+      });
+    });
+
+    // And the other way: when the user focuses another Pane or View, or a split opens a Terminal, the route follows.
+    let previous: { readonly tab: TabId; readonly view: TerminalId } | undefined;
+    effect(() => {
+      const front = this.front();
+      const before = previous;
+      previous = front;
+      if (front === undefined || before === undefined || before.tab !== front.tab || before.view === front.view) return;
+      untracked(() => {
+        const projectId = this.state.selectedId();
+        if (projectId !== undefined && front.view !== this.terminalId()) {
+          void this.router.navigate(['/projects', projectId, 'terminals', front.view], { replaceUrl: true });
+        }
+      });
+    });
+
+    // A terminal that does not exist (a stale route, a closed or restarted Terminal) goes to what its Tab has in front
+    // now, or back to the project when the Tab is gone.
     effect(() => {
       const id = this.terminalId();
       const selected = this.state.selectedId();
       if (id === undefined || selected === undefined || selected !== this.projectId() || this.routeTerminal() !== undefined) return;
-      untracked(() => void this.router.navigate(['/projects', selected], { replaceUrl: true }));
+      untracked(() => {
+        const tab = this.tabs().find((candidate) => candidate.id === this.lastTabId);
+        void this.router.navigate(tab === undefined ? ['/projects', selected] : tabPath(tab, this.tabsState.layoutOf(tab)), { replaceUrl: true });
+      });
     });
 
     // The folder may come back, or go away, while the app is in the background.
@@ -107,9 +176,9 @@ export class ProjectsScreen {
     await this.router.navigate(['/projects', terminal.projectId, 'terminals', terminal.id]);
   }
 
-  /** A Tab shows its first Terminal: until Panes land, it is the only one. */
+  /** A Tab opens as it was left: at its focused Pane's expanded View. */
   protected async openTab(tab: Tab): Promise<void> {
-    await this.router.navigate(tabPath(tab));
+    await this.router.navigate(tabPath(tab, this.tabsState.layoutOf(tab)));
   }
 
   /**
@@ -120,7 +189,7 @@ export class ProjectsScreen {
     const projectId = this.state.selectedId();
     if (projectId !== undefined && tab.id === this.routeTerminal()?.tabId) {
       const neighbour = neighbourOf(this.tabs(), tab.id);
-      await this.router.navigate(neighbour === undefined ? ['/projects', projectId] : tabPath(neighbour), { replaceUrl: true });
+      await this.router.navigate(neighbour === undefined ? ['/projects', projectId] : tabPath(neighbour, this.tabsState.layoutOf(neighbour)), { replaceUrl: true });
     }
     await this.tabsState.close(tab);
   }

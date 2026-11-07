@@ -1,4 +1,4 @@
-import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, booleanAttribute, Component, ElementRef, OnDestroy, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
 import { Effect, Stream } from 'effect';
 import { FitAddon } from '@xterm/addon-fit';
 import { SerializeAddon } from '@xterm/addon-serialize';
@@ -31,6 +31,13 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
 
   readonly terminal = input.required<TerminalEntry>();
   readonly cwd = input.required<string>();
+  /** In a Pane, whose header names the Terminal and says its state: no header or status bar of its own. */
+  readonly bare = input(false, { transform: booleanAttribute });
+  /**
+   * The screen the user is on. A Tab shows several Terminals at once; only the focused Pane's expanded one is what main
+   * is told is on screen, and only it takes the keyboard when it appears.
+   */
+  readonly active = input(true);
   readonly closed = output<void>();
   readonly restarted = output<TerminalEntry>();
   protected readonly fallbackOutput = computed(() => sampleOutput(this.terminal().state, this.cwd()).map((line) => line.map((piece) => piece.text).join('')).join('\n'));
@@ -52,7 +59,9 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
 
   constructor() {
     // Whichever Terminal this screen shows (a restart gives it a new one) is what main is told is on screen.
-    effect(() => this.terminals.show(this.terminal().id));
+    effect(() => {
+      if (this.active()) this.terminals.show(this.terminal().id);
+    });
     // A bell or notification that arrives while the user is typing in this Terminal has been seen at once.
     effect(() => {
       const { id, activity } = this.terminal();
@@ -114,9 +123,11 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
       this.fitFrame = requestAnimationFrame(() => fit.fit());
     });
     this.resizeObserver.observe(this.host().nativeElement);
-    instance.focus();
-    // Showing a Terminal, and going back to its window, is the user being on it: what it asked for has been seen.
-    void this.terminals.focus(entry.id);
+    if (this.active()) {
+      instance.focus();
+      // Showing a Terminal, and going back to its window, is the user being on it: what it asked for has been seen.
+      void this.terminals.focus(entry.id);
+    }
     instance.textarea?.addEventListener('focus', this.onFocus);
 
     const terminals = this.terminals;

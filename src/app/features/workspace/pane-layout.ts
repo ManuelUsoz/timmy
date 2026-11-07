@@ -100,9 +100,12 @@ const mapPaneNode = (node: LayoutNode, id: PaneId, change: (node: LayoutNode & {
 /**
  * Puts the Terminal in a new Pane beside (`right`) or below (`down`) the given one, and focuses it. Splitting along the
  * direction of the enclosing split adds a sibling that takes half of the Pane's share; otherwise the Pane becomes a split.
+ * A Terminal the layout already shows moves there; nothing changes if that would take the Pane itself away.
  */
 export const split = (layout: TabLayout, id: PaneId, direction: SplitDirection, terminal: TerminalId): TabLayout => {
-  const added = paneFor(terminal, panesOf(layout));
+  const base = elsewhere(layout, id, terminal);
+  if (base === undefined) return layout;
+  const added = paneFor(terminal, panesOf(base));
   const insert = (node: LayoutNode): LayoutNode => {
     if (node.kind === 'pane') {
       return node.pane.id === id ? { kind: 'split', direction, children: [node, leaf(added)], sizes: [0.5, 0.5] } : node;
@@ -118,7 +121,7 @@ export const split = (layout: TabLayout, id: PaneId, direction: SplitDirection, 
     }
     return { ...node, children: node.children.map(insert) };
   };
-  return { root: insert(layout.root), focused: added.id };
+  return { root: insert(base.root), focused: added.id };
 };
 
 const paneOf = (layout: TabLayout, id: PaneId): Pane | undefined => panesOf(layout).find((pane) => pane.id === id);
@@ -131,9 +134,22 @@ const updatePane = (layout: TabLayout, id: PaneId, change: (pane: Pane) => Pane)
 
 export const canStack = (layout: TabLayout, id: PaneId): boolean => (paneOf(layout, id)?.views.length ?? MAX_VIEWS) < MAX_VIEWS;
 
-/** "Add to stack": the Terminal joins the Pane's Stack, last, and is the View expanded. Nothing happens to a full Stack. */
-export const addToStack = (layout: TabLayout, id: PaneId, terminal: TerminalId): TabLayout =>
-  canStack(layout, id) ? { ...updatePane(layout, id, (pane) => ({ ...pane, views: [...pane.views, terminal], expanded: terminal })), focused: id } : layout;
+/**
+ * "Add to stack": the Terminal joins the Pane's Stack, last, and is the View expanded. Nothing happens to a full Stack.
+ * A Terminal the layout already shows moves there.
+ */
+export const addToStack = (layout: TabLayout, id: PaneId, terminal: TerminalId): TabLayout => {
+  const base = elsewhere(layout, id, terminal);
+  return base !== undefined && canStack(base, id)
+    ? { ...updatePane(base, id, (pane) => ({ ...pane, views: [...pane.views, terminal], expanded: terminal })), focused: id }
+    : layout;
+};
+
+/** The layout without the Terminal's View, so placing it again moves it; undefined if the target Pane would go with it. */
+const elsewhere = (layout: TabLayout, id: PaneId, terminal: TerminalId): TabLayout | undefined => {
+  const base = withoutTerminal(layout, terminal);
+  return base === undefined || paneOf(base, id) === undefined ? undefined : base;
+};
 
 /** Alt+1–3: expands the View at that position (0-based); a position with no View changes nothing. */
 export const showView = (layout: TabLayout, id: PaneId, index: number): TabLayout =>

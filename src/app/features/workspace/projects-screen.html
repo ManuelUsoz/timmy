@@ -41,11 +41,10 @@
             <span class="keys" aria-hidden="true">@for (key of newTabKeys; track key) {<kbd>{{ key }}</kbd>}</span>
           </app-new-terminal>
         </div>
-      } @else if (routeTerminal(); as terminal) {
+      } @else if (routeTab(); as tab) {
+        <!-- Deferred: the Panes bring xterm, which the rest of the screen does not need. -->
         @defer (on immediate) {
-          @for (live of [terminal]; track live.id) {
-            <app-terminal-screen class="terminal" [terminal]="live" [cwd]="project.cwd" [attr.aria-label]="i18n.t('terminals.screen')" (restarted)="openTerminal($event)" />
-          }
+          <app-pane-grid class="terminal" [tab]="tab" [cwd]="project.cwd" [attr.aria-label]="i18n.t('terminals.screen')" />
         }
       } @else {
         <app-workspace-hero icon="terminal" [title]="i18n.t('terminals.pickTitle')" [detail]="i18n.t('terminals.pickDetail')" />

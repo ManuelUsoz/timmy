@@ -171,3 +171,12 @@ describe('closing and keeping in step with the Tab\'s Terminals', () => {
     expect(resizeSplit(three(), [1], [0.8, 0.2]).root).toMatchObject({ sizes: [0.5, 0.5], children: [{}, { sizes: [0.8, 0.2] }] });
   });
 });
+
+describe('placing a Terminal the layout already shows', () => {
+  it('moves it rather than showing it twice', () => {
+    const p1 = PaneId.make('t1');
+    const shown = inStep(singlePane(t(1)), [t(1), t(2)])!;
+    expect(panesOf(split(shown, p1, 'down', t(2))).flatMap((pane) => pane.views)).toEqual([t(1), t(2)]);
+    expect(panesOf(addToStack(shown, p1, t(2))).map((pane) => pane.views)).toEqual([[t(1), t(2)]]);
+  });
+});

@@ -1,6 +1,7 @@
 import { Schema } from 'effect';
 import type { TerminalStatus } from '../../../shared/notification/notification.model';
 import type { ProjectId } from '../../../shared/projects/projects.model';
+import { panesOf, type TabLayout } from './pane-layout';
 import type { TerminalEntry } from './terminal-entries';
 
 /** A Tab of a Project (GLOSSARY: Tab). Lives in memory for this app run; saving Tabs is ADR 0011's job. */
@@ -31,8 +32,15 @@ export const tabsOf = (entries: ReadonlyArray<TerminalEntry>, projectId: Project
   });
 };
 
-/** Where a Tab is shown: the route of its first Terminal, its only one until Panes land. */
-export const tabPath = (tab: Tab): ReadonlyArray<string> => ['/projects', tab.terminals[0].projectId, 'terminals', tab.terminals[0].id];
+/**
+ * Where a Tab is shown: the route of its focused Pane's expanded View, so coming back to a Tab finds it as it was left.
+ * With no layout given (or one that no longer holds that Terminal), its first Terminal's.
+ */
+export const tabPath = (tab: Tab, layout?: TabLayout): ReadonlyArray<string> => {
+  const focused = layout === undefined ? undefined : panesOf(layout).find((pane) => pane.id === layout.focused)?.expanded;
+  const terminal = tab.terminals.find((entry) => entry.id === focused) ?? tab.terminals[0];
+  return ['/projects', terminal.projectId, 'terminals', terminal.id];
+};
 
 /** The Tab that takes the place of a closed one: the next, else the previous; none when it was the only one. */
 export const neighbourOf = (tabs: ReadonlyArray<Tab>, closed: TabId): Tab | undefined => {

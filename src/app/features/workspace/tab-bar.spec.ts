@@ -100,7 +100,7 @@ describe('Tabs of a Project', () => {
     expect(tabNames()).toEqual(['Terminal 1', 'Terminal 2']);
     await press('1');
     expect(activeTab()).toBe('Terminal 1');
-    expect(el.querySelector('app-terminal-screen h1')?.textContent).toBe('Terminal 1');
+    expect(el.querySelector('app-pane-stack .view-header.act .name')?.textContent).toBe('Terminal 1');
     await press('2');
     expect(activeTab()).toBe('Terminal 2');
     await press('5');
