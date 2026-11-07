@@ -40,6 +40,8 @@ yarn-error.log
 testem.log
 /typings
 __screenshots__/
+# Playwright baselines are committed (see CLAUDE.md).
+!e2e/**/__screenshots__/
 
 # System files
 .DS_Store

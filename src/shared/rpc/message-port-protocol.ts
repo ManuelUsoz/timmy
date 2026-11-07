@@ -24,6 +24,7 @@ export const makeClientProtocol = (port: MessagePortAdapter) =>
         try {
           for (const response of parser.decode(data) as ReadonlyArray<RpcMessage.FromServerEncoded>) {
             if (response._tag === 'Pong') continue;
+            // eslint-disable-next-line no-restricted-properties -- raw MessagePort callback is a native edge
             Effect.runFork(writeResponse(0, response));
           }
         } catch {
