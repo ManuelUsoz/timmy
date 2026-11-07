@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Effect, Layer, PubSub, Stream } from 'effect';
 import type { NotificationEvent, TerminalStatus } from '../../../shared/notification/notification.model';
@@ -6,7 +6,7 @@ import { NotificationRpcs } from '../../../shared/notification/notification.rpc'
 import { makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { MAX_PANES, panesOf, split } from './pane-layout';
-import { PaneStack } from './pane-stack';
+import { PaneStack, VIEW_MIME, type DropMark, type ViewDrag } from './pane-stack';
 import { layerFakeBackend, makeBackend, project } from './projects-fakes';
 import { TabsState } from './tabs-state';
 import type { TerminalId } from './terminal-entries';
@@ -21,13 +21,17 @@ const timmy = project('timmy');
   template: `
     @if (tab(); as tab) {
       @for (pane of panes(); track pane.id) {
-        <app-pane-stack [tab]="tab" [pane]="pane" cwd="/work/timmy" [focused]="pane.id === layout()?.focused" [canSplitRight]="true" [canSplitDown]="false" />
+        <app-pane-stack [tab]="tab" [pane]="pane" cwd="/work/timmy" [focused]="pane.id === layout()?.focused" [canSplitRight]="true" [canSplitDown]="false" [movable]="movable()" [dropMark]="dropMark()" (dragStarted)="drags.push($event)" (dragEnded)="drags.push('ended')" />
       }
     }
   `,
 })
 class Host {
   private readonly tabs = inject(TabsState);
+  readonly movable = signal(false);
+  readonly dropMark = signal<DropMark | undefined>(undefined);
+  /** What the Panes told the grid about header drags. */
+  readonly drags: Array<ViewDrag | 'ended'> = [];
   readonly tab = computed(() => this.tabs.tabsOf(timmy.projectId)[0]);
   readonly layout = computed(() => {
     const tab = this.tab();
@@ -86,7 +90,7 @@ const setup = async () => {
   };
   /** "Add to stack" with no Provider enabled opens a shell at once. */
   const stack = async () => click(button('Apilar en este panel'));
-  return { el, tabs, terminals, tab, panes, headers, names, expandedName, button, click, press, hear, stack, settle };
+  return { el, host: fixture.componentInstance, tabs, terminals, tab, panes, headers, names, expandedName, button, click, press, hear, stack, settle };
 };
 
 describe('A Pane and its Stack', () => {
@@ -219,6 +223,38 @@ describe('A Pane and its Stack', () => {
     third.dispatchEvent(new Event('drop', { cancelable: true }));
     await settle();
     expect(names()).toEqual(['Terminal 2', 'Terminal 3', 'Terminal 1']);
+  });
+
+  it('lets a lone View\'s header be dragged only when the grid can move it to another Pane', async () => {
+    const { host, headers, settle } = await setup();
+    expect(headers()[0].getAttribute('draggable')).toBeNull();
+    host.movable.set(true);
+    await settle();
+    expect(headers()[0].getAttribute('draggable')).toBe('true');
+  });
+
+  it('tells the grid a header drag started, from which Pane, and ended; the drag carries the View type', async () => {
+    const { host, headers, tab, tabs } = await setup();
+    host.movable.set(true);
+    const data: Record<string, string> = {};
+    const start = new Event('dragstart');
+    Object.defineProperty(start, 'dataTransfer', { value: { setData: (kind: string, value: string) => (data[kind] = value) } });
+    headers()[0].dispatchEvent(start);
+    headers()[0].dispatchEvent(new Event('dragend'));
+    const view = tabs.layoutOf(tab())!.focused;
+    expect(data[VIEW_MIME]).toBe(view);
+    expect(host.drags).toEqual([{ view, fromPane: view }, 'ended']);
+  });
+
+  it('shows the drop line where the grid says a View dragged from another Pane would land', async () => {
+    const { host, headers, stack, settle } = await setup();
+    await stack();
+    host.dropMark.set({ index: 0, side: 'before' });
+    await settle();
+    expect(headers()[0].previousElementSibling?.classList).toContain('drop');
+    host.dropMark.set(undefined);
+    await settle();
+    expect(headers()[0].previousElementSibling).toBeNull();
   });
 
   it('lists the actions in the header menu with their keys, and Open diff and Open PR disabled "· Soon"', async () => {

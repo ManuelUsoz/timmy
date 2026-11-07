@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, input, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, input, linkedSignal, output, signal, viewChild } from '@angular/core';
 import type { Provider } from '../../../shared/settings/settings.model';
 import { I18n } from '../../core/i18n';
 import type { MessageKey } from '../../core/i18n-dictionaries';
@@ -17,6 +17,7 @@ import {
   split,
   unstack,
   type Pane,
+  type PaneId,
   type SplitDirection,
   type TabLayout,
 } from './pane-layout';
@@ -33,6 +34,21 @@ interface StackView {
   readonly index: number;
   readonly entry: TerminalEntry;
   readonly name: string;
+}
+
+/** The type a dragged View header puts in the drag's data, so drags from elsewhere (files, text) start no drop. */
+export const VIEW_MIME = 'application/x-timmy-view';
+
+/** A View header being dragged, and the Pane it comes from. */
+export interface ViewDrag {
+  readonly view: TerminalId;
+  readonly fromPane: PaneId;
+}
+
+/** Where a header dragged over this Stack would land: before or after the View at `index`. */
+export interface DropMark {
+  readonly index: number;
+  readonly side: 'before' | 'after';
 }
 
 /** What waits for the user's confirmation: closing one View, or the whole Pane. */
@@ -81,6 +97,14 @@ export class PaneStack {
   /** Whether Split right / Split down are offered: the grid knows the Pane's size in px (see `canSplit`). */
   readonly canSplitRight = input(false);
   readonly canSplitDown = input(false);
+  /** Whether a lone View's header can be dragged too, to another Pane: the grid shows all its Panes. */
+  readonly movable = input(false);
+  /** Where a View dragged over this Stack's headers from the grid would land (the grid owns that drag). */
+  readonly dropMark = input<DropMark | undefined>(undefined);
+
+  /** A header started or stopped being dragged; the grid then offers the other Panes as drop targets. */
+  readonly dragStarted = output<ViewDrag>();
+  readonly dragEnded = output<void>();
 
   /** The Views whose Terminal is known; one just closed may linger in the layout for a moment. */
   protected readonly views = computed((): ReadonlyArray<StackView> =>
@@ -91,6 +115,7 @@ export class PaneStack {
   );
   protected readonly expanded = computed(() => this.views().find((view) => view.id === this.pane().expanded) ?? this.views()[0]);
   protected readonly stacked = computed(() => this.pane().views.length > 1);
+  protected readonly draggable = computed(() => this.stacked() || this.movable());
   protected readonly full = computed(() => this.pane().views.length >= MAX_VIEWS);
   protected readonly unstackable = computed(() => {
     const layout = this.tabs.layoutOf(this.tab());
@@ -110,7 +135,11 @@ export class PaneStack {
   protected readonly menuOpen = signal(false);
   protected readonly pending = signal<PendingClose | undefined>(undefined);
   /** The View whose header is being dragged, and the place it would land on. */
-  protected readonly dragging = signal<TerminalId | undefined>(undefined);
+  protected readonly dragging = linkedSignal<Pane, TerminalId | undefined>({
+    source: this.pane,
+    // A View dropped on another Pane leaves this one before its header can tell the drag ended.
+    computation: (pane, previous) => (previous?.value !== undefined && pane.views.includes(previous.value) ? previous.value : undefined),
+  });
   protected readonly dropAt = signal<number | undefined>(undefined);
 
   constructor() {
@@ -233,12 +262,14 @@ export class PaneStack {
     return this.i18n.t('tabs.soon', { name: this.i18n.t(key) });
   }
 
-  // ---- Dragging a header reorders the Stack ----
+  // ---- Dragging a header reorders the Stack; the grid takes it to other Panes ----
 
   protected dragStart(event: DragEvent, view: StackView): void {
     this.dragging.set(view.id);
+    event.dataTransfer?.setData(VIEW_MIME, view.id);
     event.dataTransfer?.setData('text/plain', view.name);
     if (event.dataTransfer !== null && event.dataTransfer !== undefined) event.dataTransfer.effectAllowed = 'move';
+    this.dragStarted.emit({ view: view.id, fromPane: this.pane().id });
   }
 
   protected dragOver(event: DragEvent, view: StackView): void {
@@ -259,8 +290,15 @@ export class PaneStack {
     this.dropAt.set(undefined);
   }
 
+  protected headerDragEnd(): void {
+    this.dragEnd();
+    this.dragEnded.emit();
+  }
+
   /** The drop line goes above the target when the View moves up, below it when it moves down. */
   protected dropSide(view: StackView): 'before' | 'after' | undefined {
+    const mark = this.dropMark();
+    if (mark !== undefined) return mark.index === view.index ? mark.side : undefined;
     const dragged = this.dragging();
     if (dragged === undefined || dragged === view.id || this.dropAt() !== view.index) return undefined;
     return this.pane().views.indexOf(dragged) > view.index ? 'before' : 'after';
