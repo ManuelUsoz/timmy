@@ -172,6 +172,26 @@ describe('A Pane and its Stack', () => {
     expect(names(panes()[1])).toEqual(['Terminal 3']);
   });
 
+  it('splits right with Alt+Shift+R and adds to the Stack with Alt+Shift+S, and names the keys in the tooltips', async () => {
+    const { panes, names, press, button } = await setup();
+    expect(button('Dividir a la derecha')?.getAttribute('title')).toBe('Dividir a la derecha (Alt+Shift+R)');
+    expect(button('Dividir hacia abajo')?.getAttribute('title')).toBe('Dividir hacia abajo (Alt+Shift+D)');
+    expect(button('Apilar en este panel')?.getAttribute('title')).toBe('Apilar en este panel (Alt+Shift+S)');
+    await press('S', { shiftKey: true, code: 'KeyS' });
+    expect(names()).toEqual(['Terminal 1', 'Terminal 2']);
+    await press('R', { shiftKey: true, code: 'KeyR' });
+    expect(panes()).toHaveLength(2);
+    expect(names(panes()[1])).toEqual(['Terminal 3']);
+  });
+
+  it('leaves Alt+Shift+D to the Terminal when the Pane cannot split down', async () => {
+    const { panes } = await setup();
+    const event = new KeyboardEvent('keydown', { key: 'D', code: 'KeyD', altKey: true, shiftKey: true, cancelable: true });
+    window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(panes()).toHaveLength(1);
+  });
+
   it('does not unstack at 6 Panes', async () => {
     const { tabs, tab, stack, press, panes, settle } = await setup();
     await stack();

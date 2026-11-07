@@ -29,13 +29,13 @@
         }
         <ui-state [tone]="status.tone" [attr.data-activity]="status.activity ?? null">{{ i18n.t(status.key) }}</ui-state>
         <span class="ctl">
-          <app-new-terminal kind="ghost" size="sm" iconOnly neutral [label]="i18n.t('pane.splitRight')" [disabled]="!canSplitRight()" (chosen)="splitPane('right', $event)">
+          <app-new-terminal #splitRight kind="ghost" size="sm" iconOnly neutral [label]="i18n.t('pane.splitRight')" [hint]="withKeys('pane.splitRight', keys.splitRight)" [disabled]="!canSplitRight()" (chosen)="splitPane('right', $event)">
             <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM8 3v10" /></svg>
           </app-new-terminal>
-          <app-new-terminal kind="ghost" size="sm" iconOnly neutral [label]="i18n.t('pane.splitDown')" [disabled]="!canSplitDown()" (chosen)="splitPane('down', $event)">
+          <app-new-terminal #splitDown kind="ghost" size="sm" iconOnly neutral [label]="i18n.t('pane.splitDown')" [hint]="withKeys('pane.splitDown', keys.splitDown)" [disabled]="!canSplitDown()" (chosen)="splitPane('down', $event)">
             <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM2 8h12" /></svg>
           </app-new-terminal>
-          <app-new-terminal kind="ghost" size="sm" iconOnly neutral class="add" [label]="i18n.t('stack.add')" [hint]="stackLabel()" [disabled]="full()" (chosen)="stack($event)">
+          <app-new-terminal #addToStack kind="ghost" size="sm" iconOnly neutral class="add" [label]="i18n.t('stack.add')" [hint]="stackLabel()" [disabled]="full()" (chosen)="stack($event)">
             <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v4H2zM2 9h12v4H2z" /></svg>
           </app-new-terminal>
           <span class="menu-anchor">

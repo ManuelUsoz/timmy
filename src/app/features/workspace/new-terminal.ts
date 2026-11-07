@@ -129,8 +129,9 @@ export class NewTerminal {
     else this.chosen.emit(undefined);
   }
 
-  /** Ctrl+T opens the picker, and leaves it open when it already is. */
-  private start(): void {
+  /** A shortcut (Ctrl+T, Alt+Shift+R/D/S) opens the picker, and leaves it open when it already is. */
+  start(): void {
+    if (this.disabled()) return;
     if (this.offersProviders()) this.open.set(true);
     else this.chosen.emit(undefined);
   }

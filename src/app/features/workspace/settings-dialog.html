@@ -57,21 +57,23 @@
             </div>
           }
           @case ('shortcuts') {
-            <section class="group">
-              <h3>{{ i18n.t('shortcuts.group.workspace') }}</h3>
-              <div class="list">
-                @for (shortcut of shortcuts; track shortcut.id) {
-                  <div class="shortcut" data-testid="shortcut-row">
-                    <span class="action-text">{{ i18n.t(shortcut.action) }}</span>
-                    <span class="keys">
-                      @for (key of shortcut.keys; track $index) {
-                        <kbd>{{ key }}</kbd>
-                      }
-                    </span>
-                  </div>
-                }
-              </div>
-            </section>
+            @for (group of shortcutGroups; track group.group) {
+              <section class="group">
+                <h3>{{ i18n.t(group.title) }}</h3>
+                <div class="list">
+                  @for (shortcut of group.shortcuts; track shortcut.id) {
+                    <div class="shortcut" data-testid="shortcut-row">
+                      <span class="action-text">{{ i18n.t(shortcut.action) }}</span>
+                      <span class="keys">
+                        @for (key of shortcut.keys; track $index) {
+                          <kbd>{{ key }}</kbd>
+                        }
+                      </span>
+                    </div>
+                  }
+                </div>
+              </section>
+            }
           }
           @case ('agents') {
             @switch (providerSettings.state().status) {

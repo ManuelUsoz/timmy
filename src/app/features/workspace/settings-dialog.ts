@@ -15,12 +15,17 @@ import { I18n } from '../../core/i18n';
 import type { MessageKey } from '../../core/i18n-dictionaries';
 import { NotificationSettings } from '../../core/notification-settings';
 import { ProviderSettings, providerNames } from '../../core/provider-settings';
-import { shortcuts } from '../../core/shortcuts';
+import { shortcuts, type ShortcutGroup } from '../../core/shortcuts';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { ProviderIconComponent, type Provider as ProviderMark } from '../../shared/ui/provider-icon/provider-icon';
 import { StateComponent } from '../../shared/ui/state/state';
 import { TagComponent } from '../../shared/ui/tag/tag';
 import { SettingsDialogState, settingsSections, type SettingsSection } from './settings-dialog-state';
+
+const SHORTCUT_GROUP_TITLE = {
+  workspace: 'shortcuts.group.workspace',
+  pane: 'shortcuts.group.pane',
+} as const satisfies Record<ShortcutGroup, MessageKey>;
 
 /** How the nav and the header present a section. `soon` sections have no settings yet. */
 interface SectionView {
@@ -157,7 +162,12 @@ export class SettingsDialog {
 
   protected readonly sections = sections;
   protected readonly current = computed(() => sectionViews[this.state.section()]);
-  protected readonly shortcuts = shortcuts;
+  /** The shortcuts by group, in the table's order: the whole Workspace's, then the focused Pane's. */
+  protected readonly shortcutGroups = (['workspace', 'pane'] as const).map((group) => ({
+    group,
+    title: SHORTCUT_GROUP_TITLE[group],
+    shortcuts: shortcuts.filter((shortcut) => shortcut.group === group),
+  }));
   protected readonly providers = allProviders;
   protected readonly names = providerNames;
   protected readonly marks = providerMarks;

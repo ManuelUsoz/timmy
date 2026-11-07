@@ -65,10 +65,12 @@ test.describe('Settings', () => {
     });
     await timmy.shot('settings-agent-enabled');
 
-    await test.step('Shortcuts lists the five keyboard shortcuts', async () => {
+    await test.step('Shortcuts lists the Workspace shortcuts, then the Pane and Stack ones', async () => {
       await section('Shortcuts').click();
       const rows = dialog.getByTestId('shortcut-row');
-      await expect(rows).toHaveCount(5);
+      await expect(rows).toHaveCount(12);
+      await expect(rows.nth(5)).toContainText('Split the pane right');
+      await expect(rows.nth(5)).toContainText(/Alt\s*Shift\s*R/);
       await expect(rows.nth(0)).toContainText('Collapse or expand the sidebar');
       await expect(rows.nth(0)).toContainText(/Ctrl\s*B/);
       await expect(rows.nth(1)).toContainText('Open or close Settings');

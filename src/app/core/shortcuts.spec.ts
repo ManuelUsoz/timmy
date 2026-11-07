@@ -13,12 +13,19 @@ const press = (key: string, modifiers: { ctrlKey?: boolean; altKey?: boolean; sh
 
 describe('shortcuts', () => {
   it('lists every shortcut once, with the keys Settings shows', () => {
-    expect(shortcuts.map((shortcut) => [shortcut.id, shortcut.keys.join('+')])).toEqual([
-      ['toggleSidebar', 'Ctrl+B'],
-      ['toggleSettings', 'Ctrl+,'],
-      ['newTab', 'Ctrl+T'],
-      ['goToTab', 'Ctrl+1–9'],
-      ['close', 'Esc'],
+    expect(shortcuts.map((shortcut) => [shortcut.group, shortcut.id, shortcut.keys.join('+')])).toEqual([
+      ['workspace', 'toggleSidebar', 'Ctrl+B'],
+      ['workspace', 'toggleSettings', 'Ctrl+,'],
+      ['workspace', 'newTab', 'Ctrl+T'],
+      ['workspace', 'goToTab', 'Ctrl+1–9'],
+      ['workspace', 'close', 'Esc'],
+      ['pane', 'splitRight', 'Alt+Shift+R'],
+      ['pane', 'splitDown', 'Alt+Shift+D'],
+      ['pane', 'addToStack', 'Alt+Shift+S'],
+      ['pane', 'showView', 'Alt+1–3'],
+      ['pane', 'moveViewUp', 'Alt+Shift+↑'],
+      ['pane', 'moveViewDown', 'Alt+Shift+↓'],
+      ['pane', 'unstack', 'Alt+Shift+⏎'],
     ]);
   });
 
@@ -70,8 +77,18 @@ describe('stackShortcut', () => {
     expect(stackShortcut(press('Enter', altShift))).toEqual({ id: 'unstack' });
   });
 
+  it('recognises Alt+Shift+R, D and S as split right, split down and add to stack, by the physical key', () => {
+    expect(stackShortcut(press('R', altShift))).toEqual({ id: 'splitRight' });
+    expect(stackShortcut(press('D', altShift))).toEqual({ id: 'splitDown' });
+    expect(stackShortcut(press('S', altShift))).toEqual({ id: 'addToStack' });
+    expect(stackShortcut(press('ß', { altKey: true, shiftKey: true, code: 'KeyS' }))).toEqual({ id: 'addToStack' });
+    expect(stackShortcut(press('r', alt))).toBeNull();
+    expect(stackShortcut(press('X', altShift))).toBeNull();
+  });
+
   it('ignores the keys with Ctrl, without Alt, or arrows without Shift', () => {
     expect(stackShortcut(press('1', { altKey: true, ctrlKey: true }))).toBeNull();
+    expect(stackShortcut(press('R', { altKey: true, shiftKey: true, ctrlKey: true }))).toBeNull();
     expect(stackShortcut(press('1', {}))).toBeNull();
     expect(stackShortcut(press('ArrowUp', alt))).toBeNull();
     expect(stackShortcut(press('Enter', alt))).toBeNull();

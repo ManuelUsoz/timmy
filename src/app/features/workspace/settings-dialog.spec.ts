@@ -193,17 +193,36 @@ describe('SettingsDialog: General', () => {
 describe('SettingsDialog: Shortcuts', () => {
   it('lists every shortcut with its keys', async () => {
     const { el } = await setup({ section: 'shortcuts' });
-    expect(el.querySelector('h3')?.textContent?.trim()).toBe('Workspace');
-    const rows = Array.from(el.querySelectorAll<HTMLElement>('[data-testid="shortcut-row"]')).map((row) => ({
-      action: row.querySelector('.action-text')?.textContent?.trim(),
-      keys: Array.from(row.querySelectorAll('kbd')).map((kbd) => kbd.textContent?.trim()),
+    const groups = Array.from(el.querySelectorAll<HTMLElement>('section.group')).map((group) => ({
+      title: group.querySelector('h3')?.textContent?.trim(),
+      rows: Array.from(group.querySelectorAll<HTMLElement>('[data-testid="shortcut-row"]')).map((row) => ({
+        action: row.querySelector('.action-text')?.textContent?.trim(),
+        keys: Array.from(row.querySelectorAll('kbd')).map((kbd) => kbd.textContent?.trim()),
+      })),
     }));
-    expect(rows).toEqual([
-      { action: 'Colapsar o expandir la barra lateral', keys: ['Ctrl', 'B'] },
-      { action: 'Abrir o cerrar Ajustes', keys: ['Ctrl', ','] },
-      { action: 'Nueva pestaña', keys: ['Ctrl', 'T'] },
-      { action: 'Ir a la pestaña con ese número', keys: ['Ctrl', '1–9'] },
-      { action: 'Cerrar Ajustes o un diálogo', keys: ['Esc'] },
+    expect(groups).toEqual([
+      {
+        title: 'Workspace',
+        rows: [
+          { action: 'Colapsar o expandir la barra lateral', keys: ['Ctrl', 'B'] },
+          { action: 'Abrir o cerrar Ajustes', keys: ['Ctrl', ','] },
+          { action: 'Nueva pestaña', keys: ['Ctrl', 'T'] },
+          { action: 'Ir a la pestaña con ese número', keys: ['Ctrl', '1–9'] },
+          { action: 'Cerrar Ajustes o un diálogo', keys: ['Esc'] },
+        ],
+      },
+      {
+        title: 'Paneles y pilas',
+        rows: [
+          { action: 'Dividir el panel a la derecha', keys: ['Alt', 'Shift', 'R'] },
+          { action: 'Dividir el panel hacia abajo', keys: ['Alt', 'Shift', 'D'] },
+          { action: 'Añadir una terminal a la pila', keys: ['Alt', 'Shift', 'S'] },
+          { action: 'Mostrar la terminal de la pila en esa posición', keys: ['Alt', '1–3'] },
+          { action: 'Subir la terminal en la pila', keys: ['Alt', 'Shift', '↑'] },
+          { action: 'Bajar la terminal en la pila', keys: ['Alt', 'Shift', '↓'] },
+          { action: 'Sacar la terminal de la pila a un panel nuevo', keys: ['Alt', 'Shift', '⏎'] },
+        ],
+      },
     ]);
   });
 });

@@ -1,8 +1,8 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, input, signal, viewChild } from '@angular/core';
 import type { Provider } from '../../../shared/settings/settings.model';
 import { I18n } from '../../core/i18n';
 import type { MessageKey } from '../../core/i18n-dictionaries';
-import { stackKeys, stackShortcut } from '../../core/shortcuts';
+import { stackKeys, stackShortcut, type StackShortcut } from '../../core/shortcuts';
 import { ModalComponent } from '../../shared/ui/modal/modal';
 import { StateComponent } from '../../shared/ui/state/state';
 import { NewTerminal } from './new-terminal';
@@ -98,7 +98,14 @@ export class PaneStack {
     return layout !== undefined && this.canSplitRight() && canUnstack(layout, this.pane().id);
   });
   protected readonly label = computed(() => this.i18n.t('pane.label', { name: this.expanded()?.name ?? '' }));
-  protected readonly stackLabel = computed(() => (this.full() ? this.i18n.t('stack.full', { label: this.i18n.t('stack.add') }) : this.i18n.t('stack.add')));
+  protected readonly stackLabel = computed(() =>
+    this.full() ? this.i18n.t('stack.full', { label: this.i18n.t('stack.add') }) : this.withKeys('stack.add', stackKeys.addToStack),
+  );
+
+  /** The header's buttons for a new Terminal, which Alt+Shift+R / D / S press. */
+  private readonly splitRightButton = viewChild('splitRight', { read: NewTerminal });
+  private readonly splitDownButton = viewChild('splitDown', { read: NewTerminal });
+  private readonly addToStackButton = viewChild('addToStack', { read: NewTerminal });
 
   protected readonly menuOpen = signal(false);
   protected readonly pending = signal<PendingClose | undefined>(undefined);
@@ -127,9 +134,7 @@ export class PaneStack {
     // Keys act on what the user sees; behind a dialog they do not.
     if (shortcut === null || document.querySelector('[aria-modal="true"]') !== null) return;
     // A key that would do nothing here goes on to the Terminal: shells and TUIs use Alt+digit and Alt+Shift+arrows too.
-    const applies =
-      shortcut.id === 'showView' ? this.stacked() && shortcut.index < this.views().length : shortcut.id === 'moveView' ? this.stacked() : this.unstackable();
-    if (!applies) return;
+    if (!this.applies(shortcut)) return;
     event.preventDefault();
     event.stopPropagation();
     switch (shortcut.id) {
@@ -139,7 +144,36 @@ export class PaneStack {
         return this.move(shortcut.delta);
       case 'unstack':
         return this.unstackExpanded();
+      case 'splitRight':
+        return this.splitRightButton()?.start();
+      case 'splitDown':
+        return this.splitDownButton()?.start();
+      case 'addToStack':
+        return this.addToStackButton()?.start();
     }
+  }
+
+  /** Whether the key would do something here, as the header's buttons and menu would. */
+  private applies(shortcut: StackShortcut): boolean {
+    switch (shortcut.id) {
+      case 'showView':
+        return this.stacked() && shortcut.index < this.views().length;
+      case 'moveView':
+        return this.stacked();
+      case 'unstack':
+        return this.unstackable();
+      case 'splitRight':
+        return this.canSplitRight();
+      case 'splitDown':
+        return this.canSplitDown();
+      case 'addToStack':
+        return !this.full();
+    }
+  }
+
+  /** A button's tooltip: its name and its keys. */
+  protected withKeys(label: MessageKey, keys: ReadonlyArray<string>): string {
+    return `${this.i18n.t(label)} (${keys.join('+')})`;
   }
 
   protected show(index: number): void {
