@@ -60,6 +60,16 @@ export class TabsState {
     });
   }
 
+  /** Closes every Tab of the Project, and so all of its Terminals: what removing the Project leaves behind. */
+  async closeProject(projectId: ProjectId): Promise<void> {
+    await Promise.all(this.tabsOf(projectId).map((tab) => this.close(tab)));
+  }
+
+  /** The status of every Terminal of the Project, to tell whether removing it needs the user's confirmation. */
+  projectStatuses(projectId: ProjectId): ReadonlyArray<TerminalStatus> {
+    return this.tabsOf(projectId).flatMap((tab) => this.statusesOf(tab));
+  }
+
   // ---- Panes and Stacks (#120) -------------------------------------------------------------------------------------
 
   /** What the user did to each Tab's layout. What is shown is this kept in step with the Tab's Terminals (`layoutOf`). */

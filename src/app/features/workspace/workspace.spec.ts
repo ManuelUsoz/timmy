@@ -152,6 +152,67 @@ describe('WorkspaceComponent', () => {
     expect(Effect.runSync(Ref.get(stored))).toBe('en');
   });
 
+  describe('removing a Project from its context menu', () => {
+    const projectRow = (sidebar: HTMLElement, name: string) =>
+      Array.from(sidebar.querySelectorAll<HTMLElement>('app-project-list as-list-row')).find((row) => row.textContent?.includes(name))!;
+    const rightClick = async (row: HTMLElement, settle: () => Promise<void>) => {
+      row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 40, clientY: 80 }));
+      await settle();
+    };
+    const menu = (sidebar: HTMLElement) => sidebar.querySelector<HTMLElement>('app-project-list [role=menu]');
+
+    it('removes an open Project, closes its Terminals and goes to another one', async () => {
+      const backend = makeBackend({ projects: [timmy, ascua] });
+      const { el, sidebar, settle } = await setup(1400, backend);
+      TestBed.inject(TerminalsState).create(timmy.projectId);
+      await settle();
+      await rightClick(projectRow(sidebar(), 'timmy'), settle);
+      expect(menu(sidebar())?.getAttribute('aria-label')).toBe('Opciones de timmy');
+      const item = menu(sidebar())!.querySelector<HTMLButtonElement>('[role=menuitem]')!;
+      expect(item.textContent?.trim()).toBe('Quitar proyecto');
+      item.click();
+      await settle();
+      expect(el.querySelector('ui-modal')).toBeNull();
+      expect(backend.calls).toContain('Projects.remove:p-timmy');
+      expect(menu(sidebar())).toBeNull();
+      expect(Array.from(sidebar().querySelectorAll('app-project-list as-list-row')).map((row) => row.textContent?.trim())).toEqual([expect.stringContaining('ascua')]);
+      expect(TestBed.inject(TerminalsState).entries()).toEqual([]);
+      expect(TestBed.inject(Router).url).toBe('/projects/p-ascua');
+    });
+
+    it('asks first while one of its Terminals is Working, and keeps it on Cancel', async () => {
+      const backend = makeBackend({ projects: [timmy, ascua] });
+      const { el, sidebar, settle, say } = await setup(1400, backend);
+      const terminal = TestBed.inject(TerminalsState).create(ascua.projectId);
+      await say(terminal.id, 'Working');
+      await rightClick(projectRow(sidebar(), 'ascua'), settle);
+      menu(sidebar())!.querySelector<HTMLButtonElement>('[role=menuitem]')!.click();
+      await settle();
+      const modal = el.querySelector('ui-modal')!;
+      expect(modal.querySelector('h2')?.textContent).toBe('¿Quitar ascua?');
+      modal.querySelector<HTMLButtonElement>('.dismiss')!.click();
+      await settle();
+      expect(backend.calls).not.toContain('Projects.remove:p-ascua');
+      await rightClick(projectRow(sidebar(), 'ascua'), settle);
+      menu(sidebar())!.querySelector<HTMLButtonElement>('[role=menuitem]')!.click();
+      await settle();
+      el.querySelector<HTMLButtonElement>('ui-modal .primary')!.click();
+      await settle();
+      expect(backend.calls).toContain('Projects.remove:p-ascua');
+      expect(TestBed.inject(TerminalsState).entries()).toEqual([]);
+      expect(TestBed.inject(Router).url).toBe('/projects/p-timmy');
+    });
+
+    it('closes the menu with Esc, and opens it from the collapsed strip too', async () => {
+      const { sidebar, settle, key } = await setup(1100);
+      const tile = sidebar().querySelector<HTMLElement>('app-project-list .rail-project')!;
+      await rightClick(tile, settle);
+      expect(menu(sidebar())).not.toBeNull();
+      await key({ key: 'Escape' });
+      expect(menu(sidebar())).toBeNull();
+    });
+  });
+
   describe('Terminals', () => {
     it('lists every Terminal like the Panel: those that need the user first, then by Project, each with its status', async () => {
       const { terminalRows, say } = await setup();

@@ -16,6 +16,7 @@ import { mostUrgent } from '../shell/pill-view';
 import { ProjectList } from './project-list';
 import { ProjectsState } from './projects-state';
 import { SettingsDialogState } from './settings-dialog-state';
+import { TabsState } from './tabs-state';
 import { TerminalsState } from './terminals-state';
 import { WorkspaceLayoutState } from './workspace-layout';
 import { projectTallies } from './workspace-sidebar-view';
@@ -60,6 +61,7 @@ export class WorkspaceSidebar {
   private readonly projects = inject(ProjectsState);
   private readonly terminals = inject(TerminalsState);
   private readonly notifications = inject(NotificationsState);
+  private readonly tabs = inject(TabsState);
   private readonly router = inject(Router);
 
   protected readonly collapsed = computed(() => this.layout.layout().sidebar === 'collapsed');
@@ -103,6 +105,17 @@ export class WorkspaceSidebar {
 
   protected openTerminal(row: RailRow): void {
     void this.router.navigate(['/projects', row.projectId, 'terminals', row.id]);
+  }
+
+  /**
+   * Takes the project out of the list, leaves its route if it was open, then closes its Terminals, which would
+   * otherwise linger with no project to show them.
+   */
+  protected async removeProject(projectId: ProjectId): Promise<void> {
+    const wasOpen = this.projects.selectedId() === projectId;
+    if (!(await this.projects.remove(projectId))) return;
+    if (wasOpen) await this.router.navigate(['/projects'], { replaceUrl: true });
+    await this.tabs.closeProject(projectId);
   }
 
   protected newProject(): void {

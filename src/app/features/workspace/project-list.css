@@ -3,6 +3,8 @@
   flex: 1;
   flex-direction: column;
   min-height: 0;
+  --menu-width: 208px;
+  --menu-height: 48px;
 }
 
 .search {
@@ -144,6 +146,61 @@
 .rail-project.on {
   background: var(--layer-selected);
   box-shadow: inset 2px 0 0 var(--text-primary);
+}
+
+/* A project's context menu, at the pointer; kept inside the window. */
+.menu {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: var(--menu-width);
+  padding: var(--spacing-02) 0;
+  background: var(--layer-02);
+  box-shadow: var(--shadow-overlay);
+}
+
+.mi {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-03);
+  min-height: 36px;
+  padding: 0 var(--spacing-05);
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: var(--text-body-compact-01);
+  text-align: start;
+  cursor: pointer;
+}
+
+.mi:hover {
+  background: var(--layer-hover);
+}
+
+.mi:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
+.mi.danger {
+  color: var(--text-error);
+}
+
+.mi svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+}
+
+.confirm {
+  margin: 0;
+  font: var(--text-body-01);
+  color: var(--text-secondary);
 }
 
 .rail-dot {

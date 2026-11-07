@@ -205,6 +205,8 @@ export class ProjectsScreen {
   protected async removeSelected(): Promise<void> {
     const projectId = this.state.selectedId();
     if (projectId === undefined) return;
-    if (await this.state.remove(projectId)) await this.router.navigate(['/projects'], { replaceUrl: true });
+    if (!(await this.state.remove(projectId))) return;
+    await this.router.navigate(['/projects'], { replaceUrl: true });
+    await this.tabsState.closeProject(projectId);
   }
 }

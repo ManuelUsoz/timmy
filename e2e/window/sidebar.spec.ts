@@ -47,3 +47,33 @@ test('the sidebar lists every Terminal, opens one, and collapses to 48 px with C
     await expect(settingsButton).toHaveAttribute('aria-expanded', 'false');
   });
 });
+
+test('a right click on a Project offers to remove it, which closes its Terminals', async ({ timmy }) => {
+  const { page } = timmy;
+  await timmy.openProjectTerminal();
+  const sidebar = page.getByRole('complementary', { name: 'Sidebar' });
+  const projects = sidebar.getByRole('listbox', { name: 'Projects' });
+  const menu = page.getByRole('menu', { name: 'demo-project options' });
+
+  await test.step('the menu opens at the pointer and Esc closes it', async () => {
+    await projects.getByRole('option', { name: /demo-project/ }).click({ button: 'right' });
+    await expect(menu.getByRole('menuitem')).toHaveText(['Remove project']);
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+  });
+
+  await test.step('Remove project takes it out of the list and closes its Terminal', async () => {
+    await projects.getByRole('option', { name: /demo-project/ }).click({ button: 'right' });
+    await expect(menu).toBeVisible();
+    // The project's menu over the sidebar: Remove project, in the error colour.
+    await timmy.shot('sidebar-project-menu', { mask: [sidebar.locator('ui-state'), sidebar.locator('.dot')] });
+    // A fresh Terminal may be Working while its shell starts; confirm if asked.
+    await menu.getByRole('menuitem', { name: 'Remove project' }).click();
+    const confirm = page.getByRole('dialog', { name: 'Remove demo-project?' });
+    const removed = expect(projects.getByRole('option')).toHaveCount(0);
+    await Promise.race([removed, confirm.waitFor()]);
+    if (await confirm.isVisible()) await confirm.getByRole('button', { name: 'Remove project' }).click();
+    await removed;
+    await expect(sidebar.getByRole('listbox', { name: 'Terminals' }).getByRole('option')).toHaveCount(0);
+  });
+});
