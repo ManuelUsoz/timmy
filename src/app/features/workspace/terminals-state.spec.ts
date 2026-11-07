@@ -139,6 +139,72 @@ describe('TerminalsState: activity', () => {
   });
 });
 
+describe('TerminalsState: the last lines of output', () => {
+  it('has none for a Terminal no screen has shown', () => {
+    const terminals = TestBed.inject(TerminalsState);
+    expect(terminals.tailOf(terminals.create(timmy).id)).toEqual([]);
+  });
+
+  it('reads the screen showing the Terminal, as it is now', () => {
+    const terminals = TestBed.inject(TerminalsState);
+    const { id } = terminals.create(timmy);
+    let lines = ['a', 'b'];
+    terminals.attachTail(id, () => lines);
+    expect(terminals.tailOf(id)).toEqual(['a', 'b']);
+    lines = ['a', 'b', 'c', 'd', 'e', '', ''];
+    expect(terminals.tailOf(id)).toEqual(['b', 'c', 'd', 'e']);
+  });
+
+  it('keeps the last lines the screen showed once it leaves', () => {
+    const terminals = TestBed.inject(TerminalsState);
+    const { id } = terminals.create(timmy);
+    let lines = ['before'];
+    const read = () => lines;
+    terminals.attachTail(id, read);
+    lines = ['npm test', 'ok'];
+    terminals.detachTail(id, read);
+    lines = ['changed after it left'];
+    expect(terminals.tailOf(id)).toEqual(['npm test', 'ok']);
+  });
+
+  it('keeps reading the screen that took the Terminal over when the one it replaced leaves late', () => {
+    const terminals = TestBed.inject(TerminalsState);
+    const { id } = terminals.create(timmy);
+    const old = () => ['old'];
+    terminals.attachTail(id, old);
+    let lines = ['new'];
+    terminals.attachTail(id, () => lines);
+    terminals.detachTail(id, old);
+    lines = ['newer'];
+    expect(terminals.tailOf(id)).toEqual(['newer']);
+  });
+
+  it('forgets the lines of a closed Terminal', async () => {
+    const { terminals } = withMain();
+    const opened = await terminals.createLive(timmy, '/work/timmy');
+    const read = () => ['output'];
+    terminals.attachTail(opened!.id, read);
+    terminals.detachTail(opened!.id, read);
+    terminals.attachTail(opened!.id, read);
+    await terminals.close(opened!.id);
+    expect(terminals.tailOf(opened!.id)).toEqual([]);
+    // The screen leaves after the Terminal closed: what it held is not kept.
+    terminals.detachTail(opened!.id, read);
+    expect(terminals.tailOf(opened!.id)).toEqual([]);
+  });
+
+  it('starts a restarted Terminal with no lines', async () => {
+    const { terminals } = withMain();
+    const opened = await terminals.createLive(timmy, '/work/timmy');
+    const read = () => ['old run'];
+    terminals.attachTail(opened!.id, read);
+    const restarted = await terminals.restart(opened!.id, '/work/timmy');
+    terminals.detachTail(opened!.id, read);
+    expect(terminals.tailOf(restarted!.id)).toEqual([]);
+    expect(terminals.tailOf(opened!.id)).toEqual([]);
+  });
+});
+
 describe('TerminalsState: what is showing', () => {
   it('tells main which Terminal the screen shows, and that none is once it leaves', async () => {
     const { shown, terminals } = withMain();

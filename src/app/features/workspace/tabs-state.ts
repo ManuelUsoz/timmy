@@ -19,6 +19,10 @@ export class TabsState {
   private readonly names = signal<ReadonlyMap<TabId, string>>(new Map());
   /** Each Ctrl+T adds one; the New Tab button on screen opens the new-terminal picker for it. */
   readonly newTabRequests = signal(0);
+  /** When each Tab was last on screen, as a count that grows with each visit: the Switcher's most-recent-first order. */
+  private readonly visitOrder = signal<ReadonlyMap<TabId, number>>(new Map());
+  private visitCount = 0;
+  readonly visits = this.visitOrder.asReadonly();
 
   /** Every Terminal's status, as its latest Notification says; a Terminal with none is Idle. */
   private readonly status = computed(
@@ -32,6 +36,14 @@ export class TabsState {
   statusesOf(tab: Tab): ReadonlyArray<TerminalStatus> {
     const status = this.status();
     return tab.terminals.map((terminal) => status.get(terminal.id) ?? 'Idle');
+  }
+
+  /** The Tab is on screen now: it becomes the most recent. */
+  visit(id: TabId): void {
+    if (this.visitOrder().get(id) === this.visitCount) return;
+    this.visitCount += 1;
+    const count = this.visitCount;
+    this.visitOrder.update((visits) => new Map(visits).set(id, count));
   }
 
   requestNewTab(): void {
@@ -53,6 +65,11 @@ export class TabsState {
   async close(tab: Tab): Promise<void> {
     await Promise.all(tab.terminals.map((terminal) => this.terminals.close(terminal.id)));
     this.rename(tab.id, '');
+    this.visitOrder.update((visits) => {
+      const next = new Map(visits);
+      next.delete(tab.id);
+      return next;
+    });
     this.layouts.update((layouts) => {
       const next = new Map(layouts);
       next.delete(tab.id);

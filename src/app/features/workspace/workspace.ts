@@ -6,6 +6,9 @@ import { NewProjectDialog } from './new-project-dialog';
 import { ProjectsState } from './projects-state';
 import { SettingsDialog } from './settings-dialog';
 import { SettingsDialogState } from './settings-dialog-state';
+import { Switcher } from './switcher';
+import { isCtrlTab } from './switcher-keys';
+import { SwitcherState } from './switcher-state';
 import { tabPath } from './tabs';
 import { TabsState } from './tabs-state';
 import { ToastHost } from './toast-host';
@@ -16,11 +19,11 @@ import { WorkspaceSidebar } from './workspace-sidebar';
  * The Workspace shown in Expanded: the sidebar (Projects, Terminals, Settings), the routed screen beside it, and
  * Settings as a dialog over both. The global shortcuts (`shortcuts.ts`) work wherever the focus is, a Terminal included:
  * Ctrl+B collapses or expands the sidebar, Ctrl+, opens or closes Settings, Ctrl+T opens a New Tab and Ctrl+1–9 goes to
- * the selected Project's Tab with that number.
+ * the selected Project's Tab with that number. Ctrl+Tab opens the Switcher (see `SwitcherState`).
  */
 @Component({
   selector: 'app-workspace',
-  imports: [NewProjectDialog, RouterOutlet, SettingsDialog, ToastHost, WorkspaceSidebar],
+  imports: [NewProjectDialog, RouterOutlet, SettingsDialog, Switcher, ToastHost, WorkspaceSidebar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './workspace.html',
   styleUrl: './workspace.css',
@@ -31,6 +34,7 @@ export class WorkspaceComponent {
   protected readonly settingsDialog = inject(SettingsDialogState);
   private readonly router = inject(Router);
   private readonly tabs = inject(TabsState);
+  protected readonly switcher = inject(SwitcherState);
 
   constructor() {
     // The first time the Workspace appears, navigation starts (it is disabled at bootstrap, see workspace.routes.ts).
@@ -38,11 +42,42 @@ export class WorkspaceComponent {
 
     // Captured on the window, so a focused Terminal (whose xterm stops the event) does not swallow the shortcuts.
     const onKey = (event: KeyboardEvent) => this.shortcut(event);
+    // Releasing Ctrl confirms the Switcher.
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (this.switcher.model() !== undefined && this.switcher.key(event)) event.preventDefault();
+    };
+    // Ctrl released in another window never comes back here: leaving the window cancels a Switcher held open by Ctrl.
+    const onBlur = () => {
+      if (this.switcher.model()?.sticky === false) this.switcher.close();
+    };
     window.addEventListener('keydown', onKey, { capture: true });
-    inject(DestroyRef).onDestroy(() => window.removeEventListener('keydown', onKey, { capture: true }));
+    window.addEventListener('keyup', onKeyUp, { capture: true });
+    window.addEventListener('blur', onBlur);
+    inject(DestroyRef).onDestroy(() => {
+      window.removeEventListener('keydown', onKey, { capture: true });
+      window.removeEventListener('keyup', onKeyUp, { capture: true });
+      window.removeEventListener('blur', onBlur);
+      this.switcher.close();
+    });
   }
 
   private shortcut(event: KeyboardEvent): void {
+    // The Switcher takes its keys first. It does not open over another dialog. While it is open no other shortcut acts,
+    // and no key reaches the screen behind it: only its own search, once the user is in it.
+    const switching = this.switcher.model() !== undefined;
+    const forSwitcher = switching || (isCtrlTab(event) && document.querySelector('[aria-modal="true"]') === null);
+    if (forSwitcher && this.switcher.key(event)) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    if (switching) {
+      if (!(event.target instanceof Element && event.target.closest('app-switcher') !== null)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      return;
+    }
     const shortcut = globalShortcut(event);
     if (shortcut === null) return;
     // The Tab shortcuts act on the screen behind a dialog (Settings, a confirmation), which the user cannot see: not then.
