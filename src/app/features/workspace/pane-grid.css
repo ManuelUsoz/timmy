@@ -1,0 +1,90 @@
+:host {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--border-subtle);
+}
+
+/* A split lays its children side by side (right) or one above the other (down), each by its share. */
+.split {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.split[data-direction='down'] {
+  flex-direction: column;
+}
+
+.cell {
+  display: flex;
+  flex-basis: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* The 1 px line between Panes, with a wider invisible grip so it is easy to catch. */
+.divider {
+  position: relative;
+  flex: none;
+  background: var(--border-subtle);
+  outline: none;
+  touch-action: none;
+}
+
+.split[data-direction='right'] > .divider {
+  width: 1px;
+  cursor: col-resize;
+}
+
+.split[data-direction='down'] > .divider {
+  height: 1px;
+  cursor: row-resize;
+}
+
+.divider::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  z-index: 2;
+}
+
+.divider:hover,
+.divider:active,
+.divider:focus-visible {
+  background: var(--link);
+}
+
+.divider:focus-visible {
+  box-shadow: 0 0 0 1px var(--focus);
+}
+
+.pane {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--background);
+}
+
+.pane app-pane-stack {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+/* One Pane is focused at a time (design: .pn.fc): an inset ring that does not shift the content. */
+.pane.focused::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}

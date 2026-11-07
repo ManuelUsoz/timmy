@@ -17,7 +17,7 @@ import { provideWorkspaceRouter } from './workspace.routes';
 const timmy = project('timmy', { lastUsedAt: 2 });
 const ascua = project('ascua', { lastUsedAt: 1 });
 
-/** Two projects, timmy used last, so the Workspace opens it and its content column exists. */
+/** Two projects, timmy used last, so the Workspace opens it. */
 const setup = async (width = 1400, backend = makeBackend({ projects: [timmy, ascua] })) => {
   const stored = Ref.makeUnsafe<Language>('es');
   const bus = Effect.runSync(PubSub.unbounded<NotificationEvent>());
@@ -238,14 +238,6 @@ describe('WorkspaceComponent', () => {
       layoutState.width.set(1500);
       await settle();
       expect(sidebar().classList).toContain('collapsed');
-    });
-
-    it('moves the content to an overlay below lg, opened on demand', async () => {
-      const { el, settle } = await setup(900);
-      expect(el.querySelector('.content')).toBeNull();
-      el.querySelector<HTMLButtonElement>('.content-toggle')!.click();
-      await settle();
-      expect(el.querySelector('.content.overlay')).not.toBeNull();
     });
   });
 });

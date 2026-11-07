@@ -42,7 +42,7 @@ test.describe('the Panel shows the current Terminal', () => {
     await timmy.shot('panel-terminal', { mask: [page.locator('app-terminal-screen .cwd'), page.locator('.xterm-screen')] });
 
     await timmy.switchMode('Expanded');
-    await page.getByRole('region', { name: 'Terminals' }).getByRole('option', { name: /Terminal 1/ }).click();
+    await page.getByRole('complementary', { name: 'Sidebar' }).getByRole('listbox', { name: 'Terminals' }).getByRole('option', { name: /Terminal 1/ }).click();
     await expect(page.locator('app-workspace .xterm-screen')).toContainText('from-the-panel');
   });
 
@@ -71,7 +71,7 @@ test.describe('the Panel shows the current Terminal', () => {
 
     // And back in the Workspace (wide again), it still shows its whole prompt; so does the one that never changed size.
     await timmy.switchMode('Expanded');
-    const terminals = page.getByRole('region', { name: 'Terminals' });
+    const terminals = page.getByRole('complementary', { name: 'Sidebar' }).getByRole('listbox', { name: 'Terminals' });
     await expect(page.locator('app-workspace .xterm-screen')).toContainText(/PS C:\\Users.*demo-project>/);
     await terminals.getByRole('option', { name: /Terminal 2/ }).click();
     await expect(page.locator('app-workspace .xterm-screen')).toContainText('only-in-two');

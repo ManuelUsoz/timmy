@@ -44,3 +44,36 @@ export const globalShortcut = (event: Pick<KeyboardEvent, 'key' | 'code' | 'ctrl
   const found = shortcuts.find((shortcut) => shortcut.ctrl === key);
   return found === undefined || found.id === 'close' || found.id === 'goToTab' ? null : { id: found.id };
 };
+
+/**
+ * The keys of a Stack, as its header menu hints them. They act only on the focused Pane, so they are not global
+ * shortcuts and Settings does not list them yet.
+ */
+export const stackKeys = {
+  show: (position: number): ReadonlyArray<string> => ['Alt', String(position)],
+  moveUp: ['Alt', 'Shift', '↑'],
+  moveDown: ['Alt', 'Shift', '↓'],
+  unstack: ['Alt', 'Shift', '⏎'],
+} as const;
+
+/** What a key press does to the focused Pane's Stack. */
+export type StackShortcut =
+  /** Alt+1–3: the View at that position, counted from 0. */
+  | { readonly id: 'showView'; readonly index: number }
+  /** Alt+Shift+↑/↓: the expanded View one place up (-1) or down (1). */
+  | { readonly id: 'moveView'; readonly delta: -1 | 1 }
+  /** Alt+Shift+Enter: the expanded View into a new Pane. */
+  | { readonly id: 'unstack' };
+
+/** The Stack shortcut a key press is, if any. Digits by their physical key, as for Ctrl+1–9. */
+export const stackShortcut = (event: Pick<KeyboardEvent, 'key' | 'code' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'metaKey'>): StackShortcut | null => {
+  if (!event.altKey || event.ctrlKey || event.metaKey) return null;
+  if (!event.shiftKey) {
+    const digit = /^Digit([1-3])$/.exec(event.code);
+    return digit === null ? null : { id: 'showView', index: Number(digit[1]) - 1 };
+  }
+  if (event.key === 'ArrowUp') return { id: 'moveView', delta: -1 };
+  if (event.key === 'ArrowDown') return { id: 'moveView', delta: 1 };
+  if (event.key === 'Enter') return { id: 'unstack' };
+  return null;
+};

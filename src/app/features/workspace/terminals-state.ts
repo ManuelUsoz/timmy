@@ -8,7 +8,7 @@ import { EffectRuntime } from '../../core/effect-runtime';
 import { TabId } from './tabs';
 import { addTerminal, restarted, withActivity, withExit, withScreen, withState, type TerminalEntry, type TerminalScreenSnapshot, type TerminalState } from './terminal-entries';
 
-/** Every Terminal opens in a Tab of its own for now; Panes, which put several in one Tab, come later. */
+/** A Terminal opens in a Tab of its own unless it is opened into a Pane or Stack of an existing one. */
 const newTab = (): TabId => TabId.make(crypto.randomUUID());
 
 @Injectable({ providedIn: 'root' })
@@ -20,6 +20,9 @@ export class TerminalsState {
   private readonly currentId = signal<TerminalId | undefined>(undefined);
   /** The Terminal a screen is showing now, whichever place shows it; none while no screen does. */
   private readonly shown = signal<TerminalId | undefined>(undefined);
+  /** Each restart, old id to new, so a Tab's layout keeps the restarted Terminal in its place. For this app run only. */
+  private readonly restartedIds = signal<ReadonlyMap<TerminalId, TerminalId>>(new Map());
+  readonly restarts = this.restartedIds.asReadonly();
   /** The Terminal the user is on, in the Workspace or the Panel: the one picked last, else the newest. Undefined when there are none. */
   readonly current = computed((): TerminalEntry | undefined => this.all().find((entry) => entry.id === this.currentId()) ?? this.all().at(-1));
 
@@ -51,7 +54,7 @@ export class TerminalsState {
   }
 
   /** Opens a shell in the folder; with a Provider, that Provider's CLI runs in it. */
-  async createLive(projectId: ProjectId, cwd: string, provider?: Provider): Promise<TerminalEntry | undefined> {
+  async createLive(projectId: ProjectId, cwd: string, provider?: Provider, tabId: TabId = newTab()): Promise<TerminalEntry | undefined> {
     const result = await this.runtime.run(
       Effect.gen(function* () {
         const desktop = yield* DesktopApi;
@@ -59,15 +62,15 @@ export class TerminalsState {
       }),
     );
     if (result._tag === 'Failure') return undefined;
-    const entry = addTerminal(this.all(), projectId, newTab(), result.value.terminalId, provider).at(-1)!;
+    const entry = addTerminal(this.all(), projectId, tabId, result.value.terminalId, provider).at(-1)!;
     this.all.update((entries) => pipe(withState([...entries, entry], entry.id, 'Live'), (next) => withActivity(next, this.reported)));
     this.currentId.set(entry.id);
     return { ...entry, state: 'Live' };
   }
 
-  create(projectId: ProjectId): TerminalEntry {
+  create(projectId: ProjectId, tabId: TabId = newTab()): TerminalEntry {
     const id = TerminalId.make(crypto.randomUUID());
-    const entry = addTerminal(this.all(), projectId, newTab(), id).at(-1)!;
+    const entry = addTerminal(this.all(), projectId, tabId, id).at(-1)!;
     this.all.update((entries) => [...entries, entry]);
     return entry;
   }
@@ -119,6 +122,7 @@ export class TerminalsState {
     );
     if (result._tag === 'Failure') return undefined;
     this.all.update((entries) => pipe(restarted(entries, id, result.value.terminalId), (next) => withActivity(next, this.reported)));
+    this.restartedIds.update((ids) => new Map(ids).set(id, result.value.terminalId));
     if (this.currentId() === id) this.currentId.set(result.value.terminalId);
     return this.find(result.value.terminalId);
   }

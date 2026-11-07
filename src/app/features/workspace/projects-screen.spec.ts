@@ -1,8 +1,14 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
+import { Effect, Layer, Stream } from 'effect';
+import { TerminalId } from '../../../shared/terminal/terminal.model';
+import { TerminalRpcs } from '../../../shared/terminal/terminal.rpc';
+import { makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { I18n } from '../../core/i18n';
-import { fakeRuntime, makeBackend, project, type FakeBackend } from './projects-fakes';
+import { fakeRuntime, layerFakeBackend, makeBackend, project, type FakeBackend } from './projects-fakes';
+import { panesOf, split } from './pane-layout';
+import { TabsState } from './tabs-state';
 import { TerminalsState } from './terminals-state';
 import { WorkspaceComponent } from './workspace';
 import { WorkspaceLayoutState } from './workspace-layout';
@@ -106,14 +112,14 @@ describe('Projects screen', () => {
     it('opens the project used last', async () => {
       const { router, el } = await setup({ backend: makeBackend({ projects: [ascua, timmy] }) });
       expect(router.url).toBe('/projects/p-timmy');
-      expect(el.querySelector('app-project-content h2')?.textContent).toBe('timmy');
+      expect(el.querySelector('app-tab-bar nav')?.getAttribute('aria-label')).toBe('Pestañas de timmy');
       expect(el.querySelector('app-project-list as-list-row[aria-current=true] .as-row__title')?.textContent?.trim()).toBe('timmy');
     });
 
     it('stays on the list with nothing open when no project was ever used', async () => {
       const { router, el } = await setup({ backend: makeBackend({ projects: [project('timmy')] }) });
       expect(router.url).toBe('/projects');
-      expect(el.querySelector('app-project-content')).toBeNull();
+      expect(el.querySelector('app-tab-bar')).toBeNull();
       expect(el.querySelector('app-workspace-hero h2')?.textContent).toBe('Elige un proyecto');
     });
 
@@ -132,21 +138,20 @@ describe('Projects screen', () => {
 
   describe('terminals of a project', () => {
     const textOf = (el: HTMLElement, selector: string) => Array.from(el.querySelectorAll(selector)).map((node) => node.textContent?.trim());
-    const terminalGroup = (el: HTMLElement) => el.querySelector<HTMLElement>('app-project-content section[aria-label="Terminales"]')!;
+    const tabNames = (el: HTMLElement) => textOf(el, 'app-tab-bar .tab-button .name');
 
-    it('shows the Terminals and the files of the project, and nothing else', async () => {
+    it('has no project content column: the stage takes the whole card', async () => {
       const { el } = await setup({ backend: makeBackend({ projects: [timmy] }) });
-      const groups = Array.from(el.querySelectorAll('app-project-content section.group')).map((group) => group.getAttribute('aria-label'));
-      expect(groups).toEqual(['Terminales', 'Archivos']);
+      expect(el.querySelector('app-project-content')).toBeNull();
+      expect(Array.from(el.querySelectorAll('.card > section')).map((section) => section.className)).toEqual(['stage']);
     });
 
-    it('says there are no terminals, with a "Nueva terminal" button in the list, and no counter', async () => {
+    it('shows the Tab bar with its tools before the first Tab, beside the New Tab action', async () => {
       const { el } = await setup({ backend: makeBackend({ projects: [timmy] }) });
-      const group = terminalGroup(el);
-      expect(group.querySelector('.empty-title')?.textContent).toBe('Aún no hay terminales');
-      expect(group.querySelector('.empty small')?.textContent).toBe('Se abren en la carpeta del proyecto.');
-      expect(group.querySelector('ui-tag')).toBeNull();
-      expect(textOf(group, '.empty button')).toEqual(['Nueva terminal']);
+      expect(tabNames(el)).toEqual([]);
+      expect(el.querySelector('app-tab-bar nav')?.getAttribute('aria-label')).toBe('Pestañas de timmy');
+      expect(el.querySelectorAll('app-tab-bar .tool')).toHaveLength(5);
+      expect(el.querySelector('.no-tabs button')?.textContent).toContain('Nueva pestaña');
     });
 
     it('opens the first terminal from the New Tab action of the main area', async () => {
@@ -154,12 +159,12 @@ describe('Projects screen', () => {
       el.querySelector<HTMLButtonElement>('.no-tabs button')!.click();
       await settle();
       expect(router.url).toMatch(/^\/projects\/p-timmy\/terminals\/.+/);
-      expect(textOf(terminalGroup(el), 'as-list-row .as-row__title')).toEqual(['Terminal 1']);
+      expect(tabNames(el)).toEqual(['Terminal 1']);
     });
 
     it('asks to pick a terminal when the project has some but none is open', async () => {
       const { el, router, click, settle } = await setup({ backend: makeBackend({ projects: [timmy] }) });
-      await click('Nueva terminal');
+      await click('Nueva pestaña');
       await router.navigate(['/projects', timmy.projectId]);
       await settle();
       expect(el.querySelector('app-workspace-hero h2')?.textContent).toBe('Elige una terminal');
@@ -168,78 +173,138 @@ describe('Projects screen', () => {
     it('creates a local terminal in the project and opens it at its own route, with a counter and its state', async () => {
       const { el, router, click, backend } = await setup({ backend: makeBackend({ projects: [timmy] }) });
       const calls = [...backend.calls];
-      await click('Nueva terminal');
+      await click('Nueva pestaña');
       expect(router.url).toMatch(/^\/projects\/p-timmy\/terminals\/.+/);
-      const group = terminalGroup(el);
-      expect(textOf(group, 'as-list-row .as-row__title')).toEqual(['Terminal 1']);
-      expect(textOf(group, 'as-list-row ui-state')).toEqual(['Idle']);
-      expect(group.querySelector('ui-tag')?.textContent?.trim()).toBe('1');
-      expect(group.querySelector('as-list-row')?.getAttribute('aria-current')).toBe('true');
-      expect(el.querySelector('app-terminal-screen h1')?.textContent).toBe('Terminal 1');
+      expect(tabNames(el)).toEqual(['Terminal 1']);
+      expect(el.querySelector('app-tab-bar .tab-button')?.getAttribute('aria-current')).toBe('page');
+      expect(el.querySelector('app-pane-stack .view-header.act .name')?.textContent).toBe('Terminal 1');
       // Nothing about terminals goes to main.
       expect(backend.calls).toEqual(calls);
     });
 
-    it('adds a second terminal with the "+" of the group, and switches between them', async () => {
+    it('adds a second terminal with the "+" of the Tab bar, and switches between them', async () => {
       const { el, router, click, settle } = await setup({ backend: makeBackend({ projects: [timmy] }) });
-      await click('Nueva terminal');
-      await click('Nueva terminal');
-      const rows = () => Array.from(terminalGroup(el).querySelectorAll<HTMLElement>('as-list-row'));
-      expect(rows().map((row) => row.querySelector('.as-row__title')?.textContent)).toEqual(['Terminal 1', 'Terminal 2']);
-      expect(terminalGroup(el).querySelector('ui-tag')?.textContent?.trim()).toBe('2');
+      await click('Nueva pestaña');
+      await click('Nueva pestaña');
+      expect(tabNames(el)).toEqual(['Terminal 1', 'Terminal 2']);
       const second = router.url;
-      rows()[0].click();
+      el.querySelector<HTMLButtonElement>('app-tab-bar .tab-button')!.click();
       await settle();
       expect(router.url).not.toBe(second);
-      expect(el.querySelector('app-terminal-screen h1')?.textContent).toBe('Terminal 1');
+      expect(el.querySelector('app-pane-stack .view-header.act .name')?.textContent).toBe('Terminal 1');
     });
 
     it('keeps the terminals of each project apart', async () => {
       const { el, click, projectRow, settle } = await setup({ backend: makeBackend({ projects: [timmy, ascua] }) });
-      await click('Nueva terminal');
+      await click('Nueva pestaña');
       projectRow('ascua')!.click();
       await settle();
-      expect(terminalGroup(el).querySelector('.empty-title')?.textContent).toBe('Aún no hay terminales');
+      expect(tabNames(el)).toEqual([]);
+      expect(el.querySelector('.no-tabs')).not.toBeNull();
     });
 
-    it('shows the terminal screen with its header, output and status bar', async () => {
+    it('shows the Terminal in a Pane: its name and state in the Pane header, its output below', async () => {
       const { el, click } = await setup({ backend: makeBackend({ projects: [timmy] }) });
-      await click('Nueva terminal');
-      const screen = el.querySelector('app-terminal-screen')!;
-      expect(screen.querySelector('header ui-state')?.textContent?.trim()).toBe('Idle');
-      expect(screen.querySelector('.cwd')?.textContent).toBe('/work/timmy');
+      await click('Nueva pestaña');
+      expect(el.querySelectorAll('app-pane-grid app-pane-stack')).toHaveLength(1);
+      expect(el.querySelector('app-pane-stack .view-header.act ui-state')?.textContent?.trim()).toBe('Idle');
+      const screen = el.querySelector('app-pane-stack app-terminal-screen')!;
       expect(screen.querySelector('.output')?.textContent).toContain('…/timmy');
-      expect(screen.querySelector('footer')?.textContent).toContain('Sin proceso activo');
+      // The Pane header stands for the Terminal's own: one header per View, not two.
+      expect(screen.querySelector('header')).toBeNull();
       expect(screen.querySelector('[role=alert]')).toBeNull();
-      expect(Array.from(screen.querySelectorAll('button')).every((button) => button.disabled)).toBe(true);
     });
 
     it('shows the failure screen, not a toast, when the terminal failed', async () => {
       const { el, click, settle, toastTexts } = await setup({ backend: makeBackend({ projects: [timmy] }) });
-      await click('Nueva terminal');
+      await click('Nueva pestaña');
       const terminals = TestBed.inject(TerminalsState);
       terminals.setState(terminals.entries()[0].id, 'Error');
       await settle();
       const screen = el.querySelector('app-terminal-screen')!;
-      expect(screen.querySelector('header ui-state')?.textContent?.trim()).toBe('Error');
+      expect(el.querySelector('app-pane-stack .view-header.act ui-state')?.textContent?.trim()).toBe('Error');
       expect(screen.querySelector('[role=alert]')?.textContent).toContain('El proceso terminó con código 1.');
       expect(screen.querySelector('[role=alert]')?.textContent).toContain('Revisa la salida de abajo o reinicia la terminal.');
       expect(screen.querySelector('.output')?.textContent).toContain('FAILED');
-      expect(screen.querySelector('footer')?.textContent).toContain('Sin proceso activo');
-      expect(textOf(terminalGroup(el), 'as-list-row .as-row__sub')).toEqual(['terminó con código 1']);
       expect(toastTexts()).toEqual([]);
     });
 
-    it('shows a Live terminal with its output and a "Detener" button', async () => {
+    it('shows a Live terminal by what it is doing in its Pane header, as the sidebar does', async () => {
       const { el, click, settle } = await setup({ backend: makeBackend({ projects: [timmy] }) });
-      await click('Nueva terminal');
+      await click('Nueva pestaña');
       const terminals = TestBed.inject(TerminalsState);
       terminals.setState(terminals.entries()[0].id, 'Live');
       await settle();
-      const screen = el.querySelector<HTMLElement>('app-terminal-screen')!;
-      expect(screen.querySelector('header ui-state')?.textContent?.trim()).toBe('Live');
-      expect(textOf(screen, 'header button')).toContain('Detener');
-      expect(screen.querySelector('footer')?.textContent).toContain('120×34');
+      // A live shell with no output going on is at rest.
+      expect(el.querySelector('app-pane-stack .view-header.act ui-state')?.textContent?.trim()).toBe('En reposo');
+    });
+
+    describe('Panes and the route', () => {
+      /** A Tab split in two: Terminal 1 left, Terminal 2 right (focused, so on the route). */
+      const splitTab = async () => {
+        const context = await setup({ backend: makeBackend({ projects: [timmy] }) });
+        await context.click('Nueva pestaña');
+        const tabs = TestBed.inject(TabsState);
+        const tab = tabs.tabsOf(timmy.projectId)[0];
+        const second = await tabs.openInTab(tab, '/work/timmy', undefined, (layout, terminal) => split(layout, layout.focused, 'right', terminal));
+        await context.settle();
+        const first = tab.terminals[0];
+        return { ...context, tabs, first, second, tab: () => tabs.tabsOf(timmy.projectId)[0] };
+      };
+
+      it('follows a split to the new Terminal, keeping one Tab with both Panes', async () => {
+        const { el, router, second } = await splitTab();
+        expect(router.url).toBe(`/projects/p-timmy/terminals/${second.id}`);
+        expect(tabNames(el)).toEqual(['Terminal 1']);
+        expect(el.querySelectorAll('app-pane-grid app-pane-stack')).toHaveLength(2);
+      });
+
+      it('follows the focused Pane when the user clicks another one', async () => {
+        const { el, router, settle, first } = await splitTab();
+        el.querySelector<HTMLElement>('app-pane-grid app-pane-stack')!.dispatchEvent(new Event('pointerdown'));
+        await settle();
+        expect(router.url).toBe(`/projects/p-timmy/terminals/${first.id}`);
+      });
+
+      it('focuses the Pane of a Terminal the route goes to from elsewhere (the sidebar, the Panel)', async () => {
+        const { router, settle, tabs, first, tab } = await splitTab();
+        await router.navigate(['/projects', timmy.projectId, 'terminals', first.id]);
+        await settle();
+        expect(tabs.layoutOf(tab())?.focused).toBe(first.id);
+        expect(router.url).toBe(`/projects/p-timmy/terminals/${first.id}`);
+      });
+
+      it('follows a restarted Terminal to its new id, in its place, instead of leaving the Tab', async () => {
+        const { router, settle, tabs, second, tab, backend } = await splitTab();
+        // Main answers restarts here: a fresh process under a new id.
+        const layer = makeDesktopTestLayer(
+          Layer.mergeAll(
+            layerFakeBackend(backend),
+            TerminalRpcs.toLayer({
+              'Terminal.create': () => Effect.succeed({ terminalId: TerminalId.make('restarted') }),
+              'Terminal.close': () => Effect.void,
+              'Terminal.output': () => Stream.empty,
+              'Terminal.activity': () => Stream.empty,
+              'Terminal.focus': () => Effect.void,
+              'Terminal.write': () => Effect.void,
+              'Terminal.resize': () => Effect.void,
+              'Terminal.show': () => Effect.void,
+            }),
+          ),
+        );
+        Object.assign(TestBed.inject(EffectRuntime), { run: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromiseExit(Effect.provide(effect as never, layer)) });
+        await TestBed.inject(TerminalsState).restart(second.id, '/work/timmy');
+        await settle();
+        expect(router.url).toBe('/projects/p-timmy/terminals/restarted');
+        expect(panesOf(tabs.layoutOf(tab())!).map((pane) => pane.views)).toEqual([[tab().terminals[0].id], [TerminalId.make('restarted')]]);
+      });
+
+      it('stays in the Tab when the Terminal on the route closes and another is left', async () => {
+        const { router, settle, tabs, first, second } = await splitTab();
+        await tabs.closeTerminals([second.id]);
+        await settle();
+        expect(router.url).toBe(`/projects/p-timmy/terminals/${first.id}`);
+      });
     });
 
     it('goes back to the project when the route names a terminal that is not there', async () => {
@@ -251,30 +316,12 @@ describe('Projects screen', () => {
 
     it('shows the terminal in English', async () => {
       const { el, click, settle } = await setup({ backend: makeBackend({ projects: [timmy] }) });
-      await click('Nueva terminal');
+      await click('Nueva pestaña');
       TestBed.inject(I18n).setLanguage('en');
       await settle();
-      const group = el.querySelector('app-project-content section[aria-label="Terminals"]')!;
-      expect(group.querySelector('.as-row__title')?.textContent).toBe('Terminal 1');
-      expect(el.querySelector('app-terminal-screen footer')?.textContent).toContain('No active process');
-    });
-  });
-
-  describe('Groups of the project', () => {
-    it('fold and unfold with a left click on their header', async () => {
-      const { el, settle } = await setup({ backend: makeBackend({ projects: [timmy] }) });
-      const group = (name: string) => el.querySelector(`app-project-content section[aria-label="${name}"]`)!;
-      const toggle = (name: string) => group(name).querySelector<HTMLButtonElement>('.toggle')!;
-      expect(toggle('Terminales').getAttribute('aria-expanded')).toBe('true');
-      expect(group('Terminales').querySelector('.empty')).not.toBeNull();
-      toggle('Terminales').click();
-      await settle();
-      expect(toggle('Terminales').getAttribute('aria-expanded')).toBe('false');
-      expect(group('Terminales').querySelector('.empty')).toBeNull();
-      expect(group('Archivos').querySelector('[role=tree]')).not.toBeNull();
-      toggle('Terminales').click();
-      await settle();
-      expect(group('Terminales').querySelector('.empty')).not.toBeNull();
+      expect(tabNames(el)).toEqual(['Terminal 1']);
+      expect(el.querySelector('app-tab-bar nav')?.getAttribute('aria-label')).toBe('Tabs of timmy');
+      expect(el.querySelector('app-pane-stack .view-header.act ui-state')?.textContent?.trim()).toBe('Idle');
     });
   });
 
@@ -391,9 +438,10 @@ describe('Projects screen', () => {
     });
   });
 
+  // Only the missing-folder state offers removing a project: the content column that also did is gone.
   describe('removing a project', () => {
     it('takes it out of the list and goes to the next one', async () => {
-      const backend = makeBackend({ projects: [timmy, ascua] });
+      const backend = makeBackend({ projects: [timmy, ascua], missing: new Set([timmy.projectId]) });
       const { router, rowTitles, click } = await setup({ backend });
       await click('Quitar proyecto');
       expect(rowTitles('app-project-list')).toEqual(['ascua']);
@@ -401,16 +449,16 @@ describe('Projects screen', () => {
     });
 
     it('tells in a toast that the project could not be removed, and keeps it in the list', async () => {
-      const { el, rowTitles, click, router, toastTexts } = await setup({ backend: makeBackend({ projects: [timmy], removeFails: true }) });
+      const { el, rowTitles, click, router, toastTexts } = await setup({ backend: makeBackend({ projects: [timmy], removeFails: true, missing: new Set([timmy.projectId]) }) });
       await click('Quitar proyecto');
       expect(toastTexts()).toEqual(['Error: No se pudo quitar el proyecto. Inténtalo de nuevo.']);
       expect(rowTitles('app-project-list')).toEqual(['timmy']);
       expect(router.url).toBe('/projects/p-timmy');
-      expect(el.querySelector('app-workspace-hero h2')?.textContent).not.toBe('Aún no tienes proyectos');
+      expect(el.querySelector('app-workspace-hero h2')?.textContent).toBe('No encontramos la carpeta');
     });
 
     it('shows the empty state after the last project is removed', async () => {
-      const { el, click } = await setup({ backend: makeBackend({ projects: [timmy] }) });
+      const { el, click } = await setup({ backend: makeBackend({ projects: [timmy], missing: new Set([timmy.projectId]) }) });
       await click('Quitar proyecto');
       expect(el.querySelector('app-workspace-hero h2')?.textContent).toBe('Aún no tienes proyectos');
     });
@@ -427,8 +475,8 @@ describe('Projects screen', () => {
       expect(hero).toEqual(['Quitar proyecto']);
       expect(buttonNamed('Localizar carpeta')).toBeUndefined();
       expect(buttonNamed('Reintentar')).toBeUndefined();
-      // The column stays for Archivos, which says the folder cannot be read; no Terminals to use.
-      expect(el.querySelector('app-project-content section[aria-label="Terminales"]')).toBeNull();
+      // No Tab bar: there is nothing to open Terminals in.
+      expect(el.querySelector('app-tab-bar')).toBeNull();
     });
 
     it('tells in a toast, once, when the folder cannot be checked, and the project stays usable', async () => {
@@ -436,7 +484,7 @@ describe('Projects screen', () => {
       expect(toastTexts()).toEqual([
         'Error: No se pudo comprobar la carpeta del proyecto. Se volverá a comprobar al volver a la ventana.',
       ]);
-      expect(el.querySelector('app-project-content')).not.toBeNull();
+      expect(el.querySelector('app-tab-bar')).not.toBeNull();
       window.dispatchEvent(new Event('focus'));
       await settle();
       expect(toastTexts()).toHaveLength(1);
@@ -445,12 +493,12 @@ describe('Projects screen', () => {
     it('checks again when the window regains focus: the folder disappears', async () => {
       const backend = makeBackend({ projects: [timmy] });
       const { el, settle } = await setup({ backend });
-      expect(el.querySelector('app-project-content')).not.toBeNull();
+      expect(el.querySelector('app-tab-bar')).not.toBeNull();
       backend.missing.add(timmy.projectId);
       window.dispatchEvent(new Event('focus'));
       await settle();
       expect(el.querySelector('app-workspace-hero h2')?.textContent).toBe('No encontramos la carpeta');
-      expect(el.querySelector('app-project-content section[aria-label="Terminales"]')).toBeNull();
+      expect(el.querySelector('app-tab-bar')).toBeNull();
     });
 
     it('checks again when the window regains focus: the folder comes back', async () => {
@@ -459,7 +507,7 @@ describe('Projects screen', () => {
       backend.missing.clear();
       window.dispatchEvent(new Event('focus'));
       await settle();
-      expect(el.querySelector('app-project-content')).not.toBeNull();
+      expect(el.querySelector('app-tab-bar')).not.toBeNull();
       expect(el.querySelector('app-workspace-hero h2')?.textContent).not.toBe('No encontramos la carpeta');
     });
 
@@ -471,84 +519,12 @@ describe('Projects screen', () => {
     });
   });
 
-  describe('Archivos and pending actions', () => {
-    const filesGroup = (el: HTMLElement) => el.querySelector<HTMLElement>('app-project-content section[aria-label="Archivos"]')!;
-    const treeLabels = (el: HTMLElement) =>
-      Array.from(filesGroup(el).querySelectorAll('[role=treeitem] .as-treeitem__label')).map((node) => node.textContent);
-
-    it('shows the Archivos group with the static tree, its modified mark and a dimmed node_modules', async () => {
-      const { el } = await setup({ backend: makeBackend({ projects: [timmy] }) });
-      const group = filesGroup(el);
-      expect(group.querySelector('.label')?.textContent).toBe('Archivos');
-      expect(group.querySelector('[role=tree]')?.getAttribute('aria-label')).toBe('Archivos del proyecto');
-      expect(treeLabels(el)).toEqual(['src', 'app', 'core', 'features', 'electron', 'node_modules', 'CLAUDE.md', 'package.json']);
-      expect(group.querySelector('.as-treeitem__flag')?.getAttribute('aria-label')).toBe('Modificado');
-      const dimmed = Array.from(group.querySelectorAll('[data-dimmed] .as-treeitem__label')).map((node) => node.textContent);
-      expect(dimmed).toEqual(['node_modules']);
-    });
-
-    it('expands and collapses folders as pure UI, with no call to main', async () => {
-      const backend = makeBackend({ projects: [timmy] });
-      const { el, settle } = await setup({ backend });
-      const calls = [...backend.calls];
-      const folder = (name: string) =>
-        Array.from(filesGroup(el).querySelectorAll<HTMLElement>('[role=treeitem]')).find((i) => i.querySelector('.as-treeitem__label')?.textContent === name)!;
-      folder('electron').click();
-      await settle();
-      expect(treeLabels(el)).toContain('main.ts');
-      folder('src').click();
-      await settle();
-      expect(treeLabels(el)).toEqual(['src', 'electron', 'main.ts', 'node_modules', 'CLAUDE.md', 'package.json']);
-      expect(backend.calls).toEqual(calls);
-    });
-
-    it('collapses and expands the whole group with its header button', async () => {
-      const { el, click } = await setup({ backend: makeBackend({ projects: [timmy] }) });
-      await click('Contraer Archivos');
-      expect(filesGroup(el).querySelector('[role=tree]')).toBeNull();
-      expect(filesGroup(el).querySelector('button')?.getAttribute('aria-expanded')).toBe('false');
-      await click('Expandir Archivos');
-      expect(filesGroup(el).querySelector('[role=tree]')).not.toBeNull();
-    });
-
-    it('has the pending buttons enabled to the keyboard, named, and with no effect when pressed', async () => {
-      const backend = makeBackend({ projects: [timmy] });
-      const { el, router, settle, toastTexts } = await setup({ backend });
-      const calls = [...backend.calls];
-      const url = router.url;
-      const pending = ['Abrir en el explorador', 'Buscar archivo'].map((name) => {
-        const button = Array.from(el.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.getAttribute('aria-label') === name);
-        expect(button, name).toBeDefined();
-        expect(button!.disabled, name).toBe(false);
-        expect(button!.getAttribute('aria-disabled'), name).toBe('true');
-        expect(button!.tabIndex, name).toBe(0);
-        return button!;
-      });
-      const html = el.innerHTML;
-      pending.forEach((button) => button.click());
-      await settle();
-      expect(el.innerHTML).toBe(html);
-      expect(router.url).toBe(url);
-      expect(backend.calls).toEqual(calls);
-      expect(toastTexts()).toEqual([]);
-    });
-
-    it('says the folder cannot be read in Archivos when the folder is missing, without tree or search', async () => {
-      const { el } = await setup({ backend: makeBackend({ projects: [timmy], missing: new Set([timmy.projectId]) }) });
-      const group = filesGroup(el);
-      expect(group.querySelector('.empty-title')?.textContent).toBe('No se puede leer la carpeta');
-      expect(group.querySelector('.empty small')?.textContent).toBe('Los archivos volverán cuando la carpeta esté disponible.');
-      expect(group.querySelector('[role=tree]')).toBeNull();
-      expect(group.querySelector('[aria-label="Buscar archivo"]')).toBeNull();
-    });
-  });
-
   describe('language', () => {
     it('shows the new strings in English', async () => {
       const { el, settle } = await setup({ backend: makeBackend({ projects: [timmy] }) });
       TestBed.inject(I18n).setLanguage('en');
       await settle();
-      expect(el.querySelector('app-project-content .empty-title')?.textContent).toBe('No terminals yet');
+      expect(el.querySelector('.no-tabs button')?.textContent).toContain('New tab');
       expect(el.querySelector('app-project-list input')?.getAttribute('placeholder')).toBe('Search projects');
     });
 

@@ -110,8 +110,8 @@ test.describe('Terminal state from the Claude Code Hook', () => {
       await dialog.getByRole('button', { name: 'Create project' }).click();
       await expect(page.locator('app-project-list .as-row__title')).toContainText('demo-project', { timeout: 10_000 });
       // A Provider is enabled, so New terminal asks which; the Hook is posted by hand into a plain shell.
-      await page.getByRole('region', { name: 'Terminals' }).getByRole('button', { name: 'New terminal' }).click();
-      await page.getByRole('listbox', { name: 'New terminal' }).getByRole('option', { name: 'Shell' }).click();
+      await page.getByRole('navigation', { name: /^Tabs of / }).getByRole('button', { name: 'New tab' }).click();
+      await page.getByRole('listbox', { name: 'New tab' }).getByRole('option', { name: 'Shell' }).click();
       await expect(page.locator('.xterm-screen')).toContainText('PS ', { timeout: 15_000 });
       const badge = timmy.activity(0);
       await expect(badge).toHaveAttribute('data-activity', 'Idle', { timeout: 15_000 });

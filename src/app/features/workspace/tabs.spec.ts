@@ -1,4 +1,5 @@
 import { ProjectId } from '../../../shared/projects/projects.model';
+import { PaneId, addToStack, focusPane, showView, singlePane, split } from './pane-layout';
 import { TerminalId, type TerminalEntry } from './terminal-entries';
 import { TabId, closeNeedsConfirm, neighbourOf, tabDot, tabPath, tabsOf } from './tabs';
 
@@ -50,6 +51,13 @@ describe('Tabs', () => {
     it('shows a Tab at its first Terminal\'s route', () => {
       const [tab] = tabsOf([terminal('a', 't1'), terminal('d', 't1')], timmy, new Map());
       expect(tabPath(tab)).toEqual(['/projects', 'p-timmy', 'terminals', 'a']);
+    });
+
+    it('shows a Tab with a layout at its focused Pane\'s expanded View', () => {
+      const [tab] = tabsOf([terminal('a', 't1'), terminal('d', 't1'), terminal('e', 't1')], timmy, new Map());
+      const layout = addToStack(split(singlePane(TerminalId.make('a')), PaneId.make('a'), 'right', TerminalId.make('d')), PaneId.make('d'), TerminalId.make('e'));
+      expect(tabPath(tab, showView(layout, PaneId.make('d'), 0))).toEqual(['/projects', 'p-timmy', 'terminals', 'd']);
+      expect(tabPath(tab, focusPane(layout, PaneId.make('a')))).toEqual(['/projects', 'p-timmy', 'terminals', 'a']);
     });
   });
 

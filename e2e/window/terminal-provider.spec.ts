@@ -7,10 +7,9 @@ test.describe('New terminal with a Provider picker', () => {
     const { page } = timmy;
     await timmy.addDemoProject();
 
-    const terminals = page.getByRole('region', { name: 'Terminals' });
-    await terminals.getByRole('button', { name: 'New terminal' }).click();
+    await page.getByRole('navigation', { name: /^Tabs of / }).getByRole('button', { name: 'New tab' }).click();
 
-    const picker = page.getByRole('listbox', { name: 'New terminal' });
+    const picker = page.getByRole('listbox', { name: 'New tab' });
     const entries = picker.getByRole('option');
     await expect(entries).toHaveCount(2);
     await expect(entries.nth(0)).toHaveText('Shell');
@@ -35,8 +34,8 @@ test.describe('New terminal with a Provider picker', () => {
     const { page } = timmy;
     await timmy.addDemoProject();
 
-    await page.getByRole('region', { name: 'Terminals' }).getByRole('button', { name: 'New terminal' }).click();
-    await page.getByRole('listbox', { name: 'New terminal' }).getByRole('option', { name: 'Shell' }).click();
+    await page.getByRole('navigation', { name: /^Tabs of / }).getByRole('button', { name: 'New tab' }).click();
+    await page.getByRole('listbox', { name: 'New tab' }).getByRole('option', { name: 'Shell' }).click();
 
     const screen = page.locator('.xterm-screen');
     await expect(screen).toContainText('PS ', { timeout: 15_000 });
@@ -46,13 +45,12 @@ test.describe('New terminal with a Provider picker', () => {
   test('the picker of the header "+" opens inside the window once a Terminal exists', async ({ timmy }) => {
     const { page } = timmy;
     await timmy.addDemoProject();
-    const terminals = page.getByRole('region', { name: 'Terminals' });
-    await terminals.getByRole('button', { name: 'New terminal' }).click();
-    await page.getByRole('listbox', { name: 'New terminal' }).getByRole('option', { name: 'Shell' }).click();
+    await page.getByRole('navigation', { name: /^Tabs of / }).getByRole('button', { name: 'New tab' }).click();
+    await page.getByRole('listbox', { name: 'New tab' }).getByRole('option', { name: 'Shell' }).click();
     await expect(page.locator('.xterm-screen')).toContainText('PS ', { timeout: 15_000 });
 
-    await terminals.getByRole('button', { name: 'New terminal' }).click();
-    const picker = page.getByRole('listbox', { name: 'New terminal' });
+    await page.getByRole('navigation', { name: /^Tabs of / }).getByRole('button', { name: 'New tab' }).click();
+    const picker = page.getByRole('listbox', { name: 'New tab' });
     await expect(picker.getByRole('option')).toHaveCount(2);
     const box = await picker.boundingBox();
     expect(box!.x, 'menu is not clipped on the left').toBeGreaterThanOrEqual(0);
