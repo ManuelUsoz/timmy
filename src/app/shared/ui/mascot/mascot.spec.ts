@@ -1,5 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import type { TerminalStatus } from '../../../../shared/notification/notification.model';
 import { afterEach, vi } from 'vitest';
 import { CursorState } from '../../../core/cursor-state';
@@ -8,6 +9,7 @@ import { PageVisibility } from '../../../core/page-visibility';
 import { ReducedMotion } from '../../../core/reduced-motion';
 import { MASCOT_CLOCK } from './mascot-clock';
 import { HOP_FOR } from './mascot-hops';
+import { STROKE_FOR } from './mascot-rally';
 import { MascotComponent } from './mascot';
 
 @Component({
@@ -450,6 +452,177 @@ describe('MascotComponent', () => {
         expect(el.classList.contains('blinking')).toBe(true);
         await pass(1000);
         expect(el.style.getPropertyValue('--gaze-x')).toBe('-4');
+      });
+    });
+  });
+
+  describe('tennis rally', () => {
+    const stroke = (el: HTMLElement) => el.getAttribute('data-rally');
+    const racket = (el: HTMLElement) => el.querySelector('.racket');
+    const ball = (el: HTMLElement) => el.querySelector('.ball');
+
+    it('starts a rally after 30 s at the soonest while Idle, with a racket and a ball', async () => {
+      clock.chance = 0;
+      const el = await render({ status: 'Idle' });
+      await pass(29_999);
+      expect(stroke(el)).toBeNull();
+      expect(racket(el)).toBeNull();
+      expect(ball(el)).toBeNull();
+      await pass(1);
+      expect(stroke(el)).not.toBeNull();
+      expect(racket(el)).not.toBeNull();
+      expect(ball(el)).not.toBeNull();
+    });
+
+    it('starts a rally after 60 s at the latest', async () => {
+      clock.chance = 0.99999;
+      const el = await render({ status: 'Idle' });
+      await pass(59_999);
+      expect(stroke(el)).toBeNull();
+      await pass(1);
+      expect(stroke(el)).not.toBeNull();
+    });
+
+    it('plays 2 strokes, forehand then backhand, then puts the racket and ball away', async () => {
+      clock.chance = 0;
+      const el = await render({ status: 'Idle' });
+      await pass(30_000);
+      expect(stroke(el)).toBe('forehand');
+      await pass(STROKE_FOR);
+      expect(stroke(el)).toBe('backhand');
+      await pass(STROKE_FOR);
+      expect(stroke(el)).toBeNull();
+      expect(racket(el)).toBeNull();
+      expect(ball(el)).toBeNull();
+    });
+
+    it('plays 3 strokes, about 3 s, alternating sides when the draw says so', async () => {
+      clock.chance = 0.9999;
+      const el = await render({ status: 'Idle' });
+      await pass(60_000);
+      const strokes = [stroke(el)];
+      await pass(STROKE_FOR);
+      strokes.push(stroke(el));
+      await pass(STROKE_FOR);
+      strokes.push(stroke(el));
+      expect(strokes).toEqual(['backhand', 'forehand', 'backhand']);
+      await pass(STROKE_FOR);
+      expect(stroke(el)).toBeNull();
+    });
+
+    it('holds a stroke as long as the clock does not move, so a frame can be frozen', async () => {
+      clock.chance = 0;
+      const el = await render({ status: 'Idle' });
+      await pass(30_000 + STROKE_FOR / 2);
+      expect(stroke(el)).toBe('forehand');
+      await pass(0);
+      expect(stroke(el)).toBe('forehand');
+      expect(racket(el)).not.toBeNull();
+    });
+
+    it('plays again 30-60 s after the rally ends', async () => {
+      clock.chance = 0;
+      const el = await render({ status: 'Idle' });
+      await pass(30_000);
+      await pass(2 * STROKE_FOR);
+      expect(stroke(el)).toBeNull();
+      await pass(29_999);
+      expect(stroke(el)).toBeNull();
+      await pass(1);
+      expect(stroke(el)).toBe('forehand');
+    });
+
+    it('waits the full 30-60 s again after a rally played on demand', async () => {
+      clock.chance = 0;
+      const el = await render({ status: 'Idle' });
+      await pass(29_000);
+      (shown.debugElement.query(By.directive(MascotComponent)).componentInstance as MascotComponent).playRally();
+      await pass(2 * STROKE_FOR);
+      expect(stroke(el)).toBeNull();
+      await pass(29_999);
+      expect(stroke(el)).toBeNull();
+      await pass(1);
+      expect(stroke(el)).toBe('forehand');
+    });
+
+    it('keeps the body in its status color', async () => {
+      clock.chance = 0;
+      const el = await render({ status: 'Idle' });
+      await pass(30_000);
+      expect(el.style.getPropertyValue('--tone')).toBe('var(--support-idle)');
+    });
+
+    it('follows the ball with its eyes, to the side of each stroke', async () => {
+      clock.chance = 0;
+      const el = await render({ status: 'Idle' });
+      await pass(30_000);
+      expect(el.style.getPropertyValue('--gaze-x')).toBe('4');
+      await pass(STROKE_FOR);
+      expect(el.style.getPropertyValue('--gaze-x')).toBe('-4');
+      await pass(STROKE_FOR);
+      expect(el.style.getPropertyValue('--gaze-x')).toBe('0');
+    });
+
+    it.each(['Working', 'Waiting', 'Done', 'Error'] as const)('never plays while %s', async (status) => {
+      clock.chance = 0;
+      const el = await render({ status });
+      for (let t = 0; t < 120; t++) {
+        await pass(1000);
+        expect(stroke(el)).toBeNull();
+        expect(racket(el)).toBeNull();
+      }
+    });
+
+    it('ends the game at once when the status changes mid-rally, and the new status moves', async () => {
+      clock.chance = 0;
+      const el = await render({ status: 'Idle' });
+      await pass(30_000);
+      expect(stroke(el)).toBe('forehand');
+      await turn('Waiting');
+      await pass(0);
+      expect(stroke(el)).toBeNull();
+      expect(racket(el)).toBeNull();
+      expect(ball(el)).toBeNull();
+      expect(el.getAttribute('data-hop')).toBe('double');
+    });
+
+    it('does not play while the page is hidden, and ends a rally when it hides', async () => {
+      clock.chance = 0;
+      const el = await render({ status: 'Idle' });
+      await pass(30_000);
+      visible.set(false);
+      await pass(0);
+      expect(stroke(el)).toBeNull();
+      await pass(120_000);
+      expect(stroke(el)).toBeNull();
+    });
+
+    it('plays on demand only where it could play on its own', async () => {
+      const mascot = () => shown.debugElement.query(By.directive(MascotComponent)).componentInstance as MascotComponent;
+      const working = await render({ status: 'Working' });
+      mascot().playRally();
+      await pass(0);
+      expect(stroke(working)).toBeNull();
+
+      const idle = await render({ status: 'Idle' });
+      mascot().playRally();
+      await pass(0);
+      expect(stroke(idle)).not.toBeNull();
+    });
+
+    describe('under reduced motion', () => {
+      afterEach(() => reduced.set(false));
+
+      it('never shows the game, not even a still racket', async () => {
+        reduced.set(true);
+        clock.chance = 0;
+        const el = await render({ status: 'Idle' });
+        for (let t = 0; t < 120; t++) {
+          await pass(1000);
+          expect(stroke(el)).toBeNull();
+          expect(racket(el)).toBeNull();
+          expect(ball(el)).toBeNull();
+        }
       });
     });
   });

@@ -48,7 +48,7 @@ _Avoid_: state.
 A Done or Error Terminal the user has viewed: its content was on screen (Panel or Expanded) when it was already Done or Error, or it became so while on screen. Selecting a Terminal while in Pill does not make it Seen. A Seen Terminal counts as Idle for the Mascot. Working and Waiting are never Seen, and a restarted Terminal starts unseen.
 
 **Mascot**
-Timmy's icon, shown large in Pill and Panel. It shows the highest-priority Terminal status across all Projects (Waiting, then Error, Working, Done, Idle) as its color, looks at the cursor wherever it is on screen, and stays subtly alive. It is a Subscriber: it is always on and is not a Channel.
+Timmy's icon, shown large in Pill and Panel. It shows the highest-priority Terminal status across all Projects (Waiting, then Error, Working, Done, Idle) as its color, looks at the cursor wherever it is on screen, and stays subtly alive. When Idle it now and then plays tennis: a racket floats beside it, with no hands, and the body keeps its status color. It rallies against an unseen opponent, its eyes follow the ball, and any other status ends the game at once. It is a Subscriber: it is always on and is not a Channel.
 
 **Notification**
 A Source entering a status. It carries the Source and its type. A new Subscriber receives the latest Notification of every Source that still exists, so what a Subscriber shows never depends on having been listening at the moment. It is never the result of an action of the user.

@@ -35,7 +35,7 @@ svg * {
   transition: fill 300ms ease-in-out;
 }
 
-/* The body moves only by hopping (data-hop, played by the component for HOP_FOR in mascot-hops.ts), and in Waiting by a slow pulse. */
+/* The body moves only by hopping (data-hop, played by the component for HOP_FOR in mascot-hops.ts), in Waiting by a slow pulse, and in Idle by the tennis rally below. */
 :host([data-status='Waiting']) .b {
   animation: as-mascot-pulse 3.2s ease-in-out infinite;
 }
@@ -58,6 +58,66 @@ svg * {
 }
 :host([data-hop='double']) .b {
   animation: as-mascot-double-hop 900ms ease-in-out;
+}
+
+/*
+ * The tennis rally, only while Idle (data-rally; each stroke lasts --stroke-for, STROKE_FOR in mascot-rally.ts): the only
+ * other motion of the whole body. The court is drawn for a forehand on the viewer's right and mirrored about the drawing's
+ * center for a backhand. The ball comes in from the unseen opponent, meets the racket at mid-stroke and leaves the frame
+ * again, fading as it crosses the edge so it never paints over the UI around the Mascot. Every animation ends with the
+ * racket and ball gone, so a screenshot with animations jumped to their end shows no court.
+ */
+.court {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+}
+:host([data-rally='backhand']) .court {
+  transform: scaleX(-1);
+}
+.racket {
+  transform-origin: 50% 100%;
+  animation: as-mascot-swing var(--stroke-for) ease-in-out both;
+}
+.ball {
+  animation: as-mascot-ball var(--stroke-for) linear both;
+}
+:host([data-rally='forehand']) .b {
+  animation: as-mascot-lean-right var(--stroke-for) ease-in-out;
+}
+:host([data-rally='backhand']) .b {
+  animation: as-mascot-lean-left var(--stroke-for) ease-in-out;
+}
+
+/* Small angles around the handle, so the head stays near the box. */
+@keyframes as-mascot-swing {
+  0% { transform: translateY(2px) rotate(-15deg); opacity: 0; }
+  12% { opacity: 1; }
+  40% { transform: translateY(0) rotate(-22deg); }
+  50% { transform: translateY(-1px) rotate(12deg); }
+  70% { transform: translateY(0) rotate(16deg); }
+  88% { opacity: 1; }
+  100% { transform: translateY(2px) rotate(-10deg); opacity: 0; }
+}
+/* From the ball's hit point by the racket (118, 54): in from beyond the top-right edge of the 128-unit box and out again. */
+@keyframes as-mascot-ball {
+  0% { transform: translate(18px, -64px); opacity: 0; }
+  15% { opacity: 1; }
+  50% { transform: translate(0, 0); }
+  85% { opacity: 1; }
+  100% { transform: translate(20px, -70px); opacity: 0; }
+}
+/* Leans toward the ball and hops a little as it hits. */
+@keyframes as-mascot-lean-right {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  35% { transform: translate(3%, 0) rotate(4deg); }
+  50% { transform: translate(4%, -4%) rotate(6deg); }
+  70% { transform: translate(2%, 0) rotate(2deg); }
+}
+@keyframes as-mascot-lean-left {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  35% { transform: translate(-3%, 0) rotate(-4deg); }
+  50% { transform: translate(-4%, -4%) rotate(-6deg); }
+  70% { transform: translate(-2%, 0) rotate(-2deg); }
 }
 
 /* About 6% of its height, then a slight squash as it lands. */
@@ -101,5 +161,9 @@ svg * {
   }
   .body {
     transition: none;
+  }
+  /* The component never starts a rally under reduced motion; this keeps even a still racket off screen. */
+  .court {
+    display: none;
   }
 }

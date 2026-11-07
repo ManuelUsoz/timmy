@@ -242,12 +242,13 @@
       </figure>
     }
   </div>
-  <h3>motion: turn it to a status to see its entry hop, then wait for its hops (Waiting double-hops, then pulses)</h3>
+  <h3>motion: turn it to a status to see its entry hop, then wait for its hops (Waiting double-hops, then pulses); in Idle, Rally plays tennis now</h3>
   <div class="row" data-testid="mascot-motion" style="align-items: center">
-    <ui-mascot [status]="motionStatus()" [size]="72" [label]="motionStatus()" />
+    <ui-mascot #motionMascot [status]="motionStatus()" [size]="72" [label]="motionStatus()" />
     @for (status of mascotStatuses; track status) {
       <button uiButton [kind]="status === motionStatus() ? 'primary' : 'secondary'" type="button" (click)="motionStatus.set(status)">{{ status }}</button>
     }
+    <button uiButton kind="secondary" type="button" (click)="motionMascot.playRally()">Rally</button>
   </div>
   <h3>in the Pill</h3>
   <div class="row" style="flex-direction: column; align-items: stretch; width: 440px">
