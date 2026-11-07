@@ -208,6 +208,7 @@ describe('SettingsDialog: Shortcuts', () => {
           { action: 'Abrir o cerrar Ajustes', keys: ['Ctrl', ','] },
           { action: 'Nueva pestaña', keys: ['Ctrl', 'T'] },
           { action: 'Ir a la pestaña con ese número', keys: ['Ctrl', '1–9'] },
+          { action: 'Cambiar de pestaña o proyecto (soltar Ctrl confirma)', keys: ['Ctrl', 'Tab'] },
           { action: 'Cerrar Ajustes o un diálogo', keys: ['Esc'] },
         ],
       },

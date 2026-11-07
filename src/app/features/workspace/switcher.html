@@ -1,0 +1,70 @@
+<div class="backdrop" aria-hidden="true" (click)="state.close()"></div>
+<div class="dialog" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('switcher.label')" (pointerdown)="state.stick()">
+  <div class="head">
+    <h2>{{ i18n.t('switcher.title') }}</h2>
+    <label class="search">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4" /><path d="M10 10l3.5 3.5" /></svg>
+      <input
+        #field
+        type="search"
+        [value]="state.query()"
+        [placeholder]="i18n.t('switcher.search')"
+        [attr.aria-label]="i18n.t('switcher.search')"
+        (input)="state.search(field.value)"
+      />
+    </label>
+  </div>
+
+  @let model = state.model();
+  <div class="grid" role="listbox" [attr.aria-label]="i18n.t('switcher.label')">
+    @for (card of state.shown(); track card.tabId; let i = $index) {
+      @let on = i === model?.selected;
+      <button
+        #card
+        type="button"
+        role="option"
+        class="card"
+        [class.on]="on"
+        [attr.aria-selected]="on"
+        [attr.aria-label]="card.projectName + ' · ' + card.tabName + ', ' + word(card.status)"
+        (click)="state.confirm(i)"
+      >
+        <span class="card-head">
+          <ui-avatar [name]="card.projectName" />
+          <span class="title">
+            <span class="names"><span class="project">{{ card.projectName }}</span><span class="sep"> · </span><span class="tab">{{ card.tabName }}</span></span>
+            <ui-state [tone]="tone(card.status)">{{ word(card.status) }}</ui-state>
+          </span>
+          @if (i < 9) {
+            <kbd aria-hidden="true">{{ i + 1 }}</kbd>
+          }
+        </span>
+        @if (card.preview.length > 0) {
+          <span class="preview" aria-hidden="true">
+            @for (line of card.preview; track $index) {
+              <span class="line">{{ line }}</span>
+            }
+          </span>
+        } @else {
+          <span class="preview empty" aria-hidden="true">{{ i18n.t('switcher.noOutput') }}</span>
+        }
+      </button>
+    } @empty {
+      <p class="note">{{ i18n.t('switcher.empty') }}</p>
+    }
+  </div>
+
+  <div class="hints" aria-hidden="true">
+    <span><kbd>Ctrl</kbd><kbd>Tab</kbd> {{ i18n.t('switcher.next') }}</span>
+    <span><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>Tab</kbd> {{ i18n.t('switcher.previous') }}</span>
+    <span><kbd>1</kbd>–<kbd>9</kbd> {{ i18n.t('switcher.jump') }}</span>
+    <span class="grow"></span>
+    @if (model?.sticky) {
+      <span><kbd>↑</kbd><kbd>↓</kbd> {{ i18n.t('switcher.move') }}</span>
+      <span><kbd>Enter</kbd> {{ i18n.t('switcher.go') }}</span>
+    } @else {
+      <span><kbd>Ctrl</kbd> {{ i18n.t('switcher.release') }}</span>
+    }
+    <span><kbd>Esc</kbd> {{ i18n.t('switcher.cancel') }}</span>
+  </div>
+</div>

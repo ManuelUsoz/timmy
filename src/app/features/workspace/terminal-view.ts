@@ -1,6 +1,16 @@
+import type { TerminalStatus } from '../../../shared/notification/notification.model';
 import type { MessageKey } from '../../core/i18n-dictionaries';
 import type { StateTone } from '../../shared/ui/state/state';
 import type { TerminalActivity, TerminalEntry, TerminalState } from './terminal-entries';
+
+/** The Terminal status names (GLOSSARY), as translation keys. */
+export const statusKey = {
+  Working: 'state.working',
+  Waiting: 'state.waiting',
+  Done: 'state.done',
+  Error: 'state.error',
+  Idle: 'state.idle',
+} as const satisfies Record<TerminalStatus, MessageKey>;
 
 export const terminalTone = (state: TerminalState): StateTone => {
   switch (state) {

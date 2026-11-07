@@ -119,6 +119,7 @@ export class ProjectsScreen {
       if (ids === undefined) return;
       this.lastTabId = ids.tab;
       untracked(() => {
+        this.tabsState.visit(ids.tab);
         const tab = this.routeTab();
         const layout = tab === undefined ? undefined : this.tabsState.layoutOf(tab);
         if (tab === undefined || layout === undefined || this.front()?.view === ids.terminal) return;

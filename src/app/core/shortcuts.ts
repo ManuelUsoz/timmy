@@ -7,6 +7,7 @@ type CtrlShortcutId = 'toggleSidebar' | 'toggleSettings' | 'newTab';
 export type ShortcutId =
   | CtrlShortcutId
   | 'goToTab'
+  | 'switcher'
   | 'close'
   | 'splitRight'
   | 'splitDown'
@@ -59,6 +60,7 @@ export const shortcuts: ReadonlyArray<Shortcut> = [
   { id: 'toggleSettings', group: 'workspace', keys: ['Ctrl', ','], action: 'shortcuts.toggleSettings', ctrl: ',' },
   { id: 'newTab', group: 'workspace', keys: ['Ctrl', 'T'], action: 'shortcuts.newTab', ctrl: 't' },
   { id: 'goToTab', group: 'workspace', keys: ['Ctrl', '1–9'], action: 'shortcuts.goToTab' },
+  { id: 'switcher', group: 'workspace', keys: ['Ctrl', 'Tab'], action: 'shortcuts.switcher' },
   { id: 'close', group: 'workspace', keys: ['Esc'], action: 'shortcuts.close' },
   { id: 'splitRight', group: 'pane', keys: stackKeys.splitRight, action: 'shortcuts.splitRight' },
   { id: 'splitDown', group: 'pane', keys: stackKeys.splitDown, action: 'shortcuts.splitDown' },

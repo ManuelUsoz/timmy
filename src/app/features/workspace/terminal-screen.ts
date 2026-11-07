@@ -8,11 +8,22 @@ import { I18n } from '../../core/i18n';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { StateComponent } from '../../shared/ui/state/state';
-import type { TerminalEntry } from './terminal-entries';
+import type { TerminalEntry, TerminalId } from './terminal-entries';
 import { sampleOutput } from './terminal-sample';
 import { terminalTheme } from './terminal-theme';
 import { terminalStateKey, terminalTone } from './terminal-view';
 import { TerminalsState } from './terminals-state';
+
+/** How many lines from the bottom of the screen are enough to find the last few with output in them. */
+const tailDepth = 200;
+
+/** The lines at the bottom of a screen, as text. */
+const bufferBottom = (instance: Terminal): ReadonlyArray<string> => {
+  const buffer = instance.buffer.active;
+  const lines: string[] = [];
+  for (let i = Math.max(0, buffer.length - tailDepth); i < buffer.length; i++) lines.push(buffer.getLine(i)?.translateToString(true) ?? '');
+  return lines;
+};
 
 @Component({
   selector: 'app-terminal-screen',
@@ -56,6 +67,8 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
   private dataSubscription: { dispose: () => void } | undefined;
   private resizeSubscription: { dispose: () => void } | undefined;
   private readonly streamAbort = new AbortController();
+  /** How the Switcher reads this screen's last lines, for the Terminal it was opened on. */
+  private tail: { readonly id: TerminalId; readonly read: () => ReadonlyArray<string> } | undefined;
 
   constructor() {
     // Whichever Terminal this screen shows (a restart gives it a new one) is what main is told is on screen.
@@ -106,6 +119,8 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
     this.serializer = serializer;
     instance.open(this.host().nativeElement);
     this.xtermReady.set(true);
+    this.tail = { id: entry.id, read: () => bufferBottom(instance) };
+    this.terminals.attachTail(this.tail.id, this.tail.read);
     fit.fit();
     this.size.set(`${instance.cols}×${instance.rows}`);
     this.dataSubscription = instance.onData((data) => void this.terminals.write(entry.id, data));
@@ -180,6 +195,7 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
     this.destroyed = true;
     this.terminals.hide(this.terminal().id);
     this.saveScreen();
+    if (this.tail !== undefined) this.terminals.detachTail(this.tail.id, this.tail.read);
     this.instance?.textarea?.removeEventListener('focus', this.onFocus);
     this.streamAbort.abort();
     this.dataSubscription?.dispose();

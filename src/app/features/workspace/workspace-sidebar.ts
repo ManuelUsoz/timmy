@@ -4,7 +4,6 @@ import type { TerminalStatus } from '../../../shared/notification/notification.m
 import type { ProjectId } from '../../../shared/projects/projects.model';
 import type { Provider } from '../../../shared/settings/settings.model';
 import { I18n } from '../../core/i18n';
-import type { MessageKey } from '../../core/i18n-dictionaries';
 import { ListGroupLabel } from '../../shared/ui/list-row/list-group-label';
 import { ListRow } from '../../shared/ui/list-row/list-row';
 import { statusTone } from '../../shared/ui/mascot/mascot';
@@ -17,18 +16,10 @@ import { ProjectList } from './project-list';
 import { ProjectsState } from './projects-state';
 import { SettingsDialogState } from './settings-dialog-state';
 import { TabsState } from './tabs-state';
+import { statusKey } from './terminal-view';
 import { TerminalsState } from './terminals-state';
 import { WorkspaceLayoutState } from './workspace-layout';
 import { projectTallies } from './workspace-sidebar-view';
-
-/** The Terminal status names (GLOSSARY), as translation keys. */
-const STATUS_KEY = {
-  Working: 'state.working',
-  Waiting: 'state.waiting',
-  Done: 'state.done',
-  Error: 'state.error',
-  Idle: 'state.idle',
-} as const satisfies Record<TerminalStatus, MessageKey>;
 
 /** The mark each Provider is drawn with. */
 const PROVIDER_MARK: Readonly<Record<Provider, ProviderMark>> = {
@@ -92,7 +83,7 @@ export class WorkspaceSidebar {
   }
 
   protected word(status: TerminalStatus): string {
-    return this.i18n.t(STATUS_KEY[status]);
+    return this.i18n.t(statusKey[status]);
   }
 
   protected mark(provider: Provider): ProviderMark {

@@ -18,6 +18,7 @@ describe('shortcuts', () => {
       ['workspace', 'toggleSettings', 'Ctrl+,'],
       ['workspace', 'newTab', 'Ctrl+T'],
       ['workspace', 'goToTab', 'Ctrl+1–9'],
+      ['workspace', 'switcher', 'Ctrl+Tab'],
       ['workspace', 'close', 'Esc'],
       ['pane', 'splitRight', 'Alt+Shift+R'],
       ['pane', 'splitDown', 'Alt+Shift+D'],

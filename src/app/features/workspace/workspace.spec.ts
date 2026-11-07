@@ -301,4 +301,133 @@ describe('WorkspaceComponent', () => {
       expect(sidebar().classList).toContain('collapsed');
     });
   });
+
+  describe('the Switcher (Ctrl+Tab)', () => {
+    /** A Terminal in each Project, visited ascua's first and then timmy's, which stays on screen. */
+    const twoTabs = async () => {
+      const harness = await setup();
+      const terminals = TestBed.inject(TerminalsState);
+      const ascuaTerminal = terminals.create(ascua.projectId);
+      const timmyTerminal = terminals.create(timmy.projectId);
+      const router = TestBed.inject(Router);
+      await router.navigateByUrl(`/projects/p-ascua/terminals/${ascuaTerminal.id}`);
+      await harness.settle();
+      await router.navigateByUrl(`/projects/p-timmy/terminals/${timmyTerminal.id}`);
+      await harness.settle();
+      const switcher = () => harness.el.querySelector<HTMLElement>('app-switcher');
+      const cards = () => Array.from(harness.el.querySelectorAll<HTMLButtonElement>('app-switcher .card'));
+      const releaseCtrl = async () => {
+        window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control', bubbles: true, cancelable: true }));
+        await harness.settle();
+      };
+      return { ...harness, router, terminals, ascuaTerminal, timmyTerminal, switcher, cards, releaseCtrl };
+    };
+
+    it('opens with every Tab across Projects, most recent first, on the Tab before this one', async () => {
+      const { key, switcher, cards } = await twoTabs();
+      const event = await key({ key: 'Tab', code: 'Tab', ctrlKey: true });
+      expect(event.defaultPrevented).toBe(true);
+      expect(switcher()).not.toBeNull();
+      expect(cards().map((card) => card.querySelector('.names')?.textContent?.trim())).toEqual(['timmy · Terminal 1', 'ascua · Terminal 1']);
+      expect(cards().map((card) => card.getAttribute('aria-selected'))).toEqual(['false', 'true']);
+      expect(cards().map((card) => card.querySelector('kbd')?.textContent)).toEqual(['1', '2']);
+      expect(cards()[0].querySelector('ui-state')?.textContent?.trim()).toBe('Idle');
+    });
+
+    it('goes to the selected Tab when Ctrl is released', async () => {
+      const { key, router, switcher, releaseCtrl, ascuaTerminal } = await twoTabs();
+      await key({ key: 'Tab', code: 'Tab', ctrlKey: true });
+      await releaseCtrl();
+      expect(switcher()).toBeNull();
+      expect(router.url).toBe(`/projects/p-ascua/terminals/${ascuaTerminal.id}`);
+    });
+
+    it('cycles with Ctrl+Tab and Ctrl+Shift+Tab, and Esc cancels where it was', async () => {
+      const { key, router, switcher, cards, timmyTerminal } = await twoTabs();
+      await key({ key: 'Tab', code: 'Tab', ctrlKey: true });
+      await key({ key: 'Tab', code: 'Tab', ctrlKey: true });
+      expect(cards().map((card) => card.getAttribute('aria-selected'))).toEqual(['true', 'false']);
+      await key({ key: 'Tab', code: 'Tab', ctrlKey: true, shiftKey: true });
+      expect(cards().map((card) => card.getAttribute('aria-selected'))).toEqual(['false', 'true']);
+      await key({ key: 'Escape', code: 'Escape', ctrlKey: true });
+      expect(switcher()).toBeNull();
+      expect(router.url).toBe(`/projects/p-timmy/terminals/${timmyTerminal.id}`);
+    });
+
+    it('jumps straight to a card with its number, instead of going to the Tab of that number', async () => {
+      const { key, router, ascuaTerminal } = await twoTabs();
+      await key({ key: 'Tab', code: 'Tab', ctrlKey: true });
+      const event = await key({ key: '2', code: 'Digit2', ctrlKey: true });
+      expect(event.defaultPrevented).toBe(true);
+      expect(router.url).toBe(`/projects/p-ascua/terminals/${ascuaTerminal.id}`);
+    });
+
+    it('shows the last lines of output of each Tab\'s focused Terminal', async () => {
+      const { key, cards, terminals, ascuaTerminal } = await twoTabs();
+      terminals.attachTail(ascuaTerminal.id, () => ['$ npm test', '', '24 passed', '']);
+      await key({ key: 'Tab', code: 'Tab', ctrlKey: true });
+      expect(Array.from(cards()[1].querySelectorAll('.preview .line')).map((line) => line.textContent)).toEqual(['$ npm test', '', '24 passed']);
+      expect(cards()[0].querySelector('.preview')?.textContent?.trim()).toBe('Sin salida todavía');
+    });
+
+    it('stays open after a click inside, for the search, which lands on the Tab that matches', async () => {
+      const { key, el, settle, router, switcher, cards, releaseCtrl, ascuaTerminal } = await twoTabs();
+      await key({ key: 'Tab', code: 'Tab', ctrlKey: true });
+      const field = el.querySelector<HTMLInputElement>('app-switcher input[type=search]')!;
+      field.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      await releaseCtrl();
+      expect(switcher()).not.toBeNull();
+      expect(document.activeElement).toBe(field);
+      field.value = 'ASC';
+      field.dispatchEvent(new Event('input'));
+      await settle();
+      expect(cards().map((card) => card.querySelector('.names')?.textContent?.trim())).toEqual(['ascua · Terminal 1']);
+      await key({ key: 'Enter', code: 'Enter' });
+      expect(router.url).toBe(`/projects/p-ascua/terminals/${ascuaTerminal.id}`);
+    });
+
+    it('keeps the keys pressed while choosing from the Terminal behind it', async () => {
+      const { key } = await twoTabs();
+      await key({ key: 'Tab', code: 'Tab', ctrlKey: true });
+      const event = await key({ key: 'c', code: 'KeyC', ctrlKey: true });
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    it('does not give the keyboard back to the Terminal it leaves', async () => {
+      const { key, el, releaseCtrl } = await twoTabs();
+      const before = document.createElement('button');
+      el.appendChild(before);
+      before.focus();
+      await key({ key: 'Tab', code: 'Tab', ctrlKey: true });
+      const focus = vi.spyOn(before, 'focus');
+      await releaseCtrl();
+      expect(focus).not.toHaveBeenCalled();
+      await key({ key: 'Tab', code: 'Tab', ctrlKey: true });
+      await key({ key: 'Escape', code: 'Escape' });
+      expect(focus).toHaveBeenCalled();
+    });
+
+    it('says when the search matches nothing', async () => {
+      const { key, el, settle, cards } = await twoTabs();
+      await key({ key: 'Tab', code: 'Tab', ctrlKey: true });
+      const field = el.querySelector<HTMLInputElement>('app-switcher input[type=search]')!;
+      field.value = 'zzz';
+      field.dispatchEvent(new Event('input'));
+      await settle();
+      expect(cards()).toEqual([]);
+      expect(el.querySelector('app-switcher .note')?.textContent?.trim()).toBe('Nada coincide con la búsqueda');
+    });
+
+    it('does not open over Settings, nor with no Tab at all', async () => {
+      const first = await setup();
+      await first.key({ key: 'Tab', code: 'Tab', ctrlKey: true });
+      expect(first.el.querySelector('app-switcher')).toBeNull();
+      TestBed.resetTestingModule();
+      const { key, el, settings, settle } = await twoTabs();
+      settings().click();
+      await settle();
+      await key({ key: 'Tab', code: 'Tab', ctrlKey: true });
+      expect(el.querySelector('app-switcher')).toBeNull();
+    });
+  });
 });

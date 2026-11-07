@@ -7,6 +7,7 @@ import { DesktopApi } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { TabId } from './tabs';
 import { addTerminal, restarted, withActivity, withExit, withScreen, withState, type TerminalEntry, type TerminalScreenSnapshot, type TerminalState } from './terminal-entries';
+import { previewLines } from './terminal-tail';
 
 /** A Terminal opens in a Tab of its own unless it is opened into a Pane or Stack of an existing one. */
 const newTab = (): TabId => TabId.make(crypto.randomUUID());
@@ -23,6 +24,10 @@ export class TerminalsState {
   /** Each restart, old id to new, so a Tab's layout keeps the restarted Terminal in its place. For this app run only. */
   private readonly restartedIds = signal<ReadonlyMap<TerminalId, TerminalId>>(new Map());
   readonly restarts = this.restartedIds.asReadonly();
+  /** For each Terminal a screen shows, how to read the lines that screen holds now. */
+  private readonly tailReaders = new Map<TerminalId, () => ReadonlyArray<string>>();
+  /** The lines a Terminal's screen held when it left the window. */
+  private readonly savedTails = new Map<TerminalId, ReadonlyArray<string>>();
   /** The Terminal the user is on, in the Workspace or the Panel: the one picked last, else the newest. Undefined when there are none. */
   readonly current = computed((): TerminalEntry | undefined => this.all().find((entry) => entry.id === this.currentId()) ?? this.all().at(-1));
 
@@ -89,6 +94,26 @@ export class TerminalsState {
     this.all.update((entries) => withScreen(entries, id, screen));
   }
 
+  /** A screen shows this Terminal: its last lines are read from that screen, as it is now. */
+  attachTail(id: TerminalId, read: () => ReadonlyArray<string>): void {
+    this.tailReaders.set(id, read);
+  }
+
+  /**
+   * A screen stopped showing this Terminal: the lines it held are kept, unless the Terminal is gone (closed, or replaced
+   * by a restart). Nothing changes if another screen has taken it since.
+   */
+  detachTail(id: TerminalId, read: () => ReadonlyArray<string>): void {
+    if (this.tailReaders.get(id) !== read) return;
+    this.tailReaders.delete(id);
+    if (this.find(id) !== undefined) this.savedTails.set(id, read());
+  }
+
+  /** The last few lines of a Terminal's output: from the screen showing it, else from the last one that did. None if no screen has. */
+  tailOf(id: TerminalId): ReadonlyArray<string> {
+    return previewLines(this.tailReaders.get(id)?.() ?? this.savedTails.get(id) ?? []);
+  }
+
   setState(id: TerminalId, state: TerminalState): void {
     this.all.update((entries) => withState(entries, id, state));
   }
@@ -147,5 +172,7 @@ export class TerminalsState {
       yield* desktop['Terminal.close']({ terminalId: id });
     }));
     this.all.update((entries) => entries.filter((entry) => entry.id !== id));
+    this.tailReaders.delete(id);
+    this.savedTails.delete(id);
   }
 }

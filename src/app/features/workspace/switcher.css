@@ -1,0 +1,250 @@
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.dialog {
+  --field: var(--modal-field);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: min(920px, 100% - 64px);
+  max-height: min(640px, 100% - 64px);
+  border: 1px solid var(--modal-border);
+  background: var(--modal);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-overlay);
+}
+
+svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+kbd {
+  min-width: 16px;
+  box-sizing: border-box;
+  padding: 0 var(--spacing-02);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-helper);
+  font: 400 11px/16px var(--font-mono);
+  text-align: center;
+}
+
+/* Head: the title and the search */
+
+.head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-05);
+  padding: var(--spacing-05);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+h2 {
+  flex: none;
+  margin: 0;
+  font: 600 16px/22px var(--font-sans);
+}
+
+.search {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-03);
+  min-width: 0;
+  height: 32px;
+  padding: 0 var(--spacing-04);
+  background: var(--field);
+  color: var(--text-helper);
+}
+
+.search:focus-within {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--text-primary);
+  font: var(--text-body-compact-01);
+  outline: none;
+}
+
+.search input::placeholder {
+  color: var(--text-helper);
+}
+
+/* Cards */
+
+.grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: start;
+  gap: var(--spacing-03);
+  padding: var(--spacing-05);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-03);
+  min-width: 0;
+  padding: var(--spacing-04);
+  border: 1px solid var(--border-subtle);
+  background: var(--layer-01);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.card:hover {
+  background: var(--layer-hover);
+}
+
+.card.on {
+  border-color: var(--focus);
+  box-shadow: inset 0 0 0 1px var(--focus);
+}
+
+.card:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
+.card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-03);
+  min-width: 0;
+}
+
+.title {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-01);
+  min-width: 0;
+}
+
+/* The Tab tells cards of one Project apart: the Project's name gives way first. */
+.names {
+  display: flex;
+  min-width: 0;
+  white-space: pre;
+  font: var(--text-body-compact-01);
+}
+
+.project,
+.tab {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project {
+  flex: 0 1000 auto;
+  font-weight: 600;
+}
+
+.tab {
+  flex: 0 1 auto;
+}
+
+.sep,
+.tab {
+  color: var(--text-secondary);
+}
+
+.sep {
+  flex: none;
+}
+
+.card-head kbd {
+  flex: none;
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  height: calc(4 * 16px);
+  overflow: hidden;
+  padding: var(--spacing-03);
+  background: var(--background);
+  color: var(--text-secondary);
+  font: 400 11px/16px var(--font-mono);
+}
+
+.line {
+  overflow: hidden;
+  white-space: pre;
+  text-overflow: ellipsis;
+}
+
+.preview.empty {
+  justify-content: center;
+  color: var(--text-helper);
+  font-family: var(--font-sans);
+}
+
+.note {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: var(--spacing-05) 0;
+  color: var(--text-helper);
+  font: var(--text-body-compact-01);
+  text-align: center;
+}
+
+/* Key hints */
+
+.hints {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-02) var(--spacing-05);
+  padding: var(--spacing-04) var(--spacing-05);
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-helper);
+  font: var(--text-body-compact-01);
+}
+
+.hints span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-01);
+}
+
+.hints .grow {
+  flex: 1;
+}
