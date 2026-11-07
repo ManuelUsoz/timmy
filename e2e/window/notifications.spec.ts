@@ -52,8 +52,8 @@ test.describe('Notifications: the toast Channel', () => {
     const { page } = timmy;
     await timmy.openProjectTerminal();
     await timmy.run('exit 1');
-    // The process has ended once its Stop button is gone.
-    await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0, { timeout: 10_000 });
+    // The process has ended once the screen says how.
+    await expect(page.locator('app-terminal-screen').getByRole('alert')).toBeVisible({ timeout: 10_000 });
     await page.waitForTimeout(1_000);
     await expect(page.getByRole('region', { name: 'Notifications' })).toBeEmpty();
   });

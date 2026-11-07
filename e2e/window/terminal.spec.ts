@@ -11,7 +11,7 @@ const openNewTerminal = async (timmy: Fixture): Promise<void> => {
     await dialog.getByRole('button', { name: 'Create project' }).click();
     await expect(timmy.page.locator('app-project-list .as-row__title')).toContainText('demo-project', { timeout: 10_000 });
 
-    await timmy.page.getByRole('region', { name: 'Terminals' }).getByRole('button', { name: 'New terminal' }).click();
+    await timmy.page.getByRole('navigation', { name: /^Tabs of / }).getByRole('button', { name: 'New tab' }).click();
 };
 
 test.describe('real terminals', () => {
@@ -36,9 +36,9 @@ test.describe('real terminals', () => {
     await expect(timmy.page.locator('.xterm-screen')).toContainText('timmy-terminal');
     await timmy.shot('terminal-output');
 
-    await timmy.page.getByRole('region', { name: 'Terminals' }).getByRole('button', { name: 'New terminal' }).click();
+    await timmy.page.getByRole('navigation', { name: /^Tabs of / }).getByRole('button', { name: 'New tab' }).click();
     await expect(timmy.page.locator('app-terminal-screen')).toHaveCount(1);
-    await timmy.page.getByRole('region', { name: 'Terminals' }).getByRole('option', { name: /Terminal 1/ }).click();
+    await timmy.page.getByRole('complementary', { name: 'Sidebar' }).getByRole('listbox', { name: 'Terminals' }).getByRole('option', { name: /Terminal 1/ }).click();
     await expect(timmy.page.locator('.xterm-screen')).toContainText('timmy-terminal');
     await timmy.shot('terminal-switched');
   });
@@ -51,14 +51,16 @@ test.describe('real terminals', () => {
     await timmy.page.keyboard.press('Enter');
     const screen = timmy.page.locator('app-terminal-screen');
     await expect(screen.getByRole('alert')).toContainText('The process exited with code 3.');
-    await expect(screen.getByRole('button', { name: 'Restart' })).toBeEnabled();
-    await expect(screen.getByRole('button', { name: 'Close terminal' })).toBeEnabled();
+    // In a Pane, Restart and Close are in the header menu.
+    const pane = timmy.page.locator('app-pane-stack');
+    await pane.getByRole('button', { name: 'More actions' }).click();
+    await expect(pane.getByRole('menuitem', { name: 'Restart' })).toBeEnabled();
+    await expect(pane.getByRole('menuitem', { name: 'Close pane' })).toBeEnabled();
     await timmy.shot('terminal-error');
 
-    await screen.getByRole('button', { name: 'Restart' }).click();
+    await pane.getByRole('menuitem', { name: 'Restart' }).click();
     await expect(screen.getByRole('alert')).toHaveCount(0);
-    await expect(screen.getByRole('button', { name: 'Stop' })).toBeVisible();
     await expect(timmy.page.locator('.xterm-screen')).toContainText('PS ');
-    await expect(timmy.page.getByRole('region', { name: 'Terminals' }).getByRole('option')).toHaveCount(1);
+    await expect(timmy.page.getByRole('complementary', { name: 'Sidebar' }).getByRole('listbox', { name: 'Terminals' }).getByRole('option')).toHaveCount(1);
   });
 });

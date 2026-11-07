@@ -1,4 +1,4 @@
-import { AfterViewInit, ChangeDetectionStrategy, booleanAttribute, Component, ElementRef, OnDestroy, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
+import { AfterViewInit, ChangeDetectionStrategy, booleanAttribute, Component, ElementRef, OnDestroy, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { Effect, Stream } from 'effect';
 import { FitAddon } from '@xterm/addon-fit';
 import { SerializeAddon } from '@xterm/addon-serialize';
@@ -66,6 +66,17 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
     effect(() => {
       const { id, activity } = this.terminal();
       if (activity === 'NeedsAttention' && this.userIsHere()) void this.terminals.focus(id);
+    });
+    // A screen already on view becomes the active one when its Pane is focused (a click, the sidebar, a Tab): it takes
+    // the keyboard, so the user is on it and what asked for their attention is seen.
+    effect(() => {
+      if (!this.active()) return;
+      untracked(() => {
+        if (this.instance === undefined || this.host().nativeElement.contains(document.activeElement)) return;
+        this.instance.focus();
+        const { id, activity } = this.terminal();
+        if (activity === 'NeedsAttention') void this.terminals.focus(id);
+      });
     });
   }
 

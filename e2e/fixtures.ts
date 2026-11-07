@@ -80,9 +80,9 @@ export class Timmy {
     await this.newTerminal();
   }
 
-  /** "New terminal" of the Project that is open in the Workspace. */
+  /** "New tab" of the Project that is open in the Workspace: a Terminal in a Tab of its own. */
   async newTerminal() {
-    await this.page.getByRole('region', { name: 'Terminals' }).getByRole('button', { name: 'New terminal' }).click();
+    await this.page.getByRole('navigation', { name: /^Tabs of / }).getByRole('button', { name: 'New tab' }).click();
     await expect(this.page.locator('.xterm-screen')).toContainText('PS ', { timeout: 15_000 });
   }
 
@@ -123,9 +123,9 @@ export class Timmy {
     await expect(this.page).toHaveScreenshot(`${name}.png`, { mask: maskActivity ? [...mask, this.page.locator('[data-activity]')] : mask });
   }
 
-  /** The activity badge of the n-th Terminal row (0-based) of the open Project. */
+  /** The activity badge of the n-th View header (0-based) of the Tab on screen. */
   activity(n: number) {
-    return this.page.getByRole('region', { name: 'Terminals' }).getByRole('option').nth(n).locator('[data-activity]');
+    return this.page.locator('app-pane-stack .view-header [data-activity]').nth(n);
   }
 
   /** Types a command into the open Terminal and runs it. */

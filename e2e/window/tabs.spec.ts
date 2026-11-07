@@ -55,7 +55,7 @@ test.describe('Tabs per Project', () => {
 
     // A Tab whose Terminal is Done closes at once, and the Project is back to the New Tab action.
     await timmy.run('exit 0');
-    await expect(page.locator('app-terminal-screen')).toContainText('No active process', { timeout: 15_000 });
+    await expect(page.locator('.view-header.act ui-state')).toHaveText('Done', { timeout: 15_000 });
     await bar.getByRole('button', { name: 'Close tab Terminal 2' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(bar.locator('.tab-button')).toHaveCount(0);
