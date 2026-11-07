@@ -1,4 +1,5 @@
 :host {
+  position: relative;
   display: flex;
   flex: 1;
   min-width: 0;
@@ -77,6 +78,22 @@
   min-width: 0;
   min-height: 0;
   flex-direction: column;
+}
+
+/* While a View is dragged: over every Pane, so the Terminals underneath do not take the drag events. */
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+}
+
+/* The part of the Pane a drop would take: half of it for an edge, all of it for the centre. */
+.drop-preview {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--link) 18%, transparent);
+  border: 2px solid var(--link);
 }
 
 /* One Pane is focused at a time (design: .pn.fc): an inset ring that does not shift the content. */

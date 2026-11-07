@@ -2,7 +2,7 @@ import { Schema } from 'effect';
 import type { TerminalId } from './terminal-entries';
 
 /**
- * The layout of a Tab (GLOSSARY: Pane, View, Stack): Panes made by splitting right or down, each showing one View or a
+ * The layout of a Tab (GLOSSARY: Pane, View, Stack): Panes made by splitting another on any side, each showing one View or a
  * Stack of up to three. Only Terminal Views exist for now, so a View is its Terminal's id. Pure: the screen keeps the
  * layout of each Tab and applies these rules to it.
  */
@@ -97,25 +97,31 @@ export const canSplit = (layout: TabLayout, id: PaneId, direction: SplitDirectio
 const mapPaneNode = (node: LayoutNode, id: PaneId, change: (node: LayoutNode & { kind: 'pane' }) => LayoutNode): LayoutNode =>
   node.kind === 'pane' ? (node.pane.id === id ? change(node) : node) : { ...node, children: node.children.map((child) => mapPaneNode(child, id, change)) };
 
+/** Which side of the Pane a split puts the new one on, along its axis: `before` is left (`right`) or above (`down`). */
+export type SplitSide = 'before' | 'after';
+
 /**
- * Puts the Terminal in a new Pane beside (`right`) or below (`down`) the given one, and focuses it. Splitting along the
- * direction of the enclosing split adds a sibling that takes half of the Pane's share; otherwise the Pane becomes a split.
- * A Terminal the layout already shows moves there; nothing changes if that would take the Pane itself away.
+ * Puts the Terminal in a new Pane beside (`right`) or below (`down`) the given one, or on the left or above it with
+ * `before`, and focuses it. Splitting along the direction of the enclosing split adds a sibling that takes half of the
+ * Pane's share; otherwise the Pane becomes a split. A Terminal the layout already shows moves there; nothing changes if
+ * that would take the Pane itself away.
  */
-export const split = (layout: TabLayout, id: PaneId, direction: SplitDirection, terminal: TerminalId): TabLayout => {
+export const split = (layout: TabLayout, id: PaneId, direction: SplitDirection, terminal: TerminalId, side: SplitSide = 'after'): TabLayout => {
   const base = elsewhere(layout, id, terminal);
   if (base === undefined) return layout;
   const added = paneFor(terminal, panesOf(base));
   const insert = (node: LayoutNode): LayoutNode => {
     if (node.kind === 'pane') {
-      return node.pane.id === id ? { kind: 'split', direction, children: [node, leaf(added)], sizes: [0.5, 0.5] } : node;
+      const children = side === 'before' ? [leaf(added), node] : [node, leaf(added)];
+      return node.pane.id === id ? { kind: 'split', direction, children, sizes: [0.5, 0.5] } : node;
     }
     const index = node.children.findIndex((child) => child.kind === 'pane' && child.pane.id === id);
     if (index >= 0 && node.direction === direction) {
       const half = node.sizes[index] / 2;
+      const at = side === 'before' ? index : index + 1;
       return {
         ...node,
-        children: [...node.children.slice(0, index + 1), leaf(added), ...node.children.slice(index + 1)],
+        children: [...node.children.slice(0, at), leaf(added), ...node.children.slice(at)],
         sizes: [...node.sizes.slice(0, index), half, half, ...node.sizes.slice(index + 1)],
       };
     }
@@ -135,13 +141,13 @@ const updatePane = (layout: TabLayout, id: PaneId, change: (pane: Pane) => Pane)
 export const canStack = (layout: TabLayout, id: PaneId): boolean => (paneOf(layout, id)?.views.length ?? MAX_VIEWS) < MAX_VIEWS;
 
 /**
- * "Add to stack": the Terminal joins the Pane's Stack, last, and is the View expanded. Nothing happens to a full Stack.
+ * "Add to stack": the Terminal joins the Pane's Stack, last (or at position `at`), and is the View expanded. Nothing happens to a full Stack.
  * A Terminal the layout already shows moves there.
  */
-export const addToStack = (layout: TabLayout, id: PaneId, terminal: TerminalId): TabLayout => {
+export const addToStack = (layout: TabLayout, id: PaneId, terminal: TerminalId, at = MAX_VIEWS): TabLayout => {
   const base = elsewhere(layout, id, terminal);
   return base !== undefined && canStack(base, id)
-    ? { ...updatePane(base, id, (pane) => ({ ...pane, views: [...pane.views, terminal], expanded: terminal })), focused: id }
+    ? { ...updatePane(base, id, (pane) => ({ ...pane, views: [...pane.views.slice(0, at), terminal, ...pane.views.slice(at)], expanded: terminal })), focused: id }
     : layout;
 };
 
@@ -184,6 +190,55 @@ export const unstack = (layout: TabLayout, id: PaneId, view: TerminalId): TabLay
     return { ...current, views, expanded: current.expanded === view ? views[0] : current.expanded };
   });
   return split(left, id, 'right', view);
+};
+
+/** An edge of a Pane a dragged View can be dropped on, to split the Pane that way. */
+export type DropEdge = 'left' | 'right' | 'up' | 'down';
+
+/**
+ * Where a dragged View lands on a Pane: on an edge (a new Pane on that side), in the centre (`stack`: last in its Stack),
+ * or on its row of headers (`stackIndex`: at that position of the Stack).
+ */
+export type DropPlace = { readonly edge: DropEdge } | 'stack' | { readonly stackIndex: number };
+
+const axisOf = (edge: DropEdge): SplitDirection => (edge === 'left' || edge === 'right' ? 'right' : 'down');
+const sideOf = (edge: DropEdge): SplitSide => (edge === 'left' || edge === 'up' ? 'before' : 'after');
+const holderOf = (layout: TabLayout, view: TerminalId): Pane | undefined => panesOf(layout).find((pane) => pane.views.includes(view));
+
+/**
+ * Whether dropping the View there would do something: judged on the layout without the View, since it leaves its place.
+ * Its own lone Pane and the centre of its own Stack change nothing; an edge needs room to split, a Stack room for one more.
+ */
+export const canDrop = (
+  layout: TabLayout,
+  view: TerminalId,
+  target: PaneId,
+  place: DropPlace,
+  area: { readonly width: number; readonly height: number },
+): boolean => {
+  const from = holderOf(layout, view);
+  const base = elsewhere(layout, target, view);
+  if (from === undefined || base === undefined) return false;
+  if (place === 'stack') return from.id !== target && canStack(base, target);
+  if ('stackIndex' in place) return from.id === target || canStack(base, target);
+  return canSplit(base, target, axisOf(place.edge), area);
+};
+
+/**
+ * A View's header was dragged and dropped on a Pane of the same Tab: the View leaves its Pane (a Pane left empty goes, a
+ * Stack that loses its expanded View expands a neighbour) for a new Pane on that edge, which takes half of the target's
+ * room, or for the target's Stack. The View lands expanded and its Pane focused. Within its own Stack a position reorders
+ * it. A drop that would change nothing, or go past the Pane or Stack limits, leaves the layout as it is.
+ */
+export const dropView = (layout: TabLayout, view: TerminalId, target: PaneId, place: DropPlace): TabLayout => {
+  const from = holderOf(layout, view);
+  if (from === undefined || paneOf(layout, target) === undefined) return layout;
+  const own = from.id === target;
+  if (own && from.views.length === 1) return layout;
+  if (place === 'stack') return own ? layout : addToStack(layout, target, view);
+  if ('stackIndex' in place) return own ? reorderView(layout, target, view, place.stackIndex) : addToStack(layout, target, view, place.stackIndex);
+  const base = elsewhere(layout, target, view);
+  return base === undefined || panesOf(base).length >= MAX_PANES ? layout : split(layout, target, axisOf(place.edge), view, sideOf(place.edge));
 };
 
 export const focusPane = (layout: TabLayout, id: PaneId): TabLayout => (paneOf(layout, id) === undefined ? layout : { ...layout, focused: id });

@@ -7,6 +7,15 @@
   <ng-container *ngTemplateOutlet="nodeTemplate; context: { $implicit: placed }" />
 }
 
+@if (overlay()) {
+  <!-- While a View is dragged: takes the drag events from the Terminals and previews where the View would land. -->
+  <div class="drop-overlay" aria-hidden="true" (dragover)="dragOver($event)" (dragleave)="dragLeave()" (drop)="drop($event)">
+    @if (target()?.preview; as box) {
+      <div class="drop-preview" [style.left.px]="box.left" [style.top.px]="box.top" [style.width.px]="box.width" [style.height.px]="box.height"></div>
+    }
+  </div>
+}
+
 <ng-template #nodeTemplate let-placed>
   @if (placed.node.kind === 'pane') {
     <ng-container *ngTemplateOutlet="paneTemplate; context: { $implicit: placed.node.pane }" />
@@ -49,6 +58,10 @@
       [focused]="pane.id === layout()?.focused"
       [canSplitRight]="ways?.right ?? false"
       [canSplitDown]="ways?.down ?? false"
+      [movable]="!onlyFocused()"
+      [dropMark]="target()?.pane === pane.id ? target()?.mark : undefined"
+      (dragStarted)="dragStarted($event)"
+      (dragEnded)="dragEnded()"
     />
   </div>
 </ng-template>

@@ -11,12 +11,13 @@
         class="view-header act"
         role="group"
         [attr.aria-label]="view.name"
-        [attr.draggable]="stacked() ? 'true' : null"
+        [attr.data-index]="view.index"
+        [attr.draggable]="draggable() ? 'true' : null"
         [class.dragging]="dragging() === view.id"
         (dragstart)="dragStart($event, view)"
         (dragover)="dragOver($event, view)"
         (drop)="drop($event, view)"
-        (dragend)="dragEnd()"
+        (dragend)="headerDragEnd()"
       >
         @if (stacked()) {
           <svg class="grip" viewBox="0 0 16 16" aria-hidden="true"><g><circle cx="6" cy="4" r="1" /><circle cx="10" cy="4" r="1" /><circle cx="6" cy="8" r="1" /><circle cx="10" cy="8" r="1" /><circle cx="6" cy="12" r="1" /><circle cx="10" cy="12" r="1" /></g></svg>
@@ -109,12 +110,13 @@
         draggable="true"
         aria-expanded="false"
         [attr.aria-label]="view.name"
+        [attr.data-index]="view.index"
         [class.dragging]="dragging() === view.id"
         (click)="show(view.index)"
         (dragstart)="dragStart($event, view)"
         (dragover)="dragOver($event, view)"
         (drop)="drop($event, view)"
-        (dragend)="dragEnd()"
+        (dragend)="headerDragEnd()"
       >
         <svg class="grip" viewBox="0 0 16 16" aria-hidden="true"><g><circle cx="6" cy="4" r="1" /><circle cx="10" cy="4" r="1" /><circle cx="6" cy="8" r="1" /><circle cx="10" cy="8" r="1" /><circle cx="6" cy="12" r="1" /><circle cx="10" cy="12" r="1" /></g></svg>
         <kbd class="ix" aria-hidden="true">{{ view.index + 1 }}</kbd>

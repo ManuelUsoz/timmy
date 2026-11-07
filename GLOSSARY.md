@@ -41,7 +41,7 @@ A named layout of Panes inside a Project. A Project has one or more Tabs; one is
 _Avoid_: workspace (for a Tab).
 
 **Pane**
-A region of a Tab, made by splitting another Pane to the right or down. It shows one View, or a Stack.
+A region of a Tab, made by splitting another Pane on any side, or by dropping a View on its edge. It shows one View, or a Stack.
 _Avoid_: panel (Panel is a Window mode), split.
 
 **View**
