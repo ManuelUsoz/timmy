@@ -22,8 +22,10 @@
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  width: min(920px, 100% - 64px);
-  max-height: min(640px, 100% - 64px);
+  /* As the artifact's board: four cards a row; room for two rows even with few Tabs; more scroll inside. */
+  width: min(1040px, 100% - 64px);
+  min-height: min(520px, 100% - 64px);
+  max-height: min(720px, 100% - 64px);
   border: 1px solid var(--modal-border);
   background: var(--modal);
   color: var(--text-primary);
@@ -107,9 +109,11 @@ h2 {
   min-height: 0;
   overflow-y: auto;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: 184px;
   align-content: start;
   gap: var(--spacing-03);
+  overscroll-behavior: contain;
   padding: var(--spacing-05);
 }
 
@@ -196,7 +200,8 @@ h2 {
 .preview {
   display: flex;
   flex-direction: column;
-  height: calc(4 * 16px);
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
   padding: var(--spacing-03);
   background: var(--background);
