@@ -201,6 +201,8 @@ describe('SettingsDialog: Shortcuts', () => {
     expect(rows).toEqual([
       { action: 'Colapsar o expandir la barra lateral', keys: ['Ctrl', 'B'] },
       { action: 'Abrir o cerrar Ajustes', keys: ['Ctrl', ','] },
+      { action: 'Nueva pestaña', keys: ['Ctrl', 'T'] },
+      { action: 'Ir a la pestaña con ese número', keys: ['Ctrl', '1–9'] },
       { action: 'Cerrar Ajustes o un diálogo', keys: ['Esc'] },
     ]);
   });

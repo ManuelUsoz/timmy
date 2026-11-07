@@ -1,10 +1,11 @@
-import { ChangeDetectionStrategy, Component, ElementRef, booleanAttribute, effect, inject, input, output, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, booleanAttribute, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import type { Provider } from '../../../shared/settings/settings.model';
 import { I18n } from '../../core/i18n';
 import { ProviderSettings, providerNames } from '../../core/provider-settings';
 import { ButtonComponent, type ButtonKind, type ButtonSize } from '../../shared/ui/button/button';
 import { MenuComponent } from '../../shared/ui/menu/menu';
 import { OptionComponent } from '../../shared/ui/menu/option';
+import { TabsState } from './tabs-state';
 
 /** The plain shell is the first entry of the picker and what a Terminal is when no Provider is chosen. */
 const SHELL = 'shell';
@@ -55,8 +56,8 @@ const SHELL = 'shell';
       [iconOnly]="iconOnly()"
       [neutral]="neutral()"
       [disabled]="disabled()"
-      [attr.aria-label]="i18n.t('terminals.new')"
-      [attr.title]="iconOnly() ? i18n.t('terminals.new') : null"
+      [attr.aria-label]="name()"
+      [attr.title]="iconOnly() ? (hint() ?? name()) : null"
       [attr.aria-haspopup]="offersProviders() ? 'listbox' : null"
       [attr.aria-expanded]="offersProviders() ? open() : null"
       (click)="press()"
@@ -64,7 +65,7 @@ const SHELL = 'shell';
       <ng-content />
     </button>
     @if (open()) {
-      <ui-menu #menu class="menu" [ariaLabel]="i18n.t('terminals.new')" (selectionChange)="pick($event)">
+      <ui-menu #menu class="menu" [ariaLabel]="name()" (selectionChange)="pick($event)">
         <ui-option [value]="shell">{{ i18n.t('terminals.shell') }}</ui-option>
         @for (provider of providers.enabled(); track provider) {
           <ui-option [value]="provider">{{ names[provider] }}</ui-option>
@@ -85,8 +86,17 @@ export class NewTerminal {
   readonly disabled = input(false, { transform: booleanAttribute });
   /** Opens the menu above the button instead of below it. */
   readonly up = input(false, { transform: booleanAttribute });
+  /** The button's and the picker's accessible name; "New terminal" unless the caller names it. */
+  readonly label = input<string>();
+  /** The tooltip of the icon-only button, when it should say more than the name (a key hint). */
+  readonly hint = input<string>();
+  /** Ctrl+T opens this picker. Only the New Tab button on screen answers it. */
+  readonly answersNewTab = input(false, { transform: booleanAttribute });
   /** The Provider whose CLI to run, or undefined for a plain shell. */
   readonly chosen = output<Provider | undefined>();
+
+  protected readonly name = computed(() => this.label() ?? this.i18n.t('terminals.new'));
+  private readonly tabs = inject(TabsState);
 
   protected readonly shell = SHELL;
   protected readonly names = providerNames;
@@ -100,10 +110,26 @@ export class NewTerminal {
   constructor() {
     // Keyboard users land on the menu, whose arrows and Enter pick an entry.
     effect(() => this.menu()?.nativeElement.focus());
+    // Only the requests made while this button is on screen count: the ones before it appeared were answered or lost.
+    // Each request is handled once, so `answersNewTab` turning on later does not replay an old one.
+    let handled = this.tabs.newTabRequests();
+    effect(() => {
+      const requests = this.tabs.newTabRequests();
+      if (requests === handled) return;
+      handled = requests;
+      if (this.answersNewTab()) untracked(() => this.start());
+    });
   }
 
+  /** A click toggles the picker. */
   protected press(): void {
     if (this.offersProviders()) this.open.update((open) => !open);
+    else this.chosen.emit(undefined);
+  }
+
+  /** Ctrl+T opens the picker, and leaves it open when it already is. */
+  private start(): void {
+    if (this.offersProviders()) this.open.set(true);
     else this.chosen.emit(undefined);
   }
 

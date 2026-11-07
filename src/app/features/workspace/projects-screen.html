@@ -44,21 +44,33 @@
         </div>
         <button uiButton kind="danger" type="button" (click)="removeSelected()">{{ i18n.t('projects.remove') }}</button>
       </app-workspace-hero>
-    } @else if (routeTerminal(); as terminal) {
-      @defer (on immediate) {
-        @for (live of [terminal]; track live.id) {
-          <app-terminal-screen class="terminal" [terminal]="live" [cwd]="project.cwd" [attr.aria-label]="i18n.t('terminals.screen')" (restarted)="openTerminal($event)" />
-        }
-      }
-    } @else if (terminalsOfProject().length === 0) {
-      <app-workspace-hero icon="terminal" [title]="i18n.t('terminals.startTitle', { name: project.name })" [detail]="i18n.t('terminals.startDetail')">
-        <app-new-terminal kind="primary" (chosen)="newTerminal($event)">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
-          {{ i18n.t('terminals.new') }}
+    } @else if (tabs().length === 0) {
+      <!-- A Project with no Tabs shows only the New Tab action: Timmy never opens a Tab on its own. -->
+      <div class="no-tabs">
+        <app-new-terminal kind="primary" answersNewTab [label]="i18n.t('tabs.new')" (chosen)="newTerminal($event)">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+          {{ i18n.t('tabs.new') }}
+          <span class="keys" aria-hidden="true">@for (key of newTabKeys; track key) {<kbd>{{ key }}</kbd>}</span>
         </app-new-terminal>
-      </app-workspace-hero>
+      </div>
     } @else {
-      <app-workspace-hero icon="terminal" [title]="i18n.t('terminals.pickTitle')" [detail]="i18n.t('terminals.pickDetail')" />
+      <app-tab-bar
+        [projectId]="project.projectId"
+        [projectName]="project.name"
+        [activeTabId]="routeTerminal()?.tabId"
+        (selected)="openTab($event)"
+        (newTab)="newTerminal($event)"
+        (closeTab)="closeTab($event)"
+      />
+      @if (routeTerminal(); as terminal) {
+        @defer (on immediate) {
+          @for (live of [terminal]; track live.id) {
+            <app-terminal-screen class="terminal" [terminal]="live" [cwd]="project.cwd" [attr.aria-label]="i18n.t('terminals.screen')" (restarted)="openTerminal($event)" />
+          }
+        }
+      } @else {
+        <app-workspace-hero icon="terminal" [title]="i18n.t('terminals.pickTitle')" [detail]="i18n.t('terminals.pickDetail')" />
+      }
     }
   } @else {
     <app-workspace-hero [title]="i18n.t('projects.pickTitle')" [detail]="i18n.t('projects.pickDetail')" />

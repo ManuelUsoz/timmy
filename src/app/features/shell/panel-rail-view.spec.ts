@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Notification, TerminalStatus } from '../../../shared/notification/notification.model';
 import { ProjectId, type Project } from '../../../shared/projects/projects.model';
 import { TerminalId } from '../../../shared/terminal/terminal.model';
+import { TabId } from '../workspace/tabs';
 import type { TerminalEntry } from '../workspace/terminal-entries';
 import { railView, urgentTerminal } from './panel-rail-view';
 
@@ -15,6 +16,7 @@ const projects: ReadonlyArray<Project> = [
 const entry = (id: string, projectId: ProjectId, number: number, provider?: TerminalEntry['provider']): TerminalEntry => ({
   id: TerminalId.make(id),
   projectId,
+  tabId: TabId.make(id),
   number,
   state: 'Live',
   activity: 'Idle',

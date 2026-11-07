@@ -4,11 +4,15 @@ import type { Project } from '../../../shared/projects/projects.model';
 import { ProjectId } from '../../../shared/projects/projects.model';
 import type { Provider } from '../../../shared/settings/settings.model';
 import { I18n } from '../../core/i18n';
+import { shortcutKeys } from '../../core/shortcuts';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { NewTerminal } from './new-terminal';
 import { ProjectContent } from './project-content';
 import { ProjectsState } from './projects-state';
-import { terminalsOf, type TerminalEntry } from './terminal-entries';
+import { TabBar } from './tab-bar';
+import { neighbourOf, tabPath, type Tab } from './tabs';
+import { TabsState } from './tabs-state';
+import type { TerminalEntry } from './terminal-entries';
 import { TerminalScreen } from './terminal-screen';
 import { TerminalsState } from './terminals-state';
 import { WorkspaceHero } from './workspace-hero';
@@ -23,7 +27,7 @@ import { entryPath, entryTarget } from './workspace-entry';
  */
 @Component({
   selector: 'app-projects-screen',
-  imports: [ButtonComponent, NewTerminal, ProjectContent, TerminalScreen, WorkspaceHero],
+  imports: [ButtonComponent, NewTerminal, ProjectContent, TabBar, TerminalScreen, WorkspaceHero],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './projects-screen.html',
   styleUrl: './projects-screen.css',
@@ -34,6 +38,7 @@ export class ProjectsScreen {
   protected readonly state = inject(ProjectsState);
   private readonly router = inject(Router);
   private readonly terminals = inject(TerminalsState);
+  private readonly tabsState = inject(TabsState);
 
   /** Path parameters of the route, bound to inputs. */
   readonly projectId = input<string>();
@@ -46,12 +51,13 @@ export class ProjectsScreen {
     return entry !== undefined && entry.projectId === this.state.selectedId() ? entry : undefined;
   });
 
-  /** The selected project's Terminals, to tell "nothing open yet" from "pick one". */
-  protected readonly terminalsOfProject = computed(() => {
+  /** The selected project's Tabs, to tell "no Tab yet" from "pick one". */
+  protected readonly tabs = computed(() => {
     const selected = this.state.selectedId();
-    return selected === undefined ? [] : terminalsOf(this.terminals.entries(), selected);
+    return selected === undefined ? [] : this.tabsState.tabsOf(selected);
   });
 
+  protected readonly newTabKeys = shortcutKeys('newTab');
   protected readonly listReady = computed(() => this.state.projects().status === 'ready');
   protected readonly hasProjects = computed(() => this.state.all().length > 0);
   protected readonly folderMissing = computed(() => this.state.selected() !== undefined && this.state.folder() === 'Missing');
@@ -104,7 +110,25 @@ export class ProjectsScreen {
     await this.router.navigate(['/projects', terminal.projectId, 'terminals', terminal.id]);
   }
 
-  /** "Nueva terminal": adds a local entry to the project and opens it at its own route. */
+  /** A Tab shows its first Terminal: until Panes land, it is the only one. */
+  protected async openTab(tab: Tab): Promise<void> {
+    await this.router.navigate(tabPath(tab));
+  }
+
+  /**
+   * Closes a Tab and its Terminals. The Tab on screen is left first, for its neighbour or the project, so the route never
+   * names a Terminal that is gone (which would send it back to the project instead).
+   */
+  protected async closeTab(tab: Tab): Promise<void> {
+    const projectId = this.state.selectedId();
+    if (projectId !== undefined && tab.id === this.routeTerminal()?.tabId) {
+      const neighbour = neighbourOf(this.tabs(), tab.id);
+      await this.router.navigate(neighbour === undefined ? ['/projects', projectId] : tabPath(neighbour), { replaceUrl: true });
+    }
+    await this.tabsState.close(tab);
+  }
+
+  /** "Nueva terminal", or New Tab: opens a Terminal in a new Tab of the project (a local entry if main cannot start one) and shows it at its own route. */
   protected async newTerminal(provider?: Provider): Promise<void> {
     const project = this.state.selected();
     if (project === undefined) return;

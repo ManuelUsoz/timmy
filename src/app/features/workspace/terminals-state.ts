@@ -5,7 +5,11 @@ import type { Provider } from '../../../shared/settings/settings.model';
 import { TerminalId, type TerminalActivityEntry } from '../../../shared/terminal/terminal.model';
 import { DesktopApi } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
+import { TabId } from './tabs';
 import { addTerminal, restarted, withActivity, withExit, withScreen, withState, type TerminalEntry, type TerminalScreenSnapshot, type TerminalState } from './terminal-entries';
+
+/** Every Terminal opens in a Tab of its own for now; Panes, which put several in one Tab, come later. */
+const newTab = (): TabId => TabId.make(crypto.randomUUID());
 
 @Injectable({ providedIn: 'root' })
 export class TerminalsState {
@@ -55,7 +59,7 @@ export class TerminalsState {
       }),
     );
     if (result._tag === 'Failure') return undefined;
-    const entry = addTerminal(this.all(), projectId, result.value.terminalId, provider).at(-1)!;
+    const entry = addTerminal(this.all(), projectId, newTab(), result.value.terminalId, provider).at(-1)!;
     this.all.update((entries) => pipe(withState([...entries, entry], entry.id, 'Live'), (next) => withActivity(next, this.reported)));
     this.currentId.set(entry.id);
     return { ...entry, state: 'Live' };
@@ -63,7 +67,7 @@ export class TerminalsState {
 
   create(projectId: ProjectId): TerminalEntry {
     const id = TerminalId.make(crypto.randomUUID());
-    const entry = addTerminal(this.all(), projectId, id).at(-1)!;
+    const entry = addTerminal(this.all(), projectId, newTab(), id).at(-1)!;
     this.all.update((entries) => [...entries, entry]);
     return entry;
   }
