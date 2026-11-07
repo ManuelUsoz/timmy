@@ -28,8 +28,9 @@ test.describe('Terminal activity from the output tap', () => {
       await timmy.openProjectTerminal();
       await expect(timmy.activity(0)).toHaveAttribute('data-activity', 'Idle', { timeout: 15_000 });
       await timmy.run(command);
-      // Leave it for a second Terminal; the first one keeps running behind the list.
-      await timmy.newTerminal();
+      // Leave it for a second Terminal split beside it; the first one keeps running in its Pane.
+      await page.locator('app-pane-stack').getByRole('button', { name: 'Split right' }).click();
+      await expect(page.locator('app-pane-stack')).toHaveCount(2);
 
       await expect(timmy.activity(0)).toHaveAttribute('data-activity', 'NeedsAttention', { timeout: 15_000 });
       await expect(timmy.activity(0)).toHaveText('Attention');
@@ -44,7 +45,7 @@ test.describe('Terminal activity from the output tap', () => {
 
       // Focusing the Terminal is what clears it.
       await timmy.switchMode('Expanded');
-      await page.getByRole('region', { name: 'Terminals' }).getByRole('option').nth(0).click();
+      await page.getByRole('complementary', { name: 'Sidebar' }).getByRole('listbox', { name: 'Terminals' }).getByRole('option').nth(0).click();
       await expect(timmy.activity(0)).not.toHaveAttribute('data-activity', 'NeedsAttention');
       await timmy.switchMode('Pill');
       await expect(pill).toContainText('2 terminals running');

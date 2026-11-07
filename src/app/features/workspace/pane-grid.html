@@ -1,0 +1,54 @@
+@if (onlyFocused()) {
+  <!-- Below lg: the focused Pane alone, full size. The rest of the layout waits for the window to widen. -->
+  @if (focusedPane(); as pane) {
+    <ng-container *ngTemplateOutlet="paneTemplate; context: { $implicit: pane }" />
+  }
+} @else if (root(); as placed) {
+  <ng-container *ngTemplateOutlet="nodeTemplate; context: { $implicit: placed }" />
+}
+
+<ng-template #nodeTemplate let-placed>
+  @if (placed.node.kind === 'pane') {
+    <ng-container *ngTemplateOutlet="paneTemplate; context: { $implicit: placed.node.pane }" />
+  } @else {
+    <div class="split" [attr.data-direction]="placed.node.direction">
+      @for (child of childrenOf(placed); track keyOf(child); let i = $index; let last = $last) {
+        <div class="cell" [style.flex-grow]="placed.node.sizes[i]">
+          <ng-container *ngTemplateOutlet="nodeTemplate; context: { $implicit: child }" />
+        </div>
+        @if (!last) {
+          <div
+            class="divider"
+            role="separator"
+            tabindex="0"
+            [attr.aria-orientation]="placed.node.direction === 'right' ? 'vertical' : 'horizontal'"
+            [attr.aria-label]="i18n.t('panes.divider')"
+            [attr.aria-valuenow]="percent(placed, i)"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            (pointerdown)="startDrag($event, placed, i)"
+            (keydown)="nudge($event, placed, i)"
+          ></div>
+        }
+      }
+    </div>
+  }
+</ng-template>
+
+<ng-template #paneTemplate let-pane>
+  @let ways = splittable().get(pane.id);
+  <div
+    class="pane"
+    [class.focused]="pane.id === layout()?.focused"
+    [attr.data-pane]="pane.id"
+  >
+    <app-pane-stack
+      [tab]="tab()"
+      [pane]="pane"
+      [cwd]="cwd()"
+      [focused]="pane.id === layout()?.focused"
+      [canSplitRight]="ways?.right ?? false"
+      [canSplitDown]="ways?.down ?? false"
+    />
+  </div>
+</ng-template>

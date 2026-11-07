@@ -1,27 +1,5 @@
 <div class="card">
-@if (state.selected() !== undefined && (layout.layout().content === 'column' || layout.contentOpen())) {
-  <section
-    class="content"
-    [class.overlay]="layout.layout().content === 'overlay'"
-    [attr.aria-label]="i18n.t('projects.content')"
-  >
-    <app-project-content
-      [openTerminalId]="routeTerminal()?.id"
-      [folderMissing]="folderMissing()"
-      (terminalOpened)="openTerminal($event)"
-      (newTerminal)="newTerminal($event)"
-      (removed)="removeSelected()"
-    />
-  </section>
-}
-
 <section class="stage">
-  @if (state.selected() !== undefined && layout.layout().content === 'overlay') {
-    <button type="button" class="content-toggle" [attr.aria-expanded]="layout.contentOpen()" (click)="layout.toggleContent()">
-      {{ layout.contentOpen() ? i18n.t('projects.hideContent') : i18n.t('projects.showContent') }}
-    </button>
-  }
-
   @if (!listReady()) {
     <!-- The list is loading or failed; the list column says which. -->
   } @else if (!hasProjects()) {
@@ -44,16 +22,8 @@
         </div>
         <button uiButton kind="danger" type="button" (click)="removeSelected()">{{ i18n.t('projects.remove') }}</button>
       </app-workspace-hero>
-    } @else if (tabs().length === 0) {
-      <!-- A Project with no Tabs shows only the New Tab action: Timmy never opens a Tab on its own. -->
-      <div class="no-tabs">
-        <app-new-terminal kind="primary" answersNewTab [label]="i18n.t('tabs.new')" (chosen)="newTerminal($event)">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
-          {{ i18n.t('tabs.new') }}
-          <span class="keys" aria-hidden="true">@for (key of newTabKeys; track key) {<kbd>{{ key }}</kbd>}</span>
-        </app-new-terminal>
-      </div>
     } @else {
+      <!-- The bar is there from the start, with its tools, even before the first Tab. -->
       <app-tab-bar
         [projectId]="project.projectId"
         [projectName]="project.name"
@@ -62,11 +32,19 @@
         (newTab)="newTerminal($event)"
         (closeTab)="closeTab($event)"
       />
-      @if (routeTerminal(); as terminal) {
+      @if (tabs().length === 0) {
+        <!-- A Project with no Tabs offers the New Tab action: Timmy never opens a Tab on its own. -->
+        <div class="no-tabs">
+          <app-new-terminal kind="primary" [label]="i18n.t('tabs.new')" (chosen)="newTerminal($event)">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+            {{ i18n.t('tabs.new') }}
+            <span class="keys" aria-hidden="true">@for (key of newTabKeys; track key) {<kbd>{{ key }}</kbd>}</span>
+          </app-new-terminal>
+        </div>
+      } @else if (routeTab(); as tab) {
+        <!-- Deferred: the Panes bring xterm, which the rest of the screen does not need. -->
         @defer (on immediate) {
-          @for (live of [terminal]; track live.id) {
-            <app-terminal-screen class="terminal" [terminal]="live" [cwd]="project.cwd" [attr.aria-label]="i18n.t('terminals.screen')" (restarted)="openTerminal($event)" />
-          }
+          <app-pane-grid class="terminal" [tab]="tab" [cwd]="project.cwd" [attr.aria-label]="i18n.t('terminals.screen')" />
         }
       } @else {
         <app-workspace-hero icon="terminal" [title]="i18n.t('terminals.pickTitle')" [detail]="i18n.t('terminals.pickDetail')" />

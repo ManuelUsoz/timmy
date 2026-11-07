@@ -3,18 +3,18 @@ import { layoutFor, WorkspaceLayoutState } from './workspace-layout';
 
 describe('layoutFor (Tailwind default breakpoints: lg 1024, xl 1280)', () => {
   it('shows three columns from xl', () => {
-    expect(layoutFor(1280, null)).toEqual({ sidebar: 'expanded', content: 'column' });
-    expect(layoutFor(1920, null)).toEqual({ sidebar: 'expanded', content: 'column' });
+    expect(layoutFor(1280, null)).toEqual({ sidebar: 'expanded', panes: 'all' });
+    expect(layoutFor(1920, null)).toEqual({ sidebar: 'expanded', panes: 'all' });
   });
 
   it('collapses the sidebar between lg and xl', () => {
-    expect(layoutFor(1279, null)).toEqual({ sidebar: 'collapsed', content: 'column' });
-    expect(layoutFor(1024, null)).toEqual({ sidebar: 'collapsed', content: 'column' });
+    expect(layoutFor(1279, null)).toEqual({ sidebar: 'collapsed', panes: 'all' });
+    expect(layoutFor(1024, null)).toEqual({ sidebar: 'collapsed', panes: 'all' });
   });
 
-  it('turns the project content into an overlay below lg', () => {
-    expect(layoutFor(1023, null)).toEqual({ sidebar: 'collapsed', content: 'overlay' });
-    expect(layoutFor(800, null)).toEqual({ sidebar: 'collapsed', content: 'overlay' });
+  it('shows only the focused Pane below lg', () => {
+    expect(layoutFor(1023, null)).toEqual({ sidebar: 'collapsed', panes: 'focused' });
+    expect(layoutFor(800, null)).toEqual({ sidebar: 'collapsed', panes: 'focused' });
   });
 
   it('lets a manual collapse win over the automatic one, in both directions', () => {
@@ -23,9 +23,9 @@ describe('layoutFor (Tailwind default breakpoints: lg 1024, xl 1280)', () => {
     expect(layoutFor(900, 'expanded').sidebar).toBe('expanded');
   });
 
-  it('never lets the manual choice change where the content goes', () => {
-    expect(layoutFor(900, 'expanded').content).toBe('overlay');
-    expect(layoutFor(1600, 'collapsed').content).toBe('column');
+  it('never lets the manual choice change how many Panes show', () => {
+    expect(layoutFor(900, 'expanded').panes).toBe('focused');
+    expect(layoutFor(1600, 'collapsed').panes).toBe('all');
   });
 });
 
@@ -61,14 +61,5 @@ describe('WorkspaceLayoutState', () => {
     expect(state.layout().sidebar).toBe('expanded');
     state.width.set(1000);
     expect(state.layout().sidebar).toBe('expanded');
-  });
-
-  it('opens and closes the content overlay, and closes it when the content gets a column again', () => {
-    const state = setup(900);
-    expect(state.contentOpen()).toBe(false);
-    state.toggleContent();
-    expect(state.contentOpen()).toBe(true);
-    state.width.set(1100);
-    expect(state.contentOpen()).toBe(false);
   });
 });

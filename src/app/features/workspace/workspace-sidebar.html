@@ -18,7 +18,7 @@
 </div>
 
 @if (collapsed()) {
-  <app-project-list collapsed [tallies]="tallies()" (opened)="openProject($event)" />
+  <app-project-list collapsed [tallies]="tallies()" (opened)="openProject($event)" (removed)="removeProject($event)" />
   <button type="button" class="strip-button" [attr.aria-label]="i18n.t('projects.new')" [attr.title]="i18n.t('projects.new')" (click)="newProject()">
     <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
   </button>
@@ -43,7 +43,7 @@
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
       </button>
     </div>
-    <app-project-list [tallies]="tallies()" (opened)="openProject($event)" />
+    <app-project-list [tallies]="tallies()" (opened)="openProject($event)" (removed)="removeProject($event)" />
   </div>
 
   <div class="section section--terminals">

@@ -1,0 +1,144 @@
+@let current = expanded();
+<div class="stack">
+  @for (view of views(); track view.id) {
+    @let side = dropSide(view);
+    @let status = badge(view.entry);
+    @if (side === 'before') {
+      <div class="drop"><span>{{ i18n.t('stack.drop') }}</span></div>
+    }
+    @if (view.id === current?.id) {
+      <div
+        class="view-header act"
+        role="group"
+        [attr.aria-label]="view.name"
+        [attr.draggable]="stacked() ? 'true' : null"
+        [class.dragging]="dragging() === view.id"
+        (dragstart)="dragStart($event, view)"
+        (dragover)="dragOver($event, view)"
+        (drop)="drop($event, view)"
+        (dragend)="dragEnd()"
+      >
+        @if (stacked()) {
+          <svg class="grip" viewBox="0 0 16 16" aria-hidden="true"><g><circle cx="6" cy="4" r="1" /><circle cx="10" cy="4" r="1" /><circle cx="6" cy="8" r="1" /><circle cx="10" cy="8" r="1" /><circle cx="6" cy="12" r="1" /><circle cx="10" cy="12" r="1" /></g></svg>
+          <kbd class="ix" aria-hidden="true">{{ view.index + 1 }}</kbd>
+        }
+        <svg class="glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
+        <span class="name">{{ view.name }}</span>
+        @if (stacked()) {
+          <span class="count">{{ view.index + 1 }}/{{ pane().views.length }}</span>
+        }
+        <ui-state [tone]="status.tone" [attr.data-activity]="status.activity ?? null">{{ i18n.t(status.key) }}</ui-state>
+        <span class="ctl">
+          <app-new-terminal #splitRight kind="ghost" size="sm" iconOnly neutral [label]="i18n.t('pane.splitRight')" [hint]="withKeys('pane.splitRight', keys.splitRight)" [disabled]="!canSplitRight()" (chosen)="splitPane('right', $event)">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM8 3v10" /></svg>
+          </app-new-terminal>
+          <app-new-terminal #splitDown kind="ghost" size="sm" iconOnly neutral [label]="i18n.t('pane.splitDown')" [hint]="withKeys('pane.splitDown', keys.splitDown)" [disabled]="!canSplitDown()" (chosen)="splitPane('down', $event)">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM2 8h12" /></svg>
+          </app-new-terminal>
+          <app-new-terminal #addToStack kind="ghost" size="sm" iconOnly neutral class="add" [label]="i18n.t('stack.add')" [hint]="stackLabel()" [disabled]="full()" (chosen)="stack($event)">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v4H2zM2 9h12v4H2z" /></svg>
+          </app-new-terminal>
+          <span class="menu-anchor">
+            <button
+              type="button"
+              class="tool"
+              aria-haspopup="menu"
+              [attr.aria-expanded]="menuOpen()"
+              [attr.aria-label]="i18n.t('pane.menu')"
+              [attr.title]="i18n.t('pane.menu')"
+              (click)="toggleMenu()"
+            >
+              <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3" cy="8" r="1" /><circle cx="8" cy="8" r="1" /><circle cx="13" cy="8" r="1" /></svg>
+            </button>
+            @if (menuOpen()) {
+              <div class="menu" role="menu" [attr.aria-label]="i18n.t('pane.menu')">
+                @for (other of views(); track other.id) {
+                  @if (other.id !== view.id) {
+                    <button type="button" class="mi" role="menuitem" (click)="menuOpen.set(false); show(other.index)">
+                      <span class="mi-label">{{ i18n.t('stack.show', { name: other.name }) }}</span>
+                      <span class="hint">@for (key of keys.show(other.index + 1); track $index) {<kbd>{{ key }}</kbd>}</span>
+                    </button>
+                  }
+                }
+                <button type="button" class="mi" role="menuitem" [disabled]="view.index === 0" (click)="menuOpen.set(false); move(-1)">
+                  <span class="mi-label">{{ i18n.t('stack.moveUp') }}</span>
+                  <span class="hint">@for (key of keys.moveUp; track $index) {<kbd>{{ key }}</kbd>}</span>
+                </button>
+                <button type="button" class="mi" role="menuitem" [disabled]="view.index === pane().views.length - 1" (click)="menuOpen.set(false); move(1)">
+                  <span class="mi-label">{{ i18n.t('stack.moveDown') }}</span>
+                  <span class="hint">@for (key of keys.moveDown; track $index) {<kbd>{{ key }}</kbd>}</span>
+                </button>
+                <button type="button" class="mi" role="menuitem" [disabled]="!unstackable()" (click)="menuOpen.set(false); unstackExpanded()">
+                  <span class="mi-label">{{ i18n.t('stack.unstack') }}</span>
+                  <span class="hint">@for (key of keys.unstack; track $index) {<kbd>{{ key }}</kbd>}</span>
+                </button>
+                <div class="divider" role="separator"></div>
+                <button type="button" class="mi" role="menuitem" [disabled]="view.entry.state === 'Idle'" (click)="restart(view)">
+                  <span class="mi-label">{{ i18n.t('terminals.restart') }}</span>
+                </button>
+                <button type="button" class="mi" role="menuitem" disabled>
+                  <span class="mi-label">{{ soon('stack.openDiff') }}</span>
+                </button>
+                <button type="button" class="mi" role="menuitem" disabled>
+                  <span class="mi-label">{{ soon('stack.openPr') }}</span>
+                </button>
+                <div class="divider" role="separator"></div>
+                @if (stacked()) {
+                  <button type="button" class="mi" role="menuitem" (click)="askClose('view')">
+                    <span class="mi-label">{{ i18n.t('stack.closeView', { name: view.name }) }}</span>
+                  </button>
+                }
+                <button type="button" class="mi" role="menuitem" (click)="askClose('pane')">
+                  <span class="mi-label">{{ i18n.t('pane.close') }}</span>
+                </button>
+              </div>
+            }
+          </span>
+          <button type="button" class="tool close" [attr.aria-label]="i18n.t('pane.close')" [attr.title]="i18n.t('pane.close')" (click)="askClose('pane')">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+          </button>
+        </span>
+      </div>
+      <div class="body">
+        <app-terminal-screen class="terminal" bare [active]="focused()" [terminal]="view.entry" [cwd]="cwd()" [attr.aria-label]="i18n.t('terminals.screen')" />
+      </div>
+    } @else {
+      <button
+        type="button"
+        class="view-header collapsed"
+        draggable="true"
+        aria-expanded="false"
+        [attr.aria-label]="view.name"
+        [class.dragging]="dragging() === view.id"
+        (click)="show(view.index)"
+        (dragstart)="dragStart($event, view)"
+        (dragover)="dragOver($event, view)"
+        (drop)="drop($event, view)"
+        (dragend)="dragEnd()"
+      >
+        <svg class="grip" viewBox="0 0 16 16" aria-hidden="true"><g><circle cx="6" cy="4" r="1" /><circle cx="10" cy="4" r="1" /><circle cx="6" cy="8" r="1" /><circle cx="10" cy="8" r="1" /><circle cx="6" cy="12" r="1" /><circle cx="10" cy="12" r="1" /></g></svg>
+        <kbd class="ix" aria-hidden="true">{{ view.index + 1 }}</kbd>
+        <svg class="glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
+        <span class="name">{{ view.name }}</span>
+        <ui-state [tone]="status.tone" [attr.data-activity]="status.activity ?? null">{{ i18n.t(status.key) }}</ui-state>
+      </button>
+    }
+    @if (side === 'after') {
+      <div class="drop"><span>{{ i18n.t('stack.drop') }}</span></div>
+    }
+  }
+</div>
+
+@if (pending(); as closing) {
+  <ui-modal
+    size="sm"
+    [stateLabel]="i18n.t('tabs.confirmState')"
+    [heading]="closing.kind === 'pane' ? i18n.t('pane.confirmTitle') : i18n.t('stack.confirmViewTitle', { name: closing.name })"
+    [primaryLabel]="i18n.t('pane.confirmClose')"
+    [closeLabel]="i18n.t('tabs.cancel')"
+    (primary)="confirmClose()"
+    (closed)="pending.set(undefined)"
+  >
+    <p class="confirm">{{ closing.kind === 'pane' ? i18n.t('pane.confirmBody') : i18n.t('stack.confirmViewBody') }}</p>
+  </ui-modal>
+}

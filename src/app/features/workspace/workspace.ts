@@ -65,7 +65,7 @@ export class WorkspaceComponent {
   private async goToTab(number: number): Promise<void> {
     const projectId = this.projects.selectedId();
     const tab = projectId === undefined ? undefined : this.tabs.tabsOf(projectId)[number - 1];
-    if (tab !== undefined) await this.router.navigate(tabPath(tab));
+    if (tab !== undefined) await this.router.navigate(tabPath(tab, this.tabs.layoutOf(tab)));
   }
 
   protected async created(project: Project): Promise<void> {

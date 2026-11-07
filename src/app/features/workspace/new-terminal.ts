@@ -21,7 +21,7 @@ const SHELL = 'shell';
   host: {
     '(document:click)': 'closeOnOutside($event)',
     '(document:keydown.escape)': 'open.set(false)',
-    '[class.align-end]': 'iconOnly()',
+    '[class.align-end]': 'iconOnly() && !alignStart()',
     '[class.up]': 'up()',
   },
   styles: `
@@ -41,7 +41,7 @@ const SHELL = 'shell';
       top: auto;
       bottom: 100%;
     }
-    /* The icon-only "+" sits at the right edge of its column: open the menu towards the left so it is not clipped. */
+    /* An icon-only "+" usually sits at the right edge of its row: open the menu towards the left so it is not clipped. */
     :host(.align-end) .menu {
       left: auto;
       right: 0;
@@ -86,6 +86,8 @@ export class NewTerminal {
   readonly disabled = input(false, { transform: booleanAttribute });
   /** Opens the menu above the button instead of below it. */
   readonly up = input(false, { transform: booleanAttribute });
+  /** Opens an icon-only button's menu towards the right: for a "+" at the left edge of its row (the Tab bar with no Tabs). */
+  readonly alignStart = input(false, { transform: booleanAttribute });
   /** The button's and the picker's accessible name; "New terminal" unless the caller names it. */
   readonly label = input<string>();
   /** The tooltip of the icon-only button, when it should say more than the name (a key hint). */
@@ -127,8 +129,9 @@ export class NewTerminal {
     else this.chosen.emit(undefined);
   }
 
-  /** Ctrl+T opens the picker, and leaves it open when it already is. */
-  private start(): void {
+  /** A shortcut (Ctrl+T, Alt+Shift+R/D/S) opens the picker, and leaves it open when it already is. */
+  start(): void {
+    if (this.disabled()) return;
     if (this.offersProviders()) this.open.set(true);
     else this.chosen.emit(undefined);
   }
