@@ -1,10 +1,8 @@
 import { expect, test } from '../fixtures';
 
-test('Expanded is the resizable Workspace window, with the rail and the Projects screen', async ({ timmy }) => {
+test('Expanded is the resizable Workspace window, with the sidebar and the Projects screen', async ({ timmy }) => {
   const { page } = timmy;
   const control = (name: string) => page.getByRole('button', { name, exact: true });
-  // The project row shows the temp folder of the run, which changes between runs.
-  const volatile = [page.locator('.as-row__sub')];
 
   await timmy.openPanel();
   await timmy.switchMode('Expanded');
@@ -23,8 +21,8 @@ test('Expanded is the resizable Workspace window, with the rail and the Projects
   await test.step('has our own Minimizar, Maximizar and Cerrar controls', async () => {
     for (const name of ['Minimizar', 'Maximizar', 'Cerrar']) await control(name).waitFor({ timeout: 3000 });
   });
-  // Rail on the left with Proyectos and Ajustes; Projects column and its content; custom Carbon-style minimize, maximize and close at the top right, and no native Windows buttons.
-  await timmy.shot('expanded-workspace', { mask: volatile });
+  // Sidebar on the left with Proyectos, Terminales and Ajustes; the empty Projects screen; custom Carbon-style minimize, maximize and close at the top right, and no native Windows buttons.
+  await timmy.shot('expanded-workspace');
 
   await test.step('Maximizar maximizes the window and the control becomes Restaurar', async () => {
     await control('Maximizar').click();
@@ -32,7 +30,7 @@ test('Expanded is the resizable Workspace window, with the rail and the Projects
     expect(await timmy.isMaximized()).toBe(true);
   });
   // Workspace filling the work area; the middle control shows the restore icon (two overlapping squares).
-  await timmy.shot('expanded-maximized', { mask: volatile });
+  await timmy.shot('expanded-maximized');
 
   await test.step('Restaurar restores the window', async () => {
     await control('Restaurar').click();

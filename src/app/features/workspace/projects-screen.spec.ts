@@ -59,10 +59,11 @@ const ascua = project('ascua', { lastUsedAt: 100 });
 
 describe('Projects screen', () => {
   describe('project list', () => {
-    it('lists the projects by name, with their path', async () => {
+    it('lists the projects by name, with their path only in the tooltip', async () => {
       const { el, rowTitles } = await setup({ backend: makeBackend({ projects: [timmy, project('Árbol'), ascua] }) });
       expect(rowTitles('app-project-list')).toEqual(['Árbol', 'ascua', 'timmy']);
-      expect(el.querySelector('app-project-list .as-row__sub')?.textContent).toContain('/work/');
+      expect(el.querySelector('app-project-list .as-row__sub')).toBeNull();
+      expect(el.querySelector('app-project-list as-list-row')?.getAttribute('title')).toBe('/work/Árbol');
     });
 
     it('filters with the search box by name and by path, ignoring case and accents', async () => {
@@ -279,7 +280,7 @@ describe('Projects screen', () => {
     });
   });
 
-  describe('Projects column collapsed', () => {
+  describe('sidebar collapsed', () => {
     it('shows an avatar per project and a button for a new one, which open and add projects', async () => {
       const { el, settle, router } = await setup({ backend: makeBackend({ projects: [timmy, ascua] }) });
       TestBed.inject(WorkspaceLayoutState).width.set(1100);
@@ -292,7 +293,7 @@ describe('Projects screen', () => {
       rail[0].click();
       await settle();
       expect(router.url).toBe('/projects/p-ascua');
-      el.querySelector<HTMLButtonElement>('app-project-list .rail-new')!.click();
+      el.querySelector<HTMLButtonElement>('app-workspace-sidebar button[aria-label="Nuevo proyecto"]')!.click();
       await settle();
       expect(el.querySelector('app-new-project-dialog')).not.toBeNull();
     });

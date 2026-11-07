@@ -1,14 +1,12 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, untracked } from '@angular/core';
 import { Router } from '@angular/router';
 import type { Project } from '../../../shared/projects/projects.model';
 import { ProjectId } from '../../../shared/projects/projects.model';
 import type { Provider } from '../../../shared/settings/settings.model';
 import { I18n } from '../../core/i18n';
 import { ButtonComponent } from '../../shared/ui/button/button';
-import { NewProjectDialog } from './new-project-dialog';
 import { NewTerminal } from './new-terminal';
 import { ProjectContent } from './project-content';
-import { ProjectList } from './project-list';
 import { ProjectsState } from './projects-state';
 import { terminalsOf, type TerminalEntry } from './terminal-entries';
 import { TerminalScreen } from './terminal-screen';
@@ -18,14 +16,14 @@ import { WorkspaceLayoutState } from './workspace-layout';
 import { entryPath, entryTarget } from './workspace-entry';
 
 /**
- * Projects: the list, the content of the selected project and the open Terminal. One component serves
+ * Projects: the content of the selected project and the open Terminal (the list is in the sidebar). One component serves
  * `/projects`, `/projects/:projectId` and `/projects/:projectId/terminals/:terminalId` (see `workspace.routes`),
  * so moving between them keeps the columns in place. The route decides what is open; this screen makes the
  * state follow it.
  */
 @Component({
   selector: 'app-projects-screen',
-  imports: [ButtonComponent, NewProjectDialog, NewTerminal, ProjectContent, ProjectList, TerminalScreen, WorkspaceHero],
+  imports: [ButtonComponent, NewTerminal, ProjectContent, TerminalScreen, WorkspaceHero],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './projects-screen.html',
   styleUrl: './projects-screen.css',
@@ -40,8 +38,6 @@ export class ProjectsScreen {
   /** Path parameters of the route, bound to inputs. */
   readonly projectId = input<string>();
   readonly terminalId = input<string>();
-
-  protected readonly dialogOpen = signal(false);
 
   /** The terminal of the route, if it is one of the selected project's. Terminals live only as long as the app run. */
   protected readonly routeTerminal = computed((): TerminalEntry | undefined => {
@@ -104,10 +100,6 @@ export class ProjectsScreen {
     else void this.router.navigate(['/projects'], { replaceUrl: true });
   }
 
-  protected openProject(projectId: ProjectId): void {
-    void this.router.navigate(['/projects', projectId]);
-  }
-
   protected async openTerminal(terminal: TerminalEntry): Promise<void> {
     await this.router.navigate(['/projects', terminal.projectId, 'terminals', terminal.id]);
   }
@@ -118,12 +110,6 @@ export class ProjectsScreen {
     if (project === undefined) return;
     const terminal = (await this.terminals.createLive(project.projectId, project.cwd, provider)) ?? this.terminals.create(project.projectId);
     await this.openTerminal(terminal);
-  }
-
-  protected async created(project: Project): Promise<void> {
-    this.dialogOpen.set(false);
-    await this.state.refresh();
-    await this.router.navigate(['/projects', project.projectId]);
   }
 
   protected async removeSelected(): Promise<void> {

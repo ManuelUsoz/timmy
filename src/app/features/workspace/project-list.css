@@ -13,7 +13,7 @@
 
 .search svg {
   position: absolute;
-  inset-block-start: calc(var(--control-md) / 2 - 8px);
+  inset-block-start: calc(var(--control-sm) / 2 - 8px);
   inset-inline-start: var(--spacing-05);
   width: 16px;
   height: 16px;
@@ -26,7 +26,7 @@
 .search input {
   box-sizing: border-box;
   width: 100%;
-  height: var(--control-md);
+  height: var(--control-sm);
   padding: 0 var(--spacing-04) 0 var(--spacing-07);
   border: 0;
   border-bottom: 1px solid var(--border-strong);
@@ -51,16 +51,37 @@
   min-height: 0;
   overflow-y: auto;
   padding-inline: var(--spacing-03);
+  scrollbar-width: thin;
 }
 
-.folder {
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: var(--text-secondary);
-  stroke-width: 1.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+/* A row names the project: avatar, name and, when it has Terminals, how many. */
+.row {
+  grid-template-columns: auto 1fr auto;
+  gap: var(--spacing-03);
+  min-height: var(--control-md);
+  padding-block: var(--spacing-02);
+}
+
+.row.as-row--selected {
+  box-shadow: inset 2px 0 0 var(--text-primary);
+}
+
+.count {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-02);
+  color: var(--text-secondary);
+  font: var(--text-helper-text-01);
+  letter-spacing: 0.32px;
+}
+
+.dot {
+  display: block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--tone, var(--support-idle));
 }
 
 .note {
@@ -70,13 +91,26 @@
   color: var(--text-helper);
 }
 
-.footer {
-  flex: none;
-  padding: var(--spacing-04);
-  border-top: 1px solid var(--border-subtle);
+/* The project's initials on a square tile; the open project's tile is inverted. */
+.tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  background: var(--layer-02);
+  color: var(--text-primary);
+  font: var(--text-heading-01);
+  letter-spacing: 0.16px;
 }
 
-/* Collapsed: one avatar per project down the rail, and the way to add one at the bottom. */
+.as-row--selected .tile,
+.rail-project.on .tile {
+  background: var(--text-primary);
+  color: var(--background);
+}
+
+/* Collapsed: one avatar per project down the strip, with the dot of its most urgent Terminal. */
 .rail {
   display: flex;
   flex: 1;
@@ -86,6 +120,7 @@
   min-height: 0;
   overflow-y: auto;
   padding-block: var(--spacing-03);
+  scrollbar-width: none;
 }
 
 .rail-project {
@@ -111,33 +146,9 @@
   box-shadow: inset 2px 0 0 var(--text-primary);
 }
 
-/* The project's initials on a square tile, as in the design; the open project's tile is inverted. */
-.tile {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--control-sm);
-  height: var(--control-sm);
-  background: var(--layer-02);
-  color: var(--text-primary);
-  font: var(--text-heading-01);
-  letter-spacing: 0.16px;
-}
-
-.rail-project.on .tile {
-  background: var(--text-primary);
-  color: var(--background);
-}
-
-.rail-footer {
-  display: flex;
-  flex: none;
-  justify-content: center;
-  padding-block: var(--spacing-03);
-  border-top: 1px solid var(--border-subtle);
-}
-
-.rail-new {
-  box-shadow: inset 0 0 0 1px var(--link);
-  color: var(--link);
+.rail-dot {
+  position: absolute;
+  inset-block-start: var(--spacing-03);
+  inset-inline-end: var(--spacing-03);
+  box-shadow: 0 0 0 2px var(--sidebar);
 }

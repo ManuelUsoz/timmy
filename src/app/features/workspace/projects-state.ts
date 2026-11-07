@@ -29,6 +29,8 @@ export class ProjectsState {
   readonly query = signal('');
   readonly selectedId = signal<ProjectId | undefined>(undefined);
   readonly folder = signal<FolderState>('Checking');
+  /** Whether the New project dialog is open; the sidebar and the empty Workspace both open it. */
+  readonly creating = signal(false);
   /** Whether the last check of the folder failed, so a failure is told once and not on every window focus. */
   private folderCheckFailed = false;
 

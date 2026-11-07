@@ -1,0 +1,260 @@
+:host {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 248px;
+  min-height: 0;
+  background: var(--sidebar);
+  color: var(--text-primary);
+}
+
+:host(.collapsed) {
+  width: var(--control-lg);
+  align-items: center;
+}
+
+.head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-03);
+  width: 100%;
+  box-sizing: border-box;
+  min-height: var(--control-lg);
+  padding-inline: var(--spacing-05) var(--spacing-03);
+}
+
+:host(.collapsed) .head {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.brand {
+  font: var(--text-heading-01);
+  letter-spacing: 0.16px;
+}
+
+svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sidebar-toggle,
+.icon-button,
+.strip-button,
+.settings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-03);
+  border: 0;
+  background: transparent;
+  color: var(--text-helper);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.sidebar-toggle {
+  height: var(--control-sm);
+  padding-inline: var(--spacing-03);
+}
+
+:host(.collapsed) .sidebar-toggle,
+.strip-button {
+  position: relative;
+  flex: none;
+  width: var(--control-lg);
+  height: var(--control-lg);
+  padding: 0;
+}
+
+.icon-button {
+  width: var(--control-sm);
+  height: var(--control-sm);
+  padding: 0;
+}
+
+.add {
+  color: var(--link);
+}
+
+.sidebar-toggle:hover,
+.icon-button:hover,
+.strip-button:hover,
+.settings:hover {
+  background: var(--layer-hover);
+  color: var(--text-primary);
+}
+
+.sidebar-toggle:focus-visible,
+.icon-button:focus-visible,
+.strip-button:focus-visible,
+.settings:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
+/* Key hints, as in the design: small mono keycaps. */
+.keys {
+  display: inline-flex;
+  gap: var(--spacing-01);
+}
+
+kbd {
+  min-width: 16px;
+  box-sizing: border-box;
+  padding: 0 var(--spacing-02);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-helper);
+  font: 400 11px/16px var(--font-mono);
+  text-align: center;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* Projects take what they need, up to about half; Terminals get the rest. */
+.section--projects {
+  flex: 0 1 auto;
+  max-height: 45%;
+}
+
+.section--terminals {
+  flex: 1 1 0;
+}
+
+.section-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-03);
+  min-height: var(--control-md);
+  padding-inline: var(--spacing-05) var(--spacing-03);
+}
+
+.section-label,
+.section-count {
+  font: 400 12px/16px var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-helper);
+}
+
+.section-count {
+  padding-inline-end: var(--spacing-03);
+  letter-spacing: 0.32px;
+}
+
+.terminals {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--spacing-01);
+  min-height: 0;
+  overflow-y: auto;
+  padding-inline: var(--spacing-03);
+  scrollbar-width: thin;
+}
+
+.row {
+  grid-template-columns: auto 1fr auto;
+  gap: var(--spacing-03);
+  min-height: var(--control-md);
+  padding-block: var(--spacing-02);
+}
+
+.row.as-row--selected {
+  box-shadow: inset 2px 0 0 var(--text-primary);
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  color: var(--text-secondary);
+}
+
+.mark svg {
+  width: 14px;
+  height: 14px;
+}
+
+.note {
+  margin: 0;
+  padding: var(--spacing-03) var(--spacing-03);
+  font: var(--text-body-compact-01);
+  color: var(--text-helper);
+}
+
+.dot {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--tone, var(--support-idle));
+}
+
+.strip-dot {
+  position: absolute;
+  inset-block-start: var(--spacing-03);
+  inset-inline-end: var(--spacing-03);
+  box-shadow: 0 0 0 2px var(--sidebar);
+}
+
+.grow {
+  flex: 1;
+}
+
+.foot {
+  flex: none;
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--spacing-02);
+  border-top: 1px solid var(--border-subtle);
+}
+
+:host(.collapsed) .foot {
+  display: flex;
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.settings {
+  justify-content: flex-start;
+  width: 100%;
+  box-sizing: border-box;
+  height: var(--control-md);
+  padding-inline: var(--spacing-03);
+  color: var(--text-secondary);
+  font: var(--text-body-compact-01);
+}
+
+:host(.collapsed) .settings {
+  justify-content: center;
+  width: var(--control-lg);
+  height: var(--control-lg);
+  padding: 0;
+}
+
+.settings-label {
+  flex: 1;
+  text-align: left;
+}
+
+.settings.on {
+  background: var(--layer-selected);
+  box-shadow: inset 2px 0 0 var(--primary);
+  color: var(--text-primary);
+}

@@ -1,0 +1,107 @@
+<div class="head">
+  @if (!collapsed()) {
+    <span class="brand">Timmy</span>
+  }
+  <button
+    type="button"
+    class="sidebar-toggle"
+    [attr.aria-label]="(collapsed() ? i18n.t('sidebar.expand') : i18n.t('sidebar.collapse')) + ' (Ctrl+B)'"
+    [attr.title]="(collapsed() ? i18n.t('sidebar.expand') : i18n.t('sidebar.collapse')) + ' (Ctrl+B)'"
+    [attr.aria-expanded]="!collapsed()"
+    (click)="layout.toggleSidebar()"
+  >
+    @if (!collapsed()) {
+      <span class="keys" aria-hidden="true"><kbd>Ctrl</kbd><kbd>B</kbd></span>
+    }
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM6 3v10" /></svg>
+  </button>
+</div>
+
+@if (collapsed()) {
+  <app-project-list collapsed [tallies]="tallies()" (opened)="openProject($event)" />
+  <button type="button" class="strip-button" [attr.aria-label]="i18n.t('projects.new')" [attr.title]="i18n.t('projects.new')" (click)="newProject()">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+  </button>
+  <span class="grow"></span>
+  <button
+    type="button"
+    class="strip-button"
+    [attr.aria-label]="i18n.t('terminals.title')"
+    [attr.title]="i18n.t('terminals.title')"
+    (click)="layout.toggleSidebar()"
+  >
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
+    @if (urgent(); as status) {
+      <i class="dot strip-dot" [style.--tone]="'var(--support-' + tone(status) + ')'" aria-hidden="true"></i>
+    }
+  </button>
+} @else {
+  <div class="section section--projects">
+    <div class="section-head">
+      <span class="section-label">{{ i18n.t('projects.title') }}</span>
+      <button type="button" class="icon-button add" [attr.aria-label]="i18n.t('projects.new')" [attr.title]="i18n.t('projects.new')" (click)="newProject()">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+      </button>
+    </div>
+    <app-project-list [tallies]="tallies()" (opened)="openProject($event)" />
+  </div>
+
+  <div class="section section--terminals">
+    <div class="section-head">
+      <span class="section-label">{{ i18n.t('terminals.title') }}</span>
+      @if (terminalCount() > 0) {
+        <span class="section-count">{{ terminalCount() }}</span>
+      }
+    </div>
+    <div class="terminals" role="listbox" [attr.aria-label]="i18n.t('terminals.title')">
+      @for (group of groups(); track group.key) {
+        <div role="group" [attr.aria-label]="group.needsYou ? i18n.t('panel.needsYou') : group.name || null">
+          @if (group.needsYou) {
+            <as-list-group-label [label]="i18n.t('panel.needsYou')" [count]="group.rows.length" />
+          } @else if (group.name !== '') {
+            <as-list-group-label [label]="group.name" [count]="group.rows.length" />
+          }
+          @for (row of group.rows; track row.id) {
+            <as-list-row
+              class="row"
+              [label]="i18n.t('terminals.name', { number: row.number })"
+              [selected]="isOpen(row)"
+              [attr.aria-current]="isOpen(row) ? 'true' : null"
+              (activate)="openTerminal(row)"
+            >
+              <span leading class="mark" aria-hidden="true">
+                @if (row.provider; as provider) {
+                  <ui-provider-icon [provider]="mark(provider)" [size]="14" />
+                } @else {
+                  <svg viewBox="0 0 16 16"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
+                }
+              </span>
+              <ui-state trailing [tone]="tone(row.status)">{{ word(row.status) }}</ui-state>
+            </as-list-row>
+          }
+        </div>
+      } @empty {
+        <p class="note">{{ i18n.t('sidebar.noTerminals') }}</p>
+      }
+    </div>
+  </div>
+}
+
+<div class="foot">
+  <button
+    type="button"
+    class="settings"
+    aria-haspopup="dialog"
+    [class.on]="settingsDialog.open()"
+    [attr.aria-expanded]="settingsDialog.open()"
+    [attr.aria-label]="collapsed() ? i18n.t('settings.title') : null"
+    [attr.title]="collapsed() ? i18n.t('settings.title') + ' (Ctrl+,)' : null"
+    (click)="settingsDialog.toggle()"
+  >
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 5h6M11 5h3M2 11h3M8 11h6" /><circle cx="9.5" cy="5" r="1.5" /><circle cx="6.5" cy="11" r="1.5" /></svg>
+    @if (!collapsed()) {
+      <span class="settings-label">{{ i18n.t('settings.title') }}</span>
+      <span class="keys" aria-hidden="true"><kbd>Ctrl</kbd><kbd>,</kbd></span>
+    }
+  </button>
+</div>
