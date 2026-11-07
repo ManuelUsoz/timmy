@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 # A new push to the same branch or PR cancels the run it replaces.
 concurrency:
@@ -14,10 +15,10 @@ permissions:
   contents: read
 
 jobs:
-  # Windows, like the app: node-pty ships its prebuilt binaries for it and the paths behave as in development.
+  # Platform independent, so it runs on Linux: faster to start and to install than Windows.
   checks:
-    name: Typecheck and renderer tests
-    runs-on: windows-latest
+    name: Typecheck, lint and renderer tests
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -37,6 +38,7 @@ jobs:
       - name: Renderer tests
         run: npx ng test --watch=false
 
+  # Windows, like the app: node-pty ships its prebuilt binaries for it and the paths behave as in development.
   # `ng test` does not pick up the specs under electron/, so they run on their own.
   electron-tests:
     name: Electron tests
@@ -50,3 +52,32 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx vitest run electron
+
+  # The production build, then the real app driven by Playwright. Screenshot baselines are machine dependent
+  # (fonts, DPI), so CI checks the flows and their assertions only; visual regression stays local (`npm run e2e`).
+  e2e:
+    name: Build and e2e
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Build
+        run: npm run build
+      - name: E2E (no screenshot comparison)
+        run: npx playwright test --ignore-snapshots
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: e2e-output/
+          retention-days: 7
+      # Packaging is slow, so it runs only on main and on demand: catches a broken node-pty bundle or builder config.
+      - name: Package (unpacked)
+        if: github.event_name != 'pull_request'
+        run: npx electron-builder --dir --publish never
