@@ -1,7 +1,7 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, inject, input, signal } from '@angular/core';
 import { I18n } from '../../core/i18n';
-import { MIN_PANE, canSplit, focusPane, panesOf, resizeSplit, type LayoutNode, type PaneId, type SplitDirection } from './pane-layout';
+import { MIN_PANE, canSplit, panesOf, resizeSplit, type LayoutNode, type PaneId, type SplitDirection } from './pane-layout';
 import { PaneStack } from './pane-stack';
 import type { Tab } from './tabs';
 import { TabsState } from './tabs-state';
@@ -108,10 +108,16 @@ export class PaneGrid {
     return placed.node.kind === 'split' ? placed.node.children.map((node, index) => ({ node, path: [...placed.path, index] })) : [];
   }
 
-  /** A click or keyboard focus anywhere in a Pane focuses it. */
-  protected focus(id: PaneId): void {
-    if (this.layout()?.focused !== id) this.tabs.update(this.tab(), (layout) => focusPane(layout, id));
+  /**
+   * What a split's child is tracked by: the first Pane under it. Tracking by position would rebuild the Terminals of
+   * every Pane after one that is added or closed, since they all shift by one.
+   */
+  protected keyOf(placed: Placed): PaneId {
+    let node = placed.node;
+    while (node.kind === 'split') node = node.children[0];
+    return node.pane.id;
   }
+
 
   protected percent(placed: Placed, index: number): number {
     return placed.node.kind === 'split' ? Math.round(placed.node.sizes[index] * 100) : 0;

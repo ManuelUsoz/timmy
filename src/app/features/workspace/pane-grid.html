@@ -12,7 +12,7 @@
     <ng-container *ngTemplateOutlet="paneTemplate; context: { $implicit: placed.node.pane }" />
   } @else {
     <div class="split" [attr.data-direction]="placed.node.direction">
-      @for (child of childrenOf(placed); track $index; let i = $index; let last = $last) {
+      @for (child of childrenOf(placed); track keyOf(child); let i = $index; let last = $last) {
         <div class="cell" [style.flex-grow]="placed.node.sizes[i]">
           <ng-container *ngTemplateOutlet="nodeTemplate; context: { $implicit: child }" />
         </div>
@@ -41,8 +41,6 @@
     class="pane"
     [class.focused]="pane.id === layout()?.focused"
     [attr.data-pane]="pane.id"
-    (pointerdown)="focus(pane.id)"
-    (focusin)="focus(pane.id)"
   >
     <app-pane-stack
       [tab]="tab()"

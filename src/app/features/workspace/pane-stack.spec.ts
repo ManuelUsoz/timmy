@@ -140,6 +140,20 @@ describe('A Pane and its Stack', () => {
     expect(tabs.layoutOf(tab())?.root).toMatchObject({ kind: 'split', direction: 'right' });
   });
 
+  it('leaves the Stack keys to the Terminal when they would do nothing (a Pane that is not a Stack)', async () => {
+    await setup();
+    const keys = [
+      { key: '1', code: 'Digit1', shiftKey: false },
+      { key: 'ArrowUp', code: 'ArrowUp', shiftKey: true },
+      { key: 'Enter', code: 'Enter', shiftKey: true },
+    ];
+    for (const { key, code, shiftKey } of keys) {
+      const event = new KeyboardEvent('keydown', { key, code, altKey: true, shiftKey, cancelable: true });
+      window.dispatchEvent(event);
+      expect(event.defaultPrevented, key).toBe(false);
+    }
+  });
+
   it('answers Alt+1–3, Alt+Shift+↑/↓ and Alt+Shift+Enter in the focused Pane', async () => {
     const { names, expandedName, stack, press, panes } = await setup();
     await stack();

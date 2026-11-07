@@ -99,7 +99,7 @@ describe('PaneGrid', () => {
 
   it('focuses a Pane when the user clicks in it', async () => {
     const { el, settle, layout, ids } = await setup(2, (layout) => split(layout, p(1), 'right', t(2)));
-    el.querySelector<HTMLElement>('.pane')!.dispatchEvent(new Event('pointerdown'));
+    el.querySelector<HTMLElement>('app-pane-stack')!.dispatchEvent(new Event('pointerdown'));
     await settle();
     expect(layout().focused).toBe(ids[0]);
   });

@@ -261,7 +261,7 @@ describe('Projects screen', () => {
 
       it('follows the focused Pane when the user clicks another one', async () => {
         const { el, router, settle, first } = await splitTab();
-        el.querySelector<HTMLElement>('app-pane-grid .pane')!.dispatchEvent(new Event('pointerdown'));
+        el.querySelector<HTMLElement>('app-pane-grid app-pane-stack')!.dispatchEvent(new Event('pointerdown'));
         await settle();
         expect(router.url).toBe(`/projects/p-timmy/terminals/${first.id}`);
       });

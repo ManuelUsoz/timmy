@@ -94,7 +94,8 @@ export class PaneStack {
   protected readonly full = computed(() => this.pane().views.length >= MAX_VIEWS);
   protected readonly unstackable = computed(() => {
     const layout = this.tabs.layoutOf(this.tab());
-    return layout !== undefined && canUnstack(layout, this.pane().id);
+    // Unstacking splits right, so it also needs the room a split right needs.
+    return layout !== undefined && this.canSplitRight() && canUnstack(layout, this.pane().id);
   });
   protected readonly label = computed(() => this.i18n.t('pane.label', { name: this.expanded()?.name ?? '' }));
   protected readonly stackLabel = computed(() => (this.full() ? this.i18n.t('stack.full', { label: this.i18n.t('stack.add') }) : this.i18n.t('stack.add')));
@@ -125,6 +126,10 @@ export class PaneStack {
     const shortcut = stackShortcut(event);
     // Keys act on what the user sees; behind a dialog they do not.
     if (shortcut === null || document.querySelector('[aria-modal="true"]') !== null) return;
+    // A key that would do nothing here goes on to the Terminal: shells and TUIs use Alt+digit and Alt+Shift+arrows too.
+    const applies =
+      shortcut.id === 'showView' ? this.stacked() && shortcut.index < this.views().length : shortcut.id === 'moveView' ? this.stacked() : this.unstackable();
+    if (!applies) return;
     event.preventDefault();
     event.stopPropagation();
     switch (shortcut.id) {
