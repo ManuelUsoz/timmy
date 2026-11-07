@@ -92,6 +92,7 @@ const migrate = (db: DatabaseSync): void => {
       db.exec('COMMIT');
     } catch (error) {
       db.exec('ROLLBACK');
+      // eslint-disable-next-line no-restricted-syntax -- rethrow so the SQLite transaction rolls back; acquireRelease turns it into a defect
       throw error;
     }
   });

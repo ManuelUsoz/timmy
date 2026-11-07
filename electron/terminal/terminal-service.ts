@@ -194,6 +194,7 @@ const layerTerminalServiceCore = Layer.effect(
         // The tap reads a copy of the output: what the renderer receives is not changed by it.
         const tap = makeOutputTap();
         process.onData((data) =>
+          // eslint-disable-next-line no-restricted-properties -- node-pty callback is a native edge; the effect only offers to queues
           Effect.runFork(
             Queue.offer(events, { _tag: 'Data', data }).pipe(Effect.andThen(Queue.offerAll(activity, tap.scan(data)))),
           ),
@@ -205,6 +206,7 @@ const layerTerminalServiceCore = Layer.effect(
         yield* Ref.update(terminals, (all) => new Map(all).set(id, terminal));
         process.onExit(({ exitCode }) => {
           // The terminal stays listed until it is closed, so a screen opened after the exit still reads it.
+          // eslint-disable-next-line no-restricted-properties -- node-pty callback is a native edge; the effect only offers to queues
           Effect.runFork(
             Deferred.succeed(exitStatus, statusOfExit(exitCode)).pipe(
               Effect.andThen(Queue.offer(events, { _tag: 'Exit', exitCode })),

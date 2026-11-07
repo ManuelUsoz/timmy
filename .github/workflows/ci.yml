@@ -32,6 +32,8 @@ jobs:
         run: npx tsc -p tsconfig.app.json --noEmit
       - name: Typecheck specs
         run: npx tsc -p tsconfig.spec.json --noEmit
+      - name: Lint
+        run: npm run lint
       - name: Renderer tests
         run: npx ng test --watch=false
 

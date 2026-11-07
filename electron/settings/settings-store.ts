@@ -49,36 +49,35 @@ const writeSettings = (file: string, settings: Settings): Effect.Effect<void> =>
 const withProvider = (providers: ReadonlyArray<Provider>, provider: Provider, enabled: boolean): ReadonlyArray<Provider> =>
   allProviders.filter((candidate) => (candidate === provider ? enabled : providers.includes(candidate)));
 
-const makeStore = (initial: Settings, persist: (settings: Settings) => Effect.Effect<void>) =>
-  Effect.gen(function* () {
-    const ref = yield* Ref.make(initial);
-    // Each change is read, stored and kept as one step, so two quick changes never lose one another.
-    const lock = yield* Semaphore.make(1);
-    const update = (change: (current: Settings) => Settings) =>
-      lock.withPermits(1)(
-        Effect.gen(function* () {
-          const next = change(yield* Ref.get(ref));
-          yield* persist(next);
-          yield* Ref.set(ref, next);
-          return next;
-        }),
-      );
-    return SettingsStore.of({
-      get: Ref.get(ref),
-      setLanguage: Effect.fn('SettingsStore.setLanguage')(function* (language: Language) {
-        return yield* update((current) => ({ ...current, language }));
+const makeStore = Effect.fnUntraced(function* (initial: Settings, persist: (settings: Settings) => Effect.Effect<void>) {
+  const ref = yield* Ref.make(initial);
+  // Each change is read, stored and kept as one step, so two quick changes never lose one another.
+  const lock = yield* Semaphore.make(1);
+  const update = (change: (current: Settings) => Settings) =>
+    lock.withPermits(1)(
+      Effect.gen(function* () {
+        const next = change(yield* Ref.get(ref));
+        yield* persist(next);
+        yield* Ref.set(ref, next);
+        return next;
       }),
-      setProvider: Effect.fn('SettingsStore.setProvider')(function* (provider: Provider, enabled: boolean) {
-        return yield* update((current) => ({ ...current, providers: withProvider(current.providers, provider, enabled) }));
-      }),
-      setChannel: Effect.fn('SettingsStore.setChannel')(function* (channel: Channel, change: ChannelChange) {
-        return yield* update((current) => ({
-          ...current,
-          channels: { ...current.channels, [channel]: withChannelChange(current.channels[channel], change) },
-        }));
-      }),
-    });
+    );
+  return SettingsStore.of({
+    get: Ref.get(ref),
+    setLanguage: Effect.fn('SettingsStore.setLanguage')(function* (language: Language) {
+      return yield* update((current) => ({ ...current, language }));
+    }),
+    setProvider: Effect.fn('SettingsStore.setProvider')(function* (provider: Provider, enabled: boolean) {
+      return yield* update((current) => ({ ...current, providers: withProvider(current.providers, provider, enabled) }));
+    }),
+    setChannel: Effect.fn('SettingsStore.setChannel')(function* (channel: Channel, change: ChannelChange) {
+      return yield* update((current) => ({
+        ...current,
+        channels: { ...current.channels, [channel]: withChannelChange(current.channels[channel], change) },
+      }));
+    }),
   });
+});
 
 /** Settings in one JSON file, read once when the layer is built. */
 export const layerSettingsStore = (file: string): Layer.Layer<SettingsStore> =>

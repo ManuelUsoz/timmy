@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 Electron desktop app: Angular renderer + Effect 4.0.7 domain logic.
-Mandatory rules live in `AGENTS.md`. This file is only the map and Effect usage; it does not repeat the rules.
+Mandatory rules live in `AGENTS.md`, mechanical ones are enforced by `npm run lint`, review standards are in `CODING_STANDARDS.md`. This file is only the map and Effect usage; it does not repeat the rules.
 
 ## Structure
 
@@ -80,10 +80,9 @@ it.effect('gets app info', () =>
 
 - Effect 4.0.7 has no MsgPack; serialization is `RpcSerialization.layerSchemaBinary`
   (`layerPortSerialization` in `message-port-protocol.ts`).
-- `npm run typecheck` covers electron only. Renderer: `npx tsc -p tsconfig.app.json --noEmit`
-  and `npx tsc -p tsconfig.spec.json --noEmit`.
-- Run tests with `npx ng test --watch=false`. Do not use `--include=src/app/core/**`:
-  it treats non-spec files as suites.
+- `npm run check` is the full gate: all three type-checks, `ng test`, and the electron
+  specs (`ng test` does not pick those up). `npm run typecheck` alone covers electron only.
+- For `ng test`, do not use `--include=src/app/core/**`: it treats non-spec files as suites.
 - Sandboxed preload cannot pass ports through contextBridge; the port arrives via
   `window.postMessage(RPC_PORT_MESSAGE)`. Check origin on receipt.
 
@@ -104,6 +103,7 @@ Specs live in `e2e/<area>/<name>.spec.ts`; baselines in `__screenshots__/` next 
 - `npm run e2e`: build + Playwright suite (`e2e:fast` skips the build, `e2e:update` regenerates baselines)
 - `npm run dev`: renderer (ng serve :4200) + electron
 - `npm run build`: renderer + electron; `build:renderer`, `build:electron` separately
+- `npm run check`: every type-check and unit test suite
 - `npm run typecheck`: electron tsc
 - `npm test`: `ng test`
 - `npm run package`: build + electron-builder

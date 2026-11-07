@@ -47,8 +47,8 @@ export const layerElectronWindowHost: Layer.Layer<WindowHost> = Layer.succeed(Wi
     if (win.isMaximized()) win.unmaximize();
     else win.maximize();
   }),
-  maximized: Stream.callback<boolean>((queue) =>
-    Effect.gen(function* () {
+  maximized: Stream.callback<boolean>(
+    Effect.fnUntraced(function* (queue) {
       const win = appWindow();
       if (!win) return void Queue.offerUnsafe(queue, false);
       const push = () => void Queue.offerUnsafe(queue, win.isMaximized());
@@ -63,8 +63,8 @@ export const layerElectronWindowHost: Layer.Layer<WindowHost> = Layer.succeed(Wi
       );
     }),
   ),
-  visible: Stream.callback<boolean>((queue) =>
-    Effect.gen(function* () {
+  visible: Stream.callback<boolean>(
+    Effect.fnUntraced(function* (queue) {
       const win = appWindow();
       if (!win) return void Queue.offerUnsafe(queue, false);
       const push = () => void Queue.offerUnsafe(queue, win.isVisible() && !win.isMinimized());
