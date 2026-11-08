@@ -10,6 +10,7 @@ import {
   inject,
   input,
   linkedSignal,
+  output,
   signal,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
@@ -21,6 +22,9 @@ export type TreeMode = 'single' | 'checkable';
 export type TreeSize = 'default' | 'sm';
 export type TreeVariant = 'default' | 'activity';
 export type TreeCheckState = 'checked' | 'unchecked' | 'mixed';
+
+/** A node with children, or a lazy folder whose children are still to come. */
+const isExpandable = (node: TreeNode): boolean => !!node.children?.length || node.lazy === true;
 
 interface TreeRow {
   readonly node: TreeNode;
@@ -52,6 +56,8 @@ export class TreeViewComponent implements ControlValueAccessor {
   /** A folder also opens and closes when it is activated (click, Enter or Space), as in a file explorer. */
   readonly toggleOnActivate = input(false, { transform: booleanAttribute });
   readonly disabledInput = input(false, { alias: 'disabled', transform: booleanAttribute });
+  /** The user opened or closed a folder (default variant). */
+  readonly toggled = output<{ readonly id: string; readonly open: boolean }>();
 
   private readonly el = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
@@ -65,7 +71,7 @@ export class TreeViewComponent implements ControlValueAccessor {
       const open = new Set<string>();
       const walk = (list: readonly TreeNode[]): void => {
         for (const node of list) {
-          if (node.expanded && node.children?.length) open.add(node.id);
+          if (node.expanded && isExpandable(node)) open.add(node.id);
           if (node.children) walk(node.children);
         }
       };
@@ -83,9 +89,9 @@ export class TreeViewComponent implements ControlValueAccessor {
     const out: TreeRow[] = [];
     const walk = (list: readonly TreeNode[], depth: number, parentId: string | null): void => {
       list.forEach((node, i) => {
-        const expandable = !!node.children?.length;
+        const expandable = isExpandable(node);
         out.push({ node, depth, parentId, setSize: list.length, posInSet: i + 1, expandable });
-        if (expandable && open.has(node.id)) walk(node.children!, depth + 1, node.id);
+        if (expandable && open.has(node.id)) walk(node.children ?? [], depth + 1, node.id);
       });
     };
     walk(this.nodes(), 0, null);
@@ -143,13 +149,15 @@ export class TreeViewComponent implements ControlValueAccessor {
   }
 
   protected toggleExpand(id: string, open?: boolean): void {
+    const want = open ?? !this.expanded().has(id);
+    if (want === this.expanded().has(id)) return;
     this.expanded.update((s) => {
       const next = new Set(s);
-      const want = open ?? !next.has(id);
       if (want) next.add(id);
       else next.delete(id);
       return next;
     });
+    this.toggled.emit({ id, open: want });
   }
 
   protected activate(node: TreeNode): void {
@@ -178,7 +186,7 @@ export class TreeViewComponent implements ControlValueAccessor {
   }
 
   private toggleIfFolder(node: TreeNode): void {
-    if (this.toggleOnActivate() && node.children?.length) this.toggleExpand(node.id);
+    if (this.toggleOnActivate() && isExpandable(node)) this.toggleExpand(node.id);
   }
 
   protected onChevron(event: Event, row: TreeRow): void {

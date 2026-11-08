@@ -6,7 +6,8 @@ import { ProjectsRpcs } from '../../../shared/projects/projects.rpc';
 import { ProjectId } from '../../../shared/projects/projects.model';
 import { defaultChannels } from '../../../shared/settings/settings.model';
 import { SettingsRpcs } from '../../../shared/settings/settings.rpc';
-import { layerFilesUnused, layerWindowUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
+import { layerWindowUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
+import { layerFakeFiles, makeFakeFiles, type FakeFiles } from './files-fakes';
 
 export const project = (name: string, overrides: Partial<Project> = {}): Project => ({
   projectId: ProjectId.make(`p-${name}`),
@@ -35,6 +36,8 @@ export interface FakeBackend {
   initFails: boolean;
   /** Calls the UI made, as `Name` or `Name:argument`. */
   calls: string[];
+  /** The Files RPCs: what is on the Projects' disks and what the browser saved. */
+  files: FakeFiles;
 }
 
 /** Each backend owns its own copy of what it is given, so one test cannot change another's disk. */
@@ -50,6 +53,7 @@ export const makeBackend = (initial: Partial<FakeBackend> = {}): FakeBackend => 
   missing: new Set(initial.missing),
   folders: { ...initial.folders },
   picks: [...(initial.picks ?? [])],
+  files: makeFakeFiles(initial.files),
 });
 
 const inspect = (backend: FakeBackend, path: string): Effect.Effect<FolderInspection, ProjectsError> => {
@@ -120,7 +124,7 @@ export const layerFakeProjects = (backend: FakeBackend) =>
     }),
     AppInfoRpcs.toLayer({ 'AppInfo.get': () => Effect.die('unused') }),
     layerWindowUnused,
-    layerFilesUnused,
+    layerFakeFiles(backend.files),
   );
 
 /** The same, with settings that answer Spanish and accept any language. */
