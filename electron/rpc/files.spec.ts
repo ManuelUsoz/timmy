@@ -14,14 +14,19 @@ import {
 import { AppInfoRpcs } from '../../src/shared/app-info/app-info.rpc';
 import { MAX_PREVIEW_BYTES } from '../../src/shared/files/files.model';
 import { layerFilesState } from '../files/files-state';
-import { layerProjectFiles } from '../files/project-files';
-import { layerProjectStore } from '../projects/project-store';
+import { fsFailure, layerProjectFiles } from '../files/project-files';
+import { layerProjectStore, ProjectStore } from '../projects/project-store';
 import { layerFilesHandlers } from './files';
 
 const roots: string[] = [];
+/** One database for the whole file: a folder is only readable once it is a Project, so each folder made here is added. */
+const db = path.join(mkdtempSync(path.join(tmpdir(), 'timmy-files-db-')), 'timmy.db');
+roots.push(path.dirname(db));
+const register = (dir: string) => Effect.runSync(Effect.flatMap(ProjectStore, (store) => store.add(dir)).pipe(Effect.provide(layerProjectStore(db))));
 const tempDir = () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'timmy-files-'));
   roots.push(dir);
+  register(dir);
   return dir;
 };
 const write = (root: string, file: string, content = 'x') => {
@@ -35,7 +40,8 @@ const makeLayer = (limit?: number) =>
     Layer.mergeAll(
       layerFilesHandlers.pipe(
         Layer.provide(layerProjectFiles(limit)),
-        Layer.provide(layerFilesState.pipe(Layer.provide(layerProjectStore(':memory:')))),
+        Layer.provide(layerFilesState),
+        Layer.provide(layerProjectStore(db)),
       ),
       AppInfoRpcs.toLayer({ 'AppInfo.get': () => Effect.die('unused') }),
       layerWindowUnused,
@@ -246,8 +252,40 @@ describe('Files.list', () => {
   it.effect('fails with FolderNotFound for a missing folder', () =>
     Effect.gen(function* () {
       const api = yield* DesktopApi;
-      const error = yield* Effect.flip(api['Files.list']({ cwd: path.join(tempDir(), 'nope') }));
+      const gone = path.join(tempDir(), 'nope');
+      register(gone);
+      const error = yield* Effect.flip(api['Files.list']({ cwd: gone }));
       expect(error.reason).toBe('FolderNotFound');
     }).pipe(Effect.provide(makeLayer())),
   );
+});
+
+describe('Files access', () => {
+  it.effect('refuses a folder that is not a Project, whatever the call: the renderer does not choose what main reads', () => {
+    const stranger = mkdtempSync(path.join(tmpdir(), 'timmy-files-stranger-'));
+    roots.push(stranger);
+    write(stranger, 'secret.txt', 'SECRET');
+    return Effect.gen(function* () {
+      const api = yield* DesktopApi;
+      const errors = [
+        yield* Effect.flip(api['Files.list']({ cwd: stranger })),
+        yield* Effect.flip(api['Files.listDir']({ cwd: stranger, dir: '' })),
+        yield* Effect.flip(api['Files.read']({ cwd: stranger, file: 'secret.txt' })),
+        yield* Effect.flip(api['Files.read']({ cwd: path.parse(stranger).root, file: path.relative(path.parse(stranger).root, path.join(stranger, 'secret.txt')) })),
+      ];
+      expect(errors.map((error) => error.reason)).toEqual(['UnknownProject', 'UnknownProject', 'UnknownProject', 'UnknownProject']);
+    }).pipe(Effect.provide(makeLayer()));
+  });
+});
+
+describe('fsFailure', () => {
+  const failure = (code: string) => Object.assign(new Error(code), { code });
+
+  it('tells a missing file or folder from one that cannot be read', () => {
+    expect(fsFailure(failure('ENOENT'), 'file', 'a.ts').reason).toBe('FileNotFound');
+    expect(fsFailure(failure('ENOTDIR'), 'folder', 'src').reason).toBe('FolderNotFound');
+    expect(fsFailure(failure('EACCES'), 'file', 'a.ts').reason).toBe('Unreadable');
+    expect(fsFailure(failure('EPERM'), 'folder', 'src').reason).toBe('Unreadable');
+    expect(fsFailure('not an error object', 'file', 'a.ts').reason).toBe('Unreadable');
+  });
 });

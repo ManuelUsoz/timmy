@@ -231,10 +231,13 @@ describe('FilesSidebar', () => {
     expect(sidebar()?.querySelector('.note')?.textContent?.trim()).toBe(t('files.noMatches'));
   });
 
-  it('turns the filter off, with the reason, outside a git repository while the tree keeps working', async () => {
+  it('turns the filter off, with the reason, outside a git repository while the tree keeps working and Esc still reaches it', async () => {
     const { sidebar, filter, ctrlP, labels, t } = await setup({ dirs: { '': [file('a.txt')] }, files: {}, index: null });
     await ctrlP();
-    expect(filter()?.disabled).toBe(true);
+    // Read-only, not disabled: a disabled field cannot hold the keyboard, and then Esc would go nowhere.
+    expect(filter()?.readOnly).toBe(true);
+    expect(filter()?.getAttribute('aria-disabled')).toBe('true');
+    expect(document.activeElement).toBe(filter());
     expect(sidebar()?.querySelector('.hint')?.textContent?.trim()).toBe(t('files.filterNoGit'));
     expect(labels()).toEqual(['a.txt']);
   });

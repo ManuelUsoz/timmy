@@ -131,7 +131,8 @@
   outline-offset: -2px;
 }
 
-.filter:disabled {
+/* Read-only rather than disabled: a disabled field cannot hold the keyboard, and Esc would go nowhere. */
+.filter[aria-disabled='true'] {
   color: var(--text-disabled);
   cursor: not-allowed;
 }

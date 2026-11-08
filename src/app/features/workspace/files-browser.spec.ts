@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import type { TreeNode } from '../../shared/ui/tree-view/tree-view.types';
 import { EffectRuntime } from '../../core/effect-runtime';
+import { I18n } from '../../core/i18n';
 import { FilesBrowser } from './files-browser';
 import { file, folder, text, type FakeDisk, type FakeFiles } from './files-fakes';
 import { fakeRuntime, makeBackend, project } from './projects-fakes';
@@ -426,5 +427,31 @@ describe('FilesBrowser pick', () => {
     await settle();
     expect(browser.view()).toBe('file');
     expect(browser.file()).toMatchObject({ status: 'text', path: 'src/main.ts' });
+  });
+});
+
+describe('FilesBrowser review fixes', () => {
+  it('says a folder is gone when it is opened after being deleted, rather than loading forever', async () => {
+    const { backend, browser, settle, nodes } = await setup();
+    browser.toggle();
+    await settle();
+    delete backend.files.disks[timmy.cwd].dirs['src'];
+    browser.setFolderOpen('src', true);
+    await settle();
+    const children = nodes().find((node) => node.id === 'src')?.children ?? [];
+    expect(children).toHaveLength(1);
+    expect(children[0]).toMatchObject({ disabled: true, label: TestBed.inject(I18n).t('files.folderGone') });
+  });
+
+  it('keeps the wide width chosen in a big window when it is saved from a small one', async () => {
+    const { backend, browser, settle } = await setup();
+    const layout = TestBed.inject(WorkspaceLayoutState);
+    layout.width.set(2000);
+    browser.setWidth(900);
+    layout.width.set(800);
+    expect(browser.shownWidth()).toBe(480);
+    browser.saveWidth();
+    await settle();
+    expect(backend.files.width).toBe(900);
   });
 });

@@ -63,13 +63,9 @@ export class FilesSidebar {
     // The filter takes the keyboard when the sidebar opens, when the tree comes back, and on every Ctrl+P.
     effect(() => {
       this.browser.filterFocus();
-      const field = this.filterField()?.nativeElement;
-      if (field !== undefined && !field.disabled) field.focus();
+      this.filterField()?.nativeElement.focus();
     });
-    afterNextRender(() => {
-      const field = this.filterField()?.nativeElement;
-      if (field !== undefined && !field.disabled) field.focus();
-    });
+    afterNextRender(() => this.filterField()?.nativeElement.focus());
     // The row that was clicked goes away with the tree, and the focus with it: a file taking its place takes the keyboard,
     // or Esc and the arrows would go nowhere. Its text when there is some (it scrolls with the arrows), the way back otherwise.
     effect(() => {

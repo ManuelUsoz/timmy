@@ -62,16 +62,15 @@ const ignoredAmong = (cwd: string, candidates: ReadonlyArray<string>): Effect.Ef
           // Exit 1 means none is ignored, 128 means not a repository: both read as "nothing ignored".
           (error, stdout) => resume(Effect.succeed(new Set(error === null ? stdout.split('\0').filter((entry) => entry !== '') : []))),
         );
+        // Git missing or exiting early closes the pipe under the write: that is the callback's answer ("nothing ignored"), not a crash.
+        child.stdin?.on('error', () => undefined);
         child.stdin?.end(candidates.join('\0') + '\0');
       });
 
 const byFoldersThenName = (a: FolderEntry, b: FolderEntry): number =>
   a.kind === b.kind ? (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1) : a.kind === 'folder' ? -1 : 1;
 
-/**
- * The absolute path of `relative` inside `cwd`. The renderer is untrusted, so anything that leaves the Project folder
- * (`..`, an absolute path, another drive) is refused before the disk is touched.
- */
+/** Whether `target` is `root` or something below it. */
 const isInside = (root: string, target: string): boolean => {
   const from = path.relative(root, target);
   return !path.isAbsolute(from) && from !== '..' && !from.startsWith(`..${path.sep}`);
@@ -81,7 +80,10 @@ const isInside = (root: string, target: string): boolean => {
 const realPathOr = (target: string): Effect.Effect<string> =>
   Effect.tryPromise(() => realpath(target)).pipe(Effect.orElseSucceed(() => target));
 
-/** Refuses `..`, an absolute path, another drive, and a link that leads out of the Project. */
+/**
+ * The absolute path of `relative` inside `cwd`. The renderer is untrusted, so `..`, an absolute path, another drive and a
+ * link that leads out of the Project are refused before the disk is touched.
+ */
 const confine = Effect.fn('ProjectFiles.confine')(function* (cwd: string, relative: string) {
   const root = path.resolve(cwd);
   const target = path.resolve(root, relative);
@@ -91,12 +93,27 @@ const confine = Effect.fn('ProjectFiles.confine')(function* (cwd: string, relati
   return target;
 });
 
+/**
+ * What a failed disk call means for the caller: the file or folder is not there (it was deleted since it was listed), or it
+ * is there and cannot be read (permissions, a lock). Both are things the user can act on, so neither is a defect.
+ */
+export const fsFailure = (error: unknown, kind: 'file' | 'folder', subject: string): FilesError => {
+  const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
+  if (code === 'ENOENT' || code === 'ENOTDIR') {
+    return new FilesError({ reason: kind === 'file' ? 'FileNotFound' : 'FolderNotFound', detail: `${subject} does not exist` });
+  }
+  return new FilesError({ reason: 'Unreadable', detail: `${subject} could not be read` });
+};
+
 const readFolder = Effect.fn('ProjectFiles.listDir')(function* (cwd: string, dir: string) {
   const target = yield* confine(cwd, dir);
-  if (!(yield* isDirectory(target))) {
-    return yield* new FilesError({ reason: 'FolderNotFound', detail: `${dir === '' ? cwd : dir} is not a folder` });
-  }
-  const dirents = yield* Effect.tryPromise(() => readdir(target, { withFileTypes: true })).pipe(Effect.orDie);
+  const subject = dir === '' ? cwd : dir;
+  const info = yield* Effect.tryPromise({ try: () => stat(target), catch: (error) => fsFailure(error, 'folder', subject) });
+  if (!info.isDirectory()) return yield* new FilesError({ reason: 'FolderNotFound', detail: `${subject} is not a folder` });
+  const dirents = yield* Effect.tryPromise({
+    try: () => readdir(target, { withFileTypes: true }),
+    catch: (error) => fsFailure(error, 'folder', subject),
+  });
   const children = dirents
     .filter((dirent) => dirent.name !== '.git')
     .map((dirent) => ({ name: dirent.name, kind: dirent.isDirectory() ? ('folder' as const) : ('file' as const) }));
@@ -122,26 +139,20 @@ const toFileContent = (bytes: Uint8Array): FileContent => {
   }
 };
 
-/** The size of a regular file, or `undefined` when `target` is missing or is not a file. */
-const fileSize = (target: string): Effect.Effect<number | undefined> =>
-  Effect.tryPromise(() => stat(target)).pipe(
-    Effect.map((info) => (info.isFile() ? info.size : undefined)),
-    Effect.orElseSucceed(() => undefined),
+/** The size of a regular file. A folder, or a path that is not there, is not a file. */
+const fileSize = (target: string, file: string): Effect.Effect<number, FilesError> =>
+  Effect.tryPromise({ try: () => stat(target), catch: (error) => fsFailure(error, 'file', file) }).pipe(
+    Effect.flatMap((info) =>
+      info.isFile() ? Effect.succeed(info.size) : Effect.fail(new FilesError({ reason: 'FileNotFound', detail: `${file} is not a file` })),
+    ),
   );
 
 const readFileContent = Effect.fn('ProjectFiles.read')(function* (cwd: string, file: string) {
   const target = yield* confine(cwd, file);
-  const size = yield* fileSize(target);
-  if (size === undefined) return yield* new FilesError({ reason: 'FileNotFound', detail: `${file} is not a file` });
+  const size = yield* fileSize(target, file);
   // Checked before reading: a big file's content never reaches memory, let alone the renderer.
   if (size > MAX_PREVIEW_BYTES) return { kind: 'tooLarge', size } satisfies FileContent;
-  const bytes = yield* Effect.tryPromise({ try: () => readFile(target), catch: (error) => error }).pipe(
-    Effect.mapError((error) =>
-      typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
-        ? new FilesError({ reason: 'FileNotFound', detail: `${file} no longer exists` })
-        : new FilesError({ reason: 'Unreadable', detail: `${file} could not be read` }),
-    ),
-  );
+  const bytes = yield* Effect.tryPromise({ try: () => readFile(target), catch: (error) => fsFailure(error, 'file', file) });
   return toFileContent(bytes);
 });
 

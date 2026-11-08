@@ -198,13 +198,17 @@ export class FilesBrowser {
     else this.open.set(false);
   }
 
+  /** The user drags the edge: a width that fits the window as it is now. */
   setWidth(pixels: number): void {
-    this.width.set(Math.round(pixels));
+    this.width.set(Math.min(Math.max(Math.round(pixels), MIN_BROWSER_WIDTH), this.maxWidth()));
   }
 
-  /** The user let go of the edge: remember the width, for every Project. */
+  /**
+   * The user let go of the edge: remember the width, for every Project. It is the width the user chose, not the one shown:
+   * a small window shows less than they asked for, and must not overwrite what they asked for.
+   */
   saveWidth(): void {
-    const width = this.shownWidth();
+    const width = this.width();
     void this.runtime.run(Effect.flatMap(DesktopApi, (desktop) => desktop['Files.saveWidth']({ width })));
   }
 
@@ -253,8 +257,11 @@ export class FilesBrowser {
   /** What an open folder shows: its entries, or one row that says it is loading or could not be read. */
   private childrenOf(path: string, open: ReadonlySet<string>): ReadonlyArray<TreeNode> {
     const listing = this.dirs().get(path);
-    if (listing === undefined || listing.status === 'loading' || listing.status === 'gone') {
+    if (listing === undefined || listing.status === 'loading') {
       return [{ id: `${path}/\u0000loading`, label: this.i18n.t('files.loading'), disabled: true }];
+    }
+    if (listing.status === 'gone') {
+      return [{ id: `${path}/\u0000gone`, label: this.i18n.t('files.folderGone'), disabled: true }];
     }
     if (listing.status === 'failed') {
       return [{ id: `${path}/\u0000failed`, label: this.i18n.t('files.folderFailed', { detail: listing.detail }), disabled: true }];
