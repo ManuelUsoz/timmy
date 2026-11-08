@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular
 import { Router, RouterOutlet } from '@angular/router';
 import type { Project } from '../../../shared/projects/projects.model';
 import { globalShortcut } from '../../core/shortcuts';
+import { FilesBrowser } from './files-browser';
+import { FilesSidebar } from './files-sidebar';
 import { NewProjectDialog } from './new-project-dialog';
 import { ProjectsState } from './projects-state';
 import { SettingsDialog } from './settings-dialog';
@@ -23,7 +25,7 @@ import { WorkspaceSidebar } from './workspace-sidebar';
  */
 @Component({
   selector: 'app-workspace',
-  imports: [NewProjectDialog, RouterOutlet, SettingsDialog, Switcher, ToastHost, WorkspaceSidebar],
+  imports: [FilesSidebar, NewProjectDialog, RouterOutlet, SettingsDialog, Switcher, ToastHost, WorkspaceSidebar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './workspace.html',
   styleUrl: './workspace.css',
@@ -35,6 +37,7 @@ export class WorkspaceComponent {
   private readonly router = inject(Router);
   private readonly tabs = inject(TabsState);
   protected readonly switcher = inject(SwitcherState);
+  protected readonly files = inject(FilesBrowser);
 
   constructor() {
     // The first time the Workspace appears, navigation starts (it is disabled at bootstrap, see workspace.routes.ts).
@@ -81,7 +84,7 @@ export class WorkspaceComponent {
     const shortcut = globalShortcut(event);
     if (shortcut === null) return;
     // The Tab shortcuts act on the screen behind a dialog (Settings, a confirmation), which the user cannot see: not then.
-    if ((shortcut.id === 'newTab' || shortcut.id === 'goToTab') && document.querySelector('[aria-modal="true"]') !== null) return;
+    if ((shortcut.id === 'newTab' || shortcut.id === 'goToTab' || shortcut.id === 'files') && document.querySelector('[aria-modal="true"]') !== null) return;
     event.preventDefault();
     event.stopPropagation();
     switch (shortcut.id) {
@@ -91,6 +94,8 @@ export class WorkspaceComponent {
         return this.settingsDialog.toggle();
       case 'newTab':
         return this.tabs.requestNewTab();
+      case 'files':
+        return this.files.openWithFilter();
       case 'goToTab':
         return void this.goToTab(shortcut.number);
     }

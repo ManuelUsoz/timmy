@@ -94,7 +94,7 @@ describe('ProjectStore', () => {
             const db = new DatabaseSync(file);
             const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all().map((r) => r['name']);
             db.close();
-            expect(tables).toEqual(['projects']);
+            expect(tables).toEqual(['projects', 'ui_state']);
           }),
         ),
       );

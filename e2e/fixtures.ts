@@ -16,6 +16,8 @@ export class Timmy {
     readonly page: Page,
     /** The app data directory of this run; Claude Code settings for the Hook live in claude/ inside it. */
     readonly userData: string,
+    /** The folder the demo project is added from: a git repository of its own, empty until a spec writes into it. */
+    readonly projectDir: string,
   ) {}
 
   bounds() {
@@ -98,10 +100,12 @@ export class Timmy {
       const out: string[] = [];
       if (doc.scrollWidth > doc.clientWidth) out.push(`page scrolls: ${doc.scrollWidth} > ${doc.clientWidth}`);
       // What the user sees: a container whose content is wider than it and that shows a horizontal scrollbar.
-      // (The chip strip scrolls too, but without a visible bar.)
+      // (The chip strip scrolls too, but without a visible bar.) A code viewer scrolls sideways by design, and says so
+      // with `data-scrolls-x`.
       for (const el of document.body.querySelectorAll<HTMLElement>('*')) {
         const overflowX = getComputedStyle(el).overflowX;
         if (overflowX !== 'auto' && overflowX !== 'scroll') continue;
+        if (el.hasAttribute('data-scrolls-x')) continue;
         const barHeight = el.offsetHeight - el.clientHeight - (el.offsetHeight - el.getBoundingClientRect().height);
         if (el.scrollWidth > el.clientWidth && barHeight >= 6) {
           out.push(`<${el.tagName.toLowerCase()} class="${el.getAttribute('class') ?? ''}"> scrolls sideways: ${el.scrollWidth} > ${el.clientWidth} (window ${width})`);
@@ -192,7 +196,7 @@ export const test = base.extend<{ timmy: Timmy; language: Language; providers: P
     await page.waitForSelector('.pill-bar', { timeout: 20_000 });
     await page.waitForTimeout(800);
 
-    await use(new Timmy(app, page, userData));
+    await use(new Timmy(app, page, userData, projectDir));
 
     await app.close().catch(() => {});
     rmSync(userData, { recursive: true, force: true });

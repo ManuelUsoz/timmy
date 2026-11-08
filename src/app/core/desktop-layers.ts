@@ -89,4 +89,9 @@ export const layerProjectsUnused = ProjectsRpcs.toLayer({
 /** Files handlers that die when called, so a test of another domain can still build `DesktopRpcs`. */
 export const layerFilesUnused = FilesRpcs.toLayer({
   'Files.list': () => Effect.die('Files handler not under test'),
+  'Files.listDir': () => Effect.die('Files handler not under test'),
+  'Files.read': () => Effect.die('Files handler not under test'),
+  'Files.getState': () => Effect.die('Files handler not under test'),
+  'Files.saveState': () => Effect.die('Files handler not under test'),
+  'Files.saveWidth': () => Effect.die('Files handler not under test'),
 });

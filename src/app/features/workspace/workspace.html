@@ -2,6 +2,9 @@
 <main class="screen">
   <router-outlet />
 </main>
+@if (files.open() && projects.selected()) {
+  <app-files-sidebar />
+}
 @if (settingsDialog.open()) {
   <app-settings-dialog />
 }

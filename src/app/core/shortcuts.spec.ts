@@ -17,6 +17,7 @@ describe('shortcuts', () => {
       ['workspace', 'toggleSidebar', 'Ctrl+B'],
       ['workspace', 'toggleSettings', 'Ctrl+,'],
       ['workspace', 'newTab', 'Ctrl+T'],
+      ['workspace', 'files', 'Ctrl+P'],
       ['workspace', 'goToTab', 'Ctrl+1–9'],
       ['workspace', 'switcher', 'Ctrl+Tab'],
       ['workspace', 'close', 'Esc'],
@@ -33,6 +34,12 @@ describe('shortcuts', () => {
   it('recognises Ctrl+T as New Tab', () => {
     expect(globalShortcut(press('t'))).toEqual({ id: 'newTab' });
     expect(globalShortcut(press('T'))).toEqual({ id: 'newTab' });
+  });
+
+  it('recognises Ctrl+P as the Files browser, and not with Shift or Alt', () => {
+    expect(globalShortcut(press('p'))).toEqual({ id: 'files' });
+    expect(globalShortcut({ ...press('p'), shiftKey: true })).toBeNull();
+    expect(globalShortcut({ ...press('p'), altKey: true })).toBeNull();
   });
 
   it('recognises Ctrl+1 to Ctrl+9 as going to the Tab with that number, and nothing for Ctrl+0', () => {

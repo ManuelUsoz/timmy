@@ -1,0 +1,146 @@
+<div
+  class="edge"
+  role="separator"
+  aria-orientation="vertical"
+  tabindex="0"
+  [attr.aria-label]="i18n.t('files.resize')"
+  [attr.aria-valuenow]="browser.shownWidth()"
+  [attr.aria-valuemin]="minWidth"
+  [attr.aria-valuemax]="browser.maxWidth()"
+  (pointerdown)="startResize($event)"
+  (pointermove)="resize($event)"
+  (pointerup)="endResize()"
+  (pointercancel)="endResize()"
+  (keydown)="edgeKey($event)"
+  (keyup)="edgeKeyUp($event)"
+></div>
+
+@let file = browser.file();
+<header class="head">
+  @if (browser.view() === 'file') {
+    <button #backButton type="button" class="icon back" [attr.aria-label]="i18n.t('files.back')" [attr.title]="i18n.t('files.back')" (click)="browser.back()">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" /></svg>
+    </button>
+    <div class="who">
+      <span class="name">{{ fileName() }}</span>
+      @if (fileDir() !== '') {
+        <span class="dir">{{ fileDir() }}</span>
+      }
+    </div>
+  } @else {
+    <h2 class="title">{{ i18n.t('files.title') }}</h2>
+    <span class="project">{{ projectName() }}</span>
+    <span class="spacer"></span>
+    <button type="button" class="icon refresh" [attr.aria-label]="i18n.t('files.refresh')" [attr.title]="i18n.t('files.refresh')" (click)="browser.refresh()">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3" /></svg>
+    </button>
+  }
+  <button type="button" class="icon close" [attr.aria-label]="i18n.t('files.close')" [attr.title]="i18n.t('files.close')" (click)="browser.toggle()">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+  </button>
+</header>
+
+@if (browser.view() === 'tree') {
+  @let matches = browser.matches();
+  <div class="filter-row">
+    <input
+      #filterField
+      class="filter"
+      type="search"
+      autocomplete="off"
+      spellcheck="false"
+      [attr.aria-label]="i18n.t('files.filter')"
+      [placeholder]="i18n.t('files.filter')"
+      [readOnly]="matches.status === 'unavailable'"
+      [attr.aria-disabled]="matches.status === 'unavailable' ? 'true' : null"
+      [value]="browser.filter()"
+      (input)="browser.filter.set($any($event.target).value)"
+      (keydown.enter)="openFirst()"
+      (keydown)="walk($event)"
+    />
+    @if (matches.status === 'unavailable') {
+      <p class="hint">{{ matches.reason === 'noGit' ? i18n.t('files.filterNoGit') : i18n.t('files.filterFailed', { detail: matches.detail }) }}</p>
+    }
+  </div>
+
+  @if (filtering() && matches.status === 'ready') {
+    @if (matches.items.length === 0) {
+      <p class="note">{{ i18n.t('files.noMatches') }}</p>
+    } @else {
+      <div class="results" role="listbox" [attr.aria-label]="i18n.t('files.results')">
+        @for (item of matches.items; track item.path) {
+          <button type="button" class="match" role="option" [attr.aria-selected]="false" (click)="browser.openFile(item.path)" (keydown)="walk($event, $any($event.currentTarget))">
+            <span class="name">{{ item.name }}</span>
+            @if (item.dir !== '') {
+              <span class="dir">{{ item.dir }}</span>
+            }
+          </button>
+        }
+        @if (matches.truncated) {
+          <p class="more">{{ i18n.t('files.refine') }}</p>
+        }
+      </div>
+    }
+  } @else {
+    @let tree = browser.tree();
+    @switch (tree.status) {
+      @case ('loading') {
+        <p class="note">{{ i18n.t('files.loading') }}</p>
+      }
+      @case ('failed') {
+        <div class="note">
+          <p>{{ i18n.t('files.treeFailed', { detail: tree.detail }) }}</p>
+          <button type="button" class="retry" (click)="browser.refresh()">{{ i18n.t('files.retry') }}</button>
+        </div>
+      }
+      @case ('ready') {
+        @if (tree.nodes.length === 0) {
+          <p class="note">{{ i18n.t('files.emptyFolder') }}</p>
+        } @else {
+          <div class="tree">
+            <ui-tree-view
+              size="sm"
+              toggleOnActivate
+              [label]="i18n.t('files.tree', { name: projectName() })"
+              [nodes]="tree.nodes"
+              [ngModel]="browser.selected()"
+              (ngModelChange)="browser.pick($event)"
+              (toggled)="browser.setFolderOpen($event.id, $event.open)"
+            />
+          </div>
+        }
+      }
+    }
+  }
+} @else {
+  @switch (file.status) {
+    @case ('text') {
+      @if (gutter() === '') {
+        <p class="note">{{ i18n.t('files.emptyFile') }}</p>
+      } @else {
+        <div #codeRegion class="code" data-scrolls-x tabindex="0" role="region" [attr.aria-label]="fileName()">
+          <pre class="gutter" aria-hidden="true">{{ gutter() }}</pre>
+          <pre class="source">{{ file.content }}</pre>
+        </div>
+      }
+    }
+    @case ('binary') {
+      <p class="note">{{ i18n.t('files.cantPreview') }}</p>
+    }
+    @case ('tooLarge') {
+      <p class="note">{{ i18n.t('files.tooLarge', { size: size(file.size) }) }}</p>
+    }
+    @case ('gone') {
+      <p class="note">{{ i18n.t('files.gone') }}</p>
+    }
+    @case ('unreadable') {
+      <p class="note">{{ i18n.t('files.unreadable') }}</p>
+    }
+    @case ('failed') {
+      <p class="note">{{ i18n.t('files.fileFailed', { detail: file.detail }) }}</p>
+    }
+    @default {
+      <p class="note">{{ i18n.t('files.loading') }}</p>
+    }
+  }
+}

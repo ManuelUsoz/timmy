@@ -154,6 +154,16 @@
   height: 32px;
 }
 
+.tool:hover:not([aria-disabled='true']) {
+  background: var(--layer-hover);
+  color: var(--text-primary);
+}
+
+.tool.on {
+  background: var(--layer-selected);
+  color: var(--text-primary);
+}
+
 .tool[aria-disabled='true'] {
   color: var(--text-disabled);
   cursor: not-allowed;

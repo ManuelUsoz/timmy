@@ -5,14 +5,14 @@ import { I18n } from '../../core/i18n';
 import type { MessageKey } from '../../core/i18n-dictionaries';
 import { ModalComponent } from '../../shared/ui/modal/modal';
 import { TooltipComponent } from '../../shared/ui/tooltip/tooltip';
+import { FilesBrowser } from './files-browser';
 import { NewTerminal } from './new-terminal';
 import { closeNeedsConfirm, tabDot, type Tab, type TabId } from './tabs';
 import { shortcutKeys } from '../../core/shortcuts';
 import { TabsState } from './tabs-state';
 
-/** The icons at the right end of the bar: features still to come, each only an icon with its name and "Soon". */
+/** The icons at the right end of the bar after Files: features still to come, each only an icon with its name and "Soon". */
 const SOON: ReadonlyArray<{ readonly key: MessageKey; readonly path: string }> = [
-  { key: 'tabs.files', path: 'M4 2h5l3 3v9H4zM9 2v3h3' },
   { key: 'tabs.agents', path: 'M10.5 5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0zM3 13c0-2.5 2.2-4 5-4s5 1.5 5 4' },
   { key: 'tabs.changes', path: 'M8 2v8M4 6h8M4 13h8' },
   { key: 'tabs.prs', path: 'M4.5 5v6M11.5 11V6.5a2 2 0 0 0-2-2H7M8.5 3L7 4.5 8.5 6M6 3.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zM6 12.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zM13 12.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z' },
@@ -35,6 +35,7 @@ const SOON: ReadonlyArray<{ readonly key: MessageKey; readonly path: string }> =
 export class TabBar {
   protected readonly i18n = inject(I18n);
   private readonly state = inject(TabsState);
+  protected readonly files = inject(FilesBrowser);
 
   readonly projectId = input.required<ProjectId>();
   readonly projectName = input.required<string>();
@@ -52,6 +53,7 @@ export class TabBar {
   private readonly confirmingId = signal<TabId | undefined>(undefined);
   protected readonly confirming = computed(() => this.tabs().find((tab) => tab.id === this.confirmingId()));
   protected readonly newTabHint = shortcutKeys('newTab').join('+');
+  protected readonly filesHint = shortcutKeys('files').join('+');
   private readonly renameInput = viewChild<ElementRef<HTMLInputElement>>('renameInput');
 
   constructor() {

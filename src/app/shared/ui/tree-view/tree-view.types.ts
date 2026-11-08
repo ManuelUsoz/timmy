@@ -21,6 +21,8 @@ export interface TreeNode {
   readonly badge?: TreeNodeBadge;
   /** Initial open state of a group. */
   readonly expanded?: boolean;
+  /** Default variant: a folder whose children are not loaded yet. It can be opened although it has none, and `toggled` says when. */
+  readonly lazy?: boolean;
   /** Default variant: draws a folder or file icon before the label. */
   readonly kind?: 'folder' | 'file';
   /** Default variant: the node is drawn muted (for example an ignored folder). */
