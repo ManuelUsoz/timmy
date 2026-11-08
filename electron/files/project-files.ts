@@ -76,9 +76,24 @@ const isInside = (root: string, target: string): boolean => {
   return !path.isAbsolute(from) && from !== '..' && !from.startsWith(`..${path.sep}`);
 };
 
-/** The real path, links resolved; a path that does not exist yet stays as written (the caller reports it missing). */
+/**
+ * The real path, links resolved. What does not exist yet (a file deleted since it was listed) keeps its own name but gets the
+ * real path of the deepest folder that does exist, so it is compared with the Project root on the same terms: a Project
+ * reached through a link or a short Windows name must report a missing file as missing, not as outside.
+ */
+const resolveExisting = async (target: string): Promise<string> => {
+  try {
+    return await realpath(target);
+  } catch (error) {
+    const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
+    const parent = path.dirname(target);
+    if ((code !== 'ENOENT' && code !== 'ENOTDIR') || parent === target) return Promise.reject(error);
+    return path.join(await resolveExisting(parent), path.basename(target));
+  }
+};
+
 const realPathOr = (target: string): Effect.Effect<string> =>
-  Effect.tryPromise(() => realpath(target)).pipe(Effect.orElseSucceed(() => target));
+  Effect.tryPromise(() => resolveExisting(target)).pipe(Effect.orElseSucceed(() => target));
 
 /**
  * The absolute path of `relative` inside `cwd`. The renderer is untrusted, so `..`, an absolute path, another drive and a

@@ -195,6 +195,22 @@ describe('Files.read', () => {
     }).pipe(Effect.provide(makeLayer()));
   });
 
+  it.effect('tells a missing file from an outside one when the Project is reached through a link', () => {
+    const real = tempDir();
+    write(real, 'src/a.ts', 'ok');
+    const via = path.join(tempDir(), 'via');
+    symlinkSync(real, via, 'junction');
+    register(via);
+    return Effect.gen(function* () {
+      const api = yield* DesktopApi;
+      expect(yield* api['Files.read']({ cwd: via, file: 'src/a.ts' })).toEqual({ kind: 'text', content: 'ok' });
+      const missingFile = yield* Effect.flip(api['Files.read']({ cwd: via, file: 'src/nope.ts' }));
+      expect(missingFile.reason).toBe('FileNotFound');
+      const missingFolder = yield* Effect.flip(api['Files.listDir']({ cwd: via, dir: 'nope/deeper' }));
+      expect(missingFolder.reason).toBe('FolderNotFound');
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
   it.effect('refuses a file outside the Project, also through a link', () => {
     const root = tempDir();
     const outside = tempDir();
