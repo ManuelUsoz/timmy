@@ -52,6 +52,11 @@
   </app-new-terminal>
 
   <div class="tools">
+    <ui-tooltip placement="bottom" align="end" [text]="i18n.t('tabs.files') + ' (' + filesHint + ')'">
+      <button type="button" class="tool" [class.on]="files.open()" [attr.aria-pressed]="files.open()" [attr.aria-label]="i18n.t('tabs.files')" (click)="files.toggle()">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2h5l3 3v9H4zM9 2v3h3" /></svg>
+      </button>
+    </ui-tooltip>
     @for (item of soon; track item.key) {
       @let label = i18n.t(item.key);
       <ui-tooltip placement="bottom" align="end" [text]="i18n.t('tabs.soon', { name: label })">

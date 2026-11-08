@@ -82,10 +82,10 @@ export class FilesBrowser {
   readonly open = signal(false);
   /** The width the user chose, the same for every Project. */
   readonly width = signal(DEFAULT_BROWSER_WIDTH);
-  /** The width on screen: the chosen one kept between the narrowest and a share of the window. */
-  readonly shownWidth = computed(() =>
-    Math.min(Math.max(this.width(), MIN_BROWSER_WIDTH), Math.max(MIN_BROWSER_WIDTH, Math.floor(this.layout.width() * MAX_BROWSER_SHARE))),
-  );
+  /** The widest the sidebar gets: a share of the window, never under the narrowest. */
+  readonly maxWidth = computed(() => Math.max(MIN_BROWSER_WIDTH, Math.floor(this.layout.width() * MAX_BROWSER_SHARE)));
+  /** The width on screen: the chosen one kept between the narrowest and the widest. */
+  readonly shownWidth = computed(() => Math.min(Math.max(this.width(), MIN_BROWSER_WIDTH), this.maxWidth()));
   /** What the user typed in the filter field. Not remembered. */
   readonly filter = signal('');
   private readonly index = signal<FileIndex>({ status: 'loading' });

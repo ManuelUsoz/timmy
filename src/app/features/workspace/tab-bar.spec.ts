@@ -216,12 +216,12 @@ describe('Tabs of a Project', () => {
     expect(router.url).toMatch(/^\/projects\/p-ascua\//);
   });
 
-  it('shows Files, Agents, Changes, PRs and Usage as disabled icons that say "Soon"', async () => {
+  it('shows Files as a button and Agents, Changes, PRs and Usage as disabled icons that say "Soon"', async () => {
     const { el, press, settle } = await setup();
     await press('t');
     const tools = Array.from(el.querySelectorAll<HTMLButtonElement>('app-tab-bar .tools button'));
     expect(tools.map((tool) => [tool.getAttribute('aria-label'), tool.getAttribute('aria-disabled'), tool.textContent?.trim()])).toEqual([
-      ['Archivos', 'true', ''],
+      ['Archivos', null, ''],
       ['Agentes', 'true', ''],
       ['Cambios', 'true', ''],
       ['PRs', 'true', ''],
@@ -230,5 +230,8 @@ describe('Tabs of a Project', () => {
     tools[1].dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
     await settle();
     expect(el.querySelector('app-tab-bar [role=tooltip]')?.textContent).toBe('Agentes · Pronto');
+    tools[0].dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    await settle();
+    expect(el.querySelector('app-tab-bar [role=tooltip]')?.textContent).toBe('Archivos (Ctrl+P)');
   });
 });

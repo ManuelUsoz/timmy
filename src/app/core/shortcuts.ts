@@ -1,7 +1,7 @@
 import type { MessageKey } from './i18n-dictionaries';
 
 /** A shortcut pressed with Ctrl alone, which the Workspace handles wherever the focus is. */
-type CtrlShortcutId = 'toggleSidebar' | 'toggleSettings' | 'newTab';
+type CtrlShortcutId = 'toggleSidebar' | 'toggleSettings' | 'newTab' | 'files';
 
 /** What a shortcut does. */
 export type ShortcutId =
@@ -59,6 +59,7 @@ export const shortcuts: ReadonlyArray<Shortcut> = [
   { id: 'toggleSidebar', group: 'workspace', keys: ['Ctrl', 'B'], action: 'shortcuts.toggleSidebar', ctrl: 'b' },
   { id: 'toggleSettings', group: 'workspace', keys: ['Ctrl', ','], action: 'shortcuts.toggleSettings', ctrl: ',' },
   { id: 'newTab', group: 'workspace', keys: ['Ctrl', 'T'], action: 'shortcuts.newTab', ctrl: 't' },
+  { id: 'files', group: 'workspace', keys: ['Ctrl', 'P'], action: 'shortcuts.files', ctrl: 'p' },
   { id: 'goToTab', group: 'workspace', keys: ['Ctrl', '1–9'], action: 'shortcuts.goToTab' },
   { id: 'switcher', group: 'workspace', keys: ['Ctrl', 'Tab'], action: 'shortcuts.switcher' },
   { id: 'close', group: 'workspace', keys: ['Esc'], action: 'shortcuts.close' },
@@ -74,7 +75,7 @@ export const shortcuts: ReadonlyArray<Shortcut> = [
 /** The keys of a shortcut as the table lists them, for the hints the UI shows next to what it does. */
 export const shortcutKeys = (id: ShortcutId): ReadonlyArray<string> => shortcuts.find((shortcut) => shortcut.id === id)?.keys ?? [];
 
-const isCtrlShortcut = (id: ShortcutId): id is CtrlShortcutId => id === 'toggleSidebar' || id === 'toggleSettings' || id === 'newTab';
+const isCtrlShortcut = (id: ShortcutId): id is CtrlShortcutId => id === 'toggleSidebar' || id === 'toggleSettings' || id === 'newTab' || id === 'files';
 
 /** The global shortcut a key press is, if any: Ctrl with no other modifier and one of the keys of the table, or 1–9. */
 export const globalShortcut = (event: Pick<KeyboardEvent, 'key' | 'code' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'metaKey'>): GlobalShortcut | null => {
