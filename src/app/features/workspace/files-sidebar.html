@@ -18,7 +18,7 @@
 @let file = browser.file();
 <header class="head">
   @if (browser.view() === 'file') {
-    <button type="button" class="icon back" [attr.aria-label]="i18n.t('files.back')" [attr.title]="i18n.t('files.back')" (click)="browser.back()">
+    <button #backButton type="button" class="icon back" [attr.aria-label]="i18n.t('files.back')" [attr.title]="i18n.t('files.back')" (click)="browser.back()">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" /></svg>
     </button>
     <div class="who">
@@ -117,7 +117,7 @@
       @if (gutter() === '') {
         <p class="note">{{ i18n.t('files.emptyFile') }}</p>
       } @else {
-        <div class="code" tabindex="0" role="region" [attr.aria-label]="fileName()">
+        <div #codeRegion class="code" data-scrolls-x tabindex="0" role="region" [attr.aria-label]="fileName()">
           <pre class="gutter" aria-hidden="true">{{ gutter() }}</pre>
           <pre class="source">{{ file.content }}</pre>
         </div>

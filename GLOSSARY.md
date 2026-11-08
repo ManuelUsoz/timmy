@@ -48,7 +48,7 @@ _Avoid_: panel (Panel is a Window mode), split.
 What a Pane shows: a Terminal, a diff or a pull request. Files are never a View; they are read in the Files browser.
 
 **Files browser**
-A large modal over the Workspace with the selected Project's folder as a tree on one side and the chosen file, read-only, on the other.
+A read-only sidebar docked on the right of the Workspace, beside the Panes, which keep running. It shows the selected Project's folder as a tree read one folder at a time (a folder git ignores, such as `node_modules`, is listed dimmed and read only when the user opens it), and the chosen file in the tree's place, with a way back. It is not a Pane and not a modal.
 
 **Stack**
 A Pane holding two or three Views, one expanded and the others collapsed to their headers.

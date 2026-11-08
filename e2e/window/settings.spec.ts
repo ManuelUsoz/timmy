@@ -68,21 +68,23 @@ test.describe('Settings', () => {
     await test.step('Shortcuts lists the Workspace shortcuts, then the Pane and Stack ones', async () => {
       await section('Shortcuts').click();
       const rows = dialog.getByTestId('shortcut-row');
-      await expect(rows).toHaveCount(13);
-      await expect(rows.nth(6)).toContainText('Split the pane right');
-      await expect(rows.nth(6)).toContainText(/Alt\s*Shift\s*R/);
+      await expect(rows).toHaveCount(14);
+      await expect(rows.nth(7)).toContainText('Split the pane right');
+      await expect(rows.nth(7)).toContainText(/Alt\s*Shift\s*R/);
       await expect(rows.nth(0)).toContainText('Collapse or expand the sidebar');
       await expect(rows.nth(0)).toContainText(/Ctrl\s*B/);
       await expect(rows.nth(1)).toContainText('Open or close Settings');
       await expect(rows.nth(1)).toContainText(/Ctrl\s*,/);
       await expect(rows.nth(2)).toContainText('New tab');
       await expect(rows.nth(2)).toContainText(/Ctrl\s*T/);
-      await expect(rows.nth(3)).toContainText('Go to the tab with that number');
-      await expect(rows.nth(3)).toContainText(/Ctrl\s*1–9/);
-      await expect(rows.nth(4)).toContainText('Switch tab or project');
-      await expect(rows.nth(4)).toContainText(/Ctrl\s*Tab/);
-      await expect(rows.nth(5)).toContainText('Close Settings or a dialog');
-      await expect(rows.nth(5)).toContainText('Esc');
+      await expect(rows.nth(3)).toContainText('Find a file in the project');
+      await expect(rows.nth(3)).toContainText(/Ctrl\s*P/);
+      await expect(rows.nth(4)).toContainText('Go to the tab with that number');
+      await expect(rows.nth(4)).toContainText(/Ctrl\s*1–9/);
+      await expect(rows.nth(5)).toContainText('Switch tab or project');
+      await expect(rows.nth(5)).toContainText(/Ctrl\s*Tab/);
+      await expect(rows.nth(6)).toContainText('Close Settings or a dialog');
+      await expect(rows.nth(6)).toContainText('Esc');
     });
     await timmy.shot('settings-shortcuts');
 

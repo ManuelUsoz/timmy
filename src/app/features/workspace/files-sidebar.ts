@@ -39,6 +39,8 @@ export class FilesSidebar {
   private readonly projects = inject(ProjectsState);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly filterField = viewChild<ElementRef<HTMLInputElement>>('filterField');
+  private readonly codeRegion = viewChild<ElementRef<HTMLElement>>('codeRegion');
+  private readonly backButton = viewChild<ElementRef<HTMLElement>>('backButton');
 
   protected readonly minWidth = MIN_BROWSER_WIDTH;
   protected readonly projectName = computed(() => this.projects.selected()?.name ?? '');
@@ -67,6 +69,12 @@ export class FilesSidebar {
     afterNextRender(() => {
       const field = this.filterField()?.nativeElement;
       if (field !== undefined && !field.disabled) field.focus();
+    });
+    // The row that was clicked goes away with the tree, and the focus with it: a file taking its place takes the keyboard,
+    // or Esc and the arrows would go nowhere. Its text when there is some (it scrolls with the arrows), the way back otherwise.
+    effect(() => {
+      if (this.browser.view() !== 'file') return;
+      (this.codeRegion() ?? this.backButton())?.nativeElement.focus();
     });
   }
 

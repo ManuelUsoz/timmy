@@ -182,6 +182,27 @@ describe('FilesSidebar', () => {
     expect(sidebar()).toBeNull();
   });
 
+  it('keeps the keyboard inside the sidebar when a file opens and when it closes, so Esc still reaches it', async () => {
+    const { sidebar, rowOf, click, ctrlP, filter, el, keyOn } = await setup();
+    await ctrlP();
+    // The row the user clicked has the focus, and it goes away with the tree.
+    rowOf('README.md').focus();
+    await click(rowOf('README.md'));
+    expect(sidebar()!.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).toBe(sidebar()!.querySelector('.code'));
+    await keyOn(document.activeElement!, { key: 'Escape' });
+    expect(document.activeElement).toBe(filter());
+    expect(el.querySelector('app-files-sidebar')).not.toBeNull();
+  });
+
+  it('puts the keyboard on the way back when there is no file to read', async () => {
+    const { sidebar, rowOf, click, ctrlP } = await setup();
+    await ctrlP();
+    rowOf('logo.png').focus();
+    await click(rowOf('logo.png'));
+    expect(document.activeElement).toBe(sidebar()!.querySelector('.head .back'));
+  });
+
   it('goes back to the tree and refocuses the filter with Ctrl+P from a file', async () => {
     const { sidebar, rowOf, click, ctrlP, filter } = await setup();
     await ctrlP();
