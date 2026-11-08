@@ -1,4 +1,5 @@
 import { Layer } from 'effect';
+import { layerFilesState } from '../files/files-state';
 import { layerProjectFiles } from '../files/project-files';
 import { layerHooksService } from '../hooks/hooks-service';
 import { layerProjectFolders } from '../projects/project-folders';
@@ -21,7 +22,7 @@ const layerProjectsHandlersLive = layerProjectsHandlers.pipe(
   Layer.provide(layerProjectFolders),
 );
 
-const layerFilesHandlersLive = layerFilesHandlers.pipe(Layer.provide(layerProjectFiles()));
+const layerFilesHandlersLive = layerFilesHandlers.pipe(Layer.provide(layerProjectFiles()), Layer.provide(layerFilesState));
 
 const layerHooksHandlersLive = layerHooksHandlers.pipe(Layer.provide(layerHooksService));
 

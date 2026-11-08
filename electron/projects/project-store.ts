@@ -24,6 +24,9 @@ export class ProjectStore extends Context.Service<
     readonly remove: (projectId: ProjectId) => Effect.Effect<void>;
     /** Remembers the project as the last one opened. */
     readonly touch: (projectId: ProjectId) => Effect.Effect<void>;
+    /** A small piece of UI state a feature keeps under its own key; the store does not look inside it. */
+    readonly getState: (key: string) => Effect.Effect<Option.Option<string>>;
+    readonly putState: (key: string, value: string) => Effect.Effect<void>;
   }
 >()('projects/ProjectStore') {}
 
@@ -73,6 +76,10 @@ const migrations: ReadonlyArray<string> = [
   DROP TABLE entries;
   DROP TABLE sessions;
   DROP TABLE meta;
+  `,
+  // UI state that outlives a restart, kept by the feature that owns each key.
+  `
+  CREATE TABLE ui_state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `,
 ];
 
@@ -154,6 +161,12 @@ export const layerProjectStore = (path: string) =>
           Clock.currentTimeMillis.pipe(
             Effect.flatMap((now) => run('UPDATE projects SET last_used_at = ? WHERE id = ?', now, projectId)),
           ),
+        getState: (key) =>
+          all('SELECT value FROM ui_state WHERE key = ?', key).pipe(
+            Effect.map((rows) => Option.fromNullishOr(rows[0]).pipe(Option.map((row) => String(row['value'])))),
+          ),
+        putState: (key, value) =>
+          run('INSERT INTO ui_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', key, value),
       });
     }),
   );

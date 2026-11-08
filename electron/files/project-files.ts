@@ -1,13 +1,21 @@
 import { execFile } from 'node:child_process';
-import { stat } from 'node:fs/promises';
+import { readdir, readFile, realpath, stat } from 'node:fs/promises';
+import path from 'node:path';
 import { Context, Effect, Layer } from 'effect';
 import { FilesError } from '../../src/shared/files/files-error.model';
-import { MAX_LISTED_PATHS, type FileList } from '../../src/shared/files/files.model';
+import { MAX_LISTED_PATHS, MAX_PREVIEW_BYTES, type FileContent, type FileList, type FolderEntry, type FolderListing } from '../../src/shared/files/files.model';
 
-/** The file listing of a working directory. Git is the source of truth: there is no disk walk. */
+/**
+ * What the Files browser reads of a working directory. `list` is the flat index of what git sees (no disk walk);
+ * `listDir` reads one folder from disk when the user expands it, so ignored folders can be browsed without being crawled.
+ */
 export class ProjectFiles extends Context.Service<
   ProjectFiles,
-  { readonly list: (cwd: string) => Effect.Effect<FileList, FilesError> }
+  {
+    readonly list: (cwd: string) => Effect.Effect<FileList, FilesError>;
+    readonly listDir: (cwd: string, dir: string) => Effect.Effect<FolderListing, FilesError>;
+    readonly read: (cwd: string, file: string) => Effect.Effect<FileContent, FilesError>;
+  }
 >()('files/ProjectFiles') {}
 
 const gitFailure = (error: unknown, stderr: string): FilesError => {
@@ -39,6 +47,104 @@ const runLsFiles = (cwd: string): Effect.Effect<string, FilesError> =>
     );
   });
 
+/**
+ * Which of `candidates` git ignores. Folders end in `/` so patterns like `node_modules/` match them. Outside a repository,
+ * or when git is missing, nothing is reported as ignored: the tree still works, it just does not dim anything.
+ */
+const ignoredAmong = (cwd: string, candidates: ReadonlyArray<string>): Effect.Effect<ReadonlySet<string>> =>
+  candidates.length === 0
+    ? Effect.succeed(new Set<string>())
+    : Effect.callback<ReadonlySet<string>>((resume) => {
+        const child = execFile(
+          'git',
+          ['check-ignore', '-z', '--stdin'],
+          { cwd, windowsHide: true, maxBuffer: 64 * 1024 * 1024 },
+          // Exit 1 means none is ignored, 128 means not a repository: both read as "nothing ignored".
+          (error, stdout) => resume(Effect.succeed(new Set(error === null ? stdout.split('\0').filter((entry) => entry !== '') : []))),
+        );
+        child.stdin?.end(candidates.join('\0') + '\0');
+      });
+
+const byFoldersThenName = (a: FolderEntry, b: FolderEntry): number =>
+  a.kind === b.kind ? (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1) : a.kind === 'folder' ? -1 : 1;
+
+/**
+ * The absolute path of `relative` inside `cwd`. The renderer is untrusted, so anything that leaves the Project folder
+ * (`..`, an absolute path, another drive) is refused before the disk is touched.
+ */
+const isInside = (root: string, target: string): boolean => {
+  const from = path.relative(root, target);
+  return !path.isAbsolute(from) && from !== '..' && !from.startsWith(`..${path.sep}`);
+};
+
+/** The real path, links resolved; a path that does not exist yet stays as written (the caller reports it missing). */
+const realPathOr = (target: string): Effect.Effect<string> =>
+  Effect.tryPromise(() => realpath(target)).pipe(Effect.orElseSucceed(() => target));
+
+/** Refuses `..`, an absolute path, another drive, and a link that leads out of the Project. */
+const confine = Effect.fn('ProjectFiles.confine')(function* (cwd: string, relative: string) {
+  const root = path.resolve(cwd);
+  const target = path.resolve(root, relative);
+  const outside = new FilesError({ reason: 'OutsideProject', detail: `${relative} is outside the Project folder` });
+  if (path.isAbsolute(relative) || !isInside(root, target)) return yield* outside;
+  if (!isInside(yield* realPathOr(root), yield* realPathOr(target))) return yield* outside;
+  return target;
+});
+
+const readFolder = Effect.fn('ProjectFiles.listDir')(function* (cwd: string, dir: string) {
+  const target = yield* confine(cwd, dir);
+  if (!(yield* isDirectory(target))) {
+    return yield* new FilesError({ reason: 'FolderNotFound', detail: `${dir === '' ? cwd : dir} is not a folder` });
+  }
+  const dirents = yield* Effect.tryPromise(() => readdir(target, { withFileTypes: true })).pipe(Effect.orDie);
+  const children = dirents
+    .filter((dirent) => dirent.name !== '.git')
+    .map((dirent) => ({ name: dirent.name, kind: dirent.isDirectory() ? ('folder' as const) : ('file' as const) }));
+  const relative = (child: { readonly name: string; readonly kind: 'file' | 'folder' }) =>
+    `${dir === '' ? '' : `${dir}/`}${child.name}${child.kind === 'folder' ? '/' : ''}`;
+  const ignored = yield* ignoredAmong(cwd, children.map(relative));
+  const entries = children.map((child) => ({ ...child, ignored: ignored.has(relative(child)) })).sort(byFoldersThenName);
+  return { entries } satisfies FolderListing;
+});
+
+/** How far into a file a NUL byte still marks it as binary. */
+const BINARY_SNIFF_BYTES = 8192;
+
+const utf8 = new TextDecoder('utf-8', { fatal: true });
+
+/** Text when the bytes are UTF-8 with no NUL near the start; binary otherwise. */
+const toFileContent = (bytes: Uint8Array): FileContent => {
+  if (bytes.subarray(0, BINARY_SNIFF_BYTES).includes(0)) return { kind: 'binary' };
+  try {
+    return { kind: 'text', content: utf8.decode(bytes) };
+  } catch {
+    return { kind: 'binary' };
+  }
+};
+
+/** The size of a regular file, or `undefined` when `target` is missing or is not a file. */
+const fileSize = (target: string): Effect.Effect<number | undefined> =>
+  Effect.tryPromise(() => stat(target)).pipe(
+    Effect.map((info) => (info.isFile() ? info.size : undefined)),
+    Effect.orElseSucceed(() => undefined),
+  );
+
+const readFileContent = Effect.fn('ProjectFiles.read')(function* (cwd: string, file: string) {
+  const target = yield* confine(cwd, file);
+  const size = yield* fileSize(target);
+  if (size === undefined) return yield* new FilesError({ reason: 'FileNotFound', detail: `${file} is not a file` });
+  // Checked before reading: a big file's content never reaches memory, let alone the renderer.
+  if (size > MAX_PREVIEW_BYTES) return { kind: 'tooLarge', size } satisfies FileContent;
+  const bytes = yield* Effect.tryPromise({ try: () => readFile(target), catch: (error) => error }).pipe(
+    Effect.mapError((error) =>
+      typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT'
+        ? new FilesError({ reason: 'FileNotFound', detail: `${file} no longer exists` })
+        : new FilesError({ reason: 'Unreadable', detail: `${file} could not be read` }),
+    ),
+  );
+  return toFileContent(bytes);
+});
+
 /** Splits git's NUL-separated output and applies the cap. */
 export const toFileList = (output: string, limit: number): FileList => {
   const all = output.split('\0').filter((entry) => entry !== '');
@@ -53,4 +159,6 @@ export const layerProjectFiles = (limit: number = MAX_LISTED_PATHS) =>
       }
       return toFileList(yield* runLsFiles(cwd), limit);
     }),
+    listDir: readFolder,
+    read: readFileContent,
   });
