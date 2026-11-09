@@ -1,5 +1,5 @@
 import { AfterViewInit, ChangeDetectionStrategy, booleanAttribute, Component, ElementRef, OnDestroy, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
-import { Effect, Stream } from 'effect';
+import { Cause, Effect, Exit, Stream } from 'effect';
 import { FitAddon } from '@xterm/addon-fit';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { Terminal } from '@xterm/xterm';
@@ -218,8 +218,9 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
   protected async start(): Promise<void> {
     const instance = this.instance;
     const entry = this.terminal();
-    if (!(await this.terminals.start(entry.id, this.cwd()))) {
-      this.toasts.error('terminals.startFailed');
+    const started = await this.terminals.start(entry.id, this.cwd());
+    if (Exit.isFailure(started)) {
+      this.toasts.error('terminals.startFailed', { detail: Cause.pretty(started.cause) });
       return;
     }
     if (this.destroyed || instance === undefined) return;

@@ -55,9 +55,13 @@ export class WorkspacePersistence {
       this.toasts.error('workspace.loadFailed', { detail: Cause.pretty(exit.cause) });
       return;
     }
+    // A Project that already had a Terminal open when the load finished has a change the store does not hold yet.
+    const opened = new Set(this.terminals.entries().map((entry) => entry.projectId));
     this.tabs.restore(exit.value);
     // What is saved is the layout as it is now, tidied to its Terminals, so a clean start writes nothing back.
-    for (const { projectId } of exit.value) this.saved.set(projectId, JSON.stringify(this.tabs.savedTabs(projectId)));
+    for (const { projectId } of exit.value) {
+      if (!opened.has(projectId)) this.saved.set(projectId, JSON.stringify(this.tabs.savedTabs(projectId)));
+    }
     this.loaded.set(true);
   }
 
@@ -82,7 +86,10 @@ export class WorkspacePersistence {
       const tabs = this.tabs.savedTabs(projectId);
       this.queue = this.queue.then(async () => {
         const exit = await this.runtime.run(Effect.flatMap(DesktopApi, (desktop) => desktop['Workspace.save']({ projectId, tabs })));
-        if (Exit.isFailure(exit) && !this.saveFailureTold) {
+        if (Exit.isSuccess(exit)) return;
+        // The store still holds the old layout: the next change to the Project saves it again.
+        this.saved.delete(projectId);
+        if (!this.saveFailureTold) {
           this.saveFailureTold = true;
           this.toasts.error('workspace.saveFailed', { detail: Cause.pretty(exit.cause) });
         }

@@ -117,7 +117,7 @@ const SELECT_PROJECT = `
 const LayoutJson = Schema.fromJsonString(TabLayout);
 const encodeLayout = Schema.encodeSync(LayoutJson);
 const decodeLayout = Schema.decodeUnknownOption(LayoutJson);
-const decodeTerminal = Schema.decodeUnknownEffect(SavedTab.fields.terminals);
+const decodeTerminals = Schema.decodeUnknownEffect(SavedTab.fields.terminals);
 
 const decodeProjects = Schema.decodeUnknownEffect(Schema.Array(Project));
 
@@ -174,7 +174,7 @@ export const layerProjectStore = (path: string) =>
         );
         const projects = new Map<string, SavedTabType[]>();
         for (const row of tabRows) {
-          const terminals = yield* decodeTerminal(
+          const terminals = yield* decodeTerminals(
             terminalRows
               .filter((terminal) => terminal['tabId'] === row['tabId'])
               .map((terminal) => ({

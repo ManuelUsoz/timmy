@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { Effect, Stream } from 'effect';
+import { Effect, Exit, Stream } from 'effect';
 import { ProjectId } from '../../../shared/projects/projects.model';
 import type { Provider } from '../../../shared/settings/settings.model';
 import { TerminalId, type TerminalActivityEntry } from '../../../shared/terminal/terminal.model';
@@ -153,9 +153,16 @@ describe('TerminalsState: restored Terminals', () => {
   it('starts an Idle Terminal in the Project folder with its Provider, under the id it was saved with', async () => {
     const { created, terminals } = withMain();
     terminals.restore([restoredEntry('saved-1', 'ClaudeCode')]);
-    expect(await terminals.start(TerminalId.make('saved-1'), '/work/timmy')).toBe(true);
+    expect(Exit.isSuccess(await terminals.start(TerminalId.make('saved-1'), '/work/timmy'))).toBe(true);
     expect(created).toEqual([{ cwd: '/work/timmy', provider: 'ClaudeCode', terminalId: 'saved-1' }]);
     expect(terminals.find(TerminalId.make('saved-1'))).toMatchObject({ state: 'Live', number: 4, provider: 'ClaudeCode' });
+  });
+
+  it('starts an Idle Terminal once, however often it is asked', async () => {
+    const { created, terminals } = withMain();
+    terminals.restore([restoredEntry('saved-1')]);
+    await Promise.all([terminals.start(TerminalId.make('saved-1'), '/work/timmy'), terminals.start(TerminalId.make('saved-1'), '/work/timmy')]);
+    expect(created).toHaveLength(1);
   });
 
   it('starts a saved plain shell as a plain shell', async () => {
@@ -169,8 +176,8 @@ describe('TerminalsState: restored Terminals', () => {
     const { created, terminals } = withMain();
     terminals.restore([restoredEntry('saved-1')]);
     const live = (await terminals.createLive(timmy, '/work/timmy'))!;
-    expect(await terminals.start(live.id, '/work/timmy')).toBe(false);
-    expect(await terminals.start(TerminalId.make('unknown'), '/work/timmy')).toBe(false);
+    expect(Exit.isFailure(await terminals.start(live.id, '/work/timmy'))).toBe(true);
+    expect(Exit.isFailure(await terminals.start(TerminalId.make('unknown'), '/work/timmy'))).toBe(true);
     expect(created).toHaveLength(1);
   });
 });

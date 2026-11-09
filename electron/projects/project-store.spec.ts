@@ -4,13 +4,12 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterAll, describe, expect, it } from '@effect/vitest';
 import { Effect, Option } from 'effect';
-import type { ProjectId } from '../../src/shared/projects/projects.model';
+import { ProjectId } from '../../src/shared/projects/projects.model';
 import { TerminalId } from '../../src/shared/terminal/terminal.model';
 import { PaneId, TabId, type SavedTab } from '../../src/shared/workspace/workspace.model';
 import { projectIdOfCwd } from './project-id';
 import { layerProjectStore, ProjectStore } from './project-store';
 
-const projectIdOf = (id: string) => id as ProjectId;
 const at = (...parts: string[]) => path.resolve('/disk', ...parts);
 
 const withStore = <A, E>(body: (store: ProjectStore['Service']) => Effect.Effect<A, E>, file = ':memory:') =>
@@ -179,7 +178,7 @@ describe('ProjectStore', () => {
             expect((yield* store.list).map((p) => p.name)).toEqual(['app']);
             expect(yield* store.getState('files.width')).toEqual(Option.some('300'));
             expect(yield* store.layouts).toEqual([]);
-            yield* store.saveLayout(projectIdOf('p1'), [tab('t1', [term('a', 1)])]);
+            yield* store.saveLayout(ProjectId.make('p1'), [tab('t1', [term('a', 1)])]);
             expect((yield* store.layouts).length).toBe(1);
           }),
         file,

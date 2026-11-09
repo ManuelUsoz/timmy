@@ -4,10 +4,10 @@ import { Provider } from '../settings/settings.model';
 import { TerminalId } from '../terminal/terminal.model';
 
 /** A Tab of a Project (GLOSSARY: Tab). */
-export const TabId = Schema.String.pipe(Schema.brand('TabId'));
+export const TabId = Schema.String.pipe(Schema.brand('TabId')).annotate({ identifier: 'TabId' });
 export type TabId = typeof TabId.Type;
 
-export const PaneId = Schema.String.pipe(Schema.brand('PaneId'));
+export const PaneId = Schema.String.pipe(Schema.brand('PaneId')).annotate({ identifier: 'PaneId' });
 export type PaneId = typeof PaneId.Type;
 
 export const SplitDirection = Schema.Literals(['right', 'down']).annotate({ identifier: 'SplitDirection' });
@@ -45,7 +45,7 @@ export const LayoutNode: Schema.Codec<LayoutNode, LayoutNodeEncoded> = Schema.Un
     children: Schema.Array(Schema.suspend((): Schema.Codec<LayoutNode, LayoutNodeEncoded> => LayoutNode)),
     sizes: Schema.Array(Schema.Number),
   }).pipe(Schema.check(wellFormedSplit)),
-]);
+]).annotate({ identifier: 'LayoutNode' });
 
 /** The Panes of a Tab, how they split its area, and the focused one. */
 export const TabLayout = Schema.Struct({

@@ -23,11 +23,12 @@ const savedTab = (id: string, terminals: ReadonlyArray<readonly [string, number]
 
 /** Main's saved layout in memory: what `Workspace.load` answers, and every `Workspace.save` it got. */
 const withStore = (initial: ReadonlyArray<ProjectLayout> = [], options: { loadFails?: boolean } = {}) => {
+  const failSaves = { now: false };
   const saves: Array<{ readonly projectId: ProjectId; readonly tabs: ReadonlyArray<SavedTab> }> = [];
   let created = 0;
   const workspace = WorkspaceRpcs.toLayer({
     'Workspace.load': () => (options.loadFails ? Effect.die('the store is unreadable') : Effect.succeed(initial)),
-    'Workspace.save': (payload) => Effect.sync(() => void saves.push(payload)),
+    'Workspace.save': (payload) => (failSaves.now ? Effect.die('the disk is full') : Effect.sync(() => void saves.push(payload))),
   });
   const terminal = TerminalRpcs.toLayer({
     'Terminal.create': () => Effect.sync(() => ({ terminalId: TerminalId.make(`live-${++created}`) })),
@@ -43,7 +44,7 @@ const withStore = (initial: ReadonlyArray<ProjectLayout> = [], options: { loadFa
   TestBed.configureTestingModule({
     providers: [{ provide: EffectRuntime, useValue: { run: (e: Effect.Effect<unknown, unknown, never>) => Effect.runPromiseExit(Effect.provide(e as never, layer)) } }],
   });
-  return { saves, tabs: TestBed.inject(TabsState), terminals: TestBed.inject(TerminalsState), toasts: TestBed.inject(ToastService) };
+  return { saves, failSaves, tabs: TestBed.inject(TabsState), terminals: TestBed.inject(TerminalsState), toasts: TestBed.inject(ToastService) };
 };
 
 /** Lets the pending RPCs answer, the effect run and the quiet moment pass. */
@@ -137,6 +138,27 @@ describe('WorkspacePersistence', () => {
     await settle();
     expect(saves).toEqual([]);
     expect(toasts.toasts().map((toast) => toast.body)).toEqual(['workspace.loadFailed']);
+  });
+
+  it('keeps a Terminal opened before the load finished as a change to save, in a Project that already had Tabs', async () => {
+    const { saves, terminals } = withStore([{ projectId: timmy, tabs: [savedTab('t1', [['a', 1]])] }]);
+    TestBed.inject(WorkspacePersistence);
+    const early = terminals.create(timmy);
+    await settle();
+    expect(saves.at(-1)?.tabs.flatMap((tab) => tab.terminals.map((terminal) => terminal.terminalId))).toHaveLength(2);
+    expect(saves.at(-1)?.tabs.flatMap((tab) => tab.terminals.map((terminal) => terminal.terminalId))).toContain(early.id);
+  });
+
+  it('saves a Project again at its next change when a save failed', async () => {
+    const { saves, terminals, failSaves } = withStore();
+    await start();
+    failSaves.now = true;
+    await terminals.createLive(timmy, '/work/timmy');
+    await settle();
+    failSaves.now = false;
+    await terminals.createLive(timmy, '/work/timmy');
+    await settle();
+    expect(saves.at(-1)?.tabs).toHaveLength(2);
   });
 
   it('batches the changes of a quiet moment into one save per Project', async () => {
