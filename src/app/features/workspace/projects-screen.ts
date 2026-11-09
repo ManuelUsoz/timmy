@@ -11,7 +11,7 @@ import { ProjectsState } from './projects-state';
 import { TabBar } from './tab-bar';
 import { PaneGrid } from './pane-grid';
 import { focusPane, panesOf, showView, type TabLayout } from './pane-layout';
-import { neighbourOf, tabPath, type Tab, type TabId } from './tabs';
+import { neighbourOf, tabPath, terminalPath, type Tab, type TabId } from './tabs';
 import { TabsState } from './tabs-state';
 import type { TerminalEntry, TerminalId } from './terminal-entries';
 import { TerminalsState } from './terminals-state';
@@ -174,7 +174,7 @@ export class ProjectsScreen {
   }
 
   protected async openTerminal(terminal: TerminalEntry): Promise<void> {
-    await this.router.navigate(['/projects', terminal.projectId, 'terminals', terminal.id]);
+    await this.router.navigate(terminalPath(terminal));
   }
 
   /** A Tab opens as it was left: at its focused Pane's expanded View. */

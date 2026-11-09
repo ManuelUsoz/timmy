@@ -15,6 +15,7 @@ import { mostUrgent } from '../shell/pill-view';
 import { ProjectList } from './project-list';
 import { ProjectsState } from './projects-state';
 import { SettingsDialogState } from './settings-dialog-state';
+import { terminalPath } from './tabs';
 import { TabsState } from './tabs-state';
 import { statusKey } from './terminal-view';
 import { TerminalsState } from './terminals-state';
@@ -95,7 +96,7 @@ export class WorkspaceSidebar {
   }
 
   protected openTerminal(row: RailRow): void {
-    void this.router.navigate(['/projects', row.projectId, 'terminals', row.id]);
+    void this.router.navigate(terminalPath(row));
   }
 
   /**

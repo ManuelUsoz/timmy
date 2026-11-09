@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 import { Effect, Layer, PubSub, Ref, Stream } from 'effect';
 import { AppInfoRpcs } from '../../../shared/app-info/app-info.rpc';
 import type { NotificationEvent, TerminalStatus } from '../../../shared/notification/notification.model';
@@ -8,15 +9,19 @@ import { defaultChannels } from '../../../shared/settings/settings.model';
 import { SettingsRpcs } from '../../../shared/settings/settings.rpc';
 import { WindowRpcs } from '../../../shared/window/window.rpc';
 import type { WindowMode } from '../../../shared/window/window.model';
-import { layerFilesUnused, layerProjectsUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
+import { layerFilesUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
-import { ProjectId } from '../../../shared/projects/projects.model';
+import { ProjectId, type Project } from '../../../shared/projects/projects.model';
+import { ProjectsRpcs } from '../../../shared/projects/projects.rpc';
+import { addToStack } from '../workspace/pane-layout';
+import { project } from '../workspace/projects-fakes';
+import { TabsState } from '../workspace/tabs-state';
 import { provideWorkspaceRouter } from '../workspace/workspace.routes';
 import { TerminalsState } from '../workspace/terminals-state';
 import { ShellComponent } from './shell';
 
 /** Real client against fake handlers: the window is just a Ref, like main's service behind its host. */
-const setup = async () => {
+const setup = async (projects: ReadonlyArray<Project> = []) => {
   const closes: number[] = [];
   const minimizes: number[] = [];
   const toggles: number[] = [];
@@ -51,7 +56,16 @@ const setup = async () => {
     }),
     NotificationRpcs.toLayer({ 'Notification.subscribe': () => Stream.fromPubSub(notifications) }),
     layerFilesUnused,
-    layerProjectsUnused,
+    ProjectsRpcs.toLayer({
+      'Projects.list': () => Effect.succeed([...projects]),
+      'Projects.markUsed': () => Effect.void,
+      'Projects.add': () => Effect.die('unused'),
+      'Projects.remove': () => Effect.die('unused'),
+      'Projects.pickFolder': () => Effect.die('unused'),
+      'Projects.inspectFolder': () => Effect.die('unused'),
+      'Projects.initGit': () => Effect.die('unused'),
+      'Projects.checkFolder': () => Effect.succeed('Present' as const),
+    }),
     SettingsRpcs.toLayer({
       'Settings.get': () => Effect.succeed({ language: 'es' as const, providers: [], channels: defaultChannels }),
       'Settings.setLanguage': ({ language }) => Effect.succeed({ language, providers: [], channels: defaultChannels }),
@@ -232,6 +246,80 @@ describe('ShellComponent', () => {
     expect(ctx.el.querySelector('app-workspace')).toBeNull();
     expect(ctx.el.querySelector('app-panel-terminal')).not.toBeNull();
     expect(ctx.el.querySelector('button[aria-label="Close Timmy"]')).not.toBeNull();
+  });
+
+  describe('Panel to Expanded reveals the Terminal of the Panel', () => {
+    const timmy = project('timmy', { lastUsedAt: 2 });
+    const ascua = project('ascua', { lastUsedAt: 1 });
+    const activeHeader = (ctx: Awaited<ReturnType<typeof setup>>) => ctx.el.querySelector('app-pane-stack .view-header.act .name')?.textContent;
+
+    it('lands on the Tab and Pane of the Terminal of the Panel, expanded in its Stack', async () => {
+      const ctx = await setup([timmy, ascua]);
+      const terminals = TestBed.inject(TerminalsState);
+      const tabs = TestBed.inject(TabsState);
+      // Terminal 1 and 2 share a Stack, 2 expanded and focused; Terminal 3 has a Tab of its own in the other Project.
+      const first = terminals.create(timmy.projectId);
+      const tab = tabs.tabsOf(timmy.projectId)[0];
+      const second = await tabs.openInTab(tab, timmy.cwd, undefined, (layout, terminal) => addToStack(layout, layout.focused, terminal));
+      terminals.create(ascua.projectId);
+      terminals.setCurrent(first.id);
+      await ctx.settle();
+      await openPanel(ctx);
+      await openSwitcher(ctx);
+      await choose(ctx, 'Expanded');
+      await ctx.settle();
+
+      expect(TestBed.inject(Router).url).toBe(`/projects/${timmy.projectId}/terminals/${first.id}`);
+      const layout = tabs.layoutOf(tabs.tabsOf(timmy.projectId)[0])!;
+      expect(layout.focused).toBe(first.id);
+      expect(activeHeader(ctx)).toBe('Terminal 1');
+      expect(second.id).not.toBe(first.id);
+    });
+
+    it('goes to the Project of the Terminal of the Panel, though the Workspace was last on another', async () => {
+      const ctx = await setup([timmy, ascua]);
+      const terminals = TestBed.inject(TerminalsState);
+      terminals.create(timmy.projectId);
+      const other = terminals.create(ascua.projectId);
+      terminals.setCurrent(other.id);
+      await ctx.settle();
+      await openPanel(ctx);
+      await openSwitcher(ctx);
+      await choose(ctx, 'Expanded');
+      await ctx.settle();
+      expect(TestBed.inject(Router).url).toBe(`/projects/${ascua.projectId}/terminals/${other.id}`);
+    });
+
+    it('reveals the Terminal picked in the Panel each time, not the one the Workspace was left on', async () => {
+      const ctx = await setup([timmy]);
+      const terminals = TestBed.inject(TerminalsState);
+      const first = terminals.create(timmy.projectId);
+      const second = terminals.create(timmy.projectId);
+      terminals.setCurrent(first.id);
+      await openPanel(ctx);
+      await openSwitcher(ctx);
+      await choose(ctx, 'Expanded');
+      await ctx.settle();
+      expect(TestBed.inject(Router).url).toBe(`/projects/${timmy.projectId}/terminals/${first.id}`);
+
+      await openExpandedSwitcher(ctx);
+      await choose(ctx, 'Panel');
+      terminals.setCurrent(second.id);
+      await ctx.settle();
+      await openSwitcher(ctx);
+      await choose(ctx, 'Expanded');
+      await ctx.settle();
+      expect(TestBed.inject(Router).url).toBe(`/projects/${timmy.projectId}/terminals/${second.id}`);
+    });
+
+    it('opens the Project used last when the Panel has no Terminal', async () => {
+      const ctx = await setup([timmy, ascua]);
+      await openPanel(ctx);
+      await openSwitcher(ctx);
+      await choose(ctx, 'Expanded');
+      await ctx.settle();
+      expect(TestBed.inject(Router).url).toBe(`/projects/${timmy.projectId}`);
+    });
   });
 
   describe('the Panel rail leads with the Mascot', () => {
