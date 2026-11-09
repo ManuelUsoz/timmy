@@ -7,6 +7,7 @@ import { ProjectsRpcs } from '../../shared/projects/projects.rpc';
 import { SettingsRpcs } from '../../shared/settings/settings.rpc';
 import { TerminalRpcs } from '../../shared/terminal/terminal.rpc';
 import { WindowRpcs } from '../../shared/window/window.rpc';
+import { WorkspaceRpcs } from '../../shared/workspace/workspace.rpc';
 import { layerClientProtocol } from '../../shared/rpc/message-port-protocol';
 import { DesktopApi } from './desktop-api';
 import type { DesktopBridgeError } from './desktop-error';
@@ -28,7 +29,13 @@ export const layerDesktop: Layer.Layer<DesktopApi, DesktopBridgeError> = Layer.u
 export const makeDesktopTestLayer = (
   handlers: Layer.Layer<any>,
 ): Layer.Layer<DesktopApi> =>
-  Layer.effect(DesktopApi, RpcTest.makeClient(DesktopRpcs)).pipe(Layer.provide(Layer.mergeAll(layerTerminalUnused, layerNotificationUnused, handlers)));
+  Layer.effect(DesktopApi, RpcTest.makeClient(DesktopRpcs)).pipe(Layer.provide(Layer.mergeAll(layerTerminalUnused, layerNotificationUnused, layerWorkspaceUnused, handlers)));
+
+/** Workspace handlers that die when called, so a test of another domain can still build `DesktopRpcs`. */
+export const layerWorkspaceUnused = WorkspaceRpcs.toLayer({
+  'Workspace.load': () => Effect.die('Workspace handler not under test'),
+  'Workspace.save': () => Effect.die('Workspace handler not under test'),
+});
 
 const windowUnused = () => Effect.die('Window handler not under test');
 

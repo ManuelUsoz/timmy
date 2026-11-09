@@ -1,5 +1,5 @@
 import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
-import { Effect, Stream, pipe } from 'effect';
+import { Effect, Exit, Stream, pipe } from 'effect';
 import type { ProjectId } from '../../../shared/projects/projects.model';
 import type { Provider } from '../../../shared/settings/settings.model';
 import { TerminalId, type TerminalActivityEntry } from '../../../shared/terminal/terminal.model';
@@ -22,6 +22,8 @@ export class TerminalsState {
   /** The Terminal a screen is showing now, whichever place shows it; none while no screen does. */
   private readonly shown = signal<TerminalId | undefined>(undefined);
   /** Each restart, old id to new, so a Tab's layout keeps the restarted Terminal in its place. For this app run only. */
+  /** The Idle Terminals being started, so a second click cannot start one twice. */
+  private readonly starting = new Set<TerminalId>();
   private readonly restartedIds = signal<ReadonlyMap<TerminalId, TerminalId>>(new Map());
   readonly restarts = this.restartedIds.asReadonly();
   /** For each Terminal a screen shows, how to read the lines that screen holds now. */
@@ -71,6 +73,39 @@ export class TerminalsState {
     this.all.update((entries) => pipe(withState([...entries, entry], entry.id, 'Live'), (next) => withActivity(next, this.reported)));
     this.currentId.set(entry.id);
     return { ...entry, state: 'Live' };
+  }
+
+  /**
+   * Adds the Terminals saved by a previous run (Idle, not started; ADR 0011). One already here, opened before the saved
+   * ones arrived, is kept as it is.
+   */
+  restore(saved: ReadonlyArray<TerminalEntry>): void {
+    this.all.update((entries) => {
+      const known = new Set(entries.map((entry) => entry.id));
+      return [...entries, ...saved.filter((entry) => !known.has(entry.id))];
+    });
+  }
+
+  /**
+   * Starts an Idle Terminal (one restored, or one main could not start) in the Project folder, running its Provider's CLI
+   * if it has one. It keeps its id, so it is the same Terminal it was before. Fails if it is not Idle, is already
+   * starting, or main refuses.
+   */
+  async start(id: TerminalId, cwd: string): Promise<Exit.Exit<void, unknown>> {
+    const entry = this.find(id);
+    if (entry?.state !== 'Idle' || this.starting.has(id)) return Exit.fail(`Terminal ${id} is not Idle`);
+    const provider = entry.provider;
+    this.starting.add(id);
+    const result = await this.runtime.run(
+      Effect.gen(function* () {
+        const desktop = yield* DesktopApi;
+        return yield* desktop['Terminal.create'](provider === undefined ? { cwd, terminalId: id } : { cwd, provider, terminalId: id });
+      }),
+    );
+    this.starting.delete(id);
+    if (Exit.isFailure(result)) return result;
+    this.all.update((entries) => pipe(withState(entries, id, 'Live'), (next) => withActivity(next, this.reported)));
+    return Exit.void;
   }
 
   create(projectId: ProjectId, tabId: TabId = newTab()): TerminalEntry {

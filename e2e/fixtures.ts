@@ -12,13 +12,21 @@ const electronPath: string = createRequire(path.join(root, 'package.json'))('ele
 /** Helpers shared by every spec. Mirrors the old `t` object of the pre-Playwright-test harness. */
 export class Timmy {
   constructor(
-    readonly app: ElectronApplication,
-    readonly page: Page,
+    public app: ElectronApplication,
+    public page: Page,
     /** The app data directory of this run; Claude Code settings for the Hook live in claude/ inside it. */
     readonly userData: string,
     /** The folder the demo project is added from: a git repository of its own, empty until a spec writes into it. */
     readonly projectDir: string,
+    /** Starts Timmy again on the same data directory. */
+    private readonly relaunch: () => Promise<{ app: ElectronApplication; page: Page }>,
   ) {}
+
+  /** Quits Timmy and starts it again on the same data directory, as the user restarting it: it opens in Pill, as always. */
+  async restart() {
+    await this.app.close();
+    ({ app: this.app, page: this.page } = await this.relaunch());
+  }
 
   bounds() {
     return this.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds());
@@ -183,22 +191,27 @@ export const test = base.extend<{ timmy: Timmy; language: Language; providers: P
     const projectDir = path.join(projectRoot, 'demo-project');
     mkdirSync(projectDir);
     execFileSync('git', ['init', '-b', 'main'], { cwd: projectDir });
-    const app = await electron.launch({
-      executablePath: electronPath,
-      args: [root],
-      cwd: fixtureCwd,
-      env: { ...envWithPathFirst(standInBin), TIMMY_E2E: '1', TIMMY_E2E_PICK_FOLDER: projectDir, TIMMY_USER_DATA: userData, ELECTRON_RENDERER_URL: '' },
-    });
-    const page = await app.firstWindow();
     const errors: string[] = [];
-    page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-    page.on('pageerror', (e) => errors.push(String(e)));
-    await page.waitForSelector('.pill-bar', { timeout: 20_000 });
-    await page.waitForTimeout(800);
+    const launch = async () => {
+      const app = await electron.launch({
+        executablePath: electronPath,
+        args: [root],
+        cwd: fixtureCwd,
+        env: { ...envWithPathFirst(standInBin), TIMMY_E2E: '1', TIMMY_E2E_PICK_FOLDER: projectDir, TIMMY_USER_DATA: userData, ELECTRON_RENDERER_URL: '' },
+      });
+      const page = await app.firstWindow();
+      page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+      page.on('pageerror', (e) => errors.push(String(e)));
+      await page.waitForSelector('.pill-bar', { timeout: 20_000 });
+      await page.waitForTimeout(800);
+      return { app, page };
+    };
+    const first = await launch();
+    const timmy = new Timmy(first.app, first.page, userData, projectDir, launch);
 
-    await use(new Timmy(app, page, userData, projectDir));
+    await use(timmy);
 
-    await app.close().catch(() => {});
+    await timmy.app.close().catch(() => {});
     rmSync(userData, { recursive: true, force: true });
     rmSync(standInBin, { recursive: true, force: true });
     rmSync(projectRoot, { recursive: true, force: true });

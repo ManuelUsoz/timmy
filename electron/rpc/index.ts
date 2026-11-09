@@ -16,6 +16,7 @@ import { layerProjectsHandlers } from './projects';
 import { layerSettingsHandlers } from './settings';
 import { layerTerminalHandlers } from './terminal';
 import { layerWindowHandlers } from './window';
+import { layerWorkspaceHandlers } from './workspace';
 
 const layerProjectsHandlersLive = layerProjectsHandlers.pipe(
   Layer.provide(layerProjectsService),
@@ -39,6 +40,7 @@ export const layerDesktopHandlers = Layer.mergeAll(
   layerHooksHandlersLive,
   layerTerminalHandlers.pipe(Layer.provide(layerTerminalService), Layer.provide(layerOnScreen)),
   layerNotificationHandlers,
+  layerWorkspaceHandlers,
 ).pipe(
   // One bus for the Terminals that publish and the handlers that stream, and one WindowService for the handlers of the
   // window and for what is on screen.

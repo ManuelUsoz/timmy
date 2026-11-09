@@ -1,4 +1,4 @@
-import { Schema } from 'effect';
+import { PaneId, type LayoutNode, type Pane, type SplitDirection, type TabLayout } from '../../../shared/workspace/workspace.model';
 import type { TerminalId } from './terminal-entries';
 
 /**
@@ -6,31 +6,11 @@ import type { TerminalId } from './terminal-entries';
  * Stack of up to three. Only Terminal Views exist for now, so a View is its Terminal's id. Pure: the screen keeps the
  * layout of each Tab and applies these rules to it.
  */
-export const PaneId = Schema.String.pipe(Schema.brand('PaneId'));
-export type PaneId = typeof PaneId.Type;
+export { PaneId } from '../../../shared/workspace/workspace.model';
+export type { LayoutNode, Pane, SplitDirection, TabLayout } from '../../../shared/workspace/workspace.model';
 
 export const MAX_PANES = 6;
 export const MAX_VIEWS = 3;
-
-export type SplitDirection = 'right' | 'down';
-
-/** A Pane: its Views in Stack order, and the one expanded. A Pane with one View is not a Stack. */
-export interface Pane {
-  readonly id: PaneId;
-  readonly views: ReadonlyArray<TerminalId>;
-  readonly expanded: TerminalId;
-}
-
-export type LayoutNode =
-  | { readonly kind: 'pane'; readonly pane: Pane }
-  /** Children side by side (`right`) or one above the other (`down`); `sizes` are their shares, adding up to 1. */
-  | { readonly kind: 'split'; readonly direction: SplitDirection; readonly children: ReadonlyArray<LayoutNode>; readonly sizes: ReadonlyArray<number> };
-
-export interface TabLayout {
-  readonly root: LayoutNode;
-  /** One Pane is focused at a time; it is the one shown below `lg`. */
-  readonly focused: PaneId;
-}
 
 /**
  * A Pane is named after the Terminal it was made for, so the same steps always give the same ids. A View moved out of

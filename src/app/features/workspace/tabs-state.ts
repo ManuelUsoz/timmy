@@ -1,15 +1,17 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import type { TerminalStatus } from '../../../shared/notification/notification.model';
 import type { ProjectId } from '../../../shared/projects/projects.model';
+import type { ProjectLayout, SavedTab } from '../../../shared/workspace/workspace.model';
 import { NotificationsState } from '../shell/notifications-state';
 import type { Provider } from '../../../shared/settings/settings.model';
 import { inStep, replaceTerminal, type TabLayout } from './pane-layout';
 import type { TerminalEntry, TerminalId } from './terminal-entries';
 import { TerminalsState } from './terminals-state';
+import { restoredFrom, savedTabsOf } from './saved-layout';
 import { tabsOf, type Tab, type TabId } from './tabs';
 
 /**
- * The Tabs of every Project, for this app run (saving them is a later ticket, ADR 0011). A Tab is made of the Terminals
+ * The Tabs of every Project. `WorkspacePersistence` saves them and brings them back (ADR 0011). A Tab is made of the Terminals
  * that carry its id (see `tabs.ts`); this keeps what is not in them: the names the user gave, and the Ctrl+T requests.
  */
 @Injectable({ providedIn: 'root' })
@@ -28,6 +30,22 @@ export class TabsState {
   private readonly status = computed(
     () => new Map<TerminalId, TerminalStatus>(this.notifications.notifications().map((notification) => [notification.source.terminalId, notification.type])),
   );
+
+  /**
+   * Brings back what a previous run saved: its Terminals (Idle, not started), the names and the layouts. A Tab already
+   * here, opened before the saved ones arrived, is kept as it is.
+   */
+  restore(saved: ReadonlyArray<ProjectLayout>): void {
+    const restored = restoredFrom(saved);
+    this.terminals.restore(restored.entries);
+    this.names.update((names) => new Map([...restored.names, ...names]));
+    this.layouts.update((layouts) => new Map([...restored.layouts, ...layouts]));
+  }
+
+  /** The Project's Tabs as they are saved: what a restart brings back. */
+  savedTabs(projectId: ProjectId): ReadonlyArray<SavedTab> {
+    return savedTabsOf(this.tabsOf(projectId), (tab) => this.layoutOf(tab));
+  }
 
   tabsOf(projectId: ProjectId): ReadonlyArray<Tab> {
     return tabsOf(this.terminals.entries(), projectId, this.names());

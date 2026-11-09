@@ -1,11 +1,12 @@
 import { TestBed } from '@angular/core/testing';
-import { Effect, Stream } from 'effect';
+import { Effect, Exit, Stream } from 'effect';
 import { ProjectId } from '../../../shared/projects/projects.model';
 import type { Provider } from '../../../shared/settings/settings.model';
 import { TerminalId, type TerminalActivityEntry } from '../../../shared/terminal/terminal.model';
 import { TerminalRpcs } from '../../../shared/terminal/terminal.rpc';
 import { makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
+import { TabId } from './tabs';
 import { TerminalsState } from './terminals-state';
 
 const timmy = ProjectId.make('p-timmy');
@@ -120,6 +121,64 @@ describe('TerminalsState: Providers', () => {
     const opened = await terminals.createLive(timmy, '/work/timmy');
     await terminals.restart(opened!.id, '/work/timmy');
     expect(created.at(-1)).toEqual({ cwd: '/work/timmy' });
+  });
+});
+
+describe('TerminalsState: restored Terminals', () => {
+  const restoredEntry = (id: string, provider?: Provider) => ({
+    id: TerminalId.make(id),
+    projectId: timmy,
+    tabId: TabId.make('t1'),
+    number: 4,
+    state: 'Idle' as const,
+    activity: 'Idle' as const,
+    ...(provider === undefined ? {} : { provider }),
+  });
+
+  it('adds Terminals restored from the store, Idle and not started, and numbers the next one after them', () => {
+    const terminals = TestBed.inject(TerminalsState);
+    terminals.restore([restoredEntry('saved-1')]);
+    expect(terminals.entries()).toEqual([restoredEntry('saved-1')]);
+    expect(terminals.create(timmy).number).toBe(5);
+  });
+
+  it('keeps a Terminal that was opened before the restore finished', () => {
+    const terminals = TestBed.inject(TerminalsState);
+    const opened = terminals.create(timmy);
+    terminals.restore([restoredEntry(opened.id), restoredEntry('saved-1')]);
+    expect(terminals.entries().map((entry) => entry.id)).toEqual([opened.id, 'saved-1']);
+    expect(terminals.find(opened.id)?.number).toBe(1);
+  });
+
+  it('starts an Idle Terminal in the Project folder with its Provider, under the id it was saved with', async () => {
+    const { created, terminals } = withMain();
+    terminals.restore([restoredEntry('saved-1', 'ClaudeCode')]);
+    expect(Exit.isSuccess(await terminals.start(TerminalId.make('saved-1'), '/work/timmy'))).toBe(true);
+    expect(created).toEqual([{ cwd: '/work/timmy', provider: 'ClaudeCode', terminalId: 'saved-1' }]);
+    expect(terminals.find(TerminalId.make('saved-1'))).toMatchObject({ state: 'Live', number: 4, provider: 'ClaudeCode' });
+  });
+
+  it('starts an Idle Terminal once, however often it is asked', async () => {
+    const { created, terminals } = withMain();
+    terminals.restore([restoredEntry('saved-1')]);
+    await Promise.all([terminals.start(TerminalId.make('saved-1'), '/work/timmy'), terminals.start(TerminalId.make('saved-1'), '/work/timmy')]);
+    expect(created).toHaveLength(1);
+  });
+
+  it('starts a saved plain shell as a plain shell', async () => {
+    const { created, terminals } = withMain();
+    terminals.restore([restoredEntry('saved-1')]);
+    await terminals.start(TerminalId.make('saved-1'), '/work/timmy');
+    expect(created).toEqual([{ cwd: '/work/timmy', terminalId: 'saved-1' }]);
+  });
+
+  it('leaves a Terminal Idle when main cannot start it, and starts nothing that is not Idle', async () => {
+    const { created, terminals } = withMain();
+    terminals.restore([restoredEntry('saved-1')]);
+    const live = (await terminals.createLive(timmy, '/work/timmy'))!;
+    expect(Exit.isFailure(await terminals.start(live.id, '/work/timmy'))).toBe(true);
+    expect(Exit.isFailure(await terminals.start(TerminalId.make('unknown'), '/work/timmy'))).toBe(true);
+    expect(created).toHaveLength(1);
   });
 });
 

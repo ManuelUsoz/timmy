@@ -9,7 +9,7 @@ export const layerTerminalHandlers = TerminalRpcs.toLayer(
     const onScreen = yield* OnScreen;
     return {
       'Terminal.show': ({ terminalId }) => onScreen.report(terminalId),
-      'Terminal.create': ({ cwd, provider }) => terminals.create(cwd, provider).pipe(Effect.map((terminalId) => ({ terminalId }))),
+      'Terminal.create': ({ cwd, provider, terminalId }) => terminals.create(cwd, provider, terminalId).pipe(Effect.map((terminalId) => ({ terminalId }))),
       'Terminal.output': ({ terminalId }) => terminals.output(terminalId),
       'Terminal.activity': () => terminals.activity,
       'Terminal.focus': ({ terminalId }) => terminals.focus(terminalId),

@@ -1,12 +1,10 @@
-import { Schema } from 'effect';
+import type { TabId } from '../../../shared/workspace/workspace.model';
 import type { TerminalStatus } from '../../../shared/notification/notification.model';
 import type { ProjectId } from '../../../shared/projects/projects.model';
 import { panesOf, type TabLayout } from './pane-layout';
 import type { TerminalEntry } from './terminal-entries';
 
-/** A Tab of a Project (GLOSSARY: Tab). Lives in memory for this app run; saving Tabs is ADR 0011's job. */
-export const TabId = Schema.String.pipe(Schema.brand('TabId'));
-export type TabId = typeof TabId.Type;
+export { TabId } from '../../../shared/workspace/workspace.model';
 
 /**
  * A Tab and the Terminals in it. A Tab is the Terminals that carry its id, so it exists exactly as long as it holds a

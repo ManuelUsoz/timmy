@@ -79,6 +79,7 @@ button.stop {
 }
 
 .output {
+  position: relative;
   flex: 1;
   display: flex;
   min-width: 0;
@@ -89,6 +90,27 @@ button.stop {
   font: 400 14px/20px var(--font-mono);
   letter-spacing: 0.32px;
   white-space: pre;
+}
+
+/* An Idle Terminal has no process: the screen offers to start one. */
+.start {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-05);
+  background: var(--background);
+  white-space: normal;
+}
+
+.start p {
+  margin: 0;
+  max-width: 40ch;
+  font: 400 14px/20px var(--font-sans);
+  text-align: center;
+  color: var(--text-secondary);
 }
 
 .xterm-host {

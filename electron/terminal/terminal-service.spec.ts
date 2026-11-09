@@ -70,6 +70,21 @@ describe('TerminalService', () => {
     }).pipe(Effect.provide(layerTerminalServiceTest({ spawn: () => Effect.succeed(pty.process) })));
   });
 
+  it.effect('starts a Terminal under the id it was saved with, and refuses an id that is already live', () => {
+    const pty = makePty();
+    return Effect.gen(function* () {
+      const service = yield* TerminalService;
+      const saved = TerminalIdSchema.make('saved-before-restart');
+      expect(yield* service.create('C:/project', undefined, saved)).toBe(saved);
+      pty.emit('hi');
+      expect(yield* service.output(saved).pipe(Stream.take(1), Stream.runCollect)).toEqual([{ _tag: 'Data', data: 'hi' }]);
+      const again = yield* service.create('C:/project', undefined, saved).pipe(Effect.flip);
+      expect(again.reason).toBe('AlreadyExists');
+      yield* service.close(saved);
+      expect(yield* service.create('C:/project', undefined, saved)).toBe(saved);
+    }).pipe(Effect.provide(layerTerminalServiceTest({ spawn: () => Effect.succeed(pty.process) })));
+  });
+
   it.effect('a Provider types its CLI command into the shell, so exiting the CLI leaves the shell open', () => {
     const pty = makePty();
     return Effect.gen(function* () {
