@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<!--
+  PROTOTYPE, THROWAWAY (ticket #180, map #170). Not production code. Wipe me.
+  Question: how does the Messaging approval prompt look and behave in Pill, Panel and Expanded,
+  with several pending at once and with the Sender's Terminal closing while one is open?
+  Three structurally different variants, switchable with the bar at the bottom (or ← / →):
+    A  "Grows from the bar"  : the prompt is a card attached to the window; the Pill window grows to fit it.
+    B  "A row that needs you": the prompt is a Terminal-like row in "Needs you"; Pill only says it, Panel/Expanded open a detail.
+    C  "One banner, one queue": a single banner at the bottom edge of every mode, stepping through pending asks.
+  Tokens are copied from src/styles.css (g100). Window sizes from src/shared/window/window.model.ts.
+  Everything is in memory; nothing talks to Timmy.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>PROTOTYPE #180: Messaging approval prompt</title>
+<style>
+  :root {
+    --background:#000; --layer-01:#0e0e0e; --layer-02:#1a1a1a; --layer-hover:#141414; --layer-hover-02:#222;
+    --border-subtle:#222; --border-strong:#6f6f6f; --text-primary:#fff; --text-secondary:#e0e0e0; --text-helper:#b0b0b0;
+    --text-disabled:#8d8d8d; --modal:#0f0f0f; --modal-border:#2e2e2e; --focus:#fff; --button-primary:#0f62fe;
+    --button-primary-hover:#0050e6; --button-secondary:#262626; --button-danger:#da1e28;
+    --success:#42be65; --info:#4589ff; --warning:#f1c21b; --error:#fa4d56; --merged:#a56eff; --idle:#6f6f6f;
+    --pill:#000; --sidebar:#000;
+    --ff-sans:'IBM Plex Sans','Segoe UI',system-ui,sans-serif; --ff-mono:'JetBrains Mono','Cascadia Mono',Consolas,monospace;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#262626; color:var(--text-primary); font:400 14px/18px var(--ff-sans); letter-spacing:.16px; padding-bottom:84px; }
+  button { font:inherit; letter-spacing:inherit; color:inherit; cursor:pointer; border:0; }
+  h2 { font:600 12px/16px var(--ff-mono); letter-spacing:.08em; text-transform:uppercase; color:#a8a8a8; margin:0 0 8px; }
+
+  /* ---- scenario controls ---- */
+  .controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:14px 20px; background:#161616; border-bottom:1px solid #393939; position:sticky; top:0; z-index:50; }
+  .controls .grp { display:flex; gap:6px; align-items:center; padding-right:14px; margin-right:6px; border-right:1px solid #393939; }
+  .controls .grp:last-child { border:0; }
+  .controls label { font:600 11px/16px var(--ff-mono); text-transform:uppercase; letter-spacing:.08em; color:#a8a8a8; }
+  .ctl { background:#393939; padding:6px 12px; }
+  .ctl:hover { background:#4c4c4c; }
+  .ctl.on { background:var(--button-primary); }
+  .note { font:12px/16px var(--ff-sans); color:#a8a8a8; max-width:520px; }
+
+  .stage { display:grid; gap:36px; padding:24px 20px; justify-items:start; }
+  .stage > div > .cap { font:12px/16px var(--ff-sans); color:#a8a8a8; margin:8px 0 0; max-width:880px; }
+
+  /* ---- frames: real window sizes ---- */
+  .win { position:relative; background:var(--sidebar); overflow:hidden; box-shadow:0 0 0 1px #393939, 0 8px 30px #000a; transition:height .2s ease; }
+  .win.pill { width:440px; height:88px; }
+  .win.panel { width:880px; height:560px; display:flex; }
+  .win.expanded { width:1280px; height:800px; display:flex; flex-direction:column; }
+
+  /* mascot stand-in */
+  .mascot { width:72px; height:72px; flex:none; display:grid; place-items:center; }
+  .mascot i { width:44px; height:44px; border-radius:50%; background:var(--c, var(--idle)); box-shadow:0 0 18px var(--c, transparent); }
+  .mascot.sm { width:40px; height:40px; } .mascot.sm i { width:26px; height:26px; box-shadow:none; }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--c,var(--idle)); flex:none; display:inline-block; }
+  .mono { font-family:var(--ff-mono); }
+  .state { font:600 11px/16px var(--ff-mono); letter-spacing:.08em; text-transform:uppercase; color:var(--text-secondary); display:inline-flex; gap:6px; align-items:center; }
+  .kbd { font:11px/14px var(--ff-mono); border:1px solid var(--border-strong); padding:0 4px; color:var(--text-helper); }
+
+  /* buttons shared by all variants */
+  .btn { height:32px; padding:0 14px; background:var(--button-secondary); }
+  .btn:hover { background:#393939; }
+  .btn.primary { background:var(--button-primary); } .btn.primary:hover { background:var(--button-primary-hover); }
+  .btn.ghost { background:transparent; color:var(--text-helper); } .btn.ghost:hover { background:var(--layer-hover-02); color:var(--text-primary); }
+  .btn.danger { background:transparent; color:var(--error); } .btn.danger:hover { background:#3a0d10; }
+  .btn.sm { height:28px; padding:0 10px; font-size:13px; }
+
+  /* pill */
+  .pillrow { display:flex; align-items:center; height:88px; background:var(--pill); gap:4px; padding-right:4px; }
+  .pillrow .txt { flex:1; min-width:0; }
+  .pillrow .txt .w { color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pillrow .chev { width:32px; height:32px; background:transparent; color:var(--text-helper); }
+  .attn { box-shadow:inset 0 -2px 0 var(--info); }
+
+  /* panel */
+  .rail { width:280px; flex:none; display:flex; flex-direction:column; border-right:1px solid var(--border-subtle); background:var(--sidebar); }
+  .rail .id { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--border-subtle); }
+  .rail .tally { display:flex; flex-direction:column; gap:2px; }
+  .rail .list { flex:1; overflow:hidden; padding:6px 0; }
+  .glabel { font:600 11px/16px var(--ff-mono); letter-spacing:.08em; text-transform:uppercase; color:var(--text-helper); padding:8px 12px 4px; display:flex; justify-content:space-between; }
+  .row { display:flex; align-items:center; gap:10px; padding:0 12px; height:48px; cursor:pointer; }
+  .row:hover { background:var(--layer-hover); } .row.sel { background:var(--layer-selected,#1a1a1a); box-shadow:inset 2px 0 0 var(--info); }
+  .row .l { flex:1; min-width:0; } .row .l b { font-weight:400; display:block; } .row .l span { color:var(--text-helper); font-size:12px; line-height:16px; }
+  .row.ask { box-shadow:inset 2px 0 0 var(--merged); }
+  .footer { display:flex; align-items:center; padding:4px 8px; border-top:1px solid var(--border-subtle); gap:4px; }
+  .grow { flex:1; }
+  .main { flex:1; display:flex; flex-direction:column; background:#0a0a0a; min-width:0; position:relative; }
+  .term { flex:1; padding:14px 16px; font:12px/18px var(--ff-mono); color:#c6c6c6; overflow:hidden; }
+  .term .p { color:var(--success); } .term .m { color:var(--text-helper); }
+
+  /* expanded */
+  .titlebar { height:40px; display:flex; align-items:center; gap:10px; padding:0 8px 0 14px; background:#0b0b0b; border-bottom:1px solid var(--border-subtle); flex:none; }
+  .titlebar .t { font-weight:600; } .titlebar .win-ctl { width:32px; height:32px; background:transparent; color:var(--text-helper); }
+  .body { flex:1; display:flex; min-height:0; }
+  .sidebar { width:260px; flex:none; background:var(--sidebar); border-right:1px solid var(--border-subtle); padding:8px 0; overflow:hidden; }
+  .tabs { height:40px; display:flex; background:#0b0b0b; border-bottom:1px solid var(--border-subtle); flex:none; }
+  .tab { padding:0 16px; display:flex; align-items:center; color:var(--text-helper); } .tab.on { color:var(--text-primary); box-shadow:inset 0 -2px 0 var(--button-primary); }
+  .panes { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--border-subtle); min-height:0; }
+  .panes > div { background:#0a0a0a; padding:12px 14px; font:12px/18px var(--ff-mono); color:#c6c6c6; overflow:hidden; position:relative; }
+  .panes .hd { font:600 11px/16px var(--ff-mono); text-transform:uppercase; letter-spacing:.08em; color:var(--text-helper); margin-bottom:8px; display:flex; gap:8px; align-items:center; }
+
+  /* the approval prompt pieces */
+  .who { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .chip { font:600 12px/16px var(--ff-mono); padding:2px 8px; background:var(--layer-02); border:1px solid var(--modal-border); display:inline-flex; gap:6px; align-items:center; }
+  .arrow { color:var(--text-helper); }
+  .quote { border-left:2px solid var(--border-strong); padding:2px 0 2px 10px; color:var(--text-secondary); white-space:pre-wrap; font:12px/18px var(--ff-mono); max-height:72px; overflow:hidden; }
+  .timer { font:11px/16px var(--ff-mono); color:var(--text-helper); }
+  .bar { height:2px; background:var(--border-subtle); position:relative; } .bar i { position:absolute; inset:0 auto 0 0; background:var(--merged); }
+  .actions { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .moremsg { font:600 11px/16px var(--ff-mono); letter-spacing:.08em; text-transform:uppercase; color:var(--merged); }
+  .card { background:var(--modal); border:1px solid var(--modal-border); padding:12px 14px; display:flex; flex-direction:column; gap:8px; }
+  .gone { opacity:.55; } .gone .quote { text-decoration:line-through; }
+
+  /* variant A: card attached below the bar / pinned at the rail top / toast at expanded top-right */
+  .A-pill { display:flex; flex-direction:column; }
+  .A-toast { position:absolute; top:52px; right:16px; width:380px; z-index:20; box-shadow:0 6px 24px #000c; }
+  .A-railcard { margin:8px; }
+
+  /* variant B */
+  .B-detail { padding:20px 24px; display:flex; flex-direction:column; gap:14px; max-width:560px; }
+  .B-detail h3 { margin:0; font:600 18px/24px var(--ff-sans); }
+  .badge { background:var(--merged); color:#000; font:700 11px/16px var(--ff-mono); padding:0 6px; border-radius:8px; margin-left:auto; }
+
+  /* variant C */
+  .C-banner { display:flex; align-items:center; gap:12px; padding:0 8px 0 14px; min-height:44px; background:#1d1530; border-top:1px solid #4b2f86; box-shadow:inset 0 2px 0 var(--merged); flex:none; }
+  .C-banner .t { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .C-banner .t b { font-weight:600; }
+  .C-pillwrap { position:absolute; left:0; right:0; bottom:0; }
+
+  /* switcher bar (hidden outside prototype) */
+  .switcher { position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:100; display:flex; align-items:center; gap:10px; background:#fff; color:#000; border-radius:999px; padding:6px 8px; box-shadow:0 4px 20px #000a; font:600 14px/20px var(--ff-sans); }
+  .switcher button { width:32px; height:32px; border-radius:50%; background:#e8e8e8; color:#000; font-size:16px; } .switcher button:hover { background:#d0d0d0; }
+  .switcher span { min-width:300px; text-align:center; }
+
+  .outcome { margin-top:10px; padding:10px 12px; background:#101a10; border:1px solid #1e4a2a; color:#a7f0ba; font:12px/18px var(--ff-mono); max-width:880px; white-space:pre-wrap; }
+  .outcome:empty { display:none; }
+</style>
+</head>
+<body>
+<div class="controls" id="controls"></div>
+<div class="stage" id="stage"></div>
+<div class="switcher"><button id="prev" aria-label="Previous variant">←</button><span id="label"></span><button id="next" aria-label="Next variant">→</button></div>
+
+<script>
+/* ------------------------------------------------------------------ state ---- */
+const NAMES = { 1:{n:'Terminal 1',p:'web',prov:'Claude Code'}, 2:{n:'Terminal 2',p:'api',prov:'Claude Code'}, 3:{n:'Terminal 3',p:'infra',prov:'Codex'}, 4:{n:'Terminal 4',p:'web',prov:'OpenCode'} };
+const BODIES = [
+  'The /v2/orders endpoint now returns `total` as an integer in cents. Update the checkout form to read it.',
+  'Migration 0042 is applied on staging. You can drop the `legacy_sku` column from the web fixtures.',
+  'Which port does the dev server of web use? I need it for the CORS list.',
+];
+const TIMEOUT = 600;               // seconds, the decided 10 minutes
+let S;
+function reset(count = 1) {
+  S = {
+    mode: 'Pill',                  // which frame the viewer is "in" for interaction purposes: all three always shown
+    asks: [],                      // pending Messaging asks
+    log: [],                       // what the Sender heard / what happened, newest first
+    selected: 1,                   // the Terminal shown in the Panel / Expanded main area
+    sel: {},                       // per-frame: which pending ask is open (variant B / C)
+    clock: 0,
+    rules: [],                     // "always allow" pairs created in this session
+    fast: false,
+  };
+  for (let i = 0; i < count; i++) addAsk();
+}
+let seq = 0;
+function addAsk(from, to, body) {
+  const pairs = [[2,1],[3,1],[4,3]];
+  const [f, t] = from ? [from, to] : pairs[seq % pairs.length];
+  S.asks.push({ id: ++seq, from: f, to: t, body: body ?? BODIES[(seq - 1) % BODIES.length], left: TIMEOUT, gone: false });
+}
+const open = () => S.asks.filter(a => !a.gone);
+const pairOf = a => `${NAMES[a.from].p} → ${NAMES[a.to].p}`;
+
+function decide(id, how) {
+  const a = S.asks.find(x => x.id === id); if (!a || a.gone) return;
+  a.gone = true; a.how = how;
+  const pair = pairOf(a);
+  if (how === 'once') S.log.unshift(`#${id} ${a.from}→${a.to}: allowed once. Timmy delivers. Sender already heard "queued".`);
+  if (how === 'always') { S.rules.push(pair); S.log.unshift(`#${id}: always allow ${pair}. Rule saved. Other pending ${pair} asks are delivered too.`);
+    S.asks.forEach(o => { if (!o.gone && pairOf(o) === pair) { o.gone = true; o.how = 'always'; } }); }
+  if (how === 'deny') S.log.unshift(`#${id} ${a.from}→${a.to}: denied. Message dropped. Sender is never told.`);
+  render();
+}
+function senderCloses(id) { const a = S.asks.find(x => x.id === id && !x.gone); if (!a) return; a.gone = true; a.how = 'closed'; S.log.unshift(`#${id}: Terminal ${a.from} closed while the prompt was open. Prompt withdrawn, Message dropped, nothing delivered.`); render(); }
+function timeout(id) { const a = S.asks.find(x => x.id === id && !x.gone); if (!a) return; a.gone = true; a.how = 'timeout'; S.log.unshift(`#${id}: no answer in 10 minutes. Dropped.`); render(); }
+
+setInterval(() => { let ch = false; for (const a of open()) { a.left -= S.fast ? 20 : 1; if (a.left <= 0) { a.left = 0; timeout(a.id); ch = true; } } if (!ch) tick(); }, 1000);
+function tick() { document.querySelectorAll('[data-timer]').forEach(el => { const a = S.asks.find(x => x.id == el.dataset.timer); if (a) el.textContent = fmt(a.left); });
+  document.querySelectorAll('[data-fill]').forEach(el => { const a = S.asks.find(x => x.id == el.dataset.fill); if (a) el.style.width = (a.left / TIMEOUT * 100) + '%'; }); }
+const fmt = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+const esc = s => s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+/* ------------------------------------------------------------------ pieces ---- */
+const chipT = n => `<span class="chip"><i class="dot" style="--c:${n===2?'var(--info)':n===3?'var(--success)':'var(--merged)'}"></i>${NAMES[n].n} <span style="color:var(--text-helper);font-weight:400">${NAMES[n].p}</span></span>`;
+const who = a => `<div class="who">${chipT(a.from)}<span class="arrow">→</span>${chipT(a.to)}</div>`;
+const quote = a => `<div class="quote">${esc(a.body)}</div>`;
+const timerLine = a => `<div class="timer">Drops in <span data-timer="${a.id}">${fmt(a.left)}</span> without an answer</div><div class="bar"><i data-fill="${a.id}" style="width:${a.left/TIMEOUT*100}%"></i></div>`;
+const actions = (a, o = {}) => `<div class="actions">
+    <button class="btn primary${o.sm?' sm':''}" data-act="once" data-id="${a.id}">Allow once</button>
+    <button class="btn${o.sm?' sm':''}" data-act="always" data-id="${a.id}">Always allow ${NAMES[a.from].p} → ${NAMES[a.to].p}</button>
+    <button class="btn danger${o.sm?' sm':''}" data-act="deny" data-id="${a.id}">Deny</button></div>`;
+const actionsCompact = (a) => `<div class="actions">
+    <button class="btn primary sm" data-act="once" data-id="${a.id}">Once</button>
+    <button class="btn sm" data-act="always" data-id="${a.id}" title="Always allow ${pairOf(a)}">Always</button>
+    <button class="btn danger sm" data-act="deny" data-id="${a.id}">Deny</button></div>`;
+const fullCard = (a, extra = '') => `<div class="card ${a.gone?'gone':''}">
+    <div class="state" style="color:var(--merged)">Message request</div>${who(a)}
+    <div style="color:var(--text-helper);font-size:12px">An agent in ${NAMES[a.from].n} wants to send ${NAMES[a.to].n} this. No rule lets ${NAMES[a.from].p} message ${NAMES[a.to].p} yet.</div>
+    ${quote(a)}${extra}${timerLine(a)}${actions(a)}</div>`;
+
+/* the Terminals listed in rail/sidebar */
+const TERMS = [
+  { id:1, st:'Working', c:'var(--success)' }, { id:2, st:'Working', c:'var(--success)' },
+  { id:3, st:'Done', c:'var(--merged)' }, { id:4, st:'Idle', c:'var(--idle)' },
+];
+const termRow = (t, sel, extra = '') => `<div class="row ${sel?'sel':''}" data-sel="${t.id}"><i class="dot" style="--c:${t.c}"></i><div class="l"><b>${NAMES[t.id].n}</b><span>${NAMES[t.id].p} · ${NAMES[t.id].prov}</span></div><span class="state">${t.st}</span>${extra}</div>`;
+const termBody = id => `<div class="term"><span class="m">${NAMES[id].p} · ${NAMES[id].prov}</span>\n<div><span class="p">$</span> claude</div><div class="m">● Reading src/checkout/form.ts</div><div class="m">● Editing src/checkout/form.ts</div><div>  Working on the ${id===1?'checkout form':id===2?'orders endpoint':'task'}…</div></div>`;
+const attention = () => open().length > 0;
+const pillWord = () => attention() ? (open().length === 1 ? '1 Message request' : `${open().length} Message requests`) : '2 running';
+
+/* ------------------------------------------------------------------ variant A ---- */
+const A = {
+  name: 'Grows from the bar',
+  note: 'A card is attached to the window edge in every mode. The Pill window grows taller (main animates the bounds, as in ADR 0004) to hold the first request; others queue behind it as "+N more". Panel pins the card at the top of the rail; Expanded floats it top-right like a toast but it does not auto-dismiss.',
+  pill() {
+    const [a, ...rest] = open();
+    if (!a) return pillBase();
+    return { h: 88 + 188, html: `<div class="A-pill"><div class="pillrow attn">${mascotMini()}<div class="txt"><div class="state" style="color:var(--merged)">Message request</div><div class="w">${NAMES[a.from].n} → ${NAMES[a.to].n}</div></div></div>
+      <div class="card" style="border:0;border-top:1px solid var(--modal-border)">${quote(a)}<div class="timer">Drops in <span data-timer="${a.id}">${fmt(a.left)}</span>${rest.length?` · <span class="moremsg">+${rest.length} more</span>`:''}</div>${actions(a,{sm:true}).replace('Always allow '+NAMES[a.from].p+' → '+NAMES[a.to].p,'Always')}</div></div>` };
+  },
+  panel() {
+    const [a, ...rest] = open();
+    return `<div class="rail"><div class="id">${mascotMini()}<div class="tally"><span class="state">2 running</span>${a?`<span class="state" style="color:var(--merged)">${open().length} asking</span>`:''}</div></div>
+      ${a ? `<div class="A-railcard">${fullCardRail(a)}${rest.length?`<div class="moremsg" style="padding:6px 2px">+${rest.length} more waiting</div>`:''}</div>` : ''}
+      <div class="list">${listRows()}</div>${railFooter()}</div><div class="main">${termBody(S.selected)}</div>`;
+  },
+  expanded() {
+    const a = open()[0]; const rest = open().slice(1);
+    return expandedShell(a ? `<div class="A-toast card">${a ? '' : ''}<div class="state" style="color:var(--merged)">Message request${rest.length?` · +${rest.length} more`:''}</div>${who(a)}${quote(a)}${timerLine(a)}${actions(a)}</div>` : '', sidebarRows());
+  },
+};
+function fullCardRail(a) { return `<div class="card"><div class="state" style="color:var(--merged)">Message request</div>${who(a)}${quote(a)}<div class="timer">Drops in <span data-timer="${a.id}">${fmt(a.left)}</span></div><div class="bar"><i data-fill="${a.id}" style="width:${a.left/TIMEOUT*100}%"></i></div>${actions(a,{sm:true}).replace('Always allow '+NAMES[a.from].p+' → '+NAMES[a.to].p,'Always: '+NAMES[a.from].p+' → '+NAMES[a.to].p)}</div>`; }
+
+/* ------------------------------------------------------------------ variant B ---- */
+const B = {
+  name: 'A row that needs you',
+  note: 'A request is a thing in the list, like a Waiting Terminal: it sits in "Needs you" with its own row, and opening it shows a detail where the Terminal would be. The Pill never grows: it only says "N Message requests" and double-click / the chevron goes to the Panel. Several requests are several rows, each answerable alone; a closed Sender\'s row simply disappears.',
+  pill() {
+    if (!attention()) return pillBase();
+    const n = open().length;
+    return { h: 88, html: `<div class="pillrow attn">${mascotMini()}<div class="txt"><div class="state" style="color:var(--merged)">Needs you</div><div class="w">${n} Message request${n>1?'s':''} · ${NAMES[open()[0].from].n} → ${NAMES[open()[0].to].n}</div></div><button class="chev" title="Open the Panel" data-goto="Panel">⌃</button></div>` };
+  },
+  panel() { return bPanelOrExpanded(false); },
+  expanded() { return bPanelOrExpanded(true); },
+};
+function askRow(a, selected) { return `<div class="row ask ${selected?'sel':''} ${a.gone?'gone':''}" data-open="${a.id}"><i class="dot" style="--c:var(--merged)"></i><div class="l"><b>${NAMES[a.from].n} → ${NAMES[a.to].n}</b><span>${a.gone?'answered':'asks to send a Message'}</span></div><span class="state" style="color:var(--merged)">${a.gone?'':fmt(a.left)}</span></div>`; }
+function bDetail(a) {
+  if (!a) return `<div class="main">${termBody(S.selected)}</div>`;
+  return `<div class="main"><div class="B-detail"><div class="state" style="color:var(--merged)">Message request</div><h3>${NAMES[a.from].n} (${NAMES[a.from].p}) wants to message ${NAMES[a.to].n} (${NAMES[a.to].p})</h3>
+    <div style="color:var(--text-helper)">No Messaging rule lets the Terminals of <b style="color:#fff;font-weight:600">${NAMES[a.from].p}</b> send Messages to those of <b style="color:#fff;font-weight:600">${NAMES[a.to].p}</b>. Decide once, or make it a rule.</div>
+    ${quote(a).replace('max-height:72px','')}${timerLine(a)}${actions(a)}
+    <div style="color:var(--text-helper);font-size:12px">The agent was told "queued" and is not waiting. Deny drops the Message silently.</div></div></div>`;
+}
+function bPanelOrExpanded(expanded) {
+  const asks = S.asks.filter(a => !a.gone || a.fresh); const live = open();
+  const curId = S.sel.B && live.find(x => x.id === S.sel.B) ? S.sel.B : null;
+  const cur = curId ? live.find(x => x.id === curId) : null;
+  const rows = `${live.length ? `<div class="glabel"><span>Needs you</span><span>${live.length}</span></div>${live.map(a => askRow(a, a.id === curId)).join('')}` : ''}<div class="glabel"><span>web</span></div>${termRow(TERMS[0], !cur && S.selected===1)}${termRow(TERMS[3], !cur && S.selected===4)}<div class="glabel"><span>api</span></div>${termRow(TERMS[1], !cur && S.selected===2)}<div class="glabel"><span>infra</span></div>${termRow(TERMS[2], !cur && S.selected===3)}`;
+  const railHead = `<div class="id">${mascotMini()}<div class="tally"><span class="state">2 running</span>${live.length?`<span class="state" style="color:var(--merged)">${live.length} asking</span>`:''}</div></div>`;
+  if (!expanded) return `<div class="rail">${railHead}<div class="list">${rows}</div>${railFooter()}</div>${bDetail(cur)}`;
+  return expandedShell('', `<div class="list">${rows}</div>`, bDetail(cur), live.length);
+}
+
+/* ------------------------------------------------------------------ variant C ---- */
+const C = {
+  name: 'One banner, one queue',
+  note: 'The same one-line banner at the bottom edge of every mode (a permission bar, like a cookie banner). It steps through pending requests one at a time ("1 of 3"), so three pending never become three layouts. Pill grows by one thin row only; Panel and Expanded keep their layout untouched and the banner sits over the Terminal\'s bottom. Expand the banner for the Message text.',
+  pill() {
+    if (!attention()) return pillBase();
+    const a = cur(); const exp = S.sel.Cx;
+    return { h: 88 + (exp ? 150 : 44), html: `<div class="pillrow attn">${mascotMini()}<div class="txt"><div class="state" style="color:var(--merged)">Needs you</div><div class="w">${NAMES[a.from].n} → ${NAMES[a.to].n}</div></div></div>${banner(a, true)}` };
+  },
+  panel() { return `<div class="rail"><div class="id">${mascotMini()}<div class="tally"><span class="state">2 running</span>${attention()?`<span class="state" style="color:var(--merged)">${open().length} asking</span>`:''}</div></div><div class="list">${listRows()}</div>${railFooter()}</div><div class="main">${termBody(S.selected)}${attention()?banner(cur(), false, true):''}</div>`; },
+  expanded() { return expandedShell('', sidebarRows(), null, 0, attention() ? banner(cur(), false, true) : ''); },
+};
+const cur = () => { const o = open(); const i = (S.sel.Ci ?? 0) % Math.max(o.length,1); return o[i]; };
+function banner(a, inPill, absolute) {
+  const o = open(); const i = o.indexOf(a); const exp = S.sel.Cx;
+  const head = `<div class="C-banner" style="${absolute?'position:absolute;left:0;right:0;bottom:0;':''}"><div class="t"><b>${NAMES[a.from].n} → ${NAMES[a.to].n}</b> wants to send a Message <span class="timer">· ${fmt(a.left)}</span></div>
+    ${o.length>1?`<span class="timer">${i+1} of ${o.length}</span><button class="btn ghost sm" data-cstep="1" title="Next request">›</button>`:''}
+    <button class="btn ghost sm" data-cx="1">${exp?'Hide':'Show'}</button>
+    <button class="btn primary sm" data-act="once" data-id="${a.id}">Once</button><button class="btn sm" data-act="always" data-id="${a.id}" title="Always allow ${pairOf(a)}">Always</button><button class="btn danger sm" data-act="deny" data-id="${a.id}">Deny</button></div>`;
+  if (!exp) return head;
+  return `<div style="${absolute?'position:absolute;left:0;right:0;bottom:44px;':''}background:#1d1530;padding:10px 14px;border-top:1px solid #4b2f86">${quote(a)}<div class="timer" style="margin-top:6px">${pairOf(a)} has no Messaging rule. "Always" saves ${pairOf(a)}.</div></div>${head}`;
+}
+
+/* ------------------------------------------------------------------ shared chrome ---- */
+function mascotMini() { const c = attention() ? 'var(--merged)' : 'var(--success)'; return `<div class="mascot" style="--c:${c}"><i></i></div>`; }
+function pillBase() { return { h: 88, html: `<div class="pillrow">${mascotMini()}<div class="txt"><div class="state">Working</div><div class="w">${pillWord()}</div></div></div>` }; }
+function listRows() { return `<div class="glabel"><span>web</span></div>${termRow(TERMS[0], S.selected===1)}${termRow(TERMS[3], S.selected===4)}<div class="glabel"><span>api</span></div>${termRow(TERMS[1], S.selected===2)}<div class="glabel"><span>infra</span></div>${termRow(TERMS[2], S.selected===3)}`; }
+function sidebarRows() { return `<div class="glabel"><span>Projects</span></div><div class="row"><div class="l"><b>web</b></div></div><div class="row"><div class="l"><b>api</b></div></div><div class="row"><div class="l"><b>infra</b></div></div><div class="glabel"><span>Terminals</span></div>${TERMS.map(t => termRow(t, S.selected===t.id)).join('')}`; }
+function railFooter() { return `<div class="footer"><button class="btn ghost sm">+ New terminal</button><span class="grow"></span><button class="btn ghost sm">⇲</button><button class="btn ghost sm">✕</button></div>`; }
+function expandedShell(overlay, sidebar, mainOverride, badge = 0, bottom = '') {
+  return `<div class="titlebar"><span class="mono" style="color:var(--info)">◆</span><span class="t">Timmy</span><span class="grow"></span><button class="win-ctl">–</button><button class="win-ctl">☐</button><button class="win-ctl">✕</button></div>
+  <div class="body"><div class="sidebar">${sidebar}</div>
+  <div class="main" style="position:relative">${mainOverride ?? `<div class="tabs"><div class="tab on">Tab 1</div><div class="tab">Tab 2</div></div><div class="panes"><div><div class="hd"><i class="dot" style="--c:var(--success)"></i>Terminal 1 · web</div>${termBody(1)}</div><div><div class="hd"><i class="dot" style="--c:var(--success)"></i>Terminal 2 · api</div>${termBody(2)}</div></div>`}${bottom}${overlay}</div></div>`;
+}
+
+/* ------------------------------------------------------------------ render ---- */
+const VARIANTS = { A, B, C }; const KEYS = Object.keys(VARIANTS);
+let vk = (location.hash.slice(1) || 'A').toUpperCase(); if (!VARIANTS[vk]) vk = 'A';
+
+function render() {
+  const V = VARIANTS[vk];
+  document.getElementById('label').textContent = `${vk} (${V.name})`;
+  location.hash = vk;
+  const p = V.pill();
+  document.getElementById('stage').innerHTML = `
+    <div><h2>Pill · 440 × 88${p.h > 88 ? ` (window grows to ${p.h})` : ''}</h2><div class="win pill" style="height:${p.h}px">${p.html}</div></div>
+    <div><h2>Panel · 880 × 560</h2><div class="win panel">${V.panel()}</div></div>
+    <div><h2>Expanded · 1280 × 800</h2><div class="win expanded">${V.expanded()}</div></div>
+    <div><p class="cap"><b>${vk} · ${V.name}.</b> ${V.note}</p><div class="outcome">${esc(S.log.slice(0, 5).join('\n'))}</div>${S.rules.length?`<div class="cap">Rules created this session: ${S.rules.join(', ')}</div>`:''}</div>`;
+}
+function controls() {
+  document.getElementById('controls').innerHTML = `
+    <div class="grp"><label>Pending</label><button class="ctl" data-s="reset1">1 request</button><button class="ctl" data-s="reset3">3 requests</button><button class="ctl" data-s="add">+ one more</button><button class="ctl" data-s="clear">None</button></div>
+    <div class="grp"><label>Events</label><button class="ctl" data-s="close">Sender of the first closes</button><button class="ctl" data-s="expire">First one times out</button><button class="ctl ${S.fast?'on':''}" data-s="fast">Run the 10 min clock ×20</button></div>
+    <div class="grp"><label>Long body</label><button class="ctl" data-s="long">Add a 2000-char request</button></div>
+    <span class="note">Answers are in-memory only. The agent was already told "queued"; the timer is the 10 minutes decided in the map.</span>`;
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('button, [data-open], [data-sel]'); if (!t) return;
+  if (t.dataset.act) return decide(+t.dataset.id, t.dataset.act);
+  if (t.dataset.open) { S.sel.B = +t.dataset.open; return render(); }
+  if (t.dataset.sel) { S.selected = +t.dataset.sel; S.sel.B = null; return render(); }
+  if (t.dataset.goto) { return; }
+  if (t.dataset.cx) { S.sel.Cx = !S.sel.Cx; return render(); }
+  if (t.dataset.cstep) { S.sel.Ci = (S.sel.Ci ?? 0) + 1; return render(); }
+  const s = t.dataset.s; if (!s) return;
+  if (s === 'reset1') reset(1); if (s === 'reset3') reset(3); if (s === 'clear') reset(0); if (s === 'add') addAsk();
+  if (s === 'close') { const a = open()[0]; if (a) senderCloses(a.id); }
+  if (s === 'expire') { const a = open()[0]; if (a) timeout(a.id); }
+  if (s === 'fast') S.fast = !S.fast;
+  if (s === 'long') addAsk(2, 1, ('Long Message text that fills the whole allowance. ').repeat(40).slice(0, 2000));
+  controls(); render();
+});
+const step = d => { vk = KEYS[(KEYS.indexOf(vk) + d + KEYS.length) % KEYS.length]; render(); };
+document.getElementById('prev').onclick = () => step(-1); document.getElementById('next').onclick = () => step(1);
+addEventListener('keydown', e => { if (/INPUT|TEXTAREA/.test(document.activeElement.tagName)) return; if (e.key === 'ArrowLeft') step(-1); if (e.key === 'ArrowRight') step(1); });
+reset(1); controls(); render();
+</script>
+</body>
+</html>
