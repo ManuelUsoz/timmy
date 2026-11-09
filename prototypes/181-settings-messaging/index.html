@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<!--
+  PROTOTYPE, THROWAWAY (ticket #181, map #170). Not production code. Wipe me.
+  Question: what does the Messaging block of Settings > Permissions look like (Messaging rules as
+  Project-to-Project allows: list, add, remove, what "always allow" left behind, the port, and the
+  per-Provider state), as a block that fits beside the two scopes #135 still has to pick between?
+  Three structurally different variants, switchable with the bar at the bottom (or the arrow keys):
+    A  "A list of rules"      : one row per rule (web -> api), an add row under the list.
+    B  "A matrix"             : Sender Project x Target Project grid; a click toggles a rule.
+    C  "By Project"           : one card per Project: who it may send to, as chips; who may send to it, read-only.
+  Decided before this ticket (#176): the Messages switch lives on each Provider row in Agents, so this block only
+  SHOWS each Provider's state and points at Agents. The port and the rules live here.
+  Tokens are copied from src/styles.css (g100); the frame mirrors src/app/features/workspace/settings-dialog.*.
+  Everything is in memory; nothing talks to Timmy.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>PROTOTYPE #181: Settings, Messaging rules</title>
+<style>
+  :root {
+    --background:#000; --layer-01:#0e0e0e; --layer-02:#1a1a1a; --layer-hover:#141414; --layer-hover-02:#222;
+    --layer-selected:#1a1a1a; --layer-selected-02:#262626; --field:#000;
+    --border-subtle:#222; --border-strong:#6f6f6f; --text-primary:#fff; --text-secondary:#e0e0e0; --text-helper:#b0b0b0;
+    --text-disabled:#8d8d8d; --text-error:#ff8389; --link:#78a9ff; --modal:#0f0f0f; --modal-border:#2e2e2e; --focus:#fff;
+    --button-primary:#0f62fe; --button-primary-hover:#0050e6; --button-secondary:#262626; --button-danger:#da1e28;
+    --ok:#42be65; --info:#4589ff; --warn:#f1c21b; --err:#fa4d56; --idle:#6f6f6f;
+    --tag-green-bg:#044317; --tag-green-text:#a7f0ba; --tag-blue-bg:#002d9c; --tag-blue-text:#a6c8ff;
+    --tag-gray-bg:#393939; --tag-gray-text:#e0e0e0; --tag-purple-bg:#491d8b; --tag-purple-text:#d4bbff;
+    --tag-red-bg:#750e13; --tag-red-text:#ffb3b8;
+    --ff-sans:'IBM Plex Sans','Segoe UI',system-ui,sans-serif; --ff-mono:'JetBrains Mono','Cascadia Mono',Consolas,monospace;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#262626; color:var(--text-primary); font:400 14px/18px var(--ff-sans); letter-spacing:.16px; padding-bottom:84px; }
+  button, select, input { font:inherit; letter-spacing:inherit; color:inherit; }
+  button { cursor:pointer; border:0; background:none; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline:2px solid var(--focus); outline-offset:-2px; }
+  svg { width:16px; height:16px; flex:none; fill:none; stroke:currentColor; stroke-width:1.2; stroke-linecap:round; stroke-linejoin:round; }
+  .mono { font-family:var(--ff-mono); }
+
+  /* ---- scenario controls ---- */
+  .controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:12px 20px; background:#161616; border-bottom:1px solid #393939; position:sticky; top:0; z-index:50; }
+  .controls .grp { display:flex; gap:6px; align-items:center; padding-right:14px; margin-right:6px; border-right:1px solid #393939; }
+  .controls .grp:last-child { border:0; }
+  .controls label { font:600 11px/16px var(--ff-mono); text-transform:uppercase; letter-spacing:.08em; color:#a8a8a8; }
+  .ctl { background:#393939; padding:6px 12px; }
+  .ctl:hover { background:#4c4c4c; }
+  .ctl.on { background:var(--button-primary); }
+  .stage { padding:24px 20px; }
+  .cap { font:12px/16px var(--ff-sans); color:#a8a8a8; margin:10px 0 0; max-width:960px; }
+
+  /* ---- the Settings dialog (mirrors settings-dialog.css) ---- */
+  .dialog { display:flex; width:960px; height:640px; border:1px solid var(--modal-border); background:var(--modal); overflow:hidden; box-shadow:0 8px 30px #000a; }
+  .nav { width:220px; flex:none; display:flex; flex-direction:column; padding-block:16px; border-right:1px solid var(--border-subtle); background:var(--layer-01); }
+  .nav-title { margin:0 16px 12px; font:600 16px/22px var(--ff-sans); }
+  .nav-item { display:flex; align-items:center; gap:8px; height:32px; padding:0 16px; color:var(--text-secondary); text-align:left; width:100%; font-size:14px; }
+  .nav-item.cur { background:var(--layer-selected); box-shadow:inset 2px 0 0 var(--button-primary); color:var(--text-primary); }
+  .nav-item .lbl { flex:1; }
+  .tag { display:inline-flex; align-items:center; height:18px; padding:0 8px; border-radius:9px; font-size:11px; line-height:18px; background:var(--tag-gray-bg); color:var(--tag-gray-text); white-space:nowrap; }
+  .tag.green { background:var(--tag-green-bg); color:var(--tag-green-text); }
+  .tag.blue { background:var(--tag-blue-bg); color:var(--tag-blue-text); }
+  .tag.purple { background:var(--tag-purple-bg); color:var(--tag-purple-text); }
+  .tag.red { background:var(--tag-red-bg); color:var(--tag-red-text); }
+  .hint { margin:auto 16px 0; color:var(--text-helper); font:400 11px/16px var(--ff-mono); }
+  .main { flex:1; min-width:0; display:flex; flex-direction:column; }
+  .header { padding:16px 12px 16px 32px; border-bottom:1px solid var(--border-subtle); }
+  .header h2 { margin:8px 0 4px; font:400 20px/28px var(--ff-sans); }
+  .subtitle { margin:0; color:var(--text-secondary); font-size:14px; }
+  .content { flex:1; min-height:0; overflow-y:auto; padding:24px 32px; display:flex; flex-direction:column; gap:20px; }
+  .footer { display:flex; align-items:center; gap:8px; padding:12px 32px; border-top:1px solid var(--border-subtle); color:var(--text-helper); font-size:12px; line-height:16px; min-height:41px; }
+  .footer .undo { color:var(--link); text-decoration:underline; margin-left:4px; }
+
+  h3 { margin:0; color:var(--text-helper); font:600 11px/16px var(--ff-mono); letter-spacing:.08em; text-transform:uppercase; }
+  .lead { margin:0; color:var(--text-secondary); font-size:14px; line-height:20px; }
+  .help { color:var(--text-helper); font-size:12px; line-height:16px; }
+  .group { display:flex; flex-direction:column; gap:8px; }
+  .card { border:1px solid var(--border-subtle); background:var(--layer-01); }
+  .scope { border:1px dashed var(--border-subtle); padding:12px 16px; color:var(--text-helper); font-size:12px; line-height:16px; display:flex; gap:12px; align-items:center; }
+  .scope b { color:var(--text-secondary); font-weight:600; }
+
+  /* shared controls */
+  .btn { height:32px; padding:0 16px; background:var(--button-secondary); }
+  .btn:hover { background:#393939; }
+  .btn.primary { background:var(--button-primary); } .btn.primary:hover { background:var(--button-primary-hover); }
+  .btn.ghost { background:none; color:var(--link); padding:0 12px; } .btn.ghost:hover { background:var(--layer-hover-02); }
+  .btn.danger { color:var(--text-error); }
+  .btn[disabled] { opacity:.4; cursor:not-allowed; }
+  select, input.txt { height:32px; background:var(--field); border:0; border-bottom:1px solid var(--border-strong); padding:0 12px; min-width:0; }
+  select { padding-right:8px; }
+  .proj { font:500 13px/16px var(--ff-mono); }
+  .arrow { color:var(--text-helper); font-family:var(--ff-mono); }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--c,var(--idle)); display:inline-block; flex:none; }
+  .banner { display:flex; gap:12px; align-items:flex-start; padding:12px 16px; border-left:3px solid var(--warn); background:var(--layer-01); font-size:13px; line-height:18px; }
+  .banner.err { border-color:var(--err); }
+  .banner .row { display:flex; gap:8px; margin-top:8px; }
+
+  /* provider strip (read-only here; the switch is in Agents) */
+  .prov { display:flex; align-items:center; gap:12px; min-height:40px; padding:0 8px 0 16px; }
+  .prov + .prov { border-top:1px solid var(--border-subtle); }
+  .prov .nm { font-weight:600; width:110px; }
+  .prov .st { flex:1; color:var(--text-helper); font-size:12px; }
+  .prov .st.on { color:var(--text-secondary); }
+
+  /* port */
+  .port { display:flex; align-items:center; gap:12px; padding:8px 8px 8px 16px; min-height:48px; }
+  .port .t { flex:1; display:flex; flex-direction:column; gap:2px; }
+  .port input.txt { width:96px; font-family:var(--ff-mono); }
+
+  /* ---- A: list ---- */
+  .rule { display:flex; align-items:center; gap:12px; min-height:48px; padding:0 8px 0 16px; }
+  .rule + .rule { border-top:1px solid var(--border-subtle); }
+  .rule .pair { display:flex; align-items:center; gap:10px; min-width:200px; }
+  .rule .meta { flex:1; color:var(--text-helper); font-size:12px; }
+  .addrow { display:flex; align-items:center; gap:10px; padding:10px 8px 10px 16px; border-top:1px solid var(--border-subtle); background:var(--layer-02); flex-wrap:wrap; }
+  .addrow label { color:var(--text-helper); font-size:12px; }
+  .empty { padding:20px 16px; color:var(--text-helper); font-size:13px; line-height:20px; }
+  .empty b { color:var(--text-secondary); font-weight:600; }
+
+  /* ---- B: matrix ---- */
+  .mx { border-collapse:collapse; }
+  .mx th { font:500 12px/16px var(--ff-mono); color:var(--text-secondary); padding:0 8px; height:36px; }
+  .mx thead th { text-align:center; max-width:76px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-helper); }
+  .mx tbody th { text-align:right; white-space:nowrap; padding-right:12px; }
+  .mx td { padding:0; border:1px solid var(--border-subtle); width:64px; height:36px; text-align:center; }
+  .mx td.diag { background:repeating-linear-gradient(135deg,transparent 0 5px,#ffffff08 5px 6px); }
+  .mx td button { width:100%; height:100%; display:grid; place-items:center; color:#fff; }
+  .mx td button:hover { background:var(--layer-hover-02); }
+  .mx td button.on { background:var(--button-primary); }
+  .mx td button.on:hover { background:var(--button-primary-hover); }
+  .mx td button.on svg { stroke-width:1.8; }
+  .axis { display:flex; gap:24px; font:600 11px/16px var(--ff-mono); letter-spacing:.08em; text-transform:uppercase; color:var(--text-helper); }
+  .cell-cap { min-height:36px; padding:8px 16px; border-left:3px solid var(--border-strong); background:var(--layer-01); font-size:13px; line-height:20px; color:var(--text-secondary); }
+
+  /* ---- C: by project ---- */
+  .pc { padding:12px 16px; display:grid; grid-template-columns:130px 1fr; gap:6px 16px; align-items:start; }
+  .pc + .pc { border-top:1px solid var(--border-subtle); }
+  .pc .nm { display:flex; align-items:center; gap:8px; padding-top:4px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .chip { display:inline-flex; align-items:center; gap:4px; height:28px; padding:0 4px 0 12px; border:1px solid var(--border-strong); border-radius:14px; font:500 12px/16px var(--ff-mono); }
+  .chip.self { border-style:dashed; }
+  .chip button { width:20px; height:20px; border-radius:50%; display:grid; place-items:center; color:var(--text-helper); }
+  .chip button:hover { background:var(--layer-hover-02); color:#fff; }
+  .chip button svg { width:12px; height:12px; }
+  .addsel { height:28px; border:1px dashed var(--border-strong); border-radius:14px; background:none; padding:0 10px; color:var(--link); font-size:12px; }
+  .pc .rx { grid-column:2; color:var(--text-helper); font-size:12px; line-height:16px; }
+  .ask { color:var(--text-helper); font-size:12px; padding-top:6px; }
+
+  /* ---- floating variant switcher ---- */
+  .vbar { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); display:flex; align-items:center; gap:6px; background:#f4f4f4; color:#161616; padding:6px; border-radius:24px; box-shadow:0 4px 18px #000c; z-index:100; font:600 13px/16px var(--ff-sans); }
+  .vbar button { width:32px; height:32px; border-radius:50%; background:#e0e0e0; color:#161616; font-size:16px; }
+  .vbar button:hover { background:#c6c6c6; }
+  .vbar span { min-width:200px; text-align:center; }
+</style>
+</head>
+<body>
+<div class="controls" id="controls"></div>
+<div class="stage"><div id="app"></div><p class="cap" id="cap"></p></div>
+<div class="vbar" id="vbar"><button data-v="-1" aria-label="Previous variant">&larr;</button><span id="vlabel"></span><button data-v="1" aria-label="Next variant">&rarr;</button></div>
+
+<script>
+/* ------------------------------------------------------------------ data */
+const PROJECTS_MANY = ['web','api','docs','infra','mobile','data','billing','admin'];
+const DATASETS = {
+  empty: { projects:['web','api','docs'], rules:[] },
+  few:   { projects:['web','api','docs','infra'], rules:[
+    {from:'web', to:'api',  origin:'prompt',   when:'3 Nov'},
+    {from:'api', to:'web',  origin:'prompt',   when:'3 Nov'},
+    {from:'web', to:'web',  origin:'settings', when:'5 Nov'},
+    {from:'docs',to:'api',  origin:'prompt',   when:'8 Nov'},
+  ]},
+  many:  { projects:PROJECTS_MANY, rules:[
+    ['web','api'],['api','web'],['web','web'],['docs','api'],['mobile','api'],['api','mobile'],['infra','web'],
+    ['infra','api'],['data','api'],['api','data'],['billing','api'],['admin','api'],['admin','web'],['web','docs'],
+  ].map((p,i)=>({from:p[0],to:p[1],origin:i%3===0?'settings':'prompt',when:(1+i)+' Nov'})) },
+};
+const PROVIDERS = {
+  none: [['Claude Code',false,false],['OpenCode',false,false],['Codex',false,false]],
+  some: [['Claude Code',true,true],['OpenCode',true,false],['Codex',false,false]],
+  all:  [['Claude Code',true,true],['OpenCode',true,true],['Codex',true,true]],
+};
+const VARIANTS = [['A','A list of rules'],['B','B matrix'],['C','C by Project']];
+const CAPS = {
+  A:'A: the rule is the unit. Reads like the approval prompt ("web → api"), remembers where each rule came from, and a long list scrolls. Adding is a row of two pickers.',
+  B:'B: the whole policy at a glance, and the direction is the geometry (row = Sender, column = Target). Hover a cell for its sentence; click toggles. Costs width: past ~8 Projects it scrolls sideways.',
+  C:'C: starts from the Project, which is what the user thinks about ("what may web talk to?"). Inbound is shown read-only so the direction is never lost. Adding is one picker per Project.'
+};
+
+const S = {
+  variant:'A', data:'few', prov:'some', portState:'ok', port:47821, editingPort:false,
+  rules:[], projects:[], toast:null, toastTimer:null, removed:null,
+};
+const q = new URLSearchParams(location.search);
+if (q.get('variant') && VARIANTS.some(v=>v[0]===q.get('variant'))) S.variant = q.get('variant');
+function load(){ const d=DATASETS[S.data]; S.projects=d.projects.slice(); S.rules=d.rules.map(r=>({...r})); S.removed=null; }
+load();
+const has=(f,t)=>S.rules.some(r=>r.from===f&&r.to===t);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function say(msg, undo){ S.toast=msg; S.removed=undo||null; clearTimeout(S.toastTimer); S.toastTimer=setTimeout(()=>{S.toast=null;S.removed=null;render();},7000); }
+function addRule(f,t,origin='settings'){ if(!f||!t||has(f,t)) return; S.rules.push({from:f,to:t,origin,when:'9 Nov'}); say('Allowed '+f+' → '+t+'. Saved.'); }
+function removeRule(f,t){ const i=S.rules.findIndex(r=>r.from===f&&r.to===t); if(i<0) return; const [r]=S.rules.splice(i,1); say('Removed '+f+' → '+t+'. The next Message asks you again.', r); }
+
+/* ------------------------------------------------------------------ pieces */
+const I = {
+  x:'<svg viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+  check:'<svg viewBox="0 0 16 16"><path d="M3 8.5l3.5 3.5L13 4.5"/></svg>',
+};
+const NAVS = [['General','M2 5h6M11 5h3M2 11h3M8 11h6'],['Appearance','M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z',1],['Shortcuts','M1.5 4h13v8h-13zM4 6.5h1M7 6.5h1M10 6.5h1M4 9.5h8'],['Agents and providers','M3 13c0-2.5 2.2-4 5-4s5 1.5 5 4'],['Notifications','M4 11V7a4 4 0 0 1 8 0v4l1 1.5H3zM6.5 14h3'],['Permissions','M4 7h8v6H4zM6 7V5a2 2 0 0 1 4 0v2'],['Terminal','M2 3h12v10H2z',1],['Projects','M2 4.5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z',1],['Integrations','M6 2v3M10 2v3M4 5h8v3a4 4 0 0 1-8 0zM8 12v2',1],['Usage','M2 13h12M4 13V8M8 13V4M12 13V9',1]];
+function nav(){
+  return `<nav class="nav"><span class="nav-title">Settings</span>${NAVS.map(n=>`<div class="nav-item ${n[0]==='Permissions'?'cur':''}"><svg viewBox="0 0 16 16"><path d="${n[1]}"/></svg><span class="lbl">${n[0]}</span>${n[2]?'<span class="tag">Soon</span>':''}</div>`).join('')}<p class="hint">Changes save as you make them.</p></nav>`;
+}
+function ghostScope(){
+  return `<div class="scope"><b>Timmy itself</b><span>What Timmy may write, open or read. Candidate scope from #135, not designed here. This block must sit beside it.</span></div>`;
+}
+function providerStrip(){
+  const portBad = S.portState==='inuse';
+  const rows = PROVIDERS[S.prov].map(([n,hook,msg],i)=>{
+    let tag, text, on=false;
+    if (portBad && hook && msg){ tag='<span class="tag red">Paused</span>'; text=`Entry written, but the port is in use`; }
+    else if (msg && S.portState==='stale' && i===0){ tag='<span class="tag purple">Out of date</span>'; text='Config could not be rewritten for the new port'; }
+    else if (msg){ tag='<span class="tag green">On</span>'; text='Entry <span class="mono">timmy</span> written; restart its agent in open Terminals to pick it up'; on=true; }
+    else if (hook){ tag='<span class="tag">Off</span>'; text='Hook is on; Messages can be turned on in Agents'; }
+    else { tag='<span class="tag">Off</span>'; text='Needs its Hook first (Agents)'; }
+    return `<div class="prov"><span class="nm">${n}</span>${tag}<span class="st ${on?'on':''}">${text}</span></div>`;
+  }).join('');
+  return `<div class="group"><h3>Providers</h3><div class="card">${rows}<div class="prov" style="min-height:36px"><span class="st" style="display:flex;align-items:center;gap:4px">The switch for each Provider is on its row in <button class="btn ghost" style="height:24px;padding:0 4px" data-act="noop">Agents and providers &rarr;</button></span></div></div></div>`;
+}
+function portBlock(){
+  const bad = S.portState==='inuse';
+  let body;
+  if (bad || S.editingPort){
+    body = `<div class="port"><div class="t"><span>${bad?'Pick another port':'Port'}</span><span class="help">1024 to 65535, on 127.0.0.1 only. Saving rewrites the entry of every Provider where Messages is on.</span></div><input class="txt" id="portin" value="${bad?'':S.port}" placeholder="${S.port}" inputmode="numeric" /><button class="btn primary" data-act="port-save">Save</button>${bad?'':'<button class="btn ghost" data-act="port-cancel">Cancel</button>'}</div>`;
+  } else {
+    body = `<div class="port"><div class="t"><span>Port <span class="mono">${S.port}</span></span><span class="help">Where Timmy listens for agents' Messages, on 127.0.0.1 only. Picked when Messages was first turned on.</span></div><button class="btn" data-act="port-edit">Change</button></div>`;
+  }
+  const warn = bad ? `<div class="banner err"><div><b>Port ${S.port} is in use by another app.</b> Messages are off until you pick another port; agents that try to send are refused.</div></div>` : '';
+  return `<div class="group"><h3>Port</h3>${warn}<div class="card">${body}</div></div>`;
+}
+function ruleSummary(){ const n=S.rules.length; return n? `${n} rule${n>1?'s':''}` : 'no rules'; }
+function lead(){
+  return `<p class="lead">Terminals cannot send each other Messages until you allow it. With no rule, Timmy asks you when an agent tries, and "always allow" in that prompt adds a rule here. A rule lets the Terminals of one Project send to the Terminals of another, one way; a Project needs a rule to message itself too.</p>`;
+}
+
+/* ------------------------------------------------------------------ variants */
+function projOptions(sel, placeholder){
+  return `<option value="">${placeholder}</option>`+S.projects.map(p=>`<option value="${p}" ${p===sel?'selected':''}>${p}</option>`).join('');
+}
+const addDraft = { from:'', to:'' };
+function varA(){
+  const sorted = S.rules.slice().sort((a,b)=>a.from.localeCompare(b.from)||a.to.localeCompare(b.to));
+  const rows = sorted.length ? sorted.map(r=>`<div class="rule"><div class="pair"><span class="proj">${r.from}</span><span class="arrow">&rarr;</span><span class="proj">${r.to}</span>${r.from===r.to?'<span class="tag">same Project</span>':''}</div><span class="meta">${r.origin==='prompt'?'Always allowed from the approval prompt':'Added here'} &middot; ${r.when}</span><button class="btn ghost danger" data-act="rm" data-f="${r.from}" data-t="${r.to}" aria-label="Remove ${r.from} to ${r.to}">Remove</button></div>`).join('')
+    : `<div class="empty"><b>No rules yet.</b> When an agent tries to send a Message, Timmy asks you: allow once, always allow the pair (for example <span class="mono">web &rarr; api</span>), or deny. Always allow lands here.</div>`;
+  const dup = addDraft.from && addDraft.to && has(addDraft.from, addDraft.to);
+  return `<div class="group"><h3>Messaging rules <span style="text-transform:none;letter-spacing:0;font-family:var(--ff-sans);font-weight:400">&middot; ${ruleSummary()}</span></h3><div class="card">${rows}
+    <div class="addrow"><label>From</label><select id="af" aria-label="Sender Project">${projOptions(addDraft.from,'Project')}</select><span class="arrow">&rarr;</span><label>To</label><select id="at" aria-label="Target Project">${projOptions(addDraft.to,'Project')}</select><button class="btn primary" data-act="add" ${(!addDraft.from||!addDraft.to||dup)?'disabled':''}>Add rule</button>${dup?'<span class="help">Already allowed.</span>':''}</div></div></div>`;
+}
+function varB(){
+  const P=S.projects;
+  const head = `<tr><th></th>${P.map(p=>`<th title="${p}">${p}</th>`).join('')}</tr>`;
+  const body = P.map(f=>`<tr><th>${f}</th>${P.map(t=>{ const on=has(f,t); return `<td class="${f===t?'diag':''}"><button class="${on?'on':''}" data-act="cell" data-f="${f}" data-t="${t}" aria-pressed="${on}" aria-label="${f} may send to ${t}">${on?I.check:''}</button></td>`;}).join('')}</tr>`).join('');
+  return `<div class="group"><h3>Messaging rules <span style="text-transform:none;letter-spacing:0;font-family:var(--ff-sans);font-weight:400">&middot; ${ruleSummary()}</span></h3>
+    <div class="card" style="padding:16px;overflow-x:auto"><div class="axis" style="margin-bottom:8px"><span>Rows: the Sender's Project</span><span>Columns: the Target's Project</span></div>
+    <table class="mx"><thead>${head}</thead><tbody>${body}</tbody></table></div>
+    <div class="cell-cap" id="cellcap">Hover a cell. Hatched cells on the diagonal are a Project messaging itself.</div>
+    <span class="help">Rules made with "always allow" in the approval prompt appear here as filled cells. Nothing in this view records where a rule came from.</span></div>`;
+}
+function varC(){
+  const P=S.projects;
+  const cards = P.map(f=>{
+    const out = S.rules.filter(r=>r.from===f).map(r=>r.to);
+    const inn = S.rules.filter(r=>r.to===f && r.from!==f).map(r=>r.from);
+    const free = P.filter(t=>!has(f,t));
+    const chips = out.length? out.map(t=>`<span class="chip ${t===f?'self':''}">${t===f?'itself':t}<button data-act="rm" data-f="${f}" data-t="${t}" aria-label="Stop ${f} sending to ${t}">${I.x}</button></span>`).join('') : `<span class="ask">Nothing allowed: Timmy asks every time.</span>`;
+    const add = free.length? `<select class="addsel" data-act-change="addto" data-f="${f}" aria-label="Allow ${f} to send to"><option value="">+ Allow sending to</option>${free.map(t=>`<option value="${t}">${t===f?f+' (itself)':t}</option>`).join('')}</select>`:'';
+    return `<div class="pc"><div class="nm"><span class="proj">${f}</span></div><div class="chips">${chips}${add}</div><div class="rx">${inn.length?'Receives from: '+inn.join(', '):'No other Project may send to it.'}</div></div>`;
+  }).join('');
+  return `<div class="group"><h3>Messaging rules <span style="text-transform:none;letter-spacing:0;font-family:var(--ff-sans);font-weight:400">&middot; ${ruleSummary()}</span></h3><div class="card">${cards}</div></div>`;
+}
+
+/* ------------------------------------------------------------------ render */
+function render(){
+  const body = S.variant==='A'?varA():S.variant==='B'?varB():varC();
+  const footer = S.toast
+    ? `${I.check.replace('<svg','<svg style="color:var(--ok)"')}<span>${esc(S.toast)}${S.removed?`<button class="undo" data-act="undo">Undo</button>`:''}</span>`
+    : `${I.check}<span>Changes save as you make them.</span>`;
+  document.getElementById('app').innerHTML = `<div class="dialog">${nav()}<div class="main">
+    <header class="header"><h2>Permissions</h2><p class="subtitle">What each agent may do without asking you.</p></header>
+    <div class="content">${ghostScope()}<div class="group"><h3 style="color:var(--text-secondary)">Messages between Terminals</h3>${lead()}</div>${body}${providerStrip()}${portBlock()}</div>
+    <footer class="footer">${footer}</footer></div></div>`;
+  const v = VARIANTS.find(v=>v[0]===S.variant);
+  document.getElementById('vlabel').textContent = v[1];
+  document.getElementById('cap').textContent = CAPS[S.variant];
+  controls();
+  try{ const u=new URL(location.href); u.searchParams.set('variant',S.variant); history.replaceState(null,'',u); }catch(e){}
+}
+function controls(){
+  const seg=(label,key,opts)=>`<div class="grp"><label>${label}</label>${opts.map(([v,t])=>`<button class="ctl ${S[key]===v?'on':''}" data-set="${key}" data-val="${v}">${t}</button>`).join('')}</div>`;
+  document.getElementById('controls').innerHTML =
+    seg('Rules','data',[['empty','None (3 Projects)'],['few','A few (4 Projects)'],['many','Many (8 Projects)']]) +
+    seg('Providers','prov',[['none','None active'],['some','Claude Code on'],['all','All on']]) +
+    seg('Port','portState',[['ok','Free'],['inuse','In use'],['stale','Entry out of date']]) +
+    `<div class="grp"><button class="ctl" data-act="reset">Reset</button></div>`;
+}
+
+/* ------------------------------------------------------------------ events */
+document.addEventListener('click',e=>{
+  const set=e.target.closest('[data-set]');
+  if(set){ S[set.dataset.set]=set.dataset.val; if(set.dataset.set==='data') load(); if(set.dataset.set==='portState') S.editingPort=false; render(); return; }
+  const v=e.target.closest('[data-v]');
+  if(v){ cycle(+v.dataset.v); return; }
+  const a=e.target.closest('[data-act]'); if(!a) return;
+  const {act,f,t}=a.dataset;
+  if(act==='rm') removeRule(f,t);
+  else if(act==='add'){ addRule(addDraft.from,addDraft.to); addDraft.from=addDraft.to=''; }
+  else if(act==='cell'){ has(f,t)?removeRule(f,t):addRule(f,t); }
+  else if(act==='undo' && S.removed){ S.rules.push(S.removed); say('Restored '+S.removed.from+' → '+S.removed.to+'.'); }
+  else if(act==='reset'){ load(); S.portState='ok'; S.editingPort=false; S.toast=null; addDraft.from=addDraft.to=''; }
+  else if(act==='port-edit') S.editingPort=true;
+  else if(act==='port-cancel') S.editingPort=false;
+  else if(act==='port-save'){
+    const n=parseInt(document.getElementById('portin').value,10);
+    if(!(n>=1024&&n<=65535)){ say('Pick a number from 1024 to 65535.'); }
+    else { const k=PROVIDERS[S.prov].filter(p=>p[2]).length; S.port=n; S.portState='ok'; S.editingPort=false;
+      say(k?`Port is now ${n}. Rewrote ${k} Provider entr${k>1?'ies':'y'}; restart the agent in open Terminals.`:`Port is now ${n}. No Provider has Messages on, so nothing was rewritten.`); }
+  }
+  render();
+});
+document.addEventListener('change',e=>{
+  if(e.target.id==='af'){ addDraft.from=e.target.value; render(); }
+  else if(e.target.id==='at'){ addDraft.to=e.target.value; render(); }
+  else if(e.target.dataset.actChange==='addto' && e.target.value){ addRule(e.target.dataset.f,e.target.value); render(); }
+});
+document.addEventListener('mouseover',e=>{
+  const c=e.target.closest('[data-act="cell"]'); const cap=document.getElementById('cellcap'); if(!c||!cap) return;
+  const {f,t}=c.dataset, on=has(f,t);
+  cap.textContent = f===t ? (on?`Terminals in ${f} may Message each other.`:`Terminals in ${f} may not Message each other without asking you.`)
+    : (on?`Terminals in ${f} may send Messages to Terminals in ${t}. ${t} may not answer unless ${t} → ${f} is allowed too (${has(t,f)?'it is':'it is not'}).`:`Terminals in ${f} may not send to Terminals in ${t} without asking you.`);
+});
+function cycle(d){ const i=VARIANTS.findIndex(v=>v[0]===S.variant); S.variant=VARIANTS[(i+d+VARIANTS.length)%VARIANTS.length][0]; render(); }
+document.addEventListener('keydown',e=>{
+  if(/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  if(e.key==='ArrowLeft') cycle(-1); else if(e.key==='ArrowRight') cycle(1);
+});
+render();
+</script>
+</body>
+</html>
