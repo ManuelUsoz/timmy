@@ -44,11 +44,12 @@ export class WorkspaceComponent {
   private readonly terminals = inject(TerminalsState);
 
   constructor() {
-    // Coming from the Panel, the Workspace opens on the Terminal the Panel showed: its Tab, its Pane, expanded in its Stack.
-    // Otherwise the first time it appears, navigation starts (it is disabled at bootstrap, see workspace.routes.ts).
+    // The first time the Workspace appears, navigation starts (it is disabled at bootstrap, see workspace.routes.ts).
+    if (!this.router.navigated) this.router.initialNavigation();
+    // Coming from the Panel, it opens on the Terminal the Panel showed: its Tab, its Pane, expanded in its Stack.
+    // This navigation replaces the initial one, if that is still pending.
     const revealed = this.windowMode.previous() === 'Panel' ? this.terminals.current() : undefined;
     if (revealed !== undefined) void this.router.navigate(terminalPath(revealed));
-    else if (!this.router.navigated) this.router.initialNavigation();
 
     // Captured on the window, so a focused Terminal (whose xterm stops the event) does not swallow the shortcuts.
     const onKey = (event: KeyboardEvent) => this.shortcut(event);

@@ -282,7 +282,7 @@ describe('WorkspaceComponent', () => {
       const tabs = TestBed.inject(TabsState);
       const left = terminals.create(timmy.projectId);
       const tab = tabs.tabsOf(timmy.projectId)[0];
-      const right = await tabs.openInTab(tab, timmy.cwd, undefined, (layout, terminal) => split(layout, layout.focused, 'right', terminal));
+      await tabs.openInTab(tab, timmy.cwd, undefined, (layout, terminal) => split(layout, layout.focused, 'right', terminal));
       const other = terminals.create(timmy.projectId);
       await TestBed.inject(Router).navigate(['/projects', timmy.projectId, 'terminals', other.id]);
       await settle();
@@ -293,7 +293,7 @@ describe('WorkspaceComponent', () => {
       const layout = tabs.layoutOf(tabs.tabsOf(timmy.projectId)[0])!;
       expect(TestBed.inject(Router).url).toBe(`/projects/p-timmy/terminals/${left.id}`);
       expect(layout.focused).toBe(left.id);
-      expect(right.id).not.toBe(left.id);
+      expect(panesOf(layout)).toHaveLength(2);
     });
   });
 

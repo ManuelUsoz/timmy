@@ -13,7 +13,7 @@ import { layerFilesUnused, makeDesktopTestLayer } from '../../core/desktop-layer
 import { EffectRuntime } from '../../core/effect-runtime';
 import { ProjectId, type Project } from '../../../shared/projects/projects.model';
 import { ProjectsRpcs } from '../../../shared/projects/projects.rpc';
-import { addToStack } from '../workspace/pane-layout';
+import { addToStack, panesOf } from '../workspace/pane-layout';
 import { project } from '../workspace/projects-fakes';
 import { TabsState } from '../workspace/tabs-state';
 import { provideWorkspaceRouter } from '../workspace/workspace.routes';
@@ -260,7 +260,7 @@ describe('ShellComponent', () => {
       // Terminal 1 and 2 share a Stack, 2 expanded and focused; Terminal 3 has a Tab of its own in the other Project.
       const first = terminals.create(timmy.projectId);
       const tab = tabs.tabsOf(timmy.projectId)[0];
-      const second = await tabs.openInTab(tab, timmy.cwd, undefined, (layout, terminal) => addToStack(layout, layout.focused, terminal));
+      await tabs.openInTab(tab, timmy.cwd, undefined, (layout, terminal) => addToStack(layout, layout.focused, terminal));
       terminals.create(ascua.projectId);
       terminals.setCurrent(first.id);
       await ctx.settle();
@@ -273,7 +273,7 @@ describe('ShellComponent', () => {
       const layout = tabs.layoutOf(tabs.tabsOf(timmy.projectId)[0])!;
       expect(layout.focused).toBe(first.id);
       expect(activeHeader(ctx)).toBe('Terminal 1');
-      expect(second.id).not.toBe(first.id);
+      expect(panesOf(layout)).toHaveLength(1);
     });
 
     it('goes to the Project of the Terminal of the Panel, though the Workspace was last on another', async () => {
