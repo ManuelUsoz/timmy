@@ -36,10 +36,10 @@ export const tabsOf = (entries: ReadonlyArray<TerminalEntry>, projectId: Project
  * Where a Tab is shown: the route of its focused Pane's expanded View, so coming back to a Tab finds it as it was left.
  * With no layout given (or one that no longer holds that Terminal), its first Terminal's.
  */
-export const tabPath = (tab: Tab, layout?: TabLayout): ReadonlyArray<string> => {
-  const terminal = frontTerminal(tab, layout);
-  return ['/projects', terminal.projectId, 'terminals', terminal.id];
-};
+export const tabPath = (tab: Tab, layout?: TabLayout): ReadonlyArray<string> => terminalPath(frontTerminal(tab, layout));
+
+/** Where a Terminal is shown: its route, which brings its Tab, its Pane and its place in its Stack to the front. */
+export const terminalPath = (terminal: Pick<TerminalEntry, 'projectId' | 'id'>): ReadonlyArray<string> => ['/projects', terminal.projectId, 'terminals', terminal.id];
 
 /** The Terminal a Tab has in front: its focused Pane's expanded View, else (no layout, or a stale one) its first. */
 export const frontTerminal = (tab: Tab, layout?: TabLayout): TerminalEntry => {

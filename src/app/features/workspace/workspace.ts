@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular
 import { Router, RouterOutlet } from '@angular/router';
 import type { Project } from '../../../shared/projects/projects.model';
 import { globalShortcut } from '../../core/shortcuts';
+import { WindowModeState } from '../shell/window-mode-state';
 import { FilesBrowser } from './files-browser';
 import { FilesSidebar } from './files-sidebar';
 import { NewProjectDialog } from './new-project-dialog';
@@ -11,8 +12,9 @@ import { SettingsDialogState } from './settings-dialog-state';
 import { Switcher } from './switcher';
 import { isCtrlTab } from './switcher-keys';
 import { SwitcherState } from './switcher-state';
-import { tabPath } from './tabs';
+import { tabPath, terminalPath } from './tabs';
 import { TabsState } from './tabs-state';
+import { TerminalsState } from './terminals-state';
 import { ToastHost } from './toast-host';
 import { WorkspaceLayoutState } from './workspace-layout';
 import { WorkspaceSidebar } from './workspace-sidebar';
@@ -38,10 +40,16 @@ export class WorkspaceComponent {
   private readonly tabs = inject(TabsState);
   protected readonly switcher = inject(SwitcherState);
   protected readonly files = inject(FilesBrowser);
+  private readonly windowMode = inject(WindowModeState);
+  private readonly terminals = inject(TerminalsState);
 
   constructor() {
     // The first time the Workspace appears, navigation starts (it is disabled at bootstrap, see workspace.routes.ts).
     if (!this.router.navigated) this.router.initialNavigation();
+    // Coming from the Panel, it opens on the Terminal the Panel showed: its Tab, its Pane, expanded in its Stack.
+    // This navigation replaces the initial one, if that is still pending.
+    const revealed = this.windowMode.previous() === 'Panel' ? this.terminals.current() : undefined;
+    if (revealed !== undefined) void this.router.navigate(terminalPath(revealed));
 
     // Captured on the window, so a focused Terminal (whose xterm stops the event) does not swallow the shortcuts.
     const onKey = (event: KeyboardEvent) => this.shortcut(event);

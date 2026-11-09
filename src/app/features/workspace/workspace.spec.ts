@@ -9,6 +9,8 @@ import { makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
 import type { TerminalId } from './terminal-entries';
 import { layerFakeProjects, makeBackend, project } from './projects-fakes';
+import { addToStack, panesOf, split } from './pane-layout';
+import { TabsState } from './tabs-state';
 import { TerminalsState } from './terminals-state';
 import { WorkspaceComponent } from './workspace';
 import { WorkspaceLayoutState } from './workspace-layout';
@@ -250,6 +252,48 @@ describe('WorkspaceComponent', () => {
       terminalRows()[0].click();
       await settle();
       expect(TestBed.inject(Router).url).toBe(`/projects/p-ascua/terminals/${terminal.id}`);
+    });
+
+    it('reveals a Terminal collapsed in a Stack of another Project: its Pane focused, its View expanded', async () => {
+      const { terminalRows, settle, el } = await setup();
+      const terminals = TestBed.inject(TerminalsState);
+      const tabs = TestBed.inject(TabsState);
+      // ascua's Tab holds a Stack of Terminals 1 and 2; Terminal 2 is expanded and the user is looking at timmy.
+      const hidden = terminals.create(ascua.projectId);
+      const tab = tabs.tabsOf(ascua.projectId)[0];
+      await tabs.openInTab(tab, ascua.cwd, undefined, (layout, terminal) => addToStack(layout, layout.focused, terminal));
+      await settle();
+      expect(panesOf(tabs.layoutOf(tabs.tabsOf(ascua.projectId)[0])!)[0].expanded).not.toBe(hidden.id);
+
+      const row = terminalRows().find((candidate) => candidate.querySelector('.as-row__title')?.textContent?.trim() === 'Terminal 1')!;
+      row.click();
+      await settle();
+
+      const layout = tabs.layoutOf(tabs.tabsOf(ascua.projectId)[0])!;
+      expect(TestBed.inject(Router).url).toBe(`/projects/p-ascua/terminals/${hidden.id}`);
+      expect(panesOf(layout)[0].expanded).toBe(hidden.id);
+      expect(layout.focused).toBe(panesOf(layout)[0].id);
+      expect(el.querySelector('app-pane-stack .view-header.act .name')?.textContent).toBe('Terminal 1');
+    });
+
+    it('reveals a Terminal in a Pane that is not focused, in a Tab that is not the open one', async () => {
+      const { terminalRows, settle } = await setup();
+      const terminals = TestBed.inject(TerminalsState);
+      const tabs = TestBed.inject(TabsState);
+      const left = terminals.create(timmy.projectId);
+      const tab = tabs.tabsOf(timmy.projectId)[0];
+      await tabs.openInTab(tab, timmy.cwd, undefined, (layout, terminal) => split(layout, layout.focused, 'right', terminal));
+      const other = terminals.create(timmy.projectId);
+      await TestBed.inject(Router).navigate(['/projects', timmy.projectId, 'terminals', other.id]);
+      await settle();
+
+      terminalRows().find((candidate) => candidate.querySelector('.as-row__title')?.textContent?.trim() === 'Terminal 1')!.click();
+      await settle();
+
+      const layout = tabs.layoutOf(tabs.tabsOf(timmy.projectId)[0])!;
+      expect(TestBed.inject(Router).url).toBe(`/projects/p-timmy/terminals/${left.id}`);
+      expect(layout.focused).toBe(left.id);
+      expect(panesOf(layout)).toHaveLength(2);
     });
   });
 

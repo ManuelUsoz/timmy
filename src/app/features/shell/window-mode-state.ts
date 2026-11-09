@@ -11,6 +11,9 @@ export class WindowModeState {
   private readonly runtime = inject(EffectRuntime);
 
   readonly mode = signal<WindowMode>(startupMode);
+  /** The mode before the current one, so a mode can tell where the user comes from (Expanded reveals the Panel's Terminal). */
+  private readonly before = signal<WindowMode | undefined>(undefined);
+  readonly previous = this.before.asReadonly();
   readonly error = signal<string | null>(null);
   /** Mirrors main's maximized state; the window has no system controls, so main pushes every change. */
   readonly maximized = signal(false);
@@ -64,6 +67,7 @@ export class WindowModeState {
       onFailure: (cause) => this.error.set(Cause.pretty(cause)),
       onSuccess: (mode) => {
         this.error.set(null);
+        if (mode !== this.mode()) this.before.set(this.mode());
         this.mode.set(mode);
       },
     });
