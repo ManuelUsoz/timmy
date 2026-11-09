@@ -64,8 +64,11 @@ const nativePtyHost: Layer.Layer<PtyHost> = Layer.succeed(PtyHost, {
 });
 
 export class TerminalService extends Context.Service<TerminalService, {
-  /** With a Provider, its CLI command is typed into the new shell: the shell outlives the CLI. */
-  readonly create: (cwd: string, provider?: Provider) => Effect.Effect<TerminalId, TerminalError>;
+  /**
+   * With a Provider, its CLI command is typed into the new shell: the shell outlives the CLI. With a `terminalId` (a
+   * saved Terminal being started, ADR 0011) the Terminal keeps that identity; it fails if a live Terminal has it.
+   */
+  readonly create: (cwd: string, provider?: Provider, terminalId?: TerminalId) => Effect.Effect<TerminalId, TerminalError>;
   readonly output: (id: TerminalId) => Stream.Stream<TerminalEvent, TerminalError>;
   /** The activity of every Terminal: the current one first, then a new snapshot at each change. */
   readonly activity: Stream.Stream<ReadonlyArray<TerminalActivityEntry>>;
@@ -184,9 +187,10 @@ const layerTerminalServiceCore = Layer.effect(
     );
 
     return TerminalService.of({
-      create: Effect.fn('TerminalService.create')(function* (cwd, provider) {
+      create: Effect.fn('TerminalService.create')(function* (cwd, provider, terminalId) {
         if (cwd.trim() === '') return yield* new TerminalError({ reason: 'InvalidCwd', detail: 'A terminal needs a project folder' });
-        const id = TerminalIdSchema.make(crypto.randomUUID());
+        const id = terminalId ?? TerminalIdSchema.make(crypto.randomUUID());
+        if ((yield* Ref.get(terminals)).has(id)) return yield* new TerminalError({ reason: 'AlreadyExists', detail: `Terminal ${id} is already running` });
         // Setting these is what turns a Provider's Hook on for this Terminal (ADR 0009).
         const process = yield* host.spawn(cwd, { [HookConstants.terminalIdEnv]: id, [HookConstants.urlEnv]: hooks.urlFor(id) });
         const events = yield* Queue.unbounded<TerminalEvent, Cause.Done>();

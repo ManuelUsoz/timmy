@@ -6,8 +6,11 @@ import { TerminalActivityEntry, TerminalEvent, TerminalId } from './terminal.mod
 
 export const TerminalRpcs = RpcGroup.make(
   Rpc.make('Terminal.create', {
-    /** With a Provider, the Terminal types that Provider's CLI into the shell it opens. */
-    payload: { cwd: Schema.String, provider: Schema.optional(Provider) },
+    /**
+     * With a Provider, the Terminal types that Provider's CLI into the shell it opens. With a `terminalId`, a saved Terminal
+     * is started under its own identity (ADR 0011); `AlreadyExists` if a live Terminal has it.
+     */
+    payload: { cwd: Schema.String, provider: Schema.optional(Provider), terminalId: Schema.optional(TerminalId) },
     success: Schema.Struct({ terminalId: TerminalId }),
     error: TerminalError,
   }),

@@ -6,6 +6,7 @@ import { Terminal } from '@xterm/xterm';
 import { DesktopApi } from '../../core/desktop-api';
 import { I18n } from '../../core/i18n';
 import { EffectRuntime } from '../../core/effect-runtime';
+import { ToastService } from '../../core/toast';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { StateComponent } from '../../shared/ui/state/state';
 import type { TerminalEntry, TerminalId } from './terminal-entries';
@@ -37,6 +38,7 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
   protected readonly tone = terminalTone;
   protected readonly stateKey = terminalStateKey;
   private readonly runtime = inject(EffectRuntime);
+  private readonly toasts = inject(ToastService);
   private readonly terminals = inject(TerminalsState);
   private readonly host = viewChild.required<ElementRef<HTMLDivElement>>('terminalHost');
 
@@ -156,6 +158,13 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
     }
     instance.textarea?.addEventListener('focus', this.onFocus);
 
+    // An Idle Terminal has no process to read from yet: its output is read once the user starts it.
+    if (entry.state !== 'Idle') this.readOutput(instance);
+  }
+
+  /** Shows what the Terminal's process prints, until the screen goes or the process ends. */
+  private readOutput(instance: Terminal): void {
+    const entry = this.terminal();
     const terminals = this.terminals;
     const unparsed = this.unparsed;
     void this.runtime.run(
@@ -203,6 +212,20 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
     cancelAnimationFrame(this.fitFrame);
     this.resizeObserver?.disconnect();
     this.instance?.dispose();
+  }
+
+  /** Starts the Idle Terminal (a restored one) in its Project folder, as the same Terminal it was. */
+  protected async start(): Promise<void> {
+    const instance = this.instance;
+    const entry = this.terminal();
+    if (!(await this.terminals.start(entry.id, this.cwd()))) {
+      this.toasts.error('terminals.startFailed');
+      return;
+    }
+    if (this.destroyed || instance === undefined) return;
+    this.readOutput(instance);
+    instance.focus();
+    void this.terminals.resize(entry.id, instance.cols, instance.rows);
   }
 
   protected async restart(): Promise<void> {

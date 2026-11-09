@@ -73,6 +73,35 @@ export class TerminalsState {
     return { ...entry, state: 'Live' };
   }
 
+  /**
+   * Adds the Terminals saved by a previous run (Idle, not started; ADR 0011). One already here, opened before the saved
+   * ones arrived, is kept as it is.
+   */
+  restore(saved: ReadonlyArray<TerminalEntry>): void {
+    this.all.update((entries) => {
+      const known = new Set(entries.map((entry) => entry.id));
+      return [...entries, ...saved.filter((entry) => !known.has(entry.id))];
+    });
+  }
+
+  /**
+   * Starts an Idle Terminal (one restored, or one main could not start) in the Project folder, running its Provider's CLI
+   * if it has one. It keeps its id, so it is the same Terminal it was before. False if it is not Idle or main refuses.
+   */
+  async start(id: TerminalId, cwd: string): Promise<boolean> {
+    const provider = this.find(id)?.provider;
+    if (this.find(id)?.state !== 'Idle') return false;
+    const result = await this.runtime.run(
+      Effect.gen(function* () {
+        const desktop = yield* DesktopApi;
+        return yield* desktop['Terminal.create'](provider === undefined ? { cwd, terminalId: id } : { cwd, provider, terminalId: id });
+      }),
+    );
+    if (result._tag === 'Failure') return false;
+    this.all.update((entries) => pipe(withState(entries, id, 'Live'), (next) => withActivity(next, this.reported)));
+    return true;
+  }
+
   create(projectId: ProjectId, tabId: TabId = newTab()): TerminalEntry {
     const id = TerminalId.make(crypto.randomUUID());
     const entry = addTerminal(this.all(), projectId, tabId, id).at(-1)!;

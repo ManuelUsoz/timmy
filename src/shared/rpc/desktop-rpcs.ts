@@ -6,6 +6,7 @@ import { ProjectsRpcs } from '../projects/projects.rpc';
 import { SettingsRpcs } from '../settings/settings.rpc';
 import { TerminalRpcs } from '../terminal/terminal.rpc';
 import { WindowRpcs } from '../window/window.rpc';
+import { WorkspaceRpcs } from '../workspace/workspace.rpc';
 
 /** The single RPC contract between renderer and main. Merge new domain groups here. */
 export const DesktopRpcs = AppInfoRpcs.merge(WindowRpcs)
@@ -14,4 +15,5 @@ export const DesktopRpcs = AppInfoRpcs.merge(WindowRpcs)
   .merge(FilesRpcs)
   .merge(TerminalRpcs)
   .merge(HooksRpcs)
-  .merge(NotificationRpcs);
+  .merge(NotificationRpcs)
+  .merge(WorkspaceRpcs);
