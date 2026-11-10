@@ -129,6 +129,21 @@ describe('A File View of source', () => {
       expect(breadcrumb()).toBe('src › app › *handshake.service.ts* › *HandshakeService*');
     });
 
+    it('follows the start of the Line selection', async () => {
+      const source = 'export class HandshakeService {\n  connect() {\n    go();\n  }\n\n  close() {\n    stop();\n  }\n}\n';
+      const { el, breadcrumb, settle } = await setup({ 'src/handshake.ts': source }, 'src/handshake.ts');
+      /** A click on a line's number, as the user marks a Line selection. */
+      const click = async (line: number) => {
+        el.querySelector(`.line[data-line="${line}"] .number`)?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+        await settle();
+      };
+      await click(3);
+      expect(breadcrumb()).toBe('src › *handshake.ts* › HandshakeService › *connect()*');
+      await click(7);
+      expect(breadcrumb()).toBe('src › *handshake.ts* › HandshakeService › *close()*');
+    });
+
     it('shows Java symbols', async () => {
       const { breadcrumb } = await setup({ 'Server.java': 'public class Server {\n  void start() {}\n}\n' }, 'Server.java');
       expect(breadcrumb()).toBe('*Server.java* › *Server*');

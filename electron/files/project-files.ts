@@ -21,6 +21,8 @@ export class ProjectFiles extends Context.Service<
     readonly list: (cwd: string) => Effect.Effect<FileList, FilesError>;
     readonly listDir: (cwd: string, dir: string) => Effect.Effect<FolderListing, FilesError>;
     readonly read: (cwd: string, file: string) => Effect.Effect<FileContent, FilesError>;
+    /** The absolute path of an existing file of `cwd`, confined to it as `read` is. */
+    readonly locate: (cwd: string, file: string) => Effect.Effect<string, FilesError>;
     readonly changes: (cwd: string) => Effect.Effect<ChangedFiles, FilesError>;
   }
 >()('files/ProjectFiles') {}
@@ -248,6 +250,12 @@ const readFileContent = Effect.fn('ProjectFiles.read')(function* (cwd: string, f
   return toFileContent(bytes);
 });
 
+const locateFile = Effect.fn('ProjectFiles.locate')(function* (cwd: string, file: string) {
+  const target = yield* confine(cwd, file);
+  yield* fileSize(target, file);
+  return target;
+});
+
 /** Applies the cap. */
 export const toFileList = (all: ReadonlyArray<string>, limit: number): FileList => ({ paths: all.slice(0, limit), truncated: all.length > limit });
 
@@ -261,5 +269,6 @@ export const layerProjectFiles = (limit: number = MAX_LISTED_PATHS) =>
     }),
     listDir: readFolder,
     read: readFileContent,
+    locate: locateFile,
     changes: readChanges,
   });

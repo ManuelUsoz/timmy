@@ -29,7 +29,7 @@ const layerHooksHandlersLive = layerHooksHandlers.pipe(Layer.provide(layerHooksS
 
 /**
  * Handlers for every domain in `DesktopRpcs`. Merge new domain handler layers here.
- * Needs a `ProjectStore`, a `QuitGate`, a `SettingsStore`, a `WindowHost`, a `FolderPicker`, the `HookIntegrations` and the `HookChannel`; the runtime provides the real ones.
+ * Needs a `ProjectStore`, a `QuitGate`, a `SettingsStore`, a `WindowHost`, a `FolderPicker`, a `FileOpener`, the `HookIntegrations` and the `HookChannel`; the runtime provides the real ones.
  */
 export const layerDesktopHandlers = Layer.mergeAll(
   layerAppInfoHandlers,

@@ -3,6 +3,8 @@ import { app } from 'electron';
 import { Effect, Layer, ManagedRuntime, Option } from 'effect';
 import { RpcServer } from 'effect/rpc';
 import { DesktopRpcs } from '../../src/shared/rpc/desktop-rpcs';
+import { layerElectronFileOpener } from '../files/electron-file-opener';
+import { layerFileOpenerTest } from '../files/file-opener';
 import { layerHookChannel } from '../hooks/hook-channel';
 import { claudeSettingsFile, layerHookIntegrations } from '../hooks/hook-integrations';
 import { layerElectronFolderPicker } from '../projects/electron-folder-picker';
@@ -38,10 +40,13 @@ const layerHookChannelLive = layerHookChannel.pipe(Layer.provide(layerHookIntegr
 const e2ePickFolder = process.env['TIMMY_E2E'] === '1' ? process.env['TIMMY_E2E_PICK_FOLDER'] : undefined;
 const layerFolderPicker = e2ePickFolder === undefined ? layerElectronFolderPicker : layerFolderPickerTest(Option.some(e2ePickFolder));
 
+/** The e2e app must not launch the system's apps: it only records what it was asked to open. */
+const layerFileOpener = process.env['TIMMY_E2E'] === '1' ? layerFileOpenerTest() : layerElectronFileOpener;
+
 /** The RPC server for the app's lifetime; windows attach through `RpcPortHandoff`. */
 const layerRpcServer = RpcServer.layer(DesktopRpcs).pipe(
   Layer.provideMerge(layerIpcServer),
-  Layer.provide(layerDesktopHandlers.pipe(Layer.provide(layerProjectStoreFile), Layer.provide(layerSettingsStoreFile), Layer.provide(layerElectronWindowHost), Layer.provide(layerFolderPicker), Layer.provide(layerHookIntegrationsLive), Layer.provide(layerHookChannelLive))),
+  Layer.provide(layerDesktopHandlers.pipe(Layer.provide(layerProjectStoreFile), Layer.provide(layerSettingsStoreFile), Layer.provide(layerElectronWindowHost), Layer.provide(layerFolderPicker), Layer.provide(layerFileOpener),Layer.provide(layerHookIntegrationsLive), Layer.provide(layerHookChannelLive))),
 );
 
 /**
