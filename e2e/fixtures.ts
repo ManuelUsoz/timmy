@@ -148,6 +148,15 @@ export class Timmy {
   }
 }
 
+/** Commits everything in `dir` (a spec's project folder), so nothing in it is a Changed file until the spec changes it. */
+export const commitAll = (dir: string): void => {
+  execFileSync('git', ['add', '-A'], { cwd: dir, stdio: 'ignore' });
+  execFileSync('git', ['-c', 'user.name=timmy', '-c', 'user.email=timmy@example.com', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'start'], {
+    cwd: dir,
+    stdio: 'ignore',
+  });
+};
+
 export type Language = 'es' | 'en';
 export type Provider = 'OpenCode' | 'ClaudeCode' | 'Codex';
 

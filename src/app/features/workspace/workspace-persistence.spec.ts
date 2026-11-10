@@ -46,6 +46,7 @@ const withStore = (initial: ReadonlyArray<ProjectLayout> = [], options: { loadFa
     'Terminal.close': () => Effect.void,
     'Terminal.output': () => Effect.die('unused'),
     'Terminal.activity': () => Effect.die('unused'),
+    'Terminal.hookReports': () => Stream.empty,
     'Terminal.focus': () => Effect.void,
     'Terminal.write': () => Effect.void,
     'Terminal.resize': () => Effect.void,

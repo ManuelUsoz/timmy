@@ -5,8 +5,8 @@ import { NotificationRpcs } from '../../../shared/notification/notification.rpc'
 import { makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { I18n } from '../../core/i18n';
-import { file, folder, text, type FakeDisk } from './files-fakes';
-import { FilesBrowser } from './files-browser';
+import { change, file, folder, text, type FakeDisk } from './files-fakes';
+import { CHANGES_DEBOUNCE_MS, FilesBrowser } from './files-browser';
 import { layerFakeBackend, makeBackend, project } from './projects-fakes';
 import { WorkspaceComponent } from './workspace';
 import { WorkspaceLayoutState } from './workspace-layout';
@@ -38,6 +38,7 @@ const setup = async (disk: FakeDisk = timmyDisk()) => {
     imports: [WorkspaceComponent],
     providers: [
       provideWorkspaceRouter(),
+      { provide: CHANGES_DEBOUNCE_MS, useValue: 0 },
       { provide: EffectRuntime, useValue: { run: (e: Effect.Effect<unknown, unknown, never>) => Effect.runPromiseExit(Effect.provide(e as never, layer)) } },
     ],
   }).compileComponents();
@@ -122,8 +123,32 @@ describe('FilesSidebar', () => {
     expect(head.textContent).not.toContain('timmy');
     const section = sidebar()!.querySelector('.section')!;
     expect(section.querySelector('.section-label')?.textContent?.trim()).toBe('timmy');
-    // The place for the count of changed files, still empty.
-    expect(section.querySelector('.section-count')?.textContent?.trim()).toBe('');
+    // Nothing changed: no count.
+    expect(section.querySelector('.section-count')).toBeNull();
+  });
+
+  it('marks the changed files, counts them in the section row, and toggles the changed-only tree from there', async () => {
+    const { sidebar, ctrlP, click, labels, rowOf, settle, t } = await setup({
+      ...timmyDisk(),
+      changes: [change('README.md', 'modified'), change('src/main.ts', 'deleted')],
+    });
+    await ctrlP();
+    await settle();
+    const count = () => sidebar()!.querySelector<HTMLButtonElement>('.section button.section-count');
+    expect(count()?.textContent?.trim()).toBe(t('files.changedCount', { count: 2 }));
+    expect(count()?.getAttribute('aria-pressed')).toBe('false');
+    const flag = (label: string) => rowOf(label).querySelector('.as-treeitem__flag');
+    expect(flag('README.md')?.textContent?.trim()).toBe('M');
+    expect(flag('README.md')?.getAttribute('aria-label')).toBe(t('files.modified'));
+    expect(flag('README.md')?.getAttribute('data-tone')).toBe('warning');
+    expect(flag('src')?.textContent?.trim()).toBe('1');
+    await click(count());
+    expect(count()?.getAttribute('aria-pressed')).toBe('true');
+    expect(labels()).toEqual(['src', 'main.ts', 'README.md']);
+    expect(rowOf('main.ts').querySelector('.as-treeitem__label--struck')).not.toBeNull();
+    expect(flag('main.ts')?.getAttribute('data-tone')).toBe('error');
+    await click(count());
+    expect(labels()).toEqual(['node_modules', 'src', '.env', 'big.log', 'logo.png', 'README.md']);
   });
 
   it('shows Ctrl P on the filter field, and no tab strip', async () => {

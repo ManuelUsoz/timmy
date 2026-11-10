@@ -12,6 +12,7 @@ export const layerTerminalHandlers = TerminalRpcs.toLayer(
       'Terminal.create': ({ cwd, provider, terminalId }) => terminals.create(cwd, provider, terminalId).pipe(Effect.map((terminalId) => ({ terminalId }))),
       'Terminal.output': ({ terminalId }) => terminals.output(terminalId),
       'Terminal.activity': () => terminals.activity,
+      'Terminal.hookReports': () => terminals.hookReports,
       'Terminal.focus': ({ terminalId }) => terminals.focus(terminalId),
       'Terminal.write': ({ terminalId, data }) => terminals.write(terminalId, data),
       'Terminal.resize': ({ terminalId, cols, rows }) => terminals.resize(terminalId, cols, rows),

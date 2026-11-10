@@ -88,6 +88,7 @@ const withMain = (activity: ReadonlyArray<ReadonlyArray<TerminalActivityEntry>> 
     'Terminal.close': () => Effect.void,
     'Terminal.output': unused,
     'Terminal.activity': () => Stream.fromIterable(activity),
+    'Terminal.hookReports': () => Stream.empty,
     'Terminal.focus': ({ terminalId }) => Effect.sync(() => void focused.push(terminalId)),
     'Terminal.write': unused,
     'Terminal.resize': unused,

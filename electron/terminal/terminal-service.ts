@@ -1,11 +1,11 @@
-import { Context, Deferred, Duration, Effect, Fiber, Layer, Option, Queue, Ref, Scope, Semaphore, Stream, SubscriptionRef } from 'effect';
+import { Context, Deferred, Duration, Effect, Fiber, Layer, Option, PubSub, Queue, Ref, Scope, Semaphore, Stream, SubscriptionRef } from 'effect';
 import type { Cause } from 'effect';
 import * as pty from 'node-pty';
 import type { IPty, IWindowsPtyForkOptions } from 'node-pty';
 import type { Provider } from '../../src/shared/settings/settings.model';
 import type { TerminalStatus } from '../../src/shared/notification/notification.model';
 import { TerminalError } from '../../src/shared/terminal/terminal-error.model';
-import type { TerminalActivity, TerminalActivityEntry, TerminalEvent, TerminalId } from '../../src/shared/terminal/terminal.model';
+import type { TerminalActivity, TerminalActivityEntry, TerminalEvent, TerminalHookReport, TerminalId } from '../../src/shared/terminal/terminal.model';
 import { TerminalId as TerminalIdSchema } from '../../src/shared/terminal/terminal.model';
 import { HookChannel, quietHookChannel } from '../hooks/hook-channel';
 import { HookConstants, type HookSignal } from '../../src/shared/hooks/hooks.model';
@@ -72,6 +72,8 @@ export class TerminalService extends Context.Service<TerminalService, {
   readonly output: (id: TerminalId) => Stream.Stream<TerminalEvent, TerminalError>;
   /** The activity of every Terminal: the current one first, then a new snapshot at each change. */
   readonly activity: Stream.Stream<ReadonlyArray<TerminalActivityEntry>>;
+  /** Every report a Hook makes about a live Terminal from the moment of listening, one by one, repeats included. */
+  readonly hookReports: Stream.Stream<TerminalHookReport>;
   /** The user is on the Terminal: a bell or notification it raised has been seen. */
   readonly focus: (id: TerminalId) => Effect.Effect<void, TerminalError>;
   readonly write: (id: TerminalId, data: string) => Effect.Effect<void, TerminalError>;
@@ -167,13 +169,17 @@ const layerTerminalServiceCore = Layer.effect(
         }
       });
 
+    const reports = yield* PubSub.unbounded<TerminalHookReport>();
+
     // A report for a Terminal that is gone (or never existed) is dropped.
     yield* hooks.signals.pipe(
       Stream.runForEach(({ terminalId, signal }) =>
         Ref.get(terminals).pipe(
           Effect.flatMap((all) => {
             const terminal = all.get(terminalId);
-            return terminal === undefined ? Effect.void : Queue.offer(terminal.activity, hookEvents[signal]);
+            return terminal === undefined
+              ? Effect.void
+              : Queue.offer(terminal.activity, hookEvents[signal]).pipe(Effect.andThen(PubSub.publish(reports, { terminalId, signal })));
           }),
         ),
       ),
@@ -230,6 +236,7 @@ const layerTerminalServiceCore = Layer.effect(
       activity: SubscriptionRef.changes(activities).pipe(
         Stream.map((all) => Array.from(all, ([terminalId, activity]) => ({ terminalId, activity }))),
       ),
+      hookReports: Stream.fromPubSub(reports),
       focus: Effect.fn('TerminalService.focus')(function* (id) {
         const terminal = yield* get(id);
         yield* Queue.offer(terminal.activity, 'Focused');

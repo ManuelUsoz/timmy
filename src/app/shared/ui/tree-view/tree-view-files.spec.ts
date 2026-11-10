@@ -14,7 +14,10 @@ class Host {
       label: 'src',
       kind: 'folder',
       expanded: true,
-      children: [{ id: 'main', label: 'main.ts', kind: 'file', flag: { text: 'M', label: 'Modified' } }],
+      children: [
+        { id: 'main', label: 'main.ts', kind: 'file', flag: { text: 'M', label: 'Modified' } },
+        { id: 'old', label: 'old.ts', kind: 'file', struck: true, flag: { text: 'D', label: 'Deleted', tone: 'error' } },
+      ],
     },
     { id: 'lib', label: 'lib', kind: 'folder', children: [{ id: 'x', label: 'x.ts', kind: 'file' }] },
     { id: 'deps', label: 'deps', kind: 'folder', dimmed: true, children: [{ id: 'y', label: 'y.js', kind: 'file' }] },
@@ -35,7 +38,7 @@ describe('TreeViewComponent as a file tree', () => {
   it('labels the tree and opens the folders that start expanded', async () => {
     const { root, labels } = await render();
     expect(root.querySelector('[role="tree"]')?.getAttribute('aria-label')).toBe('Files');
-    expect(labels()).toEqual(['src', 'main.ts', 'lib', 'deps']);
+    expect(labels()).toEqual(['src', 'main.ts', 'old.ts', 'lib', 'deps']);
   });
 
   it('draws a folder or file icon for nodes that say what they are', async () => {
@@ -51,17 +54,25 @@ describe('TreeViewComponent as a file tree', () => {
     expect(flag.getAttribute('aria-label')).toBe('Modified');
   });
 
+  it('draws a flag in its tone, a warning without one, and strikes a node through', async () => {
+    const { items } = await render();
+    expect(items()[1].querySelector('.as-treeitem__flag')?.getAttribute('data-tone')).toBe('warning');
+    expect(items()[1].querySelector('.as-treeitem__label--struck')).toBeNull();
+    expect(items()[2].querySelector('.as-treeitem__flag')?.getAttribute('data-tone')).toBe('error');
+    expect(items()[2].querySelector('.as-treeitem__label--struck')?.textContent).toBe('old.ts');
+  });
+
   it('marks a dimmed node', async () => {
     const { items } = await render();
-    expect(items()[3].hasAttribute('data-dimmed')).toBe(true);
+    expect(items()[4].hasAttribute('data-dimmed')).toBe(true);
     expect(items()[0].hasAttribute('data-dimmed')).toBe(false);
   });
 
   it('expands and collapses a folder by click without touching the others', async () => {
     const { fixture, items, labels } = await render();
-    items()[2].click();
+    items()[3].click();
     await fixture.whenStable();
-    expect(labels()).toEqual(['src', 'main.ts', 'lib', 'x.ts', 'deps']);
+    expect(labels()).toEqual(['src', 'main.ts', 'old.ts', 'lib', 'x.ts', 'deps']);
     items()[0].click();
     await fixture.whenStable();
     expect(labels()).toEqual(['src', 'lib', 'x.ts', 'deps']);
