@@ -1,4 +1,4 @@
-import { Schema } from 'effect';
+import { Schema, SchemaTransformation } from 'effect';
 import { ProjectId } from '../projects/projects.model';
 import { Provider } from '../settings/settings.model';
 import { TerminalId } from '../terminal/terminal.model';
@@ -13,11 +13,33 @@ export type PaneId = typeof PaneId.Type;
 export const SplitDirection = Schema.Literals(['right', 'down']).annotate({ identifier: 'SplitDirection' });
 export type SplitDirection = typeof SplitDirection.Type;
 
+/** A Terminal's View: the Terminal it shows. */
+export const TerminalView = Schema.Struct({ kind: Schema.Literal('terminal'), terminalId: TerminalId }).annotate({ identifier: 'TerminalView' });
+export type TerminalView = typeof TerminalView.Type;
+
+/** A layout saved before Views had kinds named each View by its Terminal's id; it decodes to that Terminal's View. */
+const TerminalViewByTerminalId = Schema.String.pipe(
+  Schema.decodeTo(
+    TerminalView,
+    SchemaTransformation.transform({
+      decode: (terminalId) => ({ kind: 'terminal' as const, terminalId }),
+      encode: (view) => view.terminalId,
+    }),
+  ),
+);
+
+/**
+ * What names a View in a layout (GLOSSARY: View), by the kind of thing it shows. A closed union: a File View joins it
+ * as one more member, and the layout rules stay as they are. It is always saved in its own form.
+ */
+export const ViewId = Schema.Union([TerminalView, TerminalViewByTerminalId]).annotate({ identifier: 'ViewId' });
+export type ViewId = typeof ViewId.Type;
+
 /** A Pane: its Views in Stack order, and the one expanded. A Pane with one View is not a Stack. */
 export const Pane = Schema.Struct({
   id: PaneId,
-  views: Schema.Array(TerminalId),
-  expanded: TerminalId,
+  views: Schema.Array(ViewId),
+  expanded: ViewId,
 }).annotate({ identifier: 'Pane' });
 export type Pane = typeof Pane.Type;
 

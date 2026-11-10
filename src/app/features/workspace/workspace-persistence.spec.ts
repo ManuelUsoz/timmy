@@ -10,6 +10,7 @@ import { EffectRuntime } from '../../core/effect-runtime';
 import { ToastService } from '../../core/toast';
 import { TabsState } from './tabs-state';
 import { TerminalsState } from './terminals-state';
+import { terminalView, viewKey } from './views';
 import { SAVE_AFTER_MS, WorkspacePersistence } from './workspace-persistence';
 
 const timmy = ProjectId.make('p-timmy');
@@ -66,7 +67,7 @@ describe('WorkspacePersistence', () => {
 
   it("brings back each Project's Tabs, their names and layout, and their Terminals Idle", async () => {
     const layout = {
-      root: { kind: 'pane' as const, pane: { id: PaneId.make('a'), views: [TerminalId.make('a')], expanded: TerminalId.make('a') } },
+      root: { kind: 'pane' as const, pane: { id: PaneId.make('a'), views: [terminalView(TerminalId.make('a'))], expanded: terminalView(TerminalId.make('a')) } },
       focused: PaneId.make('a'),
     };
     const { tabs, terminals } = withStore([{ projectId: timmy, tabs: [{ ...savedTab('t1', [['a', 1]], 'Work'), layout }, savedTab('t2', [['b', 2]])] }]);
@@ -103,7 +104,7 @@ describe('WorkspacePersistence', () => {
     await start();
     const first = (await terminals.createLive(timmy, '/work/timmy'))!;
     await settle();
-    await tabs.openInTab(tabs.tabsOf(timmy)[0], '/work/timmy', undefined, (layout, terminal) => ({ ...layout, focused: PaneId.make(terminal) }));
+    await tabs.openInTab(tabs.tabsOf(timmy)[0], '/work/timmy', undefined, (layout, view) => ({ ...layout, focused: PaneId.make(viewKey(view)) }));
     await settle();
     expect(saves.at(-1)?.tabs[0].terminals).toHaveLength(2);
     expect(saves.at(-1)?.tabs[0].terminals[0].terminalId).toBe(first.id);

@@ -9,8 +9,9 @@ import { MAX_PANES, panesOf, split } from './pane-layout';
 import { PaneStack, VIEW_MIME, type DropMark, type ViewDrag } from './pane-stack';
 import { layerFakeBackend, makeBackend, project } from './projects-fakes';
 import { TabsState } from './tabs-state';
-import type { TerminalId } from './terminal-entries';
+import { TerminalId } from './terminal-entries';
 import { TerminalsState } from './terminals-state';
+import { terminalView } from './views';
 
 const timmy = project('timmy');
 
@@ -243,7 +244,7 @@ describe('A Pane and its Stack', () => {
     headers()[0].dispatchEvent(new Event('dragend'));
     const view = tabs.layoutOf(tab())!.focused;
     expect(data[VIEW_MIME]).toBe(view);
-    expect(host.drags).toEqual([{ view, fromPane: view }, 'ended']);
+    expect(host.drags).toEqual([{ view: terminalView(TerminalId.make(view)), fromPane: view }, 'ended']);
   });
 
   it('shows the drop line where the grid says a View dragged from another Pane would land', async () => {

@@ -10,6 +10,7 @@ import { fakeRuntime, layerFakeBackend, makeBackend, project, type FakeBackend }
 import { panesOf, split } from './pane-layout';
 import { TabsState } from './tabs-state';
 import { TerminalsState } from './terminals-state';
+import { terminalView } from './views';
 import { WorkspaceComponent } from './workspace';
 import { WorkspaceLayoutState } from './workspace-layout';
 import { provideWorkspaceRouter } from './workspace.routes';
@@ -296,7 +297,7 @@ describe('Projects screen', () => {
         await TestBed.inject(TerminalsState).restart(second.id, '/work/timmy');
         await settle();
         expect(router.url).toBe('/projects/p-timmy/terminals/restarted');
-        expect(panesOf(tabs.layoutOf(tab())!).map((pane) => pane.views)).toEqual([[tab().terminals[0].id], [TerminalId.make('restarted')]]);
+        expect(panesOf(tabs.layoutOf(tab())!).map((pane) => pane.views)).toEqual([[terminalView(tab().terminals[0].id)], [terminalView(TerminalId.make('restarted'))]]);
       });
 
       it('stays in the Tab when the Terminal on the route closes and another is left', async () => {

@@ -3,6 +3,7 @@ import type { TerminalStatus } from '../../../shared/notification/notification.m
 import type { ProjectId } from '../../../shared/projects/projects.model';
 import { panesOf, type TabLayout } from './pane-layout';
 import type { TerminalEntry } from './terminal-entries';
+import { terminalOf } from './views';
 
 export { TabId } from '../../../shared/workspace/workspace.model';
 
@@ -42,7 +43,8 @@ export const terminalPath = (terminal: Pick<TerminalEntry, 'projectId' | 'id'>):
 /** The Terminal a Tab has in front: its focused Pane's expanded View, else (no layout, or a stale one) its first. */
 export const frontTerminal = (tab: Tab, layout?: TabLayout): TerminalEntry => {
   const focused = layout === undefined ? undefined : panesOf(layout).find((pane) => pane.id === layout.focused)?.expanded;
-  return tab.terminals.find((entry) => entry.id === focused) ?? tab.terminals[0];
+  const terminal = focused === undefined ? undefined : terminalOf(focused);
+  return tab.terminals.find((entry) => entry.id === terminal) ?? tab.terminals[0];
 };
 
 /** The Tab that takes the place of a closed one: the next, else the previous; none when it was the only one. */

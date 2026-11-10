@@ -10,9 +10,10 @@ import { TabId } from './tabs';
 import { TabsState } from './tabs-state';
 import { TerminalId } from './terminal-entries';
 import { TerminalsState } from './terminals-state';
+import { terminalView as v } from './views';
 import { WorkspaceLayoutState } from './workspace-layout';
 
-const t = (n: number) => TerminalId.make(`t${n}`);
+const t = (n: number) => v(TerminalId.make(`t${n}`));
 const p = (n: number) => PaneId.make(`t${n}`);
 
 describe('dragging a divider', () => {
@@ -107,7 +108,7 @@ describe('PaneGrid', () => {
 
   it('lays the Panes out as the splits say, each by its share, with one focused', async () => {
     const { el, stacks, ids } = await setup(3, (layout) => split(split(layout, p(1), 'right', t(2)), p(2), 'down', t(3)));
-    expect(stacks().map((stack) => stack.pane().views)).toEqual([[ids[0]], [ids[1]], [ids[2]]]);
+    expect(stacks().map((stack) => stack.pane().views)).toEqual([[v(ids[0])], [v(ids[1])], [v(ids[2])]]);
     const outer = el.querySelector<HTMLElement>(':scope > .split')!;
     expect(outer.dataset['direction']).toBe('right');
     expect(outer.querySelector('.split')?.getAttribute('data-direction')).toBe('down');
@@ -207,7 +208,7 @@ describe('PaneGrid', () => {
       expect(preview()).toEqual(['0px', '0px', '400px', '900px']);
       await drop();
       expect(overlay()).toBeNull();
-      expect(panesOf(layout()).map((pane) => pane.views)).toEqual([[ids[1]], [ids[0]]]);
+      expect(panesOf(layout()).map((pane) => pane.views)).toEqual([[v(ids[1])], [v(ids[0])]]);
       expect(layout().focused).toBe(ids[1]);
     });
 
@@ -216,7 +217,7 @@ describe('PaneGrid', () => {
       await over({ x: 400, y: 450 });
       expect(preview()).toEqual(['0px', '0px', '800px', '900px']);
       await drop();
-      expect(panesOf(layout())).toEqual([{ id: ids[0], views: [ids[0], ids[1]], expanded: ids[1] }]);
+      expect(panesOf(layout())).toEqual([{ id: ids[0], views: [v(ids[0]), v(ids[1])], expanded: v(ids[1]) }]);
     });
 
     it('refuses a drop where it would do nothing: no preview, and the event is left undone for the no-drop cursor', async () => {
@@ -253,14 +254,14 @@ describe('PaneGrid', () => {
       expect(preview()).toBeUndefined();
       expect(paneEls()[1].querySelector('.drop')?.nextElementSibling?.getAttribute('aria-label')).toBe('Terminal 3');
       await drop();
-      expect(panesOf(layout())).toEqual([{ id: ids[1], views: [ids[1], ids[0], ids[2]], expanded: ids[0] }]);
+      expect(panesOf(layout())).toEqual([{ id: ids[1], views: [v(ids[1]), v(ids[0]), v(ids[2])], expanded: v(ids[0]) }]);
     });
 
     it('reorders within its own Stack by the headers, as before', async () => {
       const { over, drop, layout, ids } = await dragging((layout) => addToStack(layout, p(2), t(3)), { pane: 1, index: 0 }, 3);
       await over({ x: 1200, y: 40 });
       await drop();
-      expect(panesOf(layout())[1].views).toEqual([ids[2], ids[1]]);
+      expect(panesOf(layout())[1].views).toEqual([v(ids[2]), v(ids[1])]);
     });
 
     it('changes nothing when the drag ends without a drop (Esc, or let go outside)', async () => {
@@ -298,7 +299,7 @@ describe('PaneGrid', () => {
     const before = layout();
     workspace.width.set(900);
     await settle();
-    expect(stacks().map((stack) => stack.pane().views)).toEqual([[ids[0], ids[2]]]);
+    expect(stacks().map((stack) => stack.pane().views)).toEqual([[v(ids[0]), v(ids[2])]]);
     expect(el.querySelector('[role=separator]')).toBeNull();
     workspace.width.set(1400);
     await settle();

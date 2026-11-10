@@ -12,6 +12,7 @@ import { layerFakeProjects, makeBackend, project } from './projects-fakes';
 import { addToStack, panesOf, split } from './pane-layout';
 import { TabsState } from './tabs-state';
 import { TerminalsState } from './terminals-state';
+import { terminalView } from './views';
 import { WorkspaceComponent } from './workspace';
 import { WorkspaceLayoutState } from './workspace-layout';
 import { provideWorkspaceRouter } from './workspace.routes';
@@ -263,7 +264,7 @@ describe('WorkspaceComponent', () => {
       const tab = tabs.tabsOf(ascua.projectId)[0];
       await tabs.openInTab(tab, ascua.cwd, undefined, (layout, terminal) => addToStack(layout, layout.focused, terminal));
       await settle();
-      expect(panesOf(tabs.layoutOf(tabs.tabsOf(ascua.projectId)[0])!)[0].expanded).not.toBe(hidden.id);
+      expect(panesOf(tabs.layoutOf(tabs.tabsOf(ascua.projectId)[0])!)[0].expanded).not.toEqual(terminalView(hidden.id));
 
       const row = terminalRows().find((candidate) => candidate.querySelector('.as-row__title')?.textContent?.trim() === 'Terminal 1')!;
       row.click();
@@ -271,7 +272,7 @@ describe('WorkspaceComponent', () => {
 
       const layout = tabs.layoutOf(tabs.tabsOf(ascua.projectId)[0])!;
       expect(TestBed.inject(Router).url).toBe(`/projects/p-ascua/terminals/${hidden.id}`);
-      expect(panesOf(layout)[0].expanded).toBe(hidden.id);
+      expect(panesOf(layout)[0].expanded).toEqual(terminalView(hidden.id));
       expect(layout.focused).toBe(panesOf(layout)[0].id);
       expect(el.querySelector('app-pane-stack .view-header.act .name')?.textContent).toBe('Terminal 1');
     });

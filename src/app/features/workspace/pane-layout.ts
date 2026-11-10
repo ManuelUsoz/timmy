@@ -1,10 +1,10 @@
 import { PaneId, type LayoutNode, type Pane, type SplitDirection, type TabLayout } from '../../../shared/workspace/workspace.model';
-import type { TerminalId } from './terminal-entries';
+import { hasView, indexOfView, sameView, viewKey, type ViewId } from './views';
 
 /**
  * The layout of a Tab (GLOSSARY: Pane, View, Stack): Panes made by splitting another on any side, each showing one View or a
- * Stack of up to three. Only Terminal Views exist for now, so a View is its Terminal's id. Pure: the screen keeps the
- * layout of each Tab and applies these rules to it.
+ * Stack of up to three. A View is named by its `ViewId` and compared by its key (`views.ts`), whatever it shows. Pure:
+ * the screen keeps the layout of each Tab and applies these rules to it.
  */
 export { PaneId } from '../../../shared/workspace/workspace.model';
 export type { LayoutNode, Pane, SplitDirection, TabLayout } from '../../../shared/workspace/workspace.model';
@@ -13,18 +13,21 @@ export const MAX_PANES = 6;
 export const MAX_VIEWS = 3;
 
 /**
- * A Pane is named after the Terminal it was made for, so the same steps always give the same ids. A View moved out of
+ * A Pane is named after the View it was made for, so the same steps always give the same ids. A View moved out of
  * a Stack may come from the Pane that already carries its name; the new Pane then takes the next free suffix.
  */
-const paneFor = (terminal: TerminalId, taken: ReadonlyArray<Pane> = []): Pane => {
+const paneFor = (view: ViewId, taken: ReadonlyArray<Pane> = []): Pane => {
   const ids = new Set(taken.map((pane) => pane.id));
-  let id = PaneId.make(terminal);
-  for (let n = 2; ids.has(id); n++) id = PaneId.make(`${terminal}~${n}`);
-  return { id, views: [terminal], expanded: terminal };
+  let id = PaneId.make(viewKey(view));
+  for (let n = 2; ids.has(id); n++) id = PaneId.make(`${viewKey(view)}~${n}`);
+  return { id, views: [view], expanded: view };
 };
 const leaf = (pane: Pane): LayoutNode => ({ kind: 'pane', pane });
 
-export const singlePane = (terminal: TerminalId): TabLayout => ({ root: leaf(paneFor(terminal)), focused: PaneId.make(terminal) });
+export const singlePane = (view: ViewId): TabLayout => {
+  const pane = paneFor(view);
+  return { root: leaf(pane), focused: pane.id };
+};
 
 /** The Panes, left to right and top to bottom. */
 export const panesOf = (layout: TabLayout): ReadonlyArray<Pane> => {
@@ -81,15 +84,15 @@ const mapPaneNode = (node: LayoutNode, id: PaneId, change: (node: LayoutNode & {
 export type SplitSide = 'before' | 'after';
 
 /**
- * Puts the Terminal in a new Pane beside (`right`) or below (`down`) the given one, or on the left or above it with
+ * Puts the View in a new Pane beside (`right`) or below (`down`) the given one, or on the left or above it with
  * `before`, and focuses it. Splitting along the direction of the enclosing split adds a sibling that takes half of the
- * Pane's share; otherwise the Pane becomes a split. A Terminal the layout already shows moves there; nothing changes if
+ * Pane's share; otherwise the Pane becomes a split. A View the layout already shows moves there; nothing changes if
  * that would take the Pane itself away.
  */
-export const split = (layout: TabLayout, id: PaneId, direction: SplitDirection, terminal: TerminalId, side: SplitSide = 'after'): TabLayout => {
-  const base = elsewhere(layout, id, terminal);
+export const split = (layout: TabLayout, id: PaneId, direction: SplitDirection, view: ViewId, side: SplitSide = 'after'): TabLayout => {
+  const base = elsewhere(layout, id, view);
   if (base === undefined) return layout;
-  const added = paneFor(terminal, panesOf(base));
+  const added = paneFor(view, panesOf(base));
   const insert = (node: LayoutNode): LayoutNode => {
     if (node.kind === 'pane') {
       const children = side === 'before' ? [leaf(added), node] : [node, leaf(added)];
@@ -121,19 +124,19 @@ const updatePane = (layout: TabLayout, id: PaneId, change: (pane: Pane) => Pane)
 export const canStack = (layout: TabLayout, id: PaneId): boolean => (paneOf(layout, id)?.views.length ?? MAX_VIEWS) < MAX_VIEWS;
 
 /**
- * "Add to stack": the Terminal joins the Pane's Stack, last (or at position `at`), and is the View expanded. Nothing happens to a full Stack.
- * A Terminal the layout already shows moves there.
+ * "Add to stack": the View joins the Pane's Stack, last (or at position `at`), and is the View expanded. Nothing happens to a full Stack.
+ * A View the layout already shows moves there.
  */
-export const addToStack = (layout: TabLayout, id: PaneId, terminal: TerminalId, at = MAX_VIEWS): TabLayout => {
-  const base = elsewhere(layout, id, terminal);
+export const addToStack = (layout: TabLayout, id: PaneId, view: ViewId, at = MAX_VIEWS): TabLayout => {
+  const base = elsewhere(layout, id, view);
   return base !== undefined && canStack(base, id)
-    ? { ...updatePane(base, id, (pane) => ({ ...pane, views: [...pane.views.slice(0, at), terminal, ...pane.views.slice(at)], expanded: terminal })), focused: id }
+    ? { ...updatePane(base, id, (pane) => ({ ...pane, views: [...pane.views.slice(0, at), view, ...pane.views.slice(at)], expanded: view })), focused: id }
     : layout;
 };
 
-/** The layout without the Terminal's View, so placing it again moves it; undefined if the target Pane would go with it. */
-const elsewhere = (layout: TabLayout, id: PaneId, terminal: TerminalId): TabLayout | undefined => {
-  const base = withoutTerminal(layout, terminal);
+/** The layout without the View, so placing it again moves it; undefined if the target Pane would go with it. */
+const elsewhere = (layout: TabLayout, id: PaneId, view: ViewId): TabLayout | undefined => {
+  const base = withoutView(layout, view);
   return base === undefined || paneOf(base, id) === undefined ? undefined : base;
 };
 
@@ -145,29 +148,29 @@ export const showView = (layout: TabLayout, id: PaneId, index: number): TabLayou
   });
 
 /** Puts a View at another place of its Stack, the others keeping their order. */
-export const reorderView = (layout: TabLayout, id: PaneId, view: TerminalId, to: number): TabLayout =>
+export const reorderView = (layout: TabLayout, id: PaneId, view: ViewId, to: number): TabLayout =>
   updatePane(layout, id, (pane) => {
-    if (!pane.views.includes(view)) return pane;
-    const rest = pane.views.filter((other) => other !== view);
+    if (!hasView(pane.views, view)) return pane;
+    const rest = pane.views.filter((other) => !sameView(other, view));
     const at = Math.max(0, Math.min(to, rest.length));
     return { ...pane, views: [...rest.slice(0, at), view, ...rest.slice(at)] };
   });
 
 /** Alt+Shift+↑/↓: one place up (-1) or down (1); at either end it stays. */
-export const moveView = (layout: TabLayout, id: PaneId, view: TerminalId, delta: -1 | 1): TabLayout => {
-  const index = paneOf(layout, id)?.views.indexOf(view) ?? -1;
+export const moveView = (layout: TabLayout, id: PaneId, view: ViewId, delta: -1 | 1): TabLayout => {
+  const index = indexOfView(paneOf(layout, id)?.views ?? [], view);
   return index < 0 ? layout : reorderView(layout, id, view, index + delta);
 };
 
 export const canUnstack = (layout: TabLayout, id: PaneId): boolean => (paneOf(layout, id)?.views.length ?? 0) > 1 && panesOf(layout).length < MAX_PANES;
 
 /** Alt+Shift+Enter: the View leaves its Stack for a new Pane to the right, which is focused. The Stack expands its first View left. */
-export const unstack = (layout: TabLayout, id: PaneId, view: TerminalId): TabLayout => {
+export const unstack = (layout: TabLayout, id: PaneId, view: ViewId): TabLayout => {
   const pane = paneOf(layout, id);
-  if (pane === undefined || !pane.views.includes(view) || !canUnstack(layout, id)) return layout;
+  if (pane === undefined || !hasView(pane.views, view) || !canUnstack(layout, id)) return layout;
   const left = updatePane(layout, id, (current) => {
-    const views = current.views.filter((other) => other !== view);
-    return { ...current, views, expanded: current.expanded === view ? views[0] : current.expanded };
+    const views = current.views.filter((other) => !sameView(other, view));
+    return { ...current, views, expanded: sameView(current.expanded, view) ? views[0] : current.expanded };
   });
   return split(left, id, 'right', view);
 };
@@ -183,7 +186,7 @@ export type DropPlace = { readonly edge: DropEdge } | 'stack' | { readonly stack
 
 const axisOf = (edge: DropEdge): SplitDirection => (edge === 'left' || edge === 'right' ? 'right' : 'down');
 const sideOf = (edge: DropEdge): SplitSide => (edge === 'left' || edge === 'up' ? 'before' : 'after');
-const holderOf = (layout: TabLayout, view: TerminalId): Pane | undefined => panesOf(layout).find((pane) => pane.views.includes(view));
+const holderOf = (layout: TabLayout, view: ViewId): Pane | undefined => panesOf(layout).find((pane) => hasView(pane.views, view));
 
 /**
  * Whether dropping the View there would do something: judged on the layout without the View, since it leaves its place.
@@ -191,7 +194,7 @@ const holderOf = (layout: TabLayout, view: TerminalId): Pane | undefined => pane
  */
 export const canDrop = (
   layout: TabLayout,
-  view: TerminalId,
+  view: ViewId,
   target: PaneId,
   place: DropPlace,
   area: { readonly width: number; readonly height: number },
@@ -210,7 +213,7 @@ export const canDrop = (
  * room, or for the target's Stack. The View lands expanded and its Pane focused. Within its own Stack a position reorders
  * it. A drop that would change nothing, or go past the Pane or Stack limits, leaves the layout as it is.
  */
-export const dropView = (layout: TabLayout, view: TerminalId, target: PaneId, place: DropPlace): TabLayout => {
+export const dropView = (layout: TabLayout, view: ViewId, target: PaneId, place: DropPlace): TabLayout => {
   const from = holderOf(layout, view);
   if (from === undefined || paneOf(layout, target) === undefined) return layout;
   const own = from.id === target;
@@ -233,8 +236,8 @@ export const resizeSplit = (layout: TabLayout, path: ReadonlyArray<number>, size
   return { ...layout, root: walk(layout.root, 0) };
 };
 
-/** The Terminals that close with a Pane: every View of its Stack. */
-export const terminalsOfPane = (layout: TabLayout, id: PaneId): ReadonlyArray<TerminalId> => paneOf(layout, id)?.views ?? [];
+/** The Views that close with a Pane: every View of its Stack. */
+export const viewsOfPane = (layout: TabLayout, id: PaneId): ReadonlyArray<ViewId> => paneOf(layout, id)?.views ?? [];
 
 /** A split left with one child is that child; a child split along the same direction merges into its parent. */
 const tidy = (node: LayoutNode): LayoutNode => {
@@ -253,18 +256,18 @@ const tidy = (node: LayoutNode): LayoutNode => {
 };
 
 /**
- * A Terminal closed: its View leaves its Pane, a Pane left empty goes and its split shares out its room, and a focus
- * that was on it moves to the next Pane, else the previous. Undefined when no Pane is left.
+ * A View closed: it leaves its Pane, a Pane left empty goes and its split shares out its room, and a focus that was on
+ * it moves to the next Pane, else the previous. Undefined when no Pane is left.
  */
-export const withoutTerminal = (layout: TabLayout, terminal: TerminalId): TabLayout | undefined => {
+export const withoutView = (layout: TabLayout, closed: ViewId): TabLayout | undefined => {
   const before = panesOf(layout);
-  const holder = before.find((pane) => pane.views.includes(terminal));
+  const holder = before.find((pane) => hasView(pane.views, closed));
   if (holder === undefined) return layout;
   if (holder.views.length > 1) {
     return updatePane(layout, holder.id, (pane) => {
-      const index = pane.views.indexOf(terminal);
-      const views = pane.views.filter((view) => view !== terminal);
-      return { ...pane, views, expanded: pane.expanded === terminal ? (views[index] ?? views[index - 1]) : pane.expanded };
+      const index = indexOfView(pane.views, closed);
+      const views = pane.views.filter((view) => !sameView(view, closed));
+      return { ...pane, views, expanded: sameView(pane.expanded, closed) ? (views[index] ?? views[index - 1]) : pane.expanded };
     });
   }
   const prune = (node: LayoutNode): LayoutNode | undefined => {
@@ -281,41 +284,45 @@ export const withoutTerminal = (layout: TabLayout, terminal: TerminalId): TabLay
   return { root: tidy(root), focused };
 };
 
-/** A restarted Terminal comes back under a new id: its View keeps its place, and its expanded state. */
-export const replaceTerminal = (layout: TabLayout, from: TerminalId, to: TerminalId): TabLayout => {
-  const holder = panesOf(layout).find((pane) => pane.views.includes(from));
+/** One View takes another's place, and its expanded state: a restarted Terminal comes back under a new id. */
+export const replaceView = (layout: TabLayout, from: ViewId, to: ViewId): TabLayout => {
+  const holder = holderOf(layout, from);
   return holder === undefined
     ? layout
-    : updatePane(layout, holder.id, (pane) => ({ ...pane, views: pane.views.map((view) => (view === from ? to : view)), expanded: pane.expanded === from ? to : pane.expanded }));
+    : updatePane(layout, holder.id, (pane) => ({
+        ...pane,
+        views: pane.views.map((view) => (sameView(view, from) ? to : view)),
+        expanded: sameView(pane.expanded, from) ? to : pane.expanded,
+      }));
 };
 
 /**
- * The layout for a Tab's Terminals as they are now: Views whose Terminal closed go, and a Terminal the layout does not
- * show yet gets a new Pane to the right of the focused one (or, at 6 Panes, a place in a Stack with room). With no layout
- * yet, each Terminal gets a Pane, side by side. Undefined for a Tab with no Terminals.
+ * The layout for a Tab's Views as they are now: Views that closed go, and a View the layout does not show yet gets a
+ * new Pane to the right of the focused one (or, at 6 Panes, a place in a Stack with room). With no layout yet, each View
+ * gets a Pane, side by side. Undefined for a Tab with no Views.
  */
-export const inStep = (layout: TabLayout | undefined, terminals: ReadonlyArray<TerminalId>): TabLayout | undefined => {
+export const inStep = (layout: TabLayout | undefined, views: ReadonlyArray<ViewId>): TabLayout | undefined => {
   let next = layout;
   if (next !== undefined) {
     for (const view of panesOf(next).flatMap((pane) => pane.views)) {
-      if (!terminals.includes(view)) next = next === undefined ? undefined : withoutTerminal(next, view);
+      if (!hasView(views, view)) next = next === undefined ? undefined : withoutView(next, view);
     }
   }
   const first = next;
-  for (const terminal of terminals) {
+  for (const view of views) {
     if (next === undefined) {
-      next = singlePane(terminal);
+      next = singlePane(view);
       continue;
     }
     const current: TabLayout = next;
-    if (panesOf(current).some((pane) => pane.views.includes(terminal))) continue;
+    if (holderOf(current, view) !== undefined) continue;
     const room = panesOf(current).find((pane) => pane.views.length < MAX_VIEWS);
     next =
       panesOf(current).length < MAX_PANES
-        ? split(current, current.focused, 'right', terminal)
+        ? split(current, current.focused, 'right', view)
         : room === undefined
           ? current
-          : addToStack(current, room.id, terminal);
+          : addToStack(current, room.id, view);
   }
   // A layout built from nothing starts on its first Pane.
   return first === undefined && next !== undefined ? focusPane(next, panesOf(next)[0].id) : next;

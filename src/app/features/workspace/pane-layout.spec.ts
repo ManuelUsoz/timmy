@@ -1,4 +1,5 @@
 import { TerminalId } from './terminal-entries';
+import { terminalView } from './views';
 import {
   MAX_PANES,
   MAX_VIEWS,
@@ -15,17 +16,17 @@ import {
   paneRects,
   panesOf,
   reorderView,
-  replaceTerminal,
+  replaceView,
   resizeSplit,
   showView,
   singlePane,
   split,
-  terminalsOfPane,
   unstack,
-  withoutTerminal,
+  viewsOfPane,
+  withoutView,
 } from './pane-layout';
 
-const t = (n: number) => TerminalId.make(`t${n}`);
+const t = (n: number) => terminalView(TerminalId.make(`t${n}`));
 
 describe('Panes of a Tab', () => {
   it('starts as one Pane showing the Tab\'s Terminal', () => {
@@ -85,8 +86,8 @@ describe('Stacks', () => {
   });
 
   it('shows the View at a position (Alt+1–3), ignoring a position with no View', () => {
-    expect(panesOf(showView(full(), p1, 0))[0].expanded).toBe(t(1));
-    expect(panesOf(showView(addToStack(singlePane(t(1)), p1, t(2)), p1, 2))[0].expanded).toBe(t(2));
+    expect(panesOf(showView(full(), p1, 0))[0].expanded).toEqual(t(1));
+    expect(panesOf(showView(addToStack(singlePane(t(1)), p1, t(2)), p1, 2))[0].expanded).toEqual(t(2));
   });
 
   it('moves a View one place up or down (Alt+Shift+↑/↓), staying put at the ends', () => {
@@ -121,28 +122,28 @@ describe('closing and keeping in step with the Tab\'s Terminals', () => {
   const three = () => split(split(singlePane(t(1)), p('t1'), 'right', t(2)), p('t2'), 'down', t(3));
 
   it('drops a closed Terminal\'s View; an empty Pane goes and its neighbour takes its room and the focus', () => {
-    const layout = withoutTerminal(three(), t(3));
+    const layout = withoutView(three(), t(3));
     expect(layout?.root).toMatchObject({ kind: 'split', direction: 'right', sizes: [0.5, 0.5] });
     expect(panesOf(layout!).map((pane) => pane.id)).toEqual([p('t1'), p('t2')]);
     expect(layout?.focused).toBe(p('t2'));
-    expect(withoutTerminal(singlePane(t(1)), t(1))).toBeUndefined();
+    expect(withoutView(singlePane(t(1)), t(1))).toBeUndefined();
   });
 
   it('gives the share of a closed Pane to the others of its split', () => {
     let layout = split(split(singlePane(t(1)), p('t1'), 'right', t(2)), p('t2'), 'right', t(3));
     expect(layout.root).toMatchObject({ sizes: [0.5, 0.25, 0.25] });
-    layout = withoutTerminal(layout, t(1))!;
+    layout = withoutView(layout, t(1))!;
     expect(layout.root).toMatchObject({ sizes: [0.5, 0.5] });
   });
 
   it('expands the next View when the expanded one of a Stack closes', () => {
     const stack = addToStack(addToStack(singlePane(t(1)), p('t1'), t(2)), p('t1'), t(3));
-    expect(panesOf(withoutTerminal(showView(stack, p('t1'), 1), t(2))!)[0]).toEqual({ id: p('t1'), views: [t(1), t(3)], expanded: t(3) });
+    expect(panesOf(withoutView(showView(stack, p('t1'), 1), t(2))!)[0]).toEqual({ id: p('t1'), views: [t(1), t(3)], expanded: t(3) });
   });
 
   it('lists the Terminals a Pane closes with it', () => {
     const stack = addToStack(three(), p('t2'), t(4));
-    expect(terminalsOfPane(stack, p('t2'))).toEqual([t(2), t(4)]);
+    expect(viewsOfPane(stack, p('t2'))).toEqual([t(2), t(4)]);
   });
 
   it('builds a layout from the Tab\'s Terminals when it has none, one Pane each, side by side', () => {
@@ -158,7 +159,7 @@ describe('closing and keeping in step with the Tab\'s Terminals', () => {
   });
 
   it('keeps a restarted Terminal in its place under its new id', () => {
-    const layout = replaceTerminal(addToStack(three(), p('t2'), t(4)), t(2), t(9));
+    const layout = replaceView(addToStack(three(), p('t2'), t(4)), t(2), t(9));
     expect(panesOf(layout).map((pane) => [pane.views, pane.expanded])).toEqual([
       [[t(1)], t(1)],
       [[t(9), t(4)], t(4)],

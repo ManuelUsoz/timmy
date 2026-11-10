@@ -64,8 +64,9 @@ describe('ProjectStore', () => {
 
   describe('the saved layout', () => {
     const term = (id: string, number: number, provider?: 'ClaudeCode') => ({ terminalId: TerminalId.make(id), number, ...(provider === undefined ? {} : { provider }) });
+    const view = (terminalId: TerminalId) => ({ kind: 'terminal' as const, terminalId });
     const tab = (id: string, terminals: SavedTab['terminals'], name?: string): SavedTab => {
-      const panes = terminals.map((t) => ({ kind: 'pane' as const, pane: { id: PaneId.make(t.terminalId), views: [t.terminalId], expanded: t.terminalId } }));
+      const panes = terminals.map((t) => ({ kind: 'pane' as const, pane: { id: PaneId.make(t.terminalId), views: [view(t.terminalId)], expanded: view(t.terminalId) } }));
       return {
         tabId: TabId.make(id),
         ...(name === undefined ? {} : { name }),
@@ -152,6 +153,63 @@ describe('ProjectStore', () => {
               Effect.gen(function* () {
                 const [saved] = yield* store.layouts;
                 expect(saved.tabs).toEqual([{ tabId: 't1', terminals: [term('a', 1)] }]);
+              }),
+            file,
+          ),
+        ),
+        Effect.ensuring(Effect.sync(() => rmSync(dir, { recursive: true, force: true }))),
+      );
+    });
+
+    it.effect('restores a layout saved before Views had kinds, its Views as the Terminals they named', () => {
+      const dir = mkdtempSync(path.join(tmpdir(), 'timmy-layout-views-'));
+      const file = path.join(dir, 'layout.db');
+      // As the version before #194 wrote it: a View was its Terminal's id.
+      const before = {
+        root: {
+          kind: 'split',
+          direction: 'right',
+          children: [
+            { kind: 'pane', pane: { id: 'a', views: ['a'], expanded: 'a' } },
+            { kind: 'pane', pane: { id: 'b', views: ['b', 'c'], expanded: 'c' } },
+          ],
+          sizes: [0.4, 0.6],
+        },
+        focused: 'b',
+      };
+      return withStore(
+        (store) =>
+          Effect.gen(function* () {
+            const { projectId } = yield* store.add(at('app'));
+            yield* store.saveLayout(projectId, [tab('t1', [term('a', 1), term('b', 2), term('c', 3)])]);
+          }),
+        file,
+      ).pipe(
+        Effect.andThen(
+          Effect.sync(() => {
+            const db = new DatabaseSync(file);
+            db.prepare('UPDATE tabs SET layout = ?').run(JSON.stringify(before));
+            db.close();
+          }),
+        ),
+        Effect.andThen(
+          withStore(
+            (store) =>
+              Effect.gen(function* () {
+                const [saved] = yield* store.layouts;
+                const terminal = (id: string) => ({ kind: 'terminal', terminalId: id });
+                expect(saved.tabs[0].layout).toEqual({
+                  root: {
+                    kind: 'split',
+                    direction: 'right',
+                    children: [
+                      { kind: 'pane', pane: { id: 'a', views: [terminal('a')], expanded: terminal('a') } },
+                      { kind: 'pane', pane: { id: 'b', views: [terminal('b'), terminal('c')], expanded: terminal('c') } },
+                    ],
+                    sizes: [0.4, 0.6],
+                  },
+                  focused: 'b',
+                });
               }),
             file,
           ),
