@@ -16,7 +16,7 @@
 ></div>
 
 @let file = browser.file();
-<header class="head">
+<header class="head" [class.reading]="browser.view() === 'file'">
   @if (browser.view() === 'file') {
     <button #backButton type="button" class="icon back" [attr.aria-label]="i18n.t('files.back')" [attr.title]="i18n.t('files.back')" (click)="browser.back()">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" /></svg>
@@ -28,39 +28,52 @@
       }
     </div>
   } @else {
+    <svg class="panel" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM10 3v10" /></svg>
     <h2 class="title">{{ i18n.t('files.title') }}</h2>
-    <span class="project">{{ projectName() }}</span>
-    <span class="spacer"></span>
-    <button type="button" class="icon refresh" [attr.aria-label]="i18n.t('files.refresh')" [attr.title]="i18n.t('files.refresh')" (click)="browser.refresh()">
-      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3" /></svg>
-    </button>
+    <ui-tooltip placement="bottom" align="end" [text]="i18n.t('files.refresh')">
+      <button type="button" class="icon refresh" [attr.aria-label]="i18n.t('files.refresh')" (click)="browser.refresh()">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3" /></svg>
+      </button>
+    </ui-tooltip>
   }
-  <button type="button" class="icon close" [attr.aria-label]="i18n.t('files.close')" [attr.title]="i18n.t('files.close')" (click)="browser.toggle()">
-    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
-  </button>
+  <ui-tooltip placement="bottom" align="end" [text]="i18n.t('files.close')">
+    <button type="button" class="icon close" [attr.aria-label]="i18n.t('files.close')" (click)="browser.toggle()">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+    </button>
+  </ui-tooltip>
 </header>
 
 @if (browser.view() === 'tree') {
   @let matches = browser.matches();
   <div class="filter-row">
-    <input
-      #filterField
-      class="filter"
-      type="search"
-      autocomplete="off"
-      spellcheck="false"
-      [attr.aria-label]="i18n.t('files.filter')"
-      [placeholder]="i18n.t('files.filter')"
-      [readOnly]="matches.status === 'unavailable'"
-      [attr.aria-disabled]="matches.status === 'unavailable' ? 'true' : null"
-      [value]="browser.filter()"
-      (input)="browser.filter.set($any($event.target).value)"
-      (keydown.enter)="openFirst()"
-      (keydown)="walk($event)"
-    />
+    <div class="field">
+      <svg class="find" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4" /><path d="M10 10l3.5 3.5" /></svg>
+      <input
+        #filterField
+        class="filter"
+        type="search"
+        autocomplete="off"
+        spellcheck="false"
+        [attr.aria-label]="i18n.t('files.filter')"
+        [placeholder]="i18n.t('files.filter')"
+        [readOnly]="matches.status === 'unavailable'"
+        [attr.aria-disabled]="matches.status === 'unavailable' ? 'true' : null"
+        [value]="browser.filter()"
+        (input)="browser.filter.set($any($event.target).value)"
+        (keydown.enter)="openFirst()"
+        (keydown)="walk($event)"
+      />
+      <span class="keys" aria-hidden="true"><kbd>Ctrl</kbd><kbd>P</kbd></span>
+    </div>
     @if (matches.status === 'unavailable') {
       <p class="hint">{{ matches.reason === 'noGit' ? i18n.t('files.filterNoGit') : i18n.t('files.filterFailed', { detail: matches.detail }) }}</p>
     }
+  </div>
+
+  <div class="section">
+    <span class="section-label">{{ projectName() }}</span>
+    <!-- The count of changed files goes here. -->
+    <span class="section-count"></span>
   </div>
 
   @if (filtering() && matches.status === 'ready') {

@@ -28,22 +28,48 @@
   outline: none;
 }
 
+/* As in the design: the panel icon, the title, then the actions at the right edge. */
 .head {
   display: flex;
   flex: none;
   align-items: center;
-  gap: var(--spacing-02);
-  height: 40px;
-  padding-inline: var(--spacing-04) var(--spacing-02);
+  gap: var(--spacing-03);
+  height: var(--control-lg);
+  padding-inline: var(--spacing-05) var(--spacing-02);
+}
+
+/* Reading a file: the header names it, and a line keeps it apart from the text. */
+.head.reading {
   border-bottom: 1px solid var(--border-subtle);
 }
 
+/* Every glyph of the sidebar is a 1.2 stroke line icon. */
+svg {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.head .panel,
+.field .find {
+  width: 16px;
+  height: 16px;
+}
+
+.head .panel {
+  color: var(--text-secondary);
+}
+
 .title {
+  flex: 1;
+  min-width: 0;
   margin: 0;
   font: var(--text-heading-02);
 }
 
-.project,
 .dir {
   min-width: 0;
   overflow: hidden;
@@ -52,10 +78,6 @@
   color: var(--text-helper);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.spacer {
-  flex: 1;
 }
 
 .who {
@@ -77,8 +99,8 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: var(--control-sm);
+  height: var(--control-sm);
   padding: 0;
   border: 0;
   background: transparent;
@@ -102,39 +124,96 @@
 .icon svg {
   width: 14px;
   height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 .filter-row {
   flex: none;
-  padding: var(--spacing-03) var(--spacing-04);
+  padding: var(--spacing-03) var(--spacing-05);
+}
+
+/* The field as in the design: a find icon, the input, and the Ctrl P keycaps, on one field surface. */
+.field {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-03);
+  height: var(--control-sm);
+  padding-inline: var(--spacing-03);
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--field);
+  color: var(--text-helper);
+}
+
+.field:focus-within {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
 }
 
 .filter {
-  box-sizing: border-box;
-  width: 100%;
-  height: 32px;
-  padding: 0 var(--spacing-03);
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
   border: 0;
-  border-bottom: 1px solid var(--border-strong);
-  background: var(--field);
+  outline: none;
+  background: transparent;
   color: var(--text-primary);
-  font: 400 13px/18px var(--font-sans);
+  font: var(--text-body-compact-01);
 }
 
-.filter:focus-visible {
-  outline: var(--focus-width) solid var(--focus);
-  outline-offset: -2px;
+.filter::placeholder {
+  color: var(--text-helper);
 }
 
 /* Read-only rather than disabled: a disabled field cannot hold the keyboard, and Esc would go nowhere. */
 .filter[aria-disabled='true'] {
   color: var(--text-disabled);
   cursor: not-allowed;
+}
+
+.keys {
+  display: inline-flex;
+  flex: none;
+  gap: var(--spacing-01);
+}
+
+/* Keycaps as in the design: a raised key on the layer above the field. */
+kbd {
+  min-width: 20px;
+  box-sizing: border-box;
+  padding: 0 var(--spacing-02);
+  border-bottom: 2px solid var(--border-strong);
+  background: var(--layer-02);
+  color: var(--text-primary);
+  font: 400 11px/18px var(--font-mono);
+  text-align: center;
+}
+
+/* The Project the tree belongs to; the right end is kept for the count of changed files. */
+.section {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-03);
+  height: var(--control-sm);
+  padding-inline: var(--spacing-05);
+}
+
+.section-label,
+.section-count {
+  overflow: hidden;
+  font: 400 12px/16px var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.section-count {
+  flex: none;
+  letter-spacing: 0.32px;
+  text-transform: none;
 }
 
 .hint,
@@ -156,7 +235,7 @@
   flex-direction: column;
   align-items: flex-start;
   width: 100%;
-  padding: var(--spacing-02) var(--spacing-04);
+  padding: var(--spacing-02) var(--spacing-05);
   border: 0;
   background: transparent;
   color: inherit;
@@ -174,7 +253,7 @@
 
 .note {
   margin: 0;
-  padding: var(--spacing-05) var(--spacing-04);
+  padding: var(--spacing-05);
   font: var(--text-body-01);
   color: var(--text-secondary);
 }

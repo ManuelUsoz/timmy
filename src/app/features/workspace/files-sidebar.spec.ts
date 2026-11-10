@@ -19,7 +19,7 @@ const timmyDisk = (): FakeDisk => ({
   dirs: {
     '': [folder('node_modules', true), folder('src'), file('.env', true), file('big.log'), file('logo.png'), file('README.md')],
     src: [file('main.ts')],
-    node_modules: [folder('pkg', true)],
+    node_modules: [folder('pkg', true), file('.package-lock.json', true)],
   },
   files: {
     'README.md': text('# timmy\n\nread me\n'),
@@ -112,6 +112,57 @@ describe('FilesSidebar', () => {
     expect(document.activeElement).toBe(filter());
   });
 
+  it('has a header with the title, a refresh and a close button, and the Project in a section row of its own', async () => {
+    const { sidebar, ctrlP, t } = await setup();
+    await ctrlP();
+    const head = sidebar()!.querySelector('header')!;
+    expect(head.querySelector('h2')?.textContent?.trim()).toBe(t('files.title'));
+    expect(head.querySelector('svg.panel')).not.toBeNull();
+    expect(Array.from(head.querySelectorAll('button')).map((button) => button.getAttribute('aria-label'))).toEqual([t('files.refresh'), t('files.close')]);
+    expect(head.textContent).not.toContain('timmy');
+    const section = sidebar()!.querySelector('.section')!;
+    expect(section.querySelector('.section-label')?.textContent?.trim()).toBe('timmy');
+    // The place for the count of changed files, still empty.
+    expect(section.querySelector('.section-count')?.textContent?.trim()).toBe('');
+  });
+
+  it('shows Ctrl P on the filter field, and no tab strip', async () => {
+    const { sidebar, ctrlP } = await setup();
+    await ctrlP();
+    const field = sidebar()!.querySelector('.field')!;
+    expect(field.querySelector('input.filter')).not.toBeNull();
+    expect(Array.from(field.querySelectorAll('kbd')).map((key) => key.textContent?.trim())).toEqual(['Ctrl', 'P']);
+    expect(sidebar()!.querySelector('[role=tablist]')).toBeNull();
+  });
+
+  it('closes from the close button in its header', async () => {
+    const { sidebar, icon, ctrlP, click, t } = await setup();
+    await ctrlP();
+    await click(sidebar()!.querySelector(`header button[aria-label="${t('files.close')}"]`));
+    expect(sidebar()).toBeNull();
+    expect(icon()?.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('shows a chain of single-child folders as one row that opens and closes as one', async () => {
+    const disk = timmyDisk();
+    disk.dirs[''] = [folder('src'), file('README.md')];
+    disk.dirs['src'] = [folder('app')];
+    disk.dirs['src/app'] = [folder('core')];
+    disk.dirs['src/app/core'] = [file('a.ts'), file('b.ts')];
+    disk.files['src/app/core/a.ts'] = text('a\n');
+    const { sidebar, labels, rowOf, click, ctrlP } = await setup(disk);
+    await ctrlP();
+    await click(rowOf('src'));
+    expect(labels()).toEqual(['src/app/core', 'a.ts', 'b.ts', 'README.md']);
+    expect(rowOf('src/app/core').getAttribute('aria-expanded')).toBe('true');
+    await click(rowOf('src/app/core'));
+    expect(labels()).toEqual(['src/app/core', 'README.md']);
+    await click(rowOf('src/app/core'));
+    await click(rowOf('a.ts'));
+    expect(sidebar()?.querySelector('.head .name')?.textContent?.trim()).toBe('a.ts');
+    expect(sidebar()?.querySelector('.head .dir')?.textContent?.trim()).toBe('src/app/core');
+  });
+
   it('lists the root: folders first, what git ignores dimmed, and nothing from a folder not opened', async () => {
     const { labels, rowOf, ctrlP } = await setup();
     await ctrlP();
@@ -124,7 +175,7 @@ describe('FilesSidebar', () => {
     const { labels, rowOf, click, ctrlP, backend } = await setup();
     await ctrlP();
     await click(rowOf('node_modules'));
-    expect(labels().slice(0, 3)).toEqual(['node_modules', 'pkg', 'src']);
+    expect(labels().slice(0, 4)).toEqual(['node_modules', 'pkg', '.package-lock.json', 'src']);
     expect(backend.files.calls).toContain('Files.listDir:node_modules');
   });
 

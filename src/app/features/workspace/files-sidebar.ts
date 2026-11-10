@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, afterNextRender, computed, effect, inject, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { I18n } from '../../core/i18n';
+import { TooltipComponent } from '../../shared/ui/tooltip/tooltip';
 import { TreeViewComponent } from '../../shared/ui/tree-view/tree-view';
 import { FilesBrowser, MIN_BROWSER_WIDTH } from './files-browser';
 import { ProjectsState } from './projects-state';
@@ -22,7 +23,7 @@ const formatSize = (bytes: number): string => {
  */
 @Component({
   selector: 'app-files-sidebar',
-  imports: [FormsModule, TreeViewComponent],
+  imports: [FormsModule, TooltipComponent, TreeViewComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './files-sidebar.html',
   styleUrl: './files-sidebar.css',
