@@ -153,20 +153,47 @@ export class FilesBrowser {
     this.filterFocus.update((count) => count + 1);
   }
 
-  /** Opens or closes a folder of the tree. It is read the first time it opens, and again only after a refresh. */
+  /**
+   * Opens or closes a folder of the tree. It is read the first time it opens, and again only after a refresh. A chain of
+   * single-child folders is one row whose id is its first folder: the whole chain opens and closes with it.
+   */
   setFolderOpen(path: string, open: boolean): void {
     if (open === this.expanded().includes(path)) return;
-    if (open) this.openFolders([path]);
-    else this.expanded.update((list) => list.filter((entry) => entry !== path));
+    const chain = this.chainOf(path, this.entryAt(path)?.ignored ?? false);
+    if (open) this.openFolders(chain);
+    else this.expanded.update((list) => list.filter((entry) => !chain.includes(entry)));
     this.persist();
   }
 
   /** A row of the tree was picked: a file opens; a folder (the tree opens it) or a status row does nothing. */
   pick(path: string): void {
+    if (this.entryAt(path)?.kind === 'file') this.openFile(path);
+  }
+
+  /** The entry at `path` as its folder listed it, if that folder has been read. */
+  private entryAt(path: string): FolderEntry | undefined {
     const slash = path.lastIndexOf('/');
-    const parent = this.dirs().get(slash === -1 ? '' : path.slice(0, slash));
-    const entry = parent?.status === 'ready' ? parent.entries.find((candidate) => join(slash === -1 ? '' : path.slice(0, slash), candidate.name) === path) : undefined;
-    if (entry?.kind === 'file') this.openFile(path);
+    const dir = slash === -1 ? '' : path.slice(0, slash);
+    const parent = this.dirs().get(dir);
+    return parent?.status === 'ready' ? parent.entries.find((candidate) => join(dir, candidate.name) === path) : undefined;
+  }
+
+  /** The only entry of a folder that has been read, when that entry is a folder git sees the same way; else nothing. */
+  private onlyChildFolder(path: string, ignored: boolean): string | undefined {
+    const listing = this.dirs().get(path);
+    if (listing?.status !== 'ready' || listing.entries.length !== 1) return undefined;
+    const [only] = listing.entries;
+    return only.kind === 'folder' && only.ignored === ignored ? join(path, only.name) : undefined;
+  }
+
+  /**
+   * The folders shown as one row from `path` down: `path`, then its only child while that child is a folder, as far as the
+   * folders read so far tell. An ignored folder does not join the chain of one git sees, nor the other way round.
+   */
+  private chainOf(path: string, ignored: boolean): ReadonlyArray<string> {
+    const chain = [path];
+    for (let next = this.onlyChildFolder(path, ignored); next !== undefined; next = this.onlyChildFolder(next, ignored)) chain.push(next);
+    return chain;
   }
 
   /** Picks a file: the sidebar shows it, read now, and remembers it. */
@@ -241,15 +268,18 @@ export class FilesBrowser {
       const path = join(dir, entry.name);
       const dimmed = entry.ignored ? { dimmed: true } : {};
       if (entry.kind === 'file') return { id: path, label: entry.name, kind: 'file', ...dimmed };
+      // A chain of single-child folders is one row: named by the whole chain, showing what the last folder holds.
+      const chain = this.chainOf(path, entry.ignored);
+      const last = chain[chain.length - 1];
       const isOpen = open.has(path);
       return {
         id: path,
-        label: entry.name,
+        label: dir === '' ? last : last.slice(dir.length + 1),
         kind: 'folder',
         lazy: true,
         expanded: isOpen,
         ...dimmed,
-        ...(isOpen ? { children: this.childrenOf(path, open) } : {}),
+        ...(isOpen ? { children: this.childrenOf(last, open) } : {}),
       };
     });
   }
@@ -380,6 +410,22 @@ export class FilesBrowser {
     if (generation !== this.generation) return;
     const result: Dir = Exit.isSuccess(exit) ? exit.value : { status: 'failed', detail: Cause.pretty(exit.cause) };
     this.dirs.update((map) => new Map(map).set(dir, result));
+    this.followChains();
+  }
+
+  /**
+   * An open folder that turns out to start a chain of single-child folders opens the rest of the chain, as one row does, and
+   * remembers it. Run after every read: a listing that arrives may lengthen a chain, or tell whether its first folder is ignored.
+   */
+  private followChains(): void {
+    const open = this.expanded();
+    const missing = open.flatMap((path) => {
+      const entry = this.entryAt(path);
+      return entry === undefined ? [] : this.chainOf(path, entry.ignored).filter((member) => !open.includes(member));
+    });
+    if (missing.length === 0) return;
+    this.openFolders([...new Set(missing)]);
+    this.persist();
   }
 
   /** Remembers the Project's state in main. Fire and forget: failing to remember must not get in the user's way. */

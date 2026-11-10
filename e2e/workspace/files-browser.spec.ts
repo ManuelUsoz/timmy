@@ -5,7 +5,7 @@ import { expect, test } from '../fixtures';
 test.describe('The Files browser', () => {
   test.use({ language: 'en' });
 
-  test('a sidebar on the right: the Project as a tree read folder by folder, and its files read in place', async ({ timmy }) => {
+  test('a panel on the right: the Project as a tree read folder by folder, and its files read in place', async ({ timmy }) => {
     const { page } = timmy;
     const write = (file: string, content: string | Buffer) => {
       mkdirSync(path.dirname(path.join(timmy.projectDir, file)), { recursive: true });
@@ -15,6 +15,9 @@ test.describe('The Files browser', () => {
     write('README.md', '# demo-project\n\nA project to browse.\n');
     write('src/main.ts', "export const answer = 42;\nexport const long = 'a line that is wider than the sidebar so that it scrolls sideways instead of wrapping';\n");
     write('node_modules/pkg/index.js', 'module.exports = 1;\n');
+    write('node_modules/.package-lock.json', '{}\n');
+    write('electron/rpc/handshake.ts', 'export const handshake = 1;\n');
+    write('electron/rpc/ipc-server.ts', 'export const server = 1;\n');
     write('logo.png', Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x1a, 0x0a]));
 
     const sidebar = page.getByRole('complementary', { name: 'Files' });
@@ -33,9 +36,28 @@ test.describe('The Files browser', () => {
       await expect(sidebar).toBeVisible();
       await expect(filesButton).toHaveAttribute('aria-pressed', 'true');
       await expect(filter).toBeFocused();
-      await expect(sidebar.getByRole('treeitem')).toHaveText(['node_modules', 'src', '.gitignore', 'logo.png', 'README.md']);
+      await expect(sidebar.getByRole('treeitem')).toHaveText(['electron', 'node_modules', 'src', '.gitignore', 'logo.png', 'README.md']);
       await expect(row('node_modules')).toHaveAttribute('data-dimmed', '');
       await timmy.shot('files-browser-tree', { mask: behind });
+    });
+
+    await test.step('the header has the title, refresh and close; the field shows Ctrl P; the Project heads the tree', async () => {
+      await expect(sidebar.getByRole('heading', { name: 'Files' })).toBeVisible();
+      await expect(sidebar.getByRole('button', { name: 'Refresh' })).toBeVisible();
+      await expect(sidebar.getByRole('button', { name: 'Close files' })).toBeVisible();
+      await expect(sidebar.locator('.field kbd')).toHaveText(['Ctrl', 'P']);
+      await expect(sidebar.locator('.section-label')).toHaveText('demo-project');
+    });
+
+    await test.step('a chain of single-child folders opens as one row, and closes as one', async () => {
+      await row('electron').click();
+      await expect(row('electron/rpc')).toHaveAttribute('aria-expanded', 'true');
+      await expect(row('handshake.ts')).toBeVisible();
+      await expect(row('ipc-server.ts')).toBeVisible();
+      await timmy.shot('files-browser-chain', { mask: behind });
+      await row('electron/rpc').click();
+      await expect(row('handshake.ts')).toHaveCount(0);
+      await expect(row('electron/rpc')).toHaveAttribute('aria-expanded', 'false');
     });
 
     await test.step('a folder is read when it is opened, an ignored one too', async () => {

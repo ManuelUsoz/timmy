@@ -16,7 +16,7 @@ const timmyDisk = (): FakeDisk => ({
     '': [folder('node_modules', true), folder('src'), file('.env', true), file('README.md')],
     src: [folder('app'), file('main.ts')],
     'src/app': [file('a.ts')],
-    node_modules: [folder('pkg', true)],
+    node_modules: [folder('pkg', true), file('.package-lock.json', true)],
   },
   files: {
     'README.md': text('# timmy\n'),
@@ -95,7 +95,7 @@ describe('FilesBrowser tree', () => {
     expect(listDirs()).not.toContain('Files.listDir:node_modules');
     browser.setFolderOpen('node_modules', true);
     await settle();
-    expect(outline().slice(0, 3)).toEqual(['node_modules', '  pkg', 'src']);
+    expect(outline().slice(0, 4)).toEqual(['node_modules', '  pkg', '  .package-lock.json', 'src']);
   });
 
   it('remembers the open folders for the Project', async () => {
@@ -427,6 +427,103 @@ describe('FilesBrowser pick', () => {
     await settle();
     expect(browser.view()).toBe('file');
     expect(browser.file()).toMatchObject({ status: 'text', path: 'src/main.ts' });
+  });
+});
+
+describe('FilesBrowser compact folders', () => {
+  /** `src` holds only `app`, which holds only `core`, which holds only `rpc`: one chain. `docs` holds a file. */
+  const chainDisk = (): FakeDisk => ({
+    dirs: {
+      '': [folder('docs'), folder('src'), file('package.json')],
+      docs: [file('guide.md')],
+      src: [folder('app')],
+      'src/app': [folder('core')],
+      'src/app/core': [folder('rpc')],
+      'src/app/core/rpc': [folder('wire'), file('handshake.ts'), file('retry.ts')],
+      'src/app/core/rpc/wire': [file('frame.ts')],
+    },
+    files: { 'src/app/core/rpc/handshake.ts': text('handshake\n') },
+    index: ['docs/guide.md', 'package.json', 'src/app/core/rpc/handshake.ts', 'src/app/core/rpc/retry.ts', 'src/app/core/rpc/wire/frame.ts'],
+  });
+  const opened = async (saved?: ReadonlyArray<string>) => {
+    const context = await setup({
+      files: {
+        disks: { [timmy.cwd]: chainDisk() },
+        ...(saved === undefined ? {} : { saved: { [timmy.projectId]: { expanded: saved, lastFile: null, view: 'tree' as const } } }),
+      },
+    });
+    context.browser.toggle();
+    await context.settle();
+    return context;
+  };
+
+  it('opens a chain of single-child folders as one row, down to the first level with more than one entry', async () => {
+    const { browser, settle, outline, nodes } = await opened();
+    expect(outline()).toEqual(['docs', 'src', 'package.json']);
+    browser.setFolderOpen('src', true);
+    await settle();
+    expect(outline()).toEqual(['docs', 'src/app/core/rpc', '  wire', '  handshake.ts', '  retry.ts', 'package.json']);
+    expect(nodes()[1]).toMatchObject({ id: 'src', kind: 'folder', expanded: true });
+  });
+
+  it('closes the chain as one unit, keeps it as one row, and opens it again in one step', async () => {
+    const { backend, browser, settle, outline } = await opened();
+    browser.setFolderOpen('src', true);
+    await settle();
+    browser.setFolderOpen('src', false);
+    expect(outline()).toEqual(['docs', 'src/app/core/rpc', 'package.json']);
+    expect(backend.files.saved[timmy.projectId]?.expanded).toEqual([]);
+    browser.setFolderOpen('src', true);
+    await settle();
+    expect(outline()).toEqual(['docs', 'src/app/core/rpc', '  wire', '  handshake.ts', '  retry.ts', 'package.json']);
+  });
+
+  it('remembers every folder of an open chain, and opens it again from what it remembered', async () => {
+    const first = await opened();
+    first.browser.setFolderOpen('src', true);
+    await first.settle();
+    first.browser.setFolderOpen('src/app/core/rpc/wire', true);
+    await first.settle();
+    expect(first.backend.files.saved[timmy.projectId]?.expanded).toEqual(['src', 'src/app', 'src/app/core', 'src/app/core/rpc', 'src/app/core/rpc/wire']);
+    TestBed.resetTestingModule();
+    const { outline } = await opened(['src', 'src/app', 'src/app/core', 'src/app/core/rpc', 'src/app/core/rpc/wire']);
+    expect(outline()).toEqual(['docs', 'src/app/core/rpc', '  wire', '    frame.ts', '  handshake.ts', '  retry.ts', 'package.json']);
+  });
+
+  it('follows the chain from a folder remembered alone, as it would when opened', async () => {
+    const { outline } = await opened(['src']);
+    expect(outline()).toEqual(['docs', 'src/app/core/rpc', '  wire', '  handshake.ts', '  retry.ts', 'package.json']);
+  });
+
+  it('leaves a folder with a single file as it is', async () => {
+    const { browser, settle, outline } = await opened();
+    browser.setFolderOpen('docs', true);
+    await settle();
+    expect(outline()).toEqual(['docs', '  guide.md', 'src', 'package.json']);
+  });
+
+  it('keeps an ignored folder apart from the chain of a folder git sees', async () => {
+    const disk = chainDisk();
+    disk.dirs['src'] = [folder('dist', true)];
+    disk.dirs['src/dist'] = [file('out.js', true)];
+    const { browser, settle, outline } = await setup({ files: { disks: { [timmy.cwd]: disk } } });
+    browser.toggle();
+    await settle();
+    browser.setFolderOpen('src', true);
+    await settle();
+    expect(outline()).toEqual(['docs', 'src', '  dist', 'package.json']);
+  });
+
+  it('opens a file inside the chain, and the filter still finds it by its full path', async () => {
+    const { browser, settle } = await opened();
+    browser.setFolderOpen('src', true);
+    await settle();
+    browser.pick('src/app/core/rpc/handshake.ts');
+    await settle();
+    expect(browser.file()).toEqual({ status: 'text', path: 'src/app/core/rpc/handshake.ts', content: 'handshake\n' });
+    browser.back();
+    browser.filter.set('core/rpc/hand');
+    expect(browser.matches()).toMatchObject({ status: 'ready', items: [{ path: 'src/app/core/rpc/handshake.ts', name: 'handshake.ts', dir: 'src/app/core/rpc' }] });
   });
 });
 
