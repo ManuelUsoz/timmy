@@ -44,6 +44,9 @@ _Avoid_: workspace (for a Tab).
 A region of a Tab, made by splitting another Pane on any side, or by dropping a View on its edge. It shows one View, or a Stack.
 _Avoid_: panel (Panel is a Window mode), split.
 
+**Path link**
+A path an agent prints in a Terminal that names an existing file of the Project. The renderer finds candidates in a line and asks main only for the one under the pointer; Ctrl (Cmd) + click opens it as a preview File View on the line its position names. Folders, names with spaces, `file://` addresses, outside paths and symlinks leaving the Project are not Path links; git-ignored and binary files are.
+
 **View**
 What a Pane shows: a Terminal, a diff or a pull request. Files are never a View; they are read in the Files browser.
 

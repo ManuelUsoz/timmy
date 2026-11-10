@@ -128,6 +128,11 @@ export class FileView {
     const tab = this.tabId();
     return tab === undefined ? undefined : clampLines(this.selections.of(tab, this.path()), this.lines().length);
   });
+  /**
+   * Whether this View is forced to Fuente because it opened from a Path link with a line. #208 will combine this with the
+   * global Renderizado/Fuente setting; until then the File View is always source, so this only carries the intent forward.
+   */
+  protected readonly sourceMode = signal(false);
 
   /** Whether there is text to copy: the header's Copiar is off for a file that is not shown. */
   readonly hasText = computed(() => this.lines().length > 0);
@@ -191,6 +196,28 @@ export class FileView {
     effect(() => {
       if (this.selection() !== undefined) untracked(() => this.measure());
     });
+    // A jump to lines of this file (a Path link) scrolls them to the middle once the text is there; one past the end
+    // opens at the top. A Markdown file opened with a line keeps Fuente for this View.
+    effect(() => {
+      const request = this.selections.revealed();
+      const tab = this.tabId();
+      if (request === undefined || tab === undefined || request.tab !== tab || request.path !== this.path() || this.file().status !== 'text') return;
+      const count = this.lines().length;
+      untracked(() => {
+        this.selections.revealed.set(undefined);
+        if (request.source === true) this.sourceMode.set(true);
+        afterNextRender(() => this.scrollToLines(request.start, request.end, count), { injector: this.injector });
+      });
+    });
+  }
+
+  /** Scrolls lines `start` to `end` to the middle of the View; to the top when they are past the last line. */
+  private scrollToLines(start: number, end: number, count: number): void {
+    const scroller = this.scroller();
+    if (scroller === null) return;
+    const middle = ((start - 1 + Math.min(end, count)) / 2) * LINE_HEIGHT;
+    scroller.scrollTop = start > count ? 0 : Math.max(0, middle - scroller.clientHeight / 2);
+    this.measure();
   }
 
   private scroller(): HTMLElement | null {

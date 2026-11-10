@@ -445,6 +445,120 @@ describe('Files.openExternal', () => {
   });
 });
 
+describe('Files.resolvePathLink', () => {
+  const resolve = (cwd: string, candidate: string, folder: string | null = null) =>
+    Effect.flatMap(DesktopApi, (api) => api['Files.resolvePathLink']({ cwd, candidate, folder }));
+
+  it.effect('resolves a path of the Project, with its position as lines', () => {
+    const root = tempDir();
+    write(root, 'src/app/foo.ts');
+    return Effect.gen(function* () {
+      const answers = [];
+      for (const candidate of ['src/app/foo.ts', 'src\\app\\foo.ts', 'src/app/foo.ts:42', 'src/app/foo.ts:42:7', 'src/app/foo.ts:42-50', 'src/app/foo.ts(42,7)', 'src/app/foo.ts(42)', './src/app/foo.ts']) {
+        answers.push(yield* resolve(root, candidate));
+      }
+      expect(answers).toEqual([
+        { path: 'src/app/foo.ts', start: null, end: null },
+        { path: 'src/app/foo.ts', start: null, end: null },
+        { path: 'src/app/foo.ts', start: 42, end: 42 },
+        { path: 'src/app/foo.ts', start: 42, end: 42 },
+        { path: 'src/app/foo.ts', start: 42, end: 50 },
+        { path: 'src/app/foo.ts', start: 42, end: 42 },
+        { path: 'src/app/foo.ts', start: 42, end: 42 },
+        { path: 'src/app/foo.ts', start: null, end: null },
+      ]);
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect("drops a diff header's a/ or b/ only when that makes it resolve", () => {
+    const root = tempDir();
+    write(root, 'src/foo.ts');
+    write(root, 'a/real.ts');
+    return Effect.gen(function* () {
+      expect(yield* resolve(root, 'a/src/foo.ts')).toEqual({ path: 'src/foo.ts', start: null, end: null });
+      expect(yield* resolve(root, 'b/src/foo.ts:3')).toEqual({ path: 'src/foo.ts', start: 3, end: 3 });
+      expect(yield* resolve(root, 'b/src/foo.ts:10-20')).toEqual({ path: 'src/foo.ts', start: 10, end: 20 });
+      expect(yield* resolve(root, 'a/real.ts')).toEqual({ path: 'a/real.ts', start: null, end: null });
+      expect(yield* resolve(root, 'c/src/foo.ts')).toBeNull();
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('accepts a Windows backslash path with a position', () => {
+    const root = tempDir();
+    write(root, 'src/app/foo.ts');
+    return Effect.gen(function* () {
+      expect(yield* resolve(root, 'src\\app\\foo.ts:7')).toEqual({ path: 'src/app/foo.ts', start: 7, end: 7 });
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('resolves an absolute path inside the Project, never one outside it', () => {
+    const root = tempDir();
+    write(root, 'src/foo.ts');
+    const stranger = mkdtempSync(path.join(tmpdir(), 'timmy-files-stranger-'));
+    roots.push(stranger);
+    write(stranger, 'secret.ts');
+    return Effect.gen(function* () {
+      expect(yield* resolve(root, `${path.join(root, 'src', 'foo.ts')}:9`)).toEqual({ path: 'src/foo.ts', start: 9, end: 9 });
+      expect(yield* resolve(root, path.join(stranger, 'secret.ts'))).toBeNull();
+      expect(yield* resolve(root, `../${path.basename(stranger)}/secret.ts`)).toBeNull();
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('is never a folder, a name with spaces, a file:// address, a link that leaves the Project or a guess', () => {
+    const root = tempDir();
+    write(root, 'src/foo.ts');
+    write(root, 'my notes/a b.md');
+    const stranger = mkdtempSync(path.join(tmpdir(), 'timmy-files-stranger-'));
+    roots.push(stranger);
+    write(stranger, 'secret.ts');
+    symlinkSync(stranger, path.join(root, 'out'), 'junction');
+    return Effect.gen(function* () {
+      const answers = [];
+      for (const candidate of ['src', 'src/', 'my notes/a b.md', `file://${path.join(root, 'src', 'foo.ts')}`, 'out/secret.ts', 'foo.ts', 'app/foo.ts', 'src/foo', 'nope.ts']) {
+        answers.push(yield* resolve(root, candidate));
+      }
+      expect(answers).toEqual(answers.map(() => null));
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('opens what the agent shows even when git ignores it or it is binary', () => {
+    const root = tempDir();
+    git(root, 'init');
+    write(root, '.gitignore', 'node_modules/\n');
+    write(root, 'node_modules/pkg/index.js');
+    write(root, 'logo.png', '\u0000PNG');
+    return Effect.gen(function* () {
+      expect(yield* resolve(root, 'node_modules/pkg/index.js:12:5')).toEqual({ path: 'node_modules/pkg/index.js', start: 12, end: 12 });
+      expect(yield* resolve(root, 'logo.png')).toEqual({ path: 'logo.png', start: null, end: null });
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect("tries the Terminal's folder after the Project's, only while that folder is inside the Project", () => {
+    const root = tempDir();
+    write(root, 'packages/app/src/main.ts');
+    write(root, 'main.ts');
+    const stranger = mkdtempSync(path.join(tmpdir(), 'timmy-files-stranger-'));
+    roots.push(stranger);
+    write(stranger, 'src/main.ts');
+    const app = path.join(root, 'packages', 'app');
+    return Effect.gen(function* () {
+      expect(yield* resolve(root, 'src/main.ts', app)).toEqual({ path: 'packages/app/src/main.ts', start: null, end: null });
+      expect(yield* resolve(root, 'main.ts', app)).toEqual({ path: 'main.ts', start: null, end: null });
+      expect(yield* resolve(root, 'src/main.ts')).toBeNull();
+      expect(yield* resolve(root, 'src/main.ts', stranger)).toBeNull();
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('refuses a folder that is not a Project', () => {
+    const stranger = mkdtempSync(path.join(tmpdir(), 'timmy-files-stranger-'));
+    roots.push(stranger);
+    write(stranger, 'secret.ts');
+    return Effect.gen(function* () {
+      expect((yield* Effect.flip(resolve(stranger, 'secret.ts'))).reason).toBe('UnknownProject');
+    }).pipe(Effect.provide(makeLayer()));
+  });
+});
+
 describe('Files access', () => {
   it.effect('refuses a folder that is not a Project, whatever the call: the renderer does not choose what main reads', () => {
     const stranger = mkdtempSync(path.join(tmpdir(), 'timmy-files-stranger-'));

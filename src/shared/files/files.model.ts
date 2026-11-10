@@ -62,6 +62,17 @@ export const FileContent = Schema.Union([
 ]).annotate({ identifier: 'FileContent' });
 export type FileContent = typeof FileContent.Type;
 
+/**
+ * Where a Path link leads (GLOSSARY: Path link): a file of the Project, relative to it with `/`, and the lines its
+ * position names (`:42` and `(42,7)` are line 42, `:42-50` lines 42 to 50; a column is dropped). No position: both null.
+ */
+export const PathLinkTarget = Schema.Struct({
+  path: Schema.String,
+  start: Schema.NullOr(Schema.Int),
+  end: Schema.NullOr(Schema.Int),
+}).annotate({ identifier: 'PathLinkTarget' });
+export type PathLinkTarget = typeof PathLinkTarget.Type;
+
 /** Width of the Files browser the first time, in pixels. */
 export const DEFAULT_BROWSER_WIDTH = 360;
 

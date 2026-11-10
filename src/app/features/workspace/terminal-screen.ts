@@ -10,6 +10,7 @@ import { ToastService } from '../../core/toast';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { StateComponent } from '../../shared/ui/state/state';
 import type { TerminalEntry, TerminalId } from './terminal-entries';
+import { PathLinks, folderFromOsc7, type PathLinkHint, type PathLinkProvider } from './path-links';
 import { sampleOutput } from './terminal-sample';
 import { terminalTheme } from './terminal-theme';
 import { terminalStateKey, terminalTone } from './terminal-view';
@@ -67,6 +68,15 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
   private resizeObserver: ResizeObserver | undefined;
   private fitFrame = 0;
   private dataSubscription: { dispose: () => void } | undefined;
+  private oscSubscription: { dispose: () => void } | undefined;
+  private linkSubscription: { dispose: () => void } | undefined;
+  /** The folder the shell last reported (OSC 7); none until it does. */
+  private folder: string | undefined;
+  private readonly pathLinks = inject(PathLinks);
+  /** The hovered Path link's hint (GLOSSARY: Path link): what Ctrl (Cmd) + click opens, by the pointer. */
+  private readonly links = signal<PathLinkProvider | undefined>(undefined);
+  protected readonly linkHint = computed((): PathLinkHint | undefined => this.links()?.hint());
+  protected readonly openKey = /Mac|iPhone|iPad/.test(navigator.userAgent) ? 'Cmd' : 'Ctrl';
   private resizeSubscription: { dispose: () => void } | undefined;
   private readonly streamAbort = new AbortController();
   /** How the Switcher reads this screen's last lines, for the Terminal it was opened on. */
@@ -121,6 +131,14 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
     this.serializer = serializer;
     instance.open(this.host().nativeElement);
     this.xtermReady.set(true);
+    // The folder the shell says it is in (OSC 7), so a path it prints relative to it can still be a Path link.
+    this.oscSubscription = instance.parser.registerOscHandler(7, (data) => {
+      this.folder = folderFromOsc7(data);
+      return true;
+    });
+    const links = this.pathLinks.provider(instance, { terminal: entry.id, cwd: this.cwd(), folder: () => this.folder });
+    this.links.set(links);
+    this.linkSubscription = instance.registerLinkProvider(links);
     this.tail = { id: entry.id, read: () => bufferBottom(instance) };
     this.terminals.attachTail(this.tail.id, this.tail.read);
     fit.fit();
@@ -209,6 +227,8 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
     this.streamAbort.abort();
     this.dataSubscription?.dispose();
     this.resizeSubscription?.dispose();
+    this.oscSubscription?.dispose();
+    this.linkSubscription?.dispose();
     cancelAnimationFrame(this.fitFrame);
     this.resizeObserver?.disconnect();
     this.instance?.dispose();

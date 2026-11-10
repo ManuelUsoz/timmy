@@ -9,7 +9,8 @@ import {
   type ChangedFile,
   type ChangedFiles,
   type ChangeKind,
-  type FileContent, type FileList, type FolderEntry, type FolderListing } from '../../src/shared/files/files.model';
+  type FileContent, type FileList, type FolderEntry, type FolderListing, type PathLinkTarget } from '../../src/shared/files/files.model';
+import { parsePathLink } from '../../src/shared/files/path-link';
 
 /**
  * What the Files browser reads of a working directory. `list` is the flat index of what git sees (no disk walk);
@@ -24,6 +25,8 @@ export class ProjectFiles extends Context.Service<
     /** The absolute path of an existing file of `cwd`, confined to it as `read` is. */
     readonly locate: (cwd: string, file: string) => Effect.Effect<string, FilesError>;
     readonly changes: (cwd: string) => Effect.Effect<ChangedFiles, FilesError>;
+    /** The file of `cwd` a path printed in a Terminal names, or null (GLOSSARY: Path link). `folder` is the Terminal's. */
+    readonly resolveLink: (cwd: string, candidate: string, folder: string | null) => Effect.Effect<PathLinkTarget | null>;
   }
 >()('files/ProjectFiles') {}
 
@@ -256,6 +259,40 @@ const locateFile = Effect.fn('ProjectFiles.locate')(function* (cwd: string, file
   return target;
 });
 
+/**
+ * The Project file `written` names, read from `base` (an absolute folder): its path relative to the Project, or nothing.
+ * The disk is touched only through `locateFile`, the confinement every read uses.
+ */
+const fileFrom = (cwd: string, base: string, written: string): Effect.Effect<string | undefined> => {
+  const relative = path.relative(path.resolve(cwd), path.resolve(base, written));
+  return locateFile(cwd, relative).pipe(
+    Effect.as(relative.split(path.sep).join('/')),
+    Effect.orElseSucceed(() => undefined),
+  );
+};
+
+/**
+ * What a path printed in a Terminal opens (GLOSSARY: Path link): the Project's folder is tried first, then the Terminal's
+ * (`folder`) while it is inside the Project; a diff header's `a/` or `b/` is dropped only when the path as printed does not
+ * resolve. Nothing else is tried: no basename or suffix guesses.
+ */
+const resolveLink = Effect.fn('ProjectFiles.resolvePathLink')(function* (cwd: string, candidate: string, folder: string | null) {
+  const parsed = parsePathLink(candidate);
+  if (parsed === undefined) return null;
+  const unix = parsed.path.replace(/\\/g, '/');
+  const forms = (/^[ab]\//.test(unix) ? [unix, unix.slice(2)] : [unix]).map((form) => form.split('/').join(path.sep));
+  const root = path.resolve(cwd);
+  const folderInside = folder !== null && path.isAbsolute(folder) && isInside(yield* realPathOr(root), yield* realPathOr(path.resolve(folder)));
+  const bases = folderInside && path.resolve(folder) !== root ? [root, path.resolve(folder)] : [root];
+  for (const form of forms) {
+    for (const base of path.isAbsolute(form) ? [root] : bases) {
+      const found = yield* fileFrom(cwd, base, form);
+      if (found !== undefined) return { path: found, start: parsed.start, end: parsed.end } satisfies PathLinkTarget;
+    }
+  }
+  return null;
+});
+
 /** Applies the cap. */
 export const toFileList = (all: ReadonlyArray<string>, limit: number): FileList => ({ paths: all.slice(0, limit), truncated: all.length > limit });
 
@@ -271,4 +308,5 @@ export const layerProjectFiles = (limit: number = MAX_LISTED_PATHS) =>
     read: readFileContent,
     locate: locateFile,
     changes: readChanges,
+    resolveLink,
   });
