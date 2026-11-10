@@ -50,6 +50,19 @@ const makeLayer = (limit?: number) =>
     ),
   );
 
+/** A repository with one commit holding `files`, as an agent would find it. */
+const committed = (files: Record<string, string>) => {
+  const root = tempDir();
+  git(root, 'init');
+  git(root, 'config', 'user.email', 'timmy@example.com');
+  git(root, 'config', 'user.name', 'timmy');
+  git(root, 'config', 'core.autocrlf', 'false');
+  for (const [file, content] of Object.entries(files)) write(root, file, content);
+  git(root, 'add', '.');
+  git(root, 'commit', '-m', 'start');
+  return root;
+};
+
 afterAll(() => roots.forEach((root) => rmSync(root, { recursive: true, force: true })));
 
 describe('Files.listDir', () => {
@@ -295,18 +308,6 @@ describe('Files.list', () => {
 });
 
 describe('Files.changes', () => {
-  /** A repository with one commit holding `files`, as an agent would find it. */
-  const committed = (files: Record<string, string>) => {
-    const root = tempDir();
-    git(root, 'init');
-    git(root, 'config', 'user.email', 'timmy@example.com');
-    git(root, 'config', 'user.name', 'timmy');
-    git(root, 'config', 'core.autocrlf', 'false');
-    for (const [file, content] of Object.entries(files)) write(root, file, content);
-    git(root, 'add', '.');
-    git(root, 'commit', '-m', 'start');
-    return root;
-  };
   const changes = (cwd: string) => Effect.flatMap(DesktopApi, (api) => api['Files.changes']({ cwd }));
   const sorted = (entries: ReadonlyArray<{ readonly path: string }>) => [...entries].sort((a, b) => (a.path < b.path ? -1 : 1));
 
@@ -412,6 +413,134 @@ describe('Files.changes', () => {
   });
 });
 
+describe('Files.diff', () => {
+  const diff = (cwd: string, file: string) => Effect.flatMap(DesktopApi, (api) => api['Files.diff']({ cwd, file }));
+  const context = (text: string) => ({ kind: 'context', text });
+  const added = (text: string) => ({ kind: 'added', text });
+  const removed = (text: string) => ({ kind: 'removed', text });
+
+  it.effect('shows a modified file as unified hunks against the last commit', () => {
+    const root = committed({ 'src/a.ts': 'one\ntwo\nthree\n' });
+    write(root, 'src/a.ts', 'one\nTWO\nthree\nfour\n');
+    return Effect.gen(function* () {
+      expect(yield* diff(root, 'src/a.ts')).toEqual({
+        kind: 'changes',
+        hunks: [
+          {
+            oldStart: 1,
+            oldLines: 3,
+            newStart: 1,
+            newLines: 4,
+            lines: [context('one'), removed('two'), added('TWO'), context('three'), added('four')],
+          },
+        ],
+      });
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('shows an untracked file as all lines added, also inside a wholly untracked folder', () => {
+    const root = committed({ 'a.ts': 'a\n' });
+    write(root, 'notes.md', 'first\r\nsecond');
+    write(root, 'fresh/deep/x.ts', 'x\n');
+    return Effect.gen(function* () {
+      expect(yield* diff(root, 'notes.md')).toEqual({
+        kind: 'changes',
+        hunks: [{ oldStart: 0, oldLines: 0, newStart: 1, newLines: 2, lines: [added('first'), added('second')] }],
+      });
+      expect(yield* diff(root, 'fresh/deep/x.ts')).toEqual({
+        kind: 'changes',
+        hunks: [{ oldStart: 0, oldLines: 0, newStart: 1, newLines: 1, lines: [added('x')] }],
+      });
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('shows a deleted file as all lines removed, staged or not', () => {
+    const root = committed({ 'gone.ts': 'a\nb\n', 'staged-gone.ts': 'c\n' });
+    rmSync(path.join(root, 'gone.ts'));
+    git(root, 'rm', '-q', 'staged-gone.ts');
+    return Effect.gen(function* () {
+      expect(yield* diff(root, 'gone.ts')).toEqual({
+        kind: 'changes',
+        hunks: [{ oldStart: 1, oldLines: 2, newStart: 0, newLines: 0, lines: [removed('a'), removed('b')] }],
+      });
+      expect(yield* diff(root, 'staged-gone.ts')).toEqual({
+        kind: 'changes',
+        hunks: [{ oldStart: 1, oldLines: 1, newStart: 0, newLines: 0, lines: [removed('c')] }],
+      });
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('includes a change that is only staged, and a staged new file, against the last commit', () => {
+    const root = committed({ 'a.ts': 'old\n' });
+    write(root, 'a.ts', 'new\n');
+    write(root, 'b.ts', 'added\n');
+    git(root, 'add', '.');
+    return Effect.gen(function* () {
+      expect(yield* diff(root, 'a.ts')).toEqual({
+        kind: 'changes',
+        hunks: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: [removed('old'), added('new')] }],
+      });
+      expect(yield* diff(root, 'b.ts')).toEqual({
+        kind: 'changes',
+        hunks: [{ oldStart: 0, oldLines: 0, newStart: 1, newLines: 1, lines: [added('added')] }],
+      });
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('says binary for a changed binary file, tracked or not, with no lines', () => {
+    const root = committed({ 'logo.png': 'PNG\0one' });
+    write(root, 'logo.png', 'PNG\0two');
+    write(root, 'new.bin', 'BIN\0new');
+    return Effect.gen(function* () {
+      expect(yield* diff(root, 'logo.png')).toEqual({ kind: 'binary' });
+      expect(yield* diff(root, 'new.bin')).toEqual({ kind: 'binary' });
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('says unchanged for a file with no changes, and for one git ignores', () => {
+    const root = committed({ '.gitignore': 'dist/\n', 'a.ts': 'a\n' });
+    write(root, 'dist/out.js', 'built\n');
+    return Effect.gen(function* () {
+      expect(yield* diff(root, 'a.ts')).toEqual({ kind: 'unchanged' });
+      expect(yield* diff(root, 'dist/out.js')).toEqual({ kind: 'unchanged' });
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('reports the size only for a changed file over 1 MB', () => {
+    const root = committed({ 'big.log': 'small\n' });
+    write(root, 'big.log', 'x'.repeat(MAX_PREVIEW_BYTES + 1));
+    return Effect.gen(function* () {
+      expect(yield* diff(root, 'big.log')).toEqual({ kind: 'tooLarge', size: MAX_PREVIEW_BYTES + 1 });
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('reads a name with pattern characters literally', () => {
+    const root = committed({ 'a[b].ts': 'bracket\n', 'ab.ts': 'b\n' });
+    write(root, 'ab.ts', 'changed\n');
+    return Effect.gen(function* () {
+      // As a pattern, `a[b].ts` would match the changed `ab.ts`.
+      expect(yield* diff(root, 'a[b].ts')).toEqual({ kind: 'unchanged' });
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('fails with NotAGitRepository for a folder that is not a repository', () => {
+    const root = tempDir();
+    write(root, 'a.ts');
+    return Effect.gen(function* () {
+      const error = yield* Effect.flip(diff(root, 'a.ts'));
+      expect(error.reason).toBe('NotAGitRepository');
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('refuses a file outside the Project', () => {
+    const root = committed({ 'a.ts': 'a\n' });
+    return Effect.gen(function* () {
+      const error = yield* Effect.flip(diff(root, '../elsewhere.ts'));
+      expect(error.reason).toBe('OutsideProject');
+    }).pipe(Effect.provide(makeLayer()));
+  });
+});
+
 describe('Files access', () => {
   it.effect('refuses a folder that is not a Project, whatever the call: the renderer does not choose what main reads', () => {
     const stranger = mkdtempSync(path.join(tmpdir(), 'timmy-files-stranger-'));
@@ -425,8 +554,9 @@ describe('Files access', () => {
         yield* Effect.flip(api['Files.read']({ cwd: stranger, file: 'secret.txt' })),
         yield* Effect.flip(api['Files.read']({ cwd: path.parse(stranger).root, file: path.relative(path.parse(stranger).root, path.join(stranger, 'secret.txt')) })),
         yield* Effect.flip(api['Files.changes']({ cwd: stranger })),
+        yield* Effect.flip(api['Files.diff']({ cwd: stranger, file: 'secret.txt' })),
       ];
-      expect(errors.map((error) => error.reason)).toEqual(['UnknownProject', 'UnknownProject', 'UnknownProject', 'UnknownProject', 'UnknownProject']);
+      expect(errors.map((error) => error.reason)).toEqual(['UnknownProject', 'UnknownProject', 'UnknownProject', 'UnknownProject', 'UnknownProject', 'UnknownProject']);
     }).pipe(Effect.provide(makeLayer()));
   });
 });

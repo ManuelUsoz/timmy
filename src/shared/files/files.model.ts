@@ -62,6 +62,39 @@ export const FileContent = Schema.Union([
 ]).annotate({ identifier: 'FileContent' });
 export type FileContent = typeof FileContent.Type;
 
+/** One line of a hunk: kept as it was (`context`), only in the file now (`added`), or only in the last commit (`removed`). */
+export const DiffLine = Schema.Struct({
+  kind: Schema.Literals(['context', 'added', 'removed']),
+  text: Schema.String,
+}).annotate({ identifier: 'DiffLine' });
+export type DiffLine = typeof DiffLine.Type;
+
+/**
+ * One hunk of a unified diff. `oldStart`/`oldLines` place it in the last commit, `newStart`/`newLines` in the file now
+ * (1-based; a start of 0 with 0 lines is a side that does not exist, as a new or a deleted file has).
+ */
+export const DiffHunk = Schema.Struct({
+  oldStart: Schema.Int,
+  oldLines: Schema.Int,
+  newStart: Schema.Int,
+  newLines: Schema.Int,
+  lines: Schema.Array(DiffLine),
+}).annotate({ identifier: 'DiffHunk' });
+export type DiffHunk = typeof DiffHunk.Type;
+
+/**
+ * A file's change against the last commit (Cambios), unified: `changes` with its hunks; `unchanged` for a file git has
+ * nothing to say about; `binary` when there are no lines to show; `tooLarge` (bytes of the file now) when it is over
+ * `MAX_PREVIEW_BYTES`. An untracked file is all lines added; a deleted one all lines removed.
+ */
+export const FileDiff = Schema.Union([
+  Schema.Struct({ kind: Schema.Literal('changes'), hunks: Schema.Array(DiffHunk) }),
+  Schema.Struct({ kind: Schema.Literal('unchanged') }),
+  Schema.Struct({ kind: Schema.Literal('binary') }),
+  Schema.Struct({ kind: Schema.Literal('tooLarge'), size: Schema.Number }),
+]).annotate({ identifier: 'FileDiff' });
+export type FileDiff = typeof FileDiff.Type;
+
 /** Width of the Files browser the first time, in pixels. */
 export const DEFAULT_BROWSER_WIDTH = 360;
 

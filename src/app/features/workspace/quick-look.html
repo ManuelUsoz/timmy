@@ -8,6 +8,12 @@
       <span class="dir">{{ dir() }}</span>
     }
     <span class="grow"></span>
+    <div class="mode" role="group" [attr.aria-label]="i18n.t('quickLook.mode')">
+      <button type="button" data-mode="file" [attr.aria-pressed]="mode() === 'file'" (click)="show('file')">{{ i18n.t('quickLook.file') }}</button>
+      <button type="button" data-mode="changes" [attr.aria-pressed]="mode() === 'changes'" [disabled]="!canDiff()" (click)="show('changes')">
+        {{ changesLabel() }}
+      </button>
+    </div>
     <span class="counter" aria-live="polite">{{ counter() }}</span>
     <button type="button" class="close" [attr.aria-label]="i18n.t('quickLook.close')" (click)="state.close()">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
@@ -15,11 +21,16 @@
   </header>
 
   @if (model) {
-    <app-file-view class="body" [cwd]="model.cwd" [path]="path()" />
+    @if (mode() === 'changes') {
+      <app-file-diff class="body" [name]="name()" [diff]="diff()" />
+    } @else {
+      <app-file-view class="body" [cwd]="model.cwd" [path]="path()" />
+    }
   }
 
   <div class="hints" aria-hidden="true">
     <span><kbd>↑</kbd><kbd>↓</kbd> {{ i18n.t('quickLook.walk') }}</span>
+    <span><kbd>←</kbd><kbd>→</kbd> {{ i18n.t('quickLook.switch') }}</span>
     <span><kbd>Enter</kbd> {{ i18n.t('quickLook.open') }}</span>
     <span class="grow"></span>
     <span><kbd>Esc</kbd> {{ i18n.t('quickLook.dismiss') }}</span>

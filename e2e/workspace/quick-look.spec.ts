@@ -130,4 +130,67 @@ test.describe('The Quick look', () => {
       await expect(look()).toHaveCount(0);
     });
   });
+
+  test('Left and Right switch between the file and its changes against the last commit', async ({ timmy }) => {
+    const write = (file: string, content: string) => {
+      mkdirSync(path.dirname(path.join(timmy.projectDir, file)), { recursive: true });
+      writeFileSync(path.join(timmy.projectDir, file), content);
+    };
+    write('README.md', '# demo-project\n\nA project to browse.\n');
+    write('src/main.ts', "export const answer = 42;\nexport const twice = (n: number) => n * 2;\nexport const name = 'timmy';\n");
+    write('src/util.ts', 'export const half = (n: number) => n / 2;\n');
+    commitAll(timmy.projectDir);
+    // What an agent left behind: one line changed and one added.
+    write('src/main.ts', "export const answer = 42;\nexport const twice = (n: number) => n * 3;\nexport const name = 'timmy';\nexport const ready = true;\n");
+
+    const page = timmy.page;
+    const sidebar = page.getByRole('complementary', { name: 'Files' });
+    const row = (name: string) => sidebar.getByRole('treeitem', { name, exact: true });
+    const look = page.getByRole('dialog', { name: /^Quick look of / });
+    const archivo = look.locator('.mode button[data-mode=file]');
+    const cambios = look.locator('.mode button[data-mode=changes]');
+    const diff = look.getByRole('region', { name: /^Changes of / });
+
+    await timmy.addDemoProject();
+    await page.keyboard.press('Control+p');
+    await expect(sidebar).toBeVisible();
+    await row('src').click();
+    await row('main.ts').focus();
+    await page.keyboard.press('Space');
+    await expect(look.locator('.name')).toHaveText('main.ts');
+    await expect(archivo).toHaveAttribute('aria-pressed', 'true');
+    await expect(cambios).toBeEnabled();
+    await expect(cambios).toHaveText('Changes');
+
+    await test.step('Right shows the changes, unified, each changed line with its sign', async () => {
+      await page.keyboard.press('ArrowRight');
+      await expect(cambios).toHaveAttribute('aria-pressed', 'true');
+      await expect(diff).toBeVisible();
+      await expect(diff.locator('.row[data-kind=removed] .text')).toHaveText(['export const twice = (n: number) => n * 2;']);
+      await expect(diff.locator('.row[data-kind=added] .text')).toHaveText(['export const twice = (n: number) => n * 3;', 'export const ready = true;']);
+      await expect(diff.locator('.row[data-kind=added] .sign')).toHaveText(['+', '+']);
+      await timmy.shot('quick-look-changes');
+    });
+
+    await test.step('walking onto a file with no changes falls back to the file, with Cambios disabled in its place', async () => {
+      await page.keyboard.press('ArrowDown');
+      await expect(look.locator('.name')).toHaveText('util.ts');
+      await expect(archivo).toHaveAttribute('aria-pressed', 'true');
+      await expect(cambios).toBeDisabled();
+      await expect(cambios).toHaveText('No changes');
+      await expect(look.locator('.source')).toContainText('export const half');
+      await page.keyboard.press('ArrowRight');
+      await expect(archivo).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    await test.step('Left goes back to the file', async () => {
+      await page.keyboard.press('ArrowUp');
+      await expect(cambios).toBeEnabled();
+      await page.keyboard.press('ArrowRight');
+      await expect(diff).toBeVisible();
+      await page.keyboard.press('ArrowLeft');
+      await expect(archivo).toHaveAttribute('aria-pressed', 'true');
+      await expect(look.locator('.source')).toContainText('export const ready = true;');
+    });
+  });
 });

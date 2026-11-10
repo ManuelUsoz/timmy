@@ -84,6 +84,50 @@ svg {
   flex: 1;
 }
 
+/* Archivo/Cambios. Both halves keep their width whatever Cambios says, so the header never shifts while walking. */
+.mode {
+  flex: none;
+  display: inline-flex;
+  border: 1px solid var(--border-subtle);
+}
+
+.mode button {
+  min-width: 96px;
+  height: 24px;
+  border: 0;
+  padding: 0 var(--spacing-03);
+  background: none;
+  color: var(--text-secondary);
+  font: var(--text-body-compact-01);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mode button + button {
+  border-left: 1px solid var(--border-subtle);
+}
+
+.mode button[aria-pressed='true'] {
+  background: var(--layer-selected);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.mode button:hover:not([disabled], [aria-pressed='true']) {
+  background: var(--layer-hover);
+  color: var(--text-primary);
+}
+
+.mode button[disabled] {
+  color: var(--text-disabled);
+  cursor: default;
+}
+
+.mode button:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
 .counter {
   flex: none;
   color: var(--text-helper);
