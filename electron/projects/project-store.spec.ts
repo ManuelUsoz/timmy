@@ -91,6 +91,22 @@ describe('ProjectStore', () => {
         }),
       ));
 
+    it.effect('gives back a pinned File View in its place in the layout, as the path of its file in the Project', () =>
+      withStore((store) =>
+        Effect.gen(function* () {
+          const { projectId } = yield* store.add(at('app'));
+          const shell = view(TerminalId.make('a'));
+          const file = { kind: 'file' as const, path: 'src/main.ts' };
+          const saved: SavedTab = {
+            tabId: TabId.make('t1'),
+            terminals: [term('a', 1)],
+            layout: { root: { kind: 'pane', pane: { id: PaneId.make('a'), views: [shell, file], expanded: file } }, focused: PaneId.make('a') },
+          };
+          yield* store.saveLayout(projectId, [saved], 1);
+          expect(yield* store.layouts).toEqual([{ projectId, tabs: [saved], lastNumber: 1 }]);
+        }),
+      ));
+
     it.effect('replaces what was saved: a Tab, Pane or Terminal that is gone leaves the store', () =>
       withStore((store) =>
         Effect.gen(function* () {

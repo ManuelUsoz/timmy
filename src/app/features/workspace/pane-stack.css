@@ -184,10 +184,10 @@
   content: '/';
 }
 
-/* The file name stays whole; the Preview mark gives way before it does. */
+/* The file name gives way last, after the folders, and keeps a few characters; the Pane controls never do. */
 .view-header.act .path .name {
-  flex: none;
-  min-width: auto;
+  flex: 0 1 auto;
+  min-width: 6ch;
 }
 
 .view-header.act[data-kind='file'] .tag {

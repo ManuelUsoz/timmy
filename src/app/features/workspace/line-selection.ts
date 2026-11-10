@@ -36,18 +36,16 @@ export const lineRange = (selection: LineSelection): string => (selection.start 
 /** What Copiar ruta copies: the path in the Project with `/`, plus `:n` or `:start-end` with a Line selection. */
 export const pathWithLines = (path: string, selection: LineSelection | undefined): string => (selection === undefined ? path : `${path}:${lineRange(selection)}`);
 
-/** The lines of a text; a final newline does not start another line. */
-export const linesOf = (content: string): ReadonlyArray<string> => {
-  if (content === '') return [];
-  const lines = content.split('\n');
-  return lines.at(-1) === '' ? lines.slice(0, -1) : lines;
-};
-
-/** What Copiar copies: the selected lines exactly as they are in the file, without the newline that ends the last one. */
+/**
+ * What Copiar copies: the selected lines exactly as they are in the file, their line endings (`\r\n` too) between them,
+ * without the one that ends the last line.
+ */
 export const selectedText = (content: string, selection: LineSelection): string =>
-  linesOf(content)
+  content
+    .split('\n')
     .slice(selection.start - 1, selection.end)
-    .join('\n');
+    .join('\n')
+    .replace(/\r$/, '');
 
 /**
  * The Line selection of every open File View, by Tab and file. It lives outside the View so it survives the View leaving

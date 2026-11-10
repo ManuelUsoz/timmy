@@ -11,24 +11,25 @@
 >
   @switch (state.status) {
     @case ('text') {
-      @if (gutter() === '') {
+      @if (lines().length === 0) {
         <p class="note">{{ i18n.t('files.emptyFile') }}</p>
       } @else {
-        <div class="code">
-          <pre class="gutter" aria-hidden="true" (mousedown)="pressLine($event)">{{ gutter() }}</pre>
-          <pre class="source">{{ state.content }}</pre>
-          <!-- The Line selection: one layer over the text, placed by line height, apart from how the lines are drawn. -->
-          @if (marks(); as lines) {
+        <div class="code" [class.selectable]="tabId() !== undefined" [style.--columns]="columns()" [style.--digits]="digits()" (mousedown)="pressLine($event)">
+          @for (row of rows(); track $index) {
+            <div class="line" [attr.data-line]="$index + 1"><span class="number" aria-hidden="true">{{ $index + 1 }}</span><span class="text">@for (run of row; track $index) {<span [class]="run.token === '' ? '' : 'tok-' + run.token">{{ run.text }}</span>}</span></div>
+          }
+          <!-- The Line selection: one layer over the lines, placed by line height, apart from how the lines are drawn. -->
+          @if (marks(); as marked) {
             <div class="marks">
-              <div class="selected" [style.top.px]="lines.top" [style.height.px]="lines.height"><span class="bar"></span></div>
+              <div class="selected" [style.top.px]="marked.top" [style.height.px]="marked.height"><span class="bar"></span></div>
               <div
                 class="line-actions"
                 role="toolbar"
-                [class.above]="lines.above"
-                [style.margin-top.px]="lines.popoverTop"
-                [attr.aria-label]="i18n.t('fileView.lineActions', { lines: lines.range })"
+                [class.above]="marked.above"
+                [style.margin-top.px]="marked.popoverTop"
+                [attr.aria-label]="i18n.t('fileView.lineActions', { lines: marked.range })"
               >
-                <span class="range">{{ lines.range }}</span>
+                <span class="range">{{ marked.range }}</span>
                 <button type="button" class="line-action" (click)="copy()">{{ i18n.t('fileView.copy') }}</button>
                 <button type="button" class="line-action" (click)="copyPath()">{{ i18n.t('fileView.copyPath') }}</button>
               </div>
@@ -57,3 +58,10 @@
     }
   }
 </div>
+@if (state.status === 'text') {
+  <div class="status">
+    @for (part of status(); track $index) {
+      <span>{{ part }}</span>
+    }
+  </div>
+}

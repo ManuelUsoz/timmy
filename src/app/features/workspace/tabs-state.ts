@@ -41,19 +41,29 @@ export class TabsState {
   );
 
   /**
-   * Brings back what a previous run saved: its Terminals (Idle, not started), the names and the layouts. A Tab already
-   * here, opened before the saved ones arrived, is kept as it is.
+   * Brings back what a previous run saved: its Terminals (Idle, not started), the names and the layouts, with their
+   * pinned File Views. A Tab already here, opened before the saved ones arrived, is kept as it is.
    */
   restore(saved: ReadonlyArray<ProjectLayout>): void {
     const restored = restoredFrom(saved);
     this.terminals.restore(restored.entries, restored.lastNumbers);
     this.names.update((names) => new Map([...restored.names, ...names]));
+    // Every File View of a saved layout is a pinned one (ADR 0013); they come back with the layout that places them.
+    const kept = this.layouts();
+    const pinned = [...restored.pinned]
+      .filter(([id]) => !kept.has(id))
+      .map(([id, paths]) => [id, paths.map((path): OpenFile => ({ path, pinned: true }))] as const);
+    this.files.update((files) => new Map([...pinned, ...files]));
     this.layouts.update((layouts) => new Map([...restored.layouts, ...layouts]));
   }
 
   /** The Project's Tabs as they are saved: what a restart brings back. */
   savedTabs(projectId: ProjectId): ReadonlyArray<SavedTab> {
-    return savedTabsOf(this.tabsOf(projectId), (tab) => this.layoutOf(tab));
+    return savedTabsOf(
+      this.tabsOf(projectId),
+      (tab) => this.layoutOf(tab),
+      (tab) => this.filesOf(tab).flatMap((open) => (open.pinned ? [open.path] : [])),
+    );
   }
 
   tabsOf(projectId: ProjectId): ReadonlyArray<Tab> {

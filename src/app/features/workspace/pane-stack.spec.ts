@@ -399,7 +399,7 @@ describe('A File View in a Pane', () => {
     expect(header.querySelector('.pin')?.getAttribute('aria-pressed')).toBe('false');
     expect(header.querySelector('ui-state')).toBeNull();
     expect(header.querySelector('.number')).toBeNull();
-    expect(panes()[1].querySelector('app-file-view .source')?.textContent).toBe('# timmy\n');
+    expect(panes()[1].querySelector('app-file-view .line .text')?.textContent).toBe('# timmy');
     expect(panes()[1].querySelector('app-terminal-screen')).toBeNull();
   });
 
@@ -492,7 +492,7 @@ describe('A File View in a Pane', () => {
     await settle();
     const reopened = panes().flatMap((pane) => Array.from(pane.querySelectorAll('app-file-view')));
     expect(reopened).toHaveLength(1);
-    expect(reopened[0].querySelector('.source')).not.toBeNull();
+    expect(reopened[0].querySelector('.line')).not.toBeNull();
     expect(reopened[0].querySelector('.selected')).toBeNull();
   });
 
