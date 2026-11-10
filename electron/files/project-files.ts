@@ -3,7 +3,13 @@ import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { Context, Effect, Layer } from 'effect';
 import { FilesError } from '../../src/shared/files/files-error.model';
-import { MAX_LISTED_PATHS, MAX_PREVIEW_BYTES, type FileContent, type FileList, type FolderEntry, type FolderListing } from '../../src/shared/files/files.model';
+import {
+  MAX_LISTED_PATHS,
+  MAX_PREVIEW_BYTES,
+  type ChangedFile,
+  type ChangedFiles,
+  type ChangeKind,
+  type FileContent, type FileList, type FolderEntry, type FolderListing } from '../../src/shared/files/files.model';
 
 /**
  * What the Files browser reads of a working directory. `list` is the flat index of what git sees (no disk walk);
@@ -15,10 +21,11 @@ export class ProjectFiles extends Context.Service<
     readonly list: (cwd: string) => Effect.Effect<FileList, FilesError>;
     readonly listDir: (cwd: string, dir: string) => Effect.Effect<FolderListing, FilesError>;
     readonly read: (cwd: string, file: string) => Effect.Effect<FileContent, FilesError>;
+    readonly changes: (cwd: string) => Effect.Effect<ChangedFiles, FilesError>;
   }
 >()('files/ProjectFiles') {}
 
-const gitFailure = (error: unknown, stderr: string): FilesError => {
+const gitFailure = (error: unknown, stderr: string, command: string): FilesError => {
   const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
   if (code === 'ENOENT') {
     return new FilesError({ reason: 'GitUnavailable', detail: 'git is not installed, or it is not on the PATH' });
@@ -26,7 +33,7 @@ const gitFailure = (error: unknown, stderr: string): FilesError => {
   const text = stderr.trim();
   return /not a git repository/i.test(text)
     ? new FilesError({ reason: 'NotAGitRepository', detail: text })
-    : new FilesError({ reason: 'GitFailed', detail: text === '' ? 'git ls-files failed' : text });
+    : new FilesError({ reason: 'GitFailed', detail: text === '' ? `git ${command} failed` : text });
 };
 
 const isDirectory = (target: string): Effect.Effect<boolean> =>
@@ -35,17 +42,87 @@ const isDirectory = (target: string): Effect.Effect<boolean> =>
     Effect.orElseSucceed(() => false),
   );
 
-const runLsFiles = (cwd: string): Effect.Effect<string, FilesError> =>
+/**
+ * Runs git in `cwd` and answers its output. Always without optional locks: a read must never write the user's index, nor
+ * hold a lock another git command of theirs could trip on.
+ */
+const runGit = (cwd: string, args: ReadonlyArray<string>): Effect.Effect<string, FilesError> =>
   Effect.callback<string, FilesError>((resume) => {
-    execFile(
-      'git',
-      ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--deduplicate'],
-      { cwd, windowsHide: true, maxBuffer: 256 * 1024 * 1024 },
-      (error, stdout, stderr) => {
-        resume(error === null ? Effect.succeed(stdout) : Effect.fail(gitFailure(error, stderr)));
-      },
-    );
+    execFile('git', ['--no-optional-locks', ...args], { cwd, windowsHide: true, maxBuffer: 256 * 1024 * 1024 }, (error, stdout, stderr) => {
+      resume(error === null ? Effect.succeed(stdout) : Effect.fail(gitFailure(error, stderr, args[0] ?? '')));
+    });
   });
+
+const splitNul = (output: string): ReadonlyArray<string> => output.split('\0').filter((entry) => entry !== '');
+
+/** What `status --porcelain=v2` puts before the path, per kind of record: ordinary, rename or copy, unmerged. */
+const FIELDS_BEFORE_PATH: Readonly<Record<string, number>> = { '1': 8, '2': 9, u: 10 };
+
+/** The kind of a tracked entry from its staged and unstaged letters. Not on disk is deleted, whatever was staged. */
+const kindOf = (record: string, xy: string): ChangeKind => {
+  if (xy.includes('D')) return 'deleted';
+  if (record === '2') return xy[0] === 'C' ? 'added' : 'renamed';
+  if (xy[0] === 'A') return 'added';
+  return 'modified';
+};
+
+/**
+ * Reads `git status --porcelain=v2 -z` output. Paths in it are relative to the repository root; `prefix` (the Project's
+ * place in the repository, ending in `/`, or '') is cut off, so they are relative to the Project. A rename carries its old
+ * path as one more field, which is skipped: git's own view puts the rename at its new path.
+ */
+export const parseStatus = (output: string, prefix: string): ReadonlyArray<ChangedFile> => {
+  const fields = output.split('\0');
+  const entries: ChangedFile[] = [];
+  for (let at = 0; at < fields.length; at++) {
+    const line = fields[at]!;
+    const record = line.slice(0, 1);
+    let raw: string;
+    let kind: ChangeKind;
+    let submodule = false;
+    if (record === '?') {
+      raw = line.slice(2);
+      kind = 'untracked';
+    } else if (record in FIELDS_BEFORE_PATH) {
+      const parts = line.split(' ');
+      const count = FIELDS_BEFORE_PATH[record]!;
+      raw = parts.slice(count).join(' ');
+      kind = kindOf(record, parts[1] ?? '');
+      submodule = (parts[2] ?? '').startsWith('S');
+      if (record === '2') at++;
+    } else {
+      // Headers, ignored entries and the empty field after the last NUL.
+      continue;
+    }
+    const folder = submodule || raw.endsWith('/');
+    const fromRoot = raw.replace(/\/$/, '');
+    if (!fromRoot.startsWith(prefix) || fromRoot.length <= prefix.length) continue;
+    entries.push({ path: fromRoot.slice(prefix.length), kind, folder });
+  }
+  return entries;
+};
+
+/** The Project's Changed files: one `status` scoped to its folder, in the default untracked mode (never `-uall`). */
+const readChanges = Effect.fn('ProjectFiles.changes')(function* (cwd: string) {
+  if (!(yield* isDirectory(cwd))) return yield* new FilesError({ reason: 'FolderNotFound', detail: `${cwd} is not a folder` });
+  const prefix = (yield* runGit(cwd, ['rev-parse', '--show-prefix'])).trim();
+  const output = yield* runGit(cwd, ['status', '--porcelain=v2', '-z', '--', '.']);
+  return { entries: parseStatus(output, prefix) } satisfies ChangedFiles;
+});
+
+/**
+ * The files the filter searches: what the index tracks, plus what is untracked and not ignored, read from `status` rather
+ * than walking the whole tree for untracked files. Only a wholly untracked folder is walked, and only that folder.
+ */
+const listFiles = Effect.fnUntraced(function* (cwd: string) {
+  const tracked = splitNul(yield* runGit(cwd, ['ls-files', '-z', '--cached', '--deduplicate']));
+  const { entries } = yield* readChanges(cwd);
+  const untracked = entries.filter((entry) => entry.kind === 'untracked');
+  const folders = untracked.filter((entry) => entry.folder).map((entry) => `${entry.path}/`);
+  const inFolders =
+    folders.length === 0 ? [] : splitNul(yield* runGit(cwd, ['ls-files', '-z', '--others', '--exclude-standard', '--', ...folders]));
+  return [...tracked, ...untracked.filter((entry) => !entry.folder).map((entry) => entry.path), ...inFolders];
+});
 
 /**
  * Which of `candidates` git ignores. Folders end in `/` so patterns like `node_modules/` match them. Outside a repository,
@@ -171,11 +248,8 @@ const readFileContent = Effect.fn('ProjectFiles.read')(function* (cwd: string, f
   return toFileContent(bytes);
 });
 
-/** Splits git's NUL-separated output and applies the cap. */
-export const toFileList = (output: string, limit: number): FileList => {
-  const all = output.split('\0').filter((entry) => entry !== '');
-  return { paths: all.slice(0, limit), truncated: all.length > limit };
-};
+/** Applies the cap. */
+export const toFileList = (all: ReadonlyArray<string>, limit: number): FileList => ({ paths: all.slice(0, limit), truncated: all.length > limit });
 
 export const layerProjectFiles = (limit: number = MAX_LISTED_PATHS) =>
   Layer.succeed(ProjectFiles, {
@@ -183,8 +257,9 @@ export const layerProjectFiles = (limit: number = MAX_LISTED_PATHS) =>
       if (!(yield* isDirectory(cwd))) {
         return yield* new FilesError({ reason: 'FolderNotFound', detail: `${cwd} is not a folder` });
       }
-      return toFileList(yield* runLsFiles(cwd), limit);
+      return toFileList(yield* listFiles(cwd), limit);
     }),
     listDir: readFolder,
     read: readFileContent,
+    changes: readChanges,
   });

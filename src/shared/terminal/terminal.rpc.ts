@@ -2,7 +2,7 @@ import { Schema } from 'effect';
 import { Rpc, RpcGroup } from 'effect/rpc';
 import { Provider } from '../settings/settings.model';
 import { TerminalError } from './terminal-error.model';
-import { TerminalActivityEntry, TerminalEvent, TerminalId } from './terminal.model';
+import { TerminalActivityEntry, TerminalEvent, TerminalHookReport, TerminalId } from './terminal.model';
 
 export const TerminalRpcs = RpcGroup.make(
   Rpc.make('Terminal.create', {
@@ -23,6 +23,11 @@ export const TerminalRpcs = RpcGroup.make(
   Rpc.make('Terminal.activity', {
     /** What every Terminal is doing, read from its output: the current activity of all of them, then again at each change. */
     success: Schema.Array(TerminalActivityEntry),
+    stream: true,
+  }),
+  Rpc.make('Terminal.hookReports', {
+    /** Every report a Provider's Hook makes about a live Terminal, from now on, one by one: not a status, which changes once. */
+    success: TerminalHookReport,
     stream: true,
   }),
   Rpc.make('Terminal.focus', {

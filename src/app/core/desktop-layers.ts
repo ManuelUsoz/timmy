@@ -56,17 +56,21 @@ export const layerWindowUnused = WindowRpcs.toLayer({
 
 const terminalUnused = () => Effect.die('Terminal handler not under test');
 
-/** Terminal handlers that die when called, so a test of another domain can still build `DesktopRpcs`. */
-export const layerTerminalUnused = TerminalRpcs.toLayer({
+/** Terminal handlers that die when called, so a test of another domain can still build `DesktopRpcs`; spread it to replace a few. */
+export const terminalUnusedHandlers = {
   'Terminal.create': terminalUnused,
   'Terminal.output': terminalUnused,
   'Terminal.activity': terminalUnused,
+  // The Files browser listens from the start: nobody's Hook reports anything.
+  'Terminal.hookReports': () => Stream.empty,
   'Terminal.focus': terminalUnused,
   'Terminal.show': terminalUnused,
   'Terminal.write': terminalUnused,
   'Terminal.resize': terminalUnused,
   'Terminal.close': terminalUnused,
-});
+} satisfies Parameters<typeof TerminalRpcs.toLayer>[0];
+
+export const layerTerminalUnused = TerminalRpcs.toLayer(terminalUnusedHandlers);
 
 /** Notification handlers that die when called, so a test of another domain can still build `DesktopRpcs`. */
 export const layerNotificationUnused = NotificationRpcs.toLayer({
@@ -102,6 +106,7 @@ export const layerFilesUnused = FilesRpcs.toLayer({
   'Files.list': () => Effect.die('Files handler not under test'),
   'Files.listDir': () => Effect.die('Files handler not under test'),
   'Files.read': () => Effect.die('Files handler not under test'),
+  'Files.changes': () => Effect.die('Files handler not under test'),
   'Files.getState': () => Effect.die('Files handler not under test'),
   'Files.saveState': () => Effect.die('Files handler not under test'),
   'Files.saveWidth': () => Effect.die('Files handler not under test'),

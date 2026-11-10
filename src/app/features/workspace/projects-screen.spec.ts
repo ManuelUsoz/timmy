@@ -286,6 +286,7 @@ describe('Projects screen', () => {
               'Terminal.close': () => Effect.void,
               'Terminal.output': () => Stream.empty,
               'Terminal.activity': () => Stream.empty,
+              'Terminal.hookReports': () => Stream.empty,
               'Terminal.focus': () => Effect.void,
               'Terminal.write': () => Effect.void,
               'Terminal.resize': () => Effect.void,

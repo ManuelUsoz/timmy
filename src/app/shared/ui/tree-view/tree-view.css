@@ -117,6 +117,25 @@
   font: 400 12px/16px var(--font-mono);
   color: var(--support-warning);
 }
+.as-treeitem__flag[data-tone='success'] {
+  color: var(--support-success);
+}
+.as-treeitem__flag[data-tone='info'] {
+  color: var(--support-info);
+}
+.as-treeitem__flag[data-tone='error'] {
+  color: var(--support-error);
+}
+.as-treeitem__flag[data-tone='merged'] {
+  color: var(--support-merged);
+}
+.as-treeitem__flag[data-tone='muted'] {
+  color: var(--text-secondary);
+}
+.as-treeitem__label--struck {
+  color: var(--text-secondary);
+  text-decoration: line-through;
+}
 
 /* Activity variant: read-only tool tree (design: .as-treeview / .as-treegroup) */
 .as-treeview--activity .as-treeitem {

@@ -1,12 +1,15 @@
-import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
-import { Cause, Effect, Exit } from 'effect';
+import { DestroyRef, Injectable, InjectionToken, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Cause, Effect, Exit, Stream } from 'effect';
 import { DEFAULT_BROWSER_WIDTH, type FolderEntry } from '../../../shared/files/files.model';
 import type { Project, ProjectId } from '../../../shared/projects/projects.model';
+import type { TerminalHookReport } from '../../../shared/terminal/terminal.model';
 import { DesktopApi } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { I18n } from '../../core/i18n';
 import type { TreeNode } from '../../shared/ui/tree-view/tree-view.types';
+import { Changes, changedOnlyTree, flagOf, marks, withChanges } from './changed-files';
 import { ProjectsState } from './projects-state';
+import { TerminalsState } from './terminals-state';
 import { WorkspaceLayoutState } from './workspace-layout';
 
 /** The narrowest the sidebar gets, and the widest as a share of the window. */
@@ -14,6 +17,8 @@ export const MIN_BROWSER_WIDTH = 280;
 export const MAX_BROWSER_SHARE = 0.6;
 /** Most matches the filter lists. */
 export const MAX_MATCHES = 200;
+/** How long a burst of refresh triggers must be over before the changed markers are read again, in milliseconds. */
+export const CHANGES_DEBOUNCE_MS = new InjectionToken<number>('CHANGES_DEBOUNCE_MS', { providedIn: 'root', factory: () => 300 });
 
 /** The files git sees, for the filter: loading, not available (no git, or it failed), or the paths. */
 type FileIndex =
@@ -77,6 +82,9 @@ export class FilesBrowser {
   private readonly i18n = inject(I18n);
   private readonly projects = inject(ProjectsState);
   private readonly layout = inject(WorkspaceLayoutState);
+  private readonly terminals = inject(TerminalsState);
+  private readonly debounce = inject(CHANGES_DEBOUNCE_MS);
+  private readonly t = (key: Parameters<I18n['t']>[0], params?: Parameters<I18n['t']>[1]): string => this.i18n.t(key, params);
 
   /** Open for the whole window; what it shows follows the selected Project. */
   readonly open = signal(false);
@@ -117,11 +125,27 @@ export class FilesBrowser {
   /** A count that tells a stale answer from a current one. */
   private generation = 0;
 
+  /**
+   * The Changed files of the Project from its last `git status` that worked. None before the first one: a folder that is not
+   * a repository, or a status that fails, shows no markers rather than an error.
+   */
+  private readonly changes = signal(new Changes([]));
+  /** How many Changed files the Project has ("N con cambios"). */
+  readonly changedCount = computed(() => this.changes().entries.length);
+  private readonly showChangedOnly = signal(false);
+  /** Whether the tree shows only the changed paths and the folders that lead to them. */
+  readonly changedOnly = computed(() => this.showChangedOnly() && this.changedCount() > 0);
+  /** The wait for a burst of refresh triggers to end, and whether a status is running or must run again after it. */
+  private changesTimer: ReturnType<typeof setTimeout> | undefined;
+  private changesRunning = false;
+  private changesAgain = false;
+
   readonly tree = computed((): FilesTree => {
     const root = this.dirs().get('');
     if (root === undefined || root.status === 'loading') return { status: 'loading' };
     if (root.status === 'failed') return { status: 'failed', detail: root.detail };
     if (root.status === 'gone') return { status: 'failed', detail: this.projects.selected()?.cwd ?? '' };
+    if (this.changedOnly()) return { status: 'ready', nodes: changedOnlyTree(this.changes(), this.t) };
     return { status: 'ready', nodes: this.nodesOf('', new Set(this.expanded())) };
   });
 
@@ -133,6 +157,67 @@ export class FilesBrowser {
         if (this.open() && projectId !== undefined) this.activate();
       });
     });
+    // The markers follow what the agents do (a tool use, a stop) and what no Hook sees (the user back in the window). No
+    // timer and no watcher: an idle Project costs nothing.
+    const stop = new AbortController();
+    const onFocus = () => this.refreshChanges();
+    window.addEventListener('focus', onFocus);
+    inject(DestroyRef).onDestroy(() => {
+      stop.abort();
+      window.removeEventListener('focus', onFocus);
+      clearTimeout(this.changesTimer);
+    });
+    void this.runtime.run(
+      Effect.flatMap(DesktopApi, (desktop) => Stream.runForEach(desktop['Terminal.hookReports'](), (report) => Effect.sync(() => this.heard(report)))),
+      { signal: stop.signal },
+    );
+  }
+
+  /** "N con cambios": the tree of only the changed paths, or back to the whole tree. */
+  toggleChangedOnly(): void {
+    if (this.changedCount() > 0) this.showChangedOnly.update((only) => !only);
+  }
+
+  /**
+   * Asks for the markers again. Triggers that come close together become one `git status`, run when they stop; only one runs
+   * at a time, and one that comes while it runs makes it run once more after.
+   */
+  refreshChanges(): void {
+    if (!this.open() || this.projects.selected() === undefined) return;
+    clearTimeout(this.changesTimer);
+    this.changesTimer = setTimeout(() => {
+      this.changesTimer = undefined;
+      void this.readChanges();
+    }, this.debounce);
+  }
+
+  /** A Hook said an agent used a tool or stopped: the files of its Project may have changed. */
+  private heard(report: TerminalHookReport): void {
+    if (report.signal !== 'Working' && report.signal !== 'Done') return;
+    const projectId = this.terminals.find(report.terminalId)?.projectId;
+    if (projectId !== undefined && projectId === this.projects.selectedId()) this.refreshChanges();
+  }
+
+  private async readChanges(): Promise<void> {
+    const project = this.projects.selected();
+    if (project === undefined) return;
+    if (this.changesRunning) {
+      this.changesAgain = true;
+      return;
+    }
+    const generation = this.generation;
+    this.changesRunning = true;
+    const exit = await this.runtime.run(Effect.flatMap(DesktopApi, (desktop) => desktop['Files.changes']({ cwd: project.cwd })));
+    this.changesRunning = false;
+    // A failure keeps the last markers, silently: they are a hint, not something to report.
+    if (generation === this.generation && Exit.isSuccess(exit)) {
+      this.changes.set(new Changes(exit.value.entries));
+      if (exit.value.entries.length === 0) this.showChangedOnly.set(false);
+    }
+    if (this.changesAgain) {
+      this.changesAgain = false;
+      this.refreshChanges();
+    }
   }
 
   /** Ticks each time the filter should take the keyboard (Ctrl+P); the sidebar focuses the field on every tick. */
@@ -142,7 +227,9 @@ export class FilesBrowser {
   toggle(): void {
     if (!this.open() && this.projects.selected() === undefined) return;
     this.open.update((open) => !open);
-    if (this.open()) this.activate();
+    if (!this.open()) return;
+    this.activate();
+    this.refreshChanges();
   }
 
   /** Ctrl+P: open on the tree with the filter ready, wherever the sidebar was. */
@@ -158,31 +245,49 @@ export class FilesBrowser {
    * single-child folders is one row whose id is its first folder: the whole chain opens and closes with it.
    */
   setFolderOpen(path: string, open: boolean): void {
-    if (open === this.expanded().includes(path)) return;
+    // The changed-only tree is all open and its folders are not the tree's: closing one there is not remembered.
+    if (this.changedOnly() || open === this.expanded().includes(path)) return;
     const chain = this.chainOf(path, this.entryAt(path)?.ignored ?? false);
     if (open) this.openFolders(chain);
     else this.expanded.update((list) => list.filter((entry) => !chain.includes(entry)));
     this.persist();
   }
 
-  /** A row of the tree was picked: a file opens; a folder (the tree opens it) or a status row does nothing. */
+  /**
+   * A row of the tree was picked: a file opens; a folder (the tree opens it), a status row or a deleted file (there is
+   * nothing to read) does nothing.
+   */
   pick(path: string): void {
-    if (this.entryAt(path)?.kind === 'file') this.openFile(path);
+    const changes = this.changes();
+    if (changes.kindOf(path) === 'deleted') return;
+    const listed = this.entryAt(path)?.kind;
+    const changedFile = changes.entries.some((entry) => entry.path === path && !entry.folder);
+    if (listed === 'file' || (listed === undefined && changedFile)) this.openFile(path);
   }
 
-  /** The entry at `path` as its folder listed it, if that folder has been read. */
+  /**
+   * What a folder holds: its listing once read, with what git says it holds that the listing lacks (a deleted file, a file
+   * or folder newer than the listing). A folder gone from disk still holds what git says was deleted in it.
+   */
+  private entriesOf(dir: string): ReadonlyArray<FolderEntry> | undefined {
+    const listing = this.dirs().get(dir);
+    if (listing?.status === 'ready') return withChanges(listing.entries, dir, this.changes());
+    if (listing?.status === 'gone' && this.changes().childrenOf(dir).length > 0) return withChanges([], dir, this.changes());
+    return undefined;
+  }
+
+  /** The entry at `path` as its folder holds it, if that folder has been read. */
   private entryAt(path: string): FolderEntry | undefined {
     const slash = path.lastIndexOf('/');
     const dir = slash === -1 ? '' : path.slice(0, slash);
-    const parent = this.dirs().get(dir);
-    return parent?.status === 'ready' ? parent.entries.find((candidate) => join(dir, candidate.name) === path) : undefined;
+    return this.entriesOf(dir)?.find((candidate) => join(dir, candidate.name) === path);
   }
 
   /** The only entry of a folder that has been read, when that entry is a folder git sees the same way; else nothing. */
   private onlyChildFolder(path: string, ignored: boolean): string | undefined {
-    const listing = this.dirs().get(path);
-    if (listing?.status !== 'ready' || listing.entries.length !== 1) return undefined;
-    const [only] = listing.entries;
+    const entries = this.entriesOf(path);
+    if (entries?.length !== 1) return undefined;
+    const [only] = entries;
     return only.kind === 'folder' && only.ignored === ignored ? join(path, only.name) : undefined;
   }
 
@@ -247,6 +352,7 @@ export class FilesBrowser {
     const open = this.expanded();
     // A closed folder is read again when it is next opened.
     this.dirs.update((map) => new Map([...map].filter(([dir]) => dir === '' || open.includes(dir))));
+    this.refreshChanges();
     await Promise.all([...['', ...open].map((dir) => this.loadDir(project, dir, true)), this.loadIndex(project, generation)]);
     if (generation === this.generation) this.forgetGone(open);
   }
@@ -262,16 +368,17 @@ export class FilesBrowser {
   }
 
   private nodesOf(dir: string, open: ReadonlySet<string>): ReadonlyArray<TreeNode> {
-    const listing = this.dirs().get(dir);
-    if (listing?.status !== 'ready') return [];
-    return listing.entries.map((entry): TreeNode => {
+    const changes = this.changes();
+    return (this.entriesOf(dir) ?? []).map((entry): TreeNode => {
       const path = join(dir, entry.name);
       const dimmed = entry.ignored ? { dimmed: true } : {};
-      if (entry.kind === 'file') return { id: path, label: entry.name, kind: 'file', ...dimmed };
+      if (entry.kind === 'file') return { id: path, label: entry.name, kind: 'file', ...dimmed, ...marks(changes, path, this.t) };
       // A chain of single-child folders is one row: named by the whole chain, showing what the last folder holds.
       const chain = this.chainOf(path, entry.ignored);
       const last = chain[chain.length - 1];
       const isOpen = open.has(path);
+      // A closed folder says how many changes it holds; an open one shows them instead.
+      const flag = flagOf(changes, last, !isOpen, this.t);
       return {
         id: path,
         label: dir === '' ? last : last.slice(dir.length + 1),
@@ -279,6 +386,7 @@ export class FilesBrowser {
         lazy: true,
         expanded: isOpen,
         ...dimmed,
+        ...(flag ? { flag } : {}),
         ...(isOpen ? { children: this.childrenOf(last, open) } : {}),
       };
     });
@@ -286,6 +394,7 @@ export class FilesBrowser {
 
   /** What an open folder shows: its entries, or one row that says it is loading or could not be read. */
   private childrenOf(path: string, open: ReadonlySet<string>): ReadonlyArray<TreeNode> {
+    if (this.entriesOf(path) !== undefined) return this.nodesOf(path, open);
     const listing = this.dirs().get(path);
     if (listing === undefined || listing.status === 'loading') {
       return [{ id: `${path}/\u0000loading`, label: this.i18n.t('files.loading'), disabled: true }];
@@ -313,6 +422,9 @@ export class FilesBrowser {
     this.fileState.set({ status: 'none' });
     this.filter.set('');
     this.index.set({ status: 'loading' });
+    this.changes.set(new Changes([]));
+    this.showChangedOnly.set(false);
+    this.refreshChanges();
     void this.restore(project, this.generation);
     void this.loadIndex(project, this.generation);
   }
@@ -332,7 +444,8 @@ export class FilesBrowser {
 
   /** Folders that turned out to be gone drop out of the open ones, and the browser remembers that. */
   private forgetGone(asked: ReadonlyArray<string>): void {
-    const gone = asked.filter((dir) => this.dirs().get(dir)?.status === 'gone');
+    // A folder gone from disk that still holds a deleted file stays: git says what was in it.
+    const gone = asked.filter((dir) => this.dirs().get(dir)?.status === 'gone' && this.entriesOf(dir) === undefined);
     if (gone.length === 0) return;
     this.expanded.update((list) => list.filter((dir) => !gone.includes(dir)));
     this.persist();

@@ -22,6 +22,7 @@ const setup = async (options: { createFails?: boolean } = {}) => {
     'Terminal.close': () => Effect.void,
     'Terminal.output': () => Stream.never,
     'Terminal.activity': () => Stream.empty,
+    'Terminal.hookReports': () => Stream.empty,
     'Terminal.focus': () => Effect.void,
     'Terminal.write': unused,
     'Terminal.resize': () => Effect.void,

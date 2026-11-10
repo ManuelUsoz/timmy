@@ -1,4 +1,5 @@
 import { Schema } from 'effect';
+import { HookSignal } from '../hooks/hooks.model';
 
 export const TerminalId = Schema.String.pipe(Schema.brand('TerminalId'));
 export type TerminalId = typeof TerminalId.Type;
@@ -17,3 +18,10 @@ export const TerminalActivityEntry = Schema.Struct({ terminalId: TerminalId, act
   identifier: 'TerminalActivityEntry',
 });
 export type TerminalActivityEntry = typeof TerminalActivityEntry.Type;
+
+/**
+ * One report of a Provider's Hook about a live Terminal, as it arrived: a tool use reads `Working` every time, though the
+ * Terminal's status only changes once. What listens for "the agent did something" (the changed markers) needs each one.
+ */
+export const TerminalHookReport = Schema.Struct({ terminalId: TerminalId, signal: HookSignal }).annotate({ identifier: 'TerminalHookReport' });
+export type TerminalHookReport = typeof TerminalHookReport.Type;

@@ -188,7 +188,7 @@ kbd {
   text-align: center;
 }
 
-/* The Project the tree belongs to; the right end is kept for the count of changed files. */
+/* The Project the tree belongs to, and at the right end the count of changed files. */
 .section {
   display: flex;
   flex: none;
@@ -210,10 +210,30 @@ kbd {
   white-space: nowrap;
 }
 
+/* "N con cambios": a quiet text button that toggles the changed-only tree, accented while it is on. */
 .section-count {
   flex: none;
+  padding: 0 var(--spacing-02);
+  border: 0;
+  background: transparent;
+  color: var(--support-warning);
   letter-spacing: 0.32px;
   text-transform: none;
+  cursor: pointer;
+}
+
+.section-count:hover {
+  background: var(--layer-hover);
+}
+
+.section-count[aria-pressed='true'] {
+  background: var(--layer-selected);
+  color: var(--text-primary);
+}
+
+.section-count:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
 }
 
 .hint,

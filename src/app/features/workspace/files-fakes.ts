@@ -3,6 +3,7 @@ import { FilesError } from '../../../shared/files/files-error.model';
 import { FilesRpcs } from '../../../shared/files/files.rpc';
 import {
   DEFAULT_BROWSER_WIDTH,
+  type ChangedFile,
   type FileContent,
   type FolderEntry,
   type ProjectBrowserState,
@@ -16,6 +17,8 @@ export interface FakeDisk {
   files: Record<string, FileContent>;
   /** What `Files.list` answers (non-ignored paths); null for a folder without git. */
   index: ReadonlyArray<string> | null;
+  /** What `Files.changes` answers; none when absent. A folder without git (`index` null) fails instead. */
+  changes?: ReadonlyArray<ChangedFile>;
 }
 
 /** The Files RPCs as main answers them, in memory. Tests read `calls` and `saved`, and change `disks` while the UI runs. */
@@ -29,17 +32,25 @@ export interface FakeFiles {
   broken: Set<string>;
   /** Calls the UI made, as `Name` or `Name:argument`, in order. */
   calls: string[];
+  /** Makes `Files.changes` fail, as a broken `git status` would. */
+  changesFail: boolean;
+  /** Holds every `Files.changes` answer until it is resolved, to see what shows while a run is in flight. */
+  changesGate: Promise<void> | undefined;
 }
 
 export const folder = (name: string, ignored = false): FolderEntry => ({ name, kind: 'folder', ignored });
 export const file = (name: string, ignored = false): FolderEntry => ({ name, kind: 'file', ignored });
 export const text = (content: string): FileContent => ({ kind: 'text', content });
+/** A Changed file as main reports it; `folder` for a wholly untracked folder or a submodule. */
+export const change = (path: string, kind: ChangedFile['kind'], folder = false): ChangedFile => ({ path, kind, folder });
 
 export const makeFakeFiles = (initial: Partial<FakeFiles> = {}): FakeFiles => ({
   disks: {},
   saved: {},
   width: DEFAULT_BROWSER_WIDTH,
   calls: [],
+  changesFail: false,
+  changesGate: undefined,
   ...initial,
   broken: new Set(initial.broken),
 });
@@ -69,6 +80,17 @@ export const layerFakeFiles = (fake: FakeFiles) =>
         const content = fake.disks[cwd]?.files[path];
         if (content === undefined) return yield* new FilesError({ reason: 'FileNotFound', detail: path });
         return content;
+      }),
+    'Files.changes': ({ cwd }) =>
+      Effect.gen(function* () {
+        fake.calls.push('Files.changes');
+        const gate = fake.changesGate;
+        if (gate !== undefined) yield* Effect.promise(() => gate);
+        const disk = fake.disks[cwd];
+        if (disk === undefined) return yield* new FilesError({ reason: 'FolderNotFound', detail: cwd });
+        if (disk.index === null) return yield* new FilesError({ reason: 'NotAGitRepository', detail: 'not a git repository' });
+        if (fake.changesFail) return yield* new FilesError({ reason: 'GitFailed', detail: 'index file corrupt' });
+        return { entries: [...(disk.changes ?? [])] };
       }),
     'Files.getState': ({ projectId }) =>
       Effect.sync(() => {

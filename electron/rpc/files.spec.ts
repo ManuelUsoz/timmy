@@ -244,6 +244,24 @@ describe('Files.list', () => {
     }).pipe(Effect.provide(makeLayer()));
   });
 
+  it.effect('lists the files of a Project inside a larger repository relative to the Project, and nothing outside it', () => {
+    const repo = tempDir();
+    git(repo, 'init');
+    write(repo, 'outside.ts');
+    write(repo, 'app/tracked.ts');
+    git(repo, 'add', '.');
+    write(repo, 'app/loose.ts');
+    write(repo, 'app/new/deep/file.ts');
+    write(repo, 'elsewhere/x.ts');
+    const project = path.join(repo, 'app');
+    register(project);
+    return Effect.gen(function* () {
+      const api = yield* DesktopApi;
+      const list = yield* api['Files.list']({ cwd: project });
+      expect([...list.paths].sort()).toEqual(['loose.ts', 'new/deep/file.ts', 'tracked.ts']);
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
   it.effect('cuts the list at the cap and says so', () => {
     const root = tempDir();
     git(root, 'init');
@@ -276,6 +294,124 @@ describe('Files.list', () => {
   );
 });
 
+describe('Files.changes', () => {
+  /** A repository with one commit holding `files`, as an agent would find it. */
+  const committed = (files: Record<string, string>) => {
+    const root = tempDir();
+    git(root, 'init');
+    git(root, 'config', 'user.email', 'timmy@example.com');
+    git(root, 'config', 'user.name', 'timmy');
+    git(root, 'config', 'core.autocrlf', 'false');
+    for (const [file, content] of Object.entries(files)) write(root, file, content);
+    git(root, 'add', '.');
+    git(root, 'commit', '-m', 'start');
+    return root;
+  };
+  const changes = (cwd: string) => Effect.flatMap(DesktopApi, (api) => api['Files.changes']({ cwd }));
+  const sorted = (entries: ReadonlyArray<{ readonly path: string }>) => [...entries].sort((a, b) => (a.path < b.path ? -1 : 1));
+
+  it.effect('marks modified, added, untracked and deleted files, staged or not', () => {
+    const root = committed({ 'src/a.ts': 'a', 'src/b.ts': 'b', 'gone.ts': 'g', 'staged-gone.ts': 's' });
+    write(root, 'src/a.ts', 'changed');
+    write(root, 'src/b.ts', 'changed');
+    git(root, 'add', 'src/b.ts');
+    write(root, 'src/new.ts', 'new');
+    git(root, 'add', 'src/new.ts');
+    write(root, 'notes.md', 'untracked');
+    rmSync(path.join(root, 'gone.ts'));
+    git(root, 'rm', '-q', 'staged-gone.ts');
+    return Effect.gen(function* () {
+      expect(sorted((yield* changes(root)).entries)).toEqual([
+        { path: 'gone.ts', kind: 'deleted', folder: false },
+        { path: 'notes.md', kind: 'untracked', folder: false },
+        { path: 'src/a.ts', kind: 'modified', folder: false },
+        { path: 'src/b.ts', kind: 'modified', folder: false },
+        { path: 'src/new.ts', kind: 'added', folder: false },
+        { path: 'staged-gone.ts', kind: 'deleted', folder: false },
+      ]);
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('shows a staged rename as one renamed file at its new path, and a plain move as deleted plus untracked', () => {
+    const root = committed({ 'old name.ts': 'same content here', 'moved.ts': 'other content here' });
+    git(root, 'mv', 'old name.ts', 'new name.ts');
+    write(root, 'elsewhere/moved.ts', 'other content here');
+    rmSync(path.join(root, 'moved.ts'));
+    return Effect.gen(function* () {
+      expect(sorted((yield* changes(root)).entries)).toEqual([
+        { path: 'elsewhere', kind: 'untracked', folder: true },
+        { path: 'moved.ts', kind: 'deleted', folder: false },
+        { path: 'new name.ts', kind: 'renamed', folder: false },
+      ]);
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('counts a wholly untracked folder as one entry, however many files it holds, and skips what git ignores', () => {
+    const root = committed({ '.gitignore': 'node_modules/\n', 'src/a.ts': 'a' });
+    for (const name of ['a', 'b', 'c']) write(root, `generated/deep/${name}.ts`);
+    write(root, 'node_modules/pkg/index.js');
+    write(root, 'src/fresh.ts');
+    return Effect.gen(function* () {
+      expect(sorted((yield* changes(root)).entries)).toEqual([
+        { path: 'generated', kind: 'untracked', folder: true },
+        { path: 'src/fresh.ts', kind: 'untracked', folder: false },
+      ]);
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('shows a submodule with changes as one modified folder, never its files', () => {
+    const library = committed({ 'lib.ts': 'lib' });
+    const root = committed({ 'a.ts': 'a' });
+    execFileSync('git', ['-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', library, 'vendor/lib'], { cwd: root, stdio: 'ignore' });
+    git(root, 'commit', '-qm', 'submodule');
+    write(root, 'vendor/lib/lib.ts', 'changed inside');
+    write(root, 'vendor/lib/extra.ts', 'new inside');
+    return Effect.gen(function* () {
+      expect((yield* changes(root)).entries).toEqual([{ path: 'vendor/lib', kind: 'modified', folder: true }]);
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('reads only the Project folder, with paths relative to it, when the Project is inside a larger repository', () => {
+    const repo = committed({ 'outside.ts': 'o', 'app/inside.ts': 'i' });
+    write(repo, 'outside.ts', 'changed');
+    write(repo, 'app/inside.ts', 'changed');
+    write(repo, 'app/new/file.ts');
+    const project = path.join(repo, 'app');
+    register(project);
+    return Effect.gen(function* () {
+      expect(sorted((yield* changes(project)).entries)).toEqual([
+        { path: 'inside.ts', kind: 'modified', folder: false },
+        { path: 'new', kind: 'untracked', folder: true },
+      ]);
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('has nothing to report for a clean repository', () => {
+    const root = committed({ 'a.ts': 'a' });
+    return Effect.gen(function* () {
+      expect((yield* changes(root)).entries).toEqual([]);
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('fails with NotAGitRepository for a folder that is not a repository', () => {
+    const root = tempDir();
+    write(root, 'a.ts');
+    return Effect.gen(function* () {
+      const error = yield* Effect.flip(changes(root));
+      expect(error.reason).toBe('NotAGitRepository');
+    }).pipe(Effect.provide(makeLayer()));
+  });
+
+  it.effect('fails with GitFailed when git cannot read the repository', () => {
+    const root = committed({ 'a.ts': 'a' });
+    writeFileSync(path.join(root, '.git', 'index'), 'not an index');
+    return Effect.gen(function* () {
+      const error = yield* Effect.flip(changes(root));
+      expect(error.reason).toBe('GitFailed');
+    }).pipe(Effect.provide(makeLayer()));
+  });
+});
+
 describe('Files access', () => {
   it.effect('refuses a folder that is not a Project, whatever the call: the renderer does not choose what main reads', () => {
     const stranger = mkdtempSync(path.join(tmpdir(), 'timmy-files-stranger-'));
@@ -288,8 +424,9 @@ describe('Files access', () => {
         yield* Effect.flip(api['Files.listDir']({ cwd: stranger, dir: '' })),
         yield* Effect.flip(api['Files.read']({ cwd: stranger, file: 'secret.txt' })),
         yield* Effect.flip(api['Files.read']({ cwd: path.parse(stranger).root, file: path.relative(path.parse(stranger).root, path.join(stranger, 'secret.txt')) })),
+        yield* Effect.flip(api['Files.changes']({ cwd: stranger })),
       ];
-      expect(errors.map((error) => error.reason)).toEqual(['UnknownProject', 'UnknownProject', 'UnknownProject', 'UnknownProject']);
+      expect(errors.map((error) => error.reason)).toEqual(['UnknownProject', 'UnknownProject', 'UnknownProject', 'UnknownProject', 'UnknownProject']);
     }).pipe(Effect.provide(makeLayer()));
   });
 });
