@@ -10,7 +10,11 @@ export type { ViewId } from '../../../shared/workspace/workspace.model';
 
 export const terminalView = (terminalId: TerminalId): ViewId => ({ kind: 'terminal', terminalId });
 
-/** A string that names the View and no other: a Terminal's id for its View. A Pane made for a View is named after it. */
+/**
+ * A string that names the View and no other: a Terminal's id for its View, kept bare so the Panes of saved layouts keep
+ * their ids. Another kind takes a prefix of its own (`file:…`), which no Terminal id (a UUID) can start with. A Pane
+ * made for a View is named after it.
+ */
 export const viewKey = (view: ViewId): string => {
   switch (view.kind) {
     case 'terminal':

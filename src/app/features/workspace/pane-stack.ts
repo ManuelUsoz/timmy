@@ -31,7 +31,7 @@ import { hasView, indexOfView, sameView, terminalOf, viewKey, type ViewId } from
 
 /** A View of the Stack, with its key (`viewKey`), its Terminal and its place (0-based). */
 interface StackView {
-  readonly id: string;
+  readonly key: string;
   readonly view: ViewId;
   readonly index: number;
   readonly entry: TerminalEntry;
@@ -112,7 +112,7 @@ export class PaneStack {
   protected readonly views = computed((): ReadonlyArray<StackView> =>
     this.pane().views.flatMap((view, index) => {
       const entry = this.tab().terminals.find((terminal) => terminal.id === terminalOf(view));
-      return entry === undefined ? [] : [{ id: viewKey(view), view, index, entry, name: this.i18n.t('terminals.name', { number: entry.number }) }];
+      return entry === undefined ? [] : [{ key: viewKey(view), view, index, entry, name: this.i18n.t('terminals.name', { number: entry.number }) }];
     }),
   );
   protected readonly expanded = computed(() => this.views().find((view) => sameView(view.view, this.pane().expanded)) ?? this.views()[0]);
@@ -268,7 +268,7 @@ export class PaneStack {
 
   protected dragStart(event: DragEvent, view: StackView): void {
     this.dragging.set(view.view);
-    event.dataTransfer?.setData(VIEW_MIME, view.id);
+    event.dataTransfer?.setData(VIEW_MIME, view.key);
     event.dataTransfer?.setData('text/plain', view.name);
     if (event.dataTransfer !== null && event.dataTransfer !== undefined) event.dataTransfer.effectAllowed = 'move';
     this.dragStarted.emit({ view: view.view, fromPane: this.pane().id });

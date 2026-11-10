@@ -210,6 +210,12 @@ describe('ProjectStore', () => {
                   },
                   focused: 'b',
                 });
+                // Saved again, each View is written in its own form.
+                yield* store.saveLayout(saved.projectId, saved.tabs);
+                const db = new DatabaseSync(file);
+                const written = db.prepare('SELECT layout FROM tabs').get()?.['layout'];
+                db.close();
+                expect(JSON.parse(String(written)).root.children[1].pane).toEqual({ id: 'b', views: [terminal('b'), terminal('c')], expanded: terminal('c') });
               }),
             file,
           ),
