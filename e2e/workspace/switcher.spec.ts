@@ -25,22 +25,22 @@ test.describe('The Switcher', () => {
     await timmy.addDemoProject();
     await page.keyboard.press('Control+t');
     await expect(screen).toContainText('PS ', { timeout: 15_000 });
-    await expect(active).toHaveText('Terminal 1');
+    await expect(active).toHaveText('shell 1');
     await stablePrompt();
     await timmy.run('echo switcher-preview');
     await expect(screen).toContainText(/switcher-preview\s*switcher-preview\s*PS>/);
 
     await timmy.newTerminal();
-    await expect(active).toHaveText('Terminal 2');
+    await expect(active).toHaveText('shell 2');
     await stablePrompt();
-    await bar.locator('.tab-button', { hasText: 'Terminal 2' }).dblclick();
+    await bar.locator('.tab-button', { hasText: 'shell 2' }).dblclick();
     const field = bar.getByRole('textbox', { name: 'Tab name' });
     await field.fill('review');
     await field.press('Enter');
     await expect(active).toHaveText('review');
 
     await timmy.newTerminal();
-    await expect(active).toHaveText('Terminal 3');
+    await expect(active).toHaveText('shell 3');
     await stablePrompt();
 
     await test.step('held Ctrl+Tab opens on the previous Tab, Tab moves on, releasing Ctrl goes there', async () => {
@@ -48,21 +48,21 @@ test.describe('The Switcher', () => {
       await page.keyboard.press('Tab');
       await expect(switcher).toBeVisible();
       // Most recent first: the Tab on screen, then the one before it.
-      await expect(cards.locator('.names')).toHaveText(['demo-project · Terminal 3', 'demo-project · review', 'demo-project · Terminal 1']);
+      await expect(cards.locator('.names')).toHaveText(['demo-project · shell 3', 'demo-project · review', 'demo-project · shell 1']);
       await expect(cards.locator('kbd')).toHaveText(['1', '2', '3']);
       await expect(selected).toHaveText('demo-project · review');
       await expect(cards.nth(2).locator('.preview .line')).toContainText(['switcher-preview']);
       await timmy.shot('switcher-open');
 
       await page.keyboard.press('Tab');
-      await expect(selected).toHaveText('demo-project · Terminal 1');
+      await expect(selected).toHaveText('demo-project · shell 1');
       await page.keyboard.press('Shift+Tab');
       await expect(selected).toHaveText('demo-project · review');
       await page.keyboard.press('Tab');
-      await expect(selected).toHaveText('demo-project · Terminal 1');
+      await expect(selected).toHaveText('demo-project · shell 1');
       await page.keyboard.up('Control');
       await expect(switcher).toHaveCount(0);
-      await expect(active).toHaveText('Terminal 1');
+      await expect(active).toHaveText('shell 1');
       await expect(screen).toContainText('switcher-preview');
     });
 
@@ -70,12 +70,12 @@ test.describe('The Switcher', () => {
       await page.keyboard.down('Control');
       await page.keyboard.press('Tab');
       await expect(switcher).toBeVisible();
-      await expect(selected).toHaveText('demo-project · Terminal 3');
+      await expect(selected).toHaveText('demo-project · shell 3');
       await page.keyboard.press('Escape');
       await expect(switcher).toHaveCount(0);
       await page.keyboard.up('Control');
       await expect(switcher).toHaveCount(0);
-      await expect(active).toHaveText('Terminal 1');
+      await expect(active).toHaveText('shell 1');
     });
 
     await test.step('a click inside keeps it open for the search; Enter goes to the match', async () => {
@@ -100,12 +100,12 @@ test.describe('The Switcher', () => {
       await page.keyboard.down('Control');
       await page.keyboard.press('Tab');
       await expect(switcher).toBeVisible();
-      // review (on screen), Terminal 1, Terminal 3.
-      await expect(cards.locator('.names')).toHaveText(['demo-project · review', 'demo-project · Terminal 1', 'demo-project · Terminal 3']);
+      // review (on screen), shell 1, shell 3.
+      await expect(cards.locator('.names')).toHaveText(['demo-project · review', 'demo-project · shell 1', 'demo-project · shell 3']);
       await page.keyboard.press('3');
       await expect(switcher).toHaveCount(0);
       await page.keyboard.up('Control');
-      await expect(active).toHaveText('Terminal 3');
+      await expect(active).toHaveText('shell 3');
     });
   });
 });
