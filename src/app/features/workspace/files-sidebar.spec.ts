@@ -230,8 +230,8 @@ describe('FilesSidebar', () => {
     expect(pane.querySelector('.view-header .name')?.classList).toContain('preview');
     expect(pane.querySelector('.view-header .dir')?.textContent?.trim()).toBe('src');
     expect(pane.querySelector('.view-header .tag')?.textContent?.trim()).toBe(t('fileView.preview'));
-    expect(pane.querySelector('.code .gutter')?.textContent).toBe('1\n2');
-    expect(pane.querySelector('.code .source')?.textContent).toBe('const a = 1;\nconst b = 2;');
+    expect([...pane.querySelectorAll('.code .line .number')].map((number) => number.textContent)).toEqual(['1', '2']);
+    expect([...pane.querySelectorAll('.code .line .text')].map((line) => line.textContent)).toEqual(['const a = 1;', 'const b = 2;']);
     expect(sidebar()?.querySelector('[role=treeitem]')).not.toBeNull();
     expect(sidebar()?.querySelector('.code')).toBeNull();
     expect(rowOf('main.ts').getAttribute('aria-selected')).toBe('true');

@@ -5,6 +5,9 @@ import { EffectRuntime } from '../../core/effect-runtime';
 import { I18n } from '../../core/i18n';
 import type { TabId } from './tabs';
 import { TabsState } from './tabs-state';
+import { PLAIN_TEXT, languageOf } from './file-language';
+import { columnsOf, eolOf, indentOf, lineRuns, linesOf, type ColourRange, type LineRange } from './source-text';
+import { MAX_COLOURED_LENGTH, SYNTAX_HIGHLIGHTER } from './syntax-highlighter';
 import { fileOf } from './views';
 
 /** What reading the file of a File View gave. `gone` is a file deleted since it was listed or opened. */
@@ -45,9 +48,9 @@ export const formatSize = (bytes: number): string => {
 };
 
 /**
- * The body of a File View (GLOSSARY: File View, ADR 0013): one file of the Project, read-only, as plain text with its
- * line numbers, or the state that says why it is not shown (binary, too large, gone, unreadable). It reads the file when
- * it opens and when its path changes (a preview replaced). A file picked in the tree gives it the keyboard
+ * The body of a File View (GLOSSARY: File View, ADR 0013): one file of the Project, read-only, one element per line
+ * with its number, highlighted by language (`file-language.ts`) once the worker colours it, above a status bar; or the
+ * state that says why it is not shown (binary, too large, gone, unreadable). It reads the file when it opens and when its path changes (a preview replaced). A file picked in the tree gives it the keyboard
  * (`TabsState.focusRequest`), so the user can scroll at once. Its header is the Pane's (`PaneStack`).
  */
 @Component({
@@ -62,6 +65,7 @@ export class FileView {
   private readonly tabs = inject(TabsState);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly highlighter = inject(SYNTAX_HIGHLIGHTER);
 
   /** The Project's folder, which the path is relative to. */
   readonly cwd = input.required<string>();
@@ -72,13 +76,39 @@ export class FileView {
   protected readonly file = signal<FileState>({ status: 'loading' });
   protected readonly name = computed(() => this.path().split('/').at(-1) ?? this.path());
 
-  /** One number per line of the text; a final newline does not start another line. */
-  protected readonly gutter = computed(() => {
+  /** The text of the file, empty while it is not text. */
+  private readonly content = computed(() => {
     const file = this.file();
-    if (file.status !== 'text' || file.content === '') return '';
-    const lines = file.content.split('\n');
-    const count = lines.at(-1) === '' ? lines.length - 1 : lines.length;
-    return Array.from({ length: count }, (_, index) => index + 1).join('\n');
+    return file.status === 'text' ? file.content : '';
+  });
+  protected readonly lines = computed(() => linesOf(this.content()));
+  /** The colours of the lines, none until the worker gives them (and never for plain text or a large file). */
+  private readonly colours = signal<ReadonlyArray<ColourRange>>([]);
+  /** Each line as the runs to draw. */
+  protected readonly rows = computed(() => lineRuns(this.lines(), this.colours()));
+  /** The width the longest line needs, in characters: a line out of view is not laid out, so the text cannot measure it. */
+  protected readonly columns = computed(() => columnsOf(this.lines()));
+  /** How many digits the last line number has, which is the width of the numbers. */
+  protected readonly digits = computed(() => String(this.lines().length).length);
+  protected readonly language = computed(() => languageOf(this.name()));
+  /** The Line selection; none yet. */
+  protected readonly selection = signal<LineRange | undefined>(undefined);
+
+  /** The status bar: lines, language, line endings, indent guess and a fixed encoding. */
+  protected readonly status = computed(() => {
+    const selection = this.selection();
+    const span = selection === undefined ? '' : selection.from === selection.to ? `${selection.from}` : `${selection.from}–${selection.to}`;
+    const lines = selection === undefined ? this.i18n.t('fileView.noLines') : this.i18n.t('fileView.lines', { lines: span, total: this.lines().length });
+    const language = this.language();
+    const eol = eolOf(this.content());
+    const indent = indentOf(this.lines());
+    return [
+      lines,
+      language === PLAIN_TEXT ? this.i18n.t('fileView.plainText') : language.name,
+      ...(eol === undefined ? [] : [eol === 'Mixed' ? this.i18n.t('fileView.mixedEol') : eol]),
+      ...(indent === undefined ? [] : [indent.kind === 'tabs' ? this.i18n.t('fileView.tabs') : this.i18n.t('fileView.spaces', { size: indent.size })]),
+      'UTF-8',
+    ];
   });
 
   constructor() {
@@ -106,6 +136,19 @@ export class FileView {
     const exit = await this.runtime.run(readFile(cwd, path));
     // Another file took this View's place while this one was read.
     if (path !== this.path() || cwd !== this.cwd()) return;
-    this.file.set(Exit.isSuccess(exit) ? exit.value : { status: 'failed', detail: Cause.pretty(exit.cause) });
+    const file: FileState = Exit.isSuccess(exit) ? exit.value : { status: 'failed', detail: Cause.pretty(exit.cause) };
+    this.colours.set([]);
+    this.file.set(file);
+    if (file.status === 'text') void this.colour(cwd, path, file.content);
+  }
+
+  /** Asks the worker for the colours of a text that has a language and is not too large; the plain text shows meanwhile. */
+  private async colour(cwd: string, path: string, content: string): Promise<void> {
+    const { hljsId } = this.language();
+    if (hljsId === undefined || content.length > MAX_COLOURED_LENGTH) return;
+    const exit = await this.runtime.run(this.highlighter.colours(content, hljsId));
+    // Another file, or another read of this one, took its place meanwhile.
+    if (path !== this.path() || cwd !== this.cwd() || this.content() !== content) return;
+    if (Exit.isSuccess(exit)) this.colours.set(exit.value);
   }
 }

@@ -398,7 +398,7 @@ describe('A File View in a Pane', () => {
     expect(header.querySelector('.pin')?.getAttribute('aria-pressed')).toBe('false');
     expect(header.querySelector('ui-state')).toBeNull();
     expect(header.querySelector('.number')).toBeNull();
-    expect(panes()[1].querySelector('app-file-view .source')?.textContent).toBe('# timmy\n');
+    expect(panes()[1].querySelector('app-file-view .line .text')?.textContent).toBe('# timmy');
     expect(panes()[1].querySelector('app-terminal-screen')).toBeNull();
   });
 
