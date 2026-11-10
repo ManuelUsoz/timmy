@@ -62,6 +62,8 @@
           >
             <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2h4M7 2v4L4.5 9h7L9 6V2M8 9v5" /></svg>
           </button>
+          <!-- Mencionar stays in the header however narrow, like the pin. -->
+          <app-mention [tabId]="tab().id" [path]="view.file.path" />
           <!-- Labelled when there is room, icons in a narrower Pane, and in the menu below in a narrow one. -->
           <span class="file-actions">
             <button type="button" class="tool labelled" [attr.aria-label]="i18n.t('fileView.copy')" [attr.title]="i18n.t('fileView.copy')" [disabled]="fileView()?.hasText() !== true" (click)="fileView()?.copy()">

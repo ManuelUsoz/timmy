@@ -7,6 +7,7 @@ import { LineSelections, clampLines, clickLine, isOnlyLine, lineRange, pathWithL
 import type { TabId } from './tabs';
 import { TabsState } from './tabs-state';
 import { PLAIN_TEXT, languageOf } from './file-language';
+import { MentionButton } from './mention-button';
 import { columnsOf, eolOf, indentOf, lineRuns, linesOf, type ColourRange } from './source-text';
 import { MAX_COLOURED_LENGTH, SYNTAX_HIGHLIGHTER } from './syntax-highlighter';
 import { fileOf } from './views';
@@ -85,6 +86,7 @@ export const formatSize = (bytes: number): string => {
  */
 @Component({
   selector: 'app-file-view',
+  imports: [MentionButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './file-view.html',
   styleUrl: './file-view.css',

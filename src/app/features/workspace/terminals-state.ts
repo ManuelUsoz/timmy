@@ -178,7 +178,25 @@ export class TerminalsState {
 
   /** Makes a Terminal the current one; an id that is not (or no longer) a Terminal leaves the current one as it is. */
   setCurrent(id: TerminalId): void {
-    if (this.find(id) !== undefined) this.currentId.set(id);
+    if (this.find(id) === undefined) return;
+    this.currentId.set(id);
+    this.stampFocus(id);
+  }
+
+  /** When each Terminal was last the current one, as a count that grows with each: a Mention's default (ADR 0008). */
+  private readonly focusStamps = signal<ReadonlyMap<TerminalId, number>>(new Map());
+  private focusCount = 0;
+
+  private stampFocus(id: TerminalId): void {
+    if (this.focusStamps().get(id) === this.focusCount && this.focusCount > 0) return;
+    this.focusCount += 1;
+    const count = this.focusCount;
+    this.focusStamps.update((stamps) => new Map(stamps).set(id, count));
+  }
+
+  /** How recently the Terminal was the current one: higher is more recent, 0 never. */
+  focusedAt(id: TerminalId): number {
+    return this.focusStamps().get(id) ?? 0;
   }
 
   /** Keeps the screen of a Terminal that is leaving the window, so the next place that shows it can restore it. */
@@ -241,14 +259,17 @@ export class TerminalsState {
     this.all.update((entries) => pipe(restarted(entries, id, result.value.terminalId), (next) => withActivity(next, this.reported)));
     this.restartedIds.update((ids) => new Map(ids).set(id, result.value.terminalId));
     if (this.currentId() === id) this.currentId.set(result.value.terminalId);
+    const stamp = this.focusStamps().get(id);
+    if (stamp !== undefined) this.focusStamps.update((stamps) => new Map(stamps).set(result.value.terminalId, stamp));
     return this.find(result.value.terminalId);
   }
 
-  async write(id: TerminalId, data: string): Promise<void> {
-    await this.runtime.run(Effect.gen(function* () {
+  async write(id: TerminalId, data: string): Promise<boolean> {
+    const exit = await this.runtime.run(Effect.gen(function* () {
       const desktop = yield* DesktopApi;
       yield* desktop['Terminal.write']({ terminalId: id, data });
     }));
+    return Exit.isSuccess(exit);
   }
 
   async resize(id: TerminalId, cols: number, rows: number): Promise<void> {

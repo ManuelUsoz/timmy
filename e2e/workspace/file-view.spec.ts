@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { commitAll, expect, test } from '../fixtures';
+import { STAND_IN_OUTPUT, commitAll, expect, test } from '../fixtures';
 
 test.describe('A File View', () => {
   test.use({ language: 'en' });
@@ -121,6 +121,36 @@ test.describe('A File View', () => {
       await sidebar.getByRole('button', { name: 'Close files' }).click();
       await expect(header.getByRole('button', { name: 'Copy path' })).toBeVisible();
       await expect(header.locator('.file-actions .label').first()).toBeHidden();
+    });
+  });
+
+  test.describe('Mention picker', () => {
+    test.use({ language: 'en', providers: ['ClaudeCode'] });
+
+    test('lists the eligible Provider Terminal and shows the picker', async ({ timmy }) => {
+      const { page } = timmy;
+      writeFileSync(path.join(timmy.projectDir, 'main.ts'), 'export const answer = 42;\n');
+      commitAll(timmy.projectDir);
+
+      await timmy.addDemoProject();
+      await page.getByRole('navigation', { name: /^Tabs of / }).getByRole('button', { name: 'New tab' }).click();
+      await page.getByRole('listbox', { name: 'New tab' }).getByRole('option', { name: 'Claude Code' }).click();
+      await expect(page.locator('.xterm-screen')).toContainText(STAND_IN_OUTPUT, { timeout: 15_000 });
+
+      await page.keyboard.press('Control+p');
+      const sidebar = page.getByRole('complementary', { name: 'Files' });
+      await sidebar.getByRole('treeitem', { name: 'main.ts', exact: true }).click();
+
+      const filePane = page.locator('app-pane-stack').filter({ has: page.locator('app-file-view') });
+      const header = filePane.locator('.view-header.act');
+      const terminal = page.locator('app-pane-stack').filter({ has: page.locator('app-terminal-screen') }).locator('.body');
+      await header.getByRole('button', { name: 'Choose another agent' }).click();
+
+      const picker = page.getByRole('menu', { name: 'Mention in an agent' });
+      const rows = picker.getByRole('menuitem');
+      await expect(rows).toHaveCount(1);
+      await expect(rows.first()).toContainText('claude 1 · #1 · demo-project');
+      await timmy.shot('file-view-mention-picker', { mask: [terminal] });
     });
   });
 

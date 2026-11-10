@@ -30,6 +30,9 @@
                 [attr.aria-label]="i18n.t('fileView.lineActions', { lines: marked.range })"
               >
                 <span class="range">{{ marked.range }}</span>
+                @if (tabId(); as tab) {
+                  <app-mention place="popover" [tabId]="tab" [path]="path()" [lines]="selection()" />
+                }
                 <button type="button" class="line-action" (click)="copy()">{{ i18n.t('fileView.copy') }}</button>
                 <button type="button" class="line-action" (click)="copyPath()">{{ i18n.t('fileView.copyPath') }}</button>
               </div>
