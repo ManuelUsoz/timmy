@@ -15,6 +15,8 @@ export interface FakeDisk {
   dirs: Record<string, ReadonlyArray<FolderEntry>>;
   /** What reading each file gives. A file missing here does not exist. */
   files: Record<string, FileContent>;
+  /** Files that exist and cannot be read (no permission). */
+  unreadable?: ReadonlyArray<string>;
   /** What `Files.list` answers (non-ignored paths); null for a folder without git. */
   index: ReadonlyArray<string> | null;
   /** What `Files.changes` answers; none when absent. A folder without git (`index` null) fails instead. */
@@ -77,6 +79,7 @@ export const layerFakeFiles = (fake: FakeFiles) =>
     'Files.read': ({ cwd, file: path }) =>
       Effect.gen(function* () {
         fake.calls.push(`Files.read:${path}`);
+        if (fake.disks[cwd]?.unreadable?.includes(path) === true) return yield* new FilesError({ reason: 'Unreadable', detail: path });
         const content = fake.disks[cwd]?.files[path];
         if (content === undefined) return yield* new FilesError({ reason: 'FileNotFound', detail: path });
         return content;

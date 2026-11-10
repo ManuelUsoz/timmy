@@ -66,8 +66,8 @@ export class FileView {
   /** The Project's folder, which the path is relative to. */
   readonly cwd = input.required<string>();
   readonly path = input.required<string>();
-  /** The Tab it is in, to tell a request for the keyboard meant for it. */
-  readonly tabId = input.required<TabId>();
+  /** The Tab it is in, to tell a request for the keyboard meant for it. None outside a Tab (the Quick look). */
+  readonly tabId = input<TabId>();
 
   protected readonly file = signal<FileState>({ status: 'loading' });
   protected readonly name = computed(() => this.path().split('/').at(-1) ?? this.path());

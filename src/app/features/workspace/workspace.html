@@ -12,6 +12,9 @@
 @if (projects.creating()) {
   <app-new-project-dialog (closed)="projects.creating.set(false)" (created)="created($event)" />
 }
+@if (quickLook.model()) {
+  <app-quick-look />
+}
 @if (switcher.model()) {
   <app-switcher />
 }
