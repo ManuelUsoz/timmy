@@ -43,15 +43,23 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.head .panel {
+/* Every glyph of the sidebar is a 1.2 stroke line icon. */
+svg {
   flex: none;
-  width: 16px;
-  height: 16px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.head .panel,
+.field .find {
+  width: 16px;
+  height: 16px;
+}
+
+.head .panel {
   color: var(--text-secondary);
 }
 
@@ -116,11 +124,6 @@
 .icon svg {
   width: 14px;
   height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 .filter-row {
@@ -143,17 +146,6 @@
 .field:focus-within {
   outline: var(--focus-width) solid var(--focus);
   outline-offset: -2px;
-}
-
-.field .find {
-  flex: none;
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 .filter {

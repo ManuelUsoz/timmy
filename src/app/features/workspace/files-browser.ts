@@ -416,11 +416,16 @@ export class FilesBrowser {
   /**
    * An open folder that turns out to start a chain of single-child folders opens the rest of the chain, as one row does, and
    * remembers it. Run after every read: a listing that arrives may lengthen a chain, or tell whether its first folder is ignored.
+   * Only folders on screen are followed: one remembered open inside a closed folder is left as it is, unread.
    */
   private followChains(): void {
     const open = this.expanded();
+    const shown = (path: string): boolean => {
+      const parts = path.split('/');
+      return parts.slice(1).every((_, index) => open.includes(parts.slice(0, index + 1).join('/')));
+    };
     const missing = open.flatMap((path) => {
-      const entry = this.entryAt(path);
+      const entry = shown(path) ? this.entryAt(path) : undefined;
       return entry === undefined ? [] : this.chainOf(path, entry.ignored).filter((member) => !open.includes(member));
     });
     if (missing.length === 0) return;

@@ -514,6 +514,43 @@ describe('FilesBrowser compact folders', () => {
     expect(outline()).toEqual(['docs', 'src', '  dist', 'package.json']);
   });
 
+  it('joins ignored folders into one chain too', async () => {
+    const disk = chainDisk();
+    disk.dirs[''] = [folder('node_modules', true)];
+    disk.dirs['node_modules'] = [folder('pkg', true)];
+    disk.dirs['node_modules/pkg'] = [file('index.js', true), file('package.json', true)];
+    const { browser, settle, outline, nodes } = await setup({ files: { disks: { [timmy.cwd]: disk } } });
+    browser.toggle();
+    await settle();
+    browser.setFolderOpen('node_modules', true);
+    await settle();
+    expect(outline()).toEqual(['node_modules/pkg', '  index.js', '  package.json']);
+    expect(nodes()[0]).toMatchObject({ dimmed: true });
+  });
+
+  it('splits the row on refresh when a folder of the chain gets a second entry', async () => {
+    const { backend, browser, settle, outline } = await opened();
+    browser.setFolderOpen('src', true);
+    await settle();
+    backend.files.disks[timmy.cwd].dirs['src/app'] = [folder('core'), file('main.ts')];
+    await browser.refresh();
+    await settle();
+    expect(outline()).toEqual(['docs', 'src/app', '  core/rpc', '    wire', '    handshake.ts', '    retry.ts', '  main.ts', 'package.json']);
+  });
+
+  it('does not follow a chain inside a folder that was closed meanwhile', async () => {
+    const { backend, browser, settle, listDirs } = await opened();
+    browser.setFolderOpen('src', true);
+    await settle();
+    backend.files.disks[timmy.cwd].dirs['src/app/core/rpc/wire'] = [folder('deep')];
+    backend.files.disks[timmy.cwd].dirs['src/app/core/rpc/wire/deep'] = [file('x.ts')];
+    browser.setFolderOpen('src/app/core/rpc/wire', true);
+    browser.setFolderOpen('src', false);
+    await settle();
+    expect(listDirs()).not.toContain('Files.listDir:src/app/core/rpc/wire/deep');
+    expect(backend.files.saved[timmy.projectId]?.expanded).toEqual(['src/app/core/rpc/wire']);
+  });
+
   it('opens a file inside the chain, and the filter still finds it by its full path', async () => {
     const { browser, settle } = await opened();
     browser.setFolderOpen('src', true);
