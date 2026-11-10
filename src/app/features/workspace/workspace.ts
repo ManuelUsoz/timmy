@@ -7,6 +7,8 @@ import { FilesBrowser } from './files-browser';
 import { FilesSidebar } from './files-sidebar';
 import { NewProjectDialog } from './new-project-dialog';
 import { ProjectsState } from './projects-state';
+import { QuickLook } from './quick-look';
+import { QuickLookState } from './quick-look-state';
 import { SettingsDialog } from './settings-dialog';
 import { SettingsDialogState } from './settings-dialog-state';
 import { Switcher } from './switcher';
@@ -27,7 +29,7 @@ import { WorkspaceSidebar } from './workspace-sidebar';
  */
 @Component({
   selector: 'app-workspace',
-  imports: [FilesSidebar, NewProjectDialog, RouterOutlet, SettingsDialog, Switcher, ToastHost, WorkspaceSidebar],
+  imports: [FilesSidebar, NewProjectDialog, QuickLook, RouterOutlet, SettingsDialog, Switcher, ToastHost, WorkspaceSidebar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './workspace.html',
   styleUrl: './workspace.css',
@@ -40,6 +42,7 @@ export class WorkspaceComponent {
   private readonly tabs = inject(TabsState);
   protected readonly switcher = inject(SwitcherState);
   protected readonly files = inject(FilesBrowser);
+  protected readonly quickLook = inject(QuickLookState);
   private readonly windowMode = inject(WindowModeState);
   private readonly terminals = inject(TerminalsState);
 

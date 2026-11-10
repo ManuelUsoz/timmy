@@ -1,0 +1,147 @@
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-sans);
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+/* A fixed size, so walking the list never makes the dialog jump with the length of each file. */
+.dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: min(960px, 100% - 64px);
+  height: min(680px, 100% - 64px);
+  border: 1px solid var(--modal-border);
+  background: var(--modal);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-overlay);
+}
+
+.dialog:focus {
+  outline: none;
+}
+
+svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-03);
+  min-width: 0;
+  height: 40px;
+  padding-inline: var(--spacing-05) var(--spacing-03);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font: var(--text-body-compact-01);
+}
+
+.name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The folder gives way before the name does. */
+.dir {
+  flex: 0 1000 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-helper);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.grow {
+  flex: 1;
+}
+
+.counter {
+  flex: none;
+  color: var(--text-helper);
+  font-variant-numeric: tabular-nums;
+}
+
+.close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--layer-hover);
+  color: var(--text-primary);
+}
+
+.close:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+}
+
+.hints {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-05);
+  padding: var(--spacing-03) var(--spacing-05);
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-helper);
+  font: var(--text-body-compact-01);
+}
+
+.hints span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-01);
+}
+
+kbd {
+  min-width: 16px;
+  box-sizing: border-box;
+  padding: 0 var(--spacing-02);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-helper);
+  font: 400 11px/16px var(--font-mono);
+  text-align: center;
+}
