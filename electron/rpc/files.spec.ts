@@ -14,6 +14,7 @@ import {
 import { AppInfoRpcs } from '../../src/shared/app-info/app-info.rpc';
 import { MAX_PREVIEW_BYTES } from '../../src/shared/files/files.model';
 import { layerFilesState } from '../files/files-state';
+import { layerFileOpenerTest } from '../files/file-opener';
 import { fsFailure, layerProjectFiles } from '../files/project-files';
 import { layerProjectStore, ProjectStore } from '../projects/project-store';
 import { layerFilesHandlers } from './files';
@@ -35,11 +36,12 @@ const write = (root: string, file: string, content = 'x') => {
 };
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, stdio: 'ignore' });
 
-const makeLayer = (limit?: number) =>
+const makeLayer = (limit?: number, opened: string[] = []) =>
   makeDesktopTestLayer(
     Layer.mergeAll(
       layerFilesHandlers.pipe(
         Layer.provide(layerProjectFiles(limit)),
+        Layer.provide(layerFileOpenerTest(opened)),
         Layer.provide(layerFilesState),
         Layer.provide(layerProjectStore(db)),
       ),
@@ -538,6 +540,37 @@ describe('Files.diff', () => {
       const error = yield* Effect.flip(diff(root, '../elsewhere.ts'));
       expect(error.reason).toBe('OutsideProject');
     }).pipe(Effect.provide(makeLayer()));
+  });
+});
+
+describe('Files.openExternal', () => {
+  it.effect('opens a file of the Project outside Timmy, by its absolute path', () => {
+    const root = tempDir();
+    write(root, 'src/a.ts');
+    const opened: string[] = [];
+    return Effect.gen(function* () {
+      const api = yield* DesktopApi;
+      yield* api['Files.openExternal']({ cwd: root, file: 'src/a.ts' });
+      expect(opened).toEqual([path.join(root, 'src', 'a.ts')]);
+    }).pipe(Effect.provide(makeLayer(undefined, opened)));
+  });
+
+  it.effect('opens nothing for a missing file, a folder, a file outside the Project or a folder that is not one', () => {
+    const root = tempDir();
+    write(root, 'src/a.ts');
+    const stranger = mkdtempSync(path.join(tmpdir(), 'timmy-files-stranger-'));
+    roots.push(stranger);
+    write(stranger, 'secret.txt');
+    const opened: string[] = [];
+    return Effect.gen(function* () {
+      const api = yield* DesktopApi;
+      const reasons = [];
+      for (const [cwd, file] of [[root, 'nope.ts'], [root, 'src'], [root, '../secret.txt'], [stranger, 'secret.txt']] as const) {
+        reasons.push((yield* Effect.flip(api['Files.openExternal']({ cwd, file }))).reason);
+      }
+      expect(reasons).toEqual(['FileNotFound', 'FileNotFound', 'OutsideProject', 'UnknownProject']);
+      expect(opened).toEqual([]);
+    }).pipe(Effect.provide(makeLayer(undefined, opened)));
   });
 });
 

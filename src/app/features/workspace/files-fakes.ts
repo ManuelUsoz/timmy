@@ -94,6 +94,11 @@ export const layerFakeFiles = (fake: FakeFiles) =>
         if (content === undefined) return yield* new FilesError({ reason: 'FileNotFound', detail: path });
         return content;
       }),
+    'Files.openExternal': ({ cwd, file: path }) =>
+      Effect.gen(function* () {
+        fake.calls.push(`Files.openExternal:${path}`);
+        if (fake.disks[cwd]?.files[path] === undefined) return yield* new FilesError({ reason: 'FileNotFound', detail: path });
+      }),
     'Files.changes': ({ cwd }) =>
       Effect.gen(function* () {
         fake.calls.push('Files.changes');

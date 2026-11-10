@@ -106,6 +106,7 @@ export const layerFilesUnused = FilesRpcs.toLayer({
   'Files.list': () => Effect.die('Files handler not under test'),
   'Files.listDir': () => Effect.die('Files handler not under test'),
   'Files.read': () => Effect.die('Files handler not under test'),
+  'Files.openExternal': () => Effect.die('Files handler not under test'),
   'Files.changes': () => Effect.die('Files handler not under test'),
   'Files.diff': () => Effect.die('Files handler not under test'),
   'Files.getState': () => Effect.die('Files handler not under test'),

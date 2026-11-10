@@ -24,6 +24,11 @@ export const FilesRpcs = RpcGroup.make(
     success: FileContent,
     error: FilesError,
   }),
+  /** Opens one file of `cwd` outside Timmy, with the app the system has for it. `file` is relative to `cwd`, with `/`. */
+  Rpc.make('Files.openExternal', {
+    payload: { cwd: Schema.String, file: Schema.String },
+    error: FilesError,
+  }),
   /** The Changed files of `cwd`, from its `git status`. Fails with `NotAGitRepository` outside a repository. */
   Rpc.make('Files.changes', {
     payload: { cwd: Schema.String },
