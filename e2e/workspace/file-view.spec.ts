@@ -37,7 +37,7 @@ test.describe('A File View', () => {
       await expect(fileHeaders.locator('.tag')).toHaveText(['Preview']);
       const text = page.getByRole('region', { name: 'Contents of main.ts' });
       await expect(text).toBeFocused();
-      await expect(text.locator('.gutter')).toHaveText('1\n2');
+      await expect(text.locator('.line .number')).toHaveText(['1', '2']);
       const scrolls = await text.evaluate((el) => el.scrollWidth > el.clientWidth);
       expect(scrolls, 'the long line scrolls sideways').toBe(true);
       await timmy.shot('file-view-preview', { mask: behind });
@@ -69,5 +69,48 @@ test.describe('A File View', () => {
       await expect(fileHeaders).toHaveCount(0);
       await expect(terminal).toHaveCount(1);
     });
+  });
+
+  test('source is highlighted by language, with a status bar that says what kind of file it is', async ({ timmy }) => {
+    const { page } = timmy;
+    const source = [
+      "import { Injectable, signal } from '@angular/core';",
+      '',
+      '/** The state of the connection with main. */',
+      "export type HandshakeState = 'idle' | 'ready' | 'failed';",
+      '',
+      'const MAX_ATTEMPTS = 5;',
+      '',
+      "@Injectable({ providedIn: 'root' })",
+      'export class HandshakeService {',
+      "  readonly state = signal<HandshakeState>('idle');",
+      '',
+      '  connect(attempt: number): boolean {',
+      "    this.state.set('ready');",
+      '    return attempt < MAX_ATTEMPTS;',
+      '  }',
+      '}',
+      '',
+    ].join('\r\n');
+    mkdirSync(path.join(timmy.projectDir, 'src'), { recursive: true });
+    writeFileSync(path.join(timmy.projectDir, 'src', 'handshake.service.ts'), source);
+    commitAll(timmy.projectDir);
+
+    const sidebar = page.getByRole('complementary', { name: 'Files' });
+    const behind = [page.locator('app-pane-stack').filter({ has: page.locator('app-terminal-screen') }).locator('.body')];
+    await timmy.openProjectTerminal();
+    await page.keyboard.press('Control+p');
+    await sidebar.getByRole('treeitem', { name: 'src', exact: true }).click();
+    await sidebar.getByRole('treeitem', { name: 'handshake.service.ts', exact: true }).click();
+
+    const view = page.locator('app-file-view');
+    // The colours come from the worker, after the plain text.
+    await expect(view.locator('.tok-keyword').first()).toHaveText('import');
+    await expect(view.locator('.tok-string').first()).toHaveText("'@angular/core'");
+    await expect(view.locator('.tok-comment')).toHaveText(['/** The state of the connection with main. */']);
+    await expect(view.locator('.tok-meta')).toHaveText(['@Injectable']);
+    await expect(view.locator('.tok-number').first()).toHaveText('5');
+    await expect(view.locator('.status > span')).toHaveText(['Ln –', 'TypeScript', 'CRLF', 'Spaces: 2', 'UTF-8']);
+    await timmy.shot('file-view-highlighted', { mask: behind });
   });
 });

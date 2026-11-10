@@ -2,12 +2,13 @@
 <div class="scroll" data-scrolls-x tabindex="0" role="region" [attr.aria-label]="i18n.t('fileView.text', { name: name() })">
   @switch (state.status) {
     @case ('text') {
-      @if (gutter() === '') {
+      @if (lines().length === 0) {
         <p class="note">{{ i18n.t('files.emptyFile') }}</p>
       } @else {
-        <div class="code">
-          <pre class="gutter" aria-hidden="true">{{ gutter() }}</pre>
-          <pre class="source">{{ state.content }}</pre>
+        <div class="code" [style.--columns]="columns()" [style.--digits]="digits()">
+          @for (row of rows(); track $index) {
+            <div class="line"><span class="number" aria-hidden="true">{{ $index + 1 }}</span><span class="text">@for (run of row; track $index) {<span [class]="run.token === '' ? '' : 'tok-' + run.token">{{ run.text }}</span>}</span></div>
+          }
         </div>
       }
     }
@@ -31,3 +32,10 @@
     }
   }
 </div>
+@if (state.status === 'text') {
+  <div class="status">
+    @for (part of status(); track $index) {
+      <span>{{ part }}</span>
+    }
+  </div>
+}

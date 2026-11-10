@@ -56,6 +56,16 @@
   --tag-purple-text: #d4bbff;
   --tag-gray-bg: #393939;
   --tag-gray-text: #e0e0e0;
+  /* Syntax colours of the File View, from the canvas; each at least 4.5:1 on --layer-01 and --background. */
+  --syntax-keyword: #d4bbff;
+  --syntax-string: #a7f0ba;
+  --syntax-number: #ffb3b8;
+  --syntax-comment: #b0b0b0;
+  --syntax-function: #f1c21b;
+  --syntax-type: #a6c8ff;
+  --syntax-variable: #82cfff;
+  --syntax-punctuation: #e0e0e0;
+  --syntax-meta: #a56eff;
   --shadow-overlay-value: 0 2px 6px rgba(0, 0, 0, 0.3);
   --focus-width: 2px;
   /* Literals on purpose: --spacing-control-* live in @theme inline and are not emitted as vars. Keep in sync. */
@@ -108,6 +118,16 @@
   --tag-purple-text: #6929c4;
   --tag-gray-bg: #e0e0e0;
   --tag-gray-text: #161616;
+  /* Each at least 4.5:1 on --layer-01 (#f4f4f4) and --background. */
+  --syntax-keyword: #6929c4;
+  --syntax-string: #044317;
+  --syntax-number: #a2191f;
+  --syntax-comment: #6f6f6f;
+  --syntax-function: #8e6a00;
+  --syntax-type: #002d9c;
+  --syntax-variable: #00539a;
+  --syntax-punctuation: #525252;
+  --syntax-meta: #8a3ffc;
 }
 
 /* Semantic aliases for component CSS. */

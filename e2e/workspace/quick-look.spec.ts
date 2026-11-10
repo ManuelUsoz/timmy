@@ -48,7 +48,7 @@ test.describe('The Quick look', () => {
       await expect(look().locator('.name')).toHaveText('main.ts');
       await expect(look().locator('.dir')).toHaveText('src');
       await expect(look().locator('.counter')).toHaveText('1 of 4 in demo-project');
-      await expect(look().locator('.source')).toContainText('export const answer = 42;');
+      await expect(look().locator('.line .text').first()).toHaveText('export const answer = 42;');
       // Not a View: no Pane opened for it.
       await expect(panes()).toHaveCount(0);
       await timmy.shot('quick-look-file');

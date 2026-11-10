@@ -76,7 +76,7 @@ test.describe('The Files browser', () => {
       await row('main.ts').click();
       const view = page.locator('app-pane-stack').filter({ has: page.locator('.view-header[data-kind=file]') });
       await expect(view.locator('.view-header .name')).toHaveText('main.ts');
-      await expect(view.locator('.gutter')).toHaveText('1\n2');
+      await expect(view.locator('.line .number')).toHaveText(['1', '2']);
       await expect(row('main.ts')).toHaveAttribute('aria-selected', 'true');
       await expect(sidebar.getByRole('treeitem').first()).toBeVisible();
     });
