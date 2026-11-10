@@ -6,6 +6,7 @@ import { stackKeys, stackShortcut, type StackShortcut } from '../../core/shortcu
 import { ModalComponent } from '../../shared/ui/modal/modal';
 import { StateComponent } from '../../shared/ui/state/state';
 import { FileView } from './file-view';
+import { MentionButton } from './mention-button';
 import { NewTerminal } from './new-terminal';
 import {
   MAX_VIEWS,
@@ -69,7 +70,7 @@ interface PendingClose {
  */
 @Component({
   selector: 'app-pane-stack',
-  imports: [FileView, ModalComponent, NewTerminal, StateComponent, TerminalNameField, TerminalScreen],
+  imports: [FileView, MentionButton, ModalComponent, NewTerminal, StateComponent, TerminalNameField, TerminalScreen],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './pane-stack.html',
   styleUrl: './pane-stack.css',
