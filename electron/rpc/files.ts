@@ -24,6 +24,7 @@ export const layerFilesHandlers = FilesRpcs.toLayer(
       'Files.list': ({ cwd }) => inProject(cwd, files.list(cwd)),
       'Files.listDir': ({ cwd, dir }) => inProject(cwd, files.listDir(cwd, dir)),
       'Files.read': ({ cwd, file }) => inProject(cwd, files.read(cwd, file)),
+      'Files.changes': ({ cwd }) => inProject(cwd, files.changes(cwd)),
       'Files.getState': ({ projectId }) => state.get(projectId),
       'Files.saveState': ({ projectId, ...saved }) => state.saveProject(projectId, saved),
       'Files.saveWidth': ({ width }) => state.saveWidth(width),

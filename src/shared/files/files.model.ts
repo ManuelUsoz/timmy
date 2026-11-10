@@ -13,6 +13,27 @@ export const FileList = Schema.Struct({
 }).annotate({ identifier: 'FileList' });
 export type FileList = typeof FileList.Type;
 
+/** How a Changed file differs from the last commit (GLOSSARY: Changed file). Staged and unstaged are not told apart. */
+export const ChangeKind = Schema.Literals(['modified', 'added', 'untracked', 'deleted', 'renamed']).annotate({ identifier: 'ChangeKind' });
+export type ChangeKind = typeof ChangeKind.Type;
+
+/**
+ * One entry of the Project's `git status`. `path` is relative to the Project, with `/` and no trailing slash. `folder` is a
+ * wholly untracked folder (one entry, whatever it holds) or a submodule (one `modified` entry, never its files).
+ */
+export const ChangedFile = Schema.Struct({
+  path: Schema.String,
+  kind: ChangeKind,
+  folder: Schema.Boolean,
+}).annotate({ identifier: 'ChangedFile' });
+export type ChangedFile = typeof ChangedFile.Type;
+
+/** Every Changed file of a Project, as git reports them; a staged rename is one `renamed` entry at its new path. */
+export const ChangedFiles = Schema.Struct({
+  entries: Schema.Array(ChangedFile),
+}).annotate({ identifier: 'ChangedFiles' });
+export type ChangedFiles = typeof ChangedFiles.Type;
+
 /** One thing inside a folder. `ignored` is what git ignores (dimmed in the tree). A symlink is a file: it is never followed. */
 export const FolderEntry = Schema.Struct({
   name: Schema.String,

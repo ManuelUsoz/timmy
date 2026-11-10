@@ -600,4 +600,22 @@ describe('TerminalService with a Hook', () => {
       }),
     ),
   );
+
+  it.effect('passes on every report of a live Terminal, a repeated Working included, and none for a Terminal that does not exist', () =>
+    withHook(({ service, id, report }) =>
+      Effect.gen(function* () {
+        const heard = yield* service.hookReports.pipe(Stream.take(3), Stream.runCollect, Effect.forkChild);
+        yield* Effect.yieldNow;
+        yield* report('Working');
+        yield* report('Working', TerminalIdSchema.make('someone-else'));
+        yield* report('Working');
+        yield* report('Done');
+        expect(Array.from(yield* Fiber.join(heard))).toEqual([
+          { terminalId: id, signal: 'Working' },
+          { terminalId: id, signal: 'Working' },
+          { terminalId: id, signal: 'Done' },
+        ]);
+      }),
+    ),
+  );
 });

@@ -58,8 +58,17 @@
 
 <div class="section">
   <span class="section-label">{{ projectName() }}</span>
-  <!-- The count of changed files goes here. -->
-  <span class="section-count"></span>
+  @if (browser.changedCount() > 0) {
+    <button
+      type="button"
+      class="section-count"
+      [attr.aria-pressed]="browser.changedOnly()"
+      [attr.title]="i18n.t('files.changedOnly')"
+      (click)="browser.toggleChangedOnly()"
+    >
+      {{ i18n.t('files.changedCount', { count: browser.changedCount() }) }}
+    </button>
+  }
 </div>
 
 @if (filtering() && matches.status === 'ready') {

@@ -27,6 +27,18 @@ export interface TreeNode {
   readonly kind?: 'folder' | 'file';
   /** Default variant: the node is drawn muted (for example an ignored folder). */
   readonly dimmed?: boolean;
-  /** Default variant: a short mark after the label, with its accessible name. */
-  readonly flag?: { readonly text: string; readonly label: string };
+  /** Default variant: the label is struck through (for example a deleted file). */
+  readonly struck?: boolean;
+  /** Default variant: a short mark after the label, with its accessible name and a colour that only repeats what the text says. */
+  readonly flag?: TreeNodeFlag;
+}
+
+/** `muted` is a count or a note rather than a state. */
+export type TreeNodeFlagTone = 'warning' | 'success' | 'info' | 'error' | 'merged' | 'muted';
+
+export interface TreeNodeFlag {
+  readonly text: string;
+  readonly label: string;
+  /** Without one it is drawn as a warning, as before tones existed. */
+  readonly tone?: TreeNodeFlagTone;
 }

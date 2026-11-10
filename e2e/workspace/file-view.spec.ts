@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { expect, test } from '../fixtures';
+import { commitAll, expect, test } from '../fixtures';
 
 test.describe('A File View', () => {
   test.use({ language: 'en' });
@@ -14,6 +14,8 @@ test.describe('A File View', () => {
     write('README.md', '# demo-project\n\nA project to browse.\n');
     write('src/main.ts', "export const answer = 42;\nexport const long = 'a line that is wider than the pane so that it scrolls sideways instead of wrapping, which it never does';\n");
     write('src/util.ts', 'export const twice = (n: number) => n * 2;\n');
+    // Committed, so the tree shows no Changed file markers: they are not part of what this spec checks.
+    commitAll(timmy.projectDir);
 
     const sidebar = page.getByRole('complementary', { name: 'Files' });
     const row = (name: string) => sidebar.getByRole('treeitem', { name, exact: true });

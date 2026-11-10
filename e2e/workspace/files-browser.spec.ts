@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { expect, test } from '../fixtures';
+import { commitAll, expect, test } from '../fixtures';
 
 test.describe('The Files browser', () => {
   test.use({ language: 'en' });
@@ -19,6 +19,8 @@ test.describe('The Files browser', () => {
     write('electron/rpc/handshake.ts', 'export const handshake = 1;\n');
     write('electron/rpc/ipc-server.ts', 'export const server = 1;\n');
     write('logo.png', Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x1a, 0x0a]));
+    // Committed, so no file is a Changed file: the markers have a spec of their own.
+    commitAll(timmy.projectDir);
 
     const sidebar = page.getByRole('complementary', { name: 'Files' });
     const filesButton = page.getByRole('navigation', { name: /^Tabs of / }).getByRole('button', { name: 'Files' });

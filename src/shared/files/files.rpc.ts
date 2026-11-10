@@ -2,7 +2,7 @@ import { Schema } from 'effect';
 import { Rpc, RpcGroup } from 'effect/rpc';
 import { FilesError } from './files-error.model';
 import { ProjectId } from '../projects/projects.model';
-import { FileContent, FileList, FilesBrowserState, FolderListing, ProjectBrowserState } from './files.model';
+import { ChangedFiles, FileContent, FileList, FilesBrowserState, FolderListing, ProjectBrowserState } from './files.model';
 
 /** What the `@` popup (and later Mention validation) knows about a working directory's files. */
 export const FilesRpcs = RpcGroup.make(
@@ -22,6 +22,12 @@ export const FilesRpcs = RpcGroup.make(
   Rpc.make('Files.read', {
     payload: { cwd: Schema.String, file: Schema.String },
     success: FileContent,
+    error: FilesError,
+  }),
+  /** The Changed files of `cwd`, from its `git status`. Fails with `NotAGitRepository` outside a repository. */
+  Rpc.make('Files.changes', {
+    payload: { cwd: Schema.String },
+    success: ChangedFiles,
     error: FilesError,
   }),
   /** What the browser remembers for a Project, with the window's width. Defaults when nothing (readable) was saved. */
