@@ -6,6 +6,7 @@ import {
   type ChangedFile,
   type FileContent,
   type FolderEntry,
+  type ImageContent,
   type ProjectBrowserState,
 } from '../../../shared/files/files.model';
 
@@ -15,6 +16,8 @@ export interface FakeDisk {
   dirs: Record<string, ReadonlyArray<FolderEntry>>;
   /** What reading each file gives. A file missing here does not exist. */
   files: Record<string, FileContent>;
+  /** What reading each file as an image gives; a file of `files` missing here is not an image (size 0). */
+  images?: Record<string, ImageContent>;
   /** Files that exist and cannot be read (no permission). */
   unreadable?: ReadonlyArray<string>;
   /** What `Files.list` answers (non-ignored paths); null for a folder without git. */
@@ -99,6 +102,14 @@ export const layerFakeFiles = (fake: FakeFiles) =>
         if (disk.index === null) return yield* new FilesError({ reason: 'NotAGitRepository', detail: 'not a git repository' });
         if (fake.changesFail) return yield* new FilesError({ reason: 'GitFailed', detail: 'index file corrupt' });
         return { entries: [...(disk.changes ?? [])] };
+      }),
+    'Files.readImage': ({ cwd, file: path }) =>
+      Effect.gen(function* () {
+        fake.calls.push(`Files.readImage:${path}`);
+        const disk = fake.disks[cwd];
+        if (disk?.unreadable?.includes(path) === true) return yield* new FilesError({ reason: 'Unreadable', detail: path });
+        if (disk?.files[path] === undefined) return yield* new FilesError({ reason: 'FileNotFound', detail: path });
+        return disk.images?.[path] ?? { kind: 'notAnImage' as const, size: 0 };
       }),
     'Files.getState': ({ projectId }) =>
       Effect.sync(() => {

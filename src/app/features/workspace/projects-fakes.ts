@@ -134,10 +134,12 @@ export const layerFakeBackend = (backend: FakeBackend) =>
   Layer.mergeAll(
     layerFakeProjects(backend),
     SettingsRpcs.toLayer({
-      'Settings.get': () => Effect.succeed({ language: 'es' as const, providers: [], channels: defaultChannels }),
-      'Settings.setLanguage': ({ language }) => Effect.succeed({ language, providers: [], channels: defaultChannels }),
-      'Settings.setProvider': ({ enabled, provider }) => Effect.succeed({ language: 'es' as const, providers: enabled ? [provider] : [], channels: defaultChannels }),
+      'Settings.get': () => Effect.succeed({ language: 'es' as const, providers: [], channels: defaultChannels, reader: 'source' as const }),
+      'Settings.setLanguage': ({ language }) => Effect.succeed({ language, providers: [], channels: defaultChannels, reader: 'source' as const }),
+      'Settings.setProvider': ({ enabled, provider }) => Effect.succeed({ language: 'es' as const, providers: enabled ? [provider] : [], channels: defaultChannels, reader: 'source' as const }),
       'Settings.setChannel': () => Effect.die('unused'),
+
+      'Settings.setReader': () => Effect.die('unused'),
     }),
   );
 

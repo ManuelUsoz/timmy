@@ -56,6 +56,13 @@ export const withChannelChange = (current: ChannelSettings, change: ChannelChang
     ? { ...current, enabled: change.enabled }
     : { ...current, types: allAlertTypes.filter((type) => (type === change.type ? change.enabled : current.types.includes(type))) };
 
+/**
+ * How the file reader shows a file that has a drawn form (a Markdown page, an SVG picture): `rendered` (Renderizado,
+ * Imagen for an SVG) or `source` (Fuente). One choice for every file, View and the Quick look; the last one wins.
+ */
+export const ReaderMode = Schema.Literals(['rendered', 'source']).annotate({ identifier: 'ReaderMode' });
+export type ReaderMode = typeof ReaderMode.Type;
+
 /** Everything the user can configure, stored by main so it survives restarts. */
 export const Settings = Schema.Struct({
   language: Language,
@@ -63,7 +70,9 @@ export const Settings = Schema.Struct({
   providers: Schema.Array(Provider).pipe(Schema.withDecodingDefaultKey(Effect.succeed([]))),
   /** Each Channel's configuration; every Channel alerts for every type until the user says otherwise. */
   channels: ChannelsSettings.pipe(Schema.withDecodingDefaultKey(Effect.succeed(defaultChannels))),
+  /** The reader's Renderizado/Fuente choice; Fuente until the user picks, so a file first shows its real text. */
+  reader: ReaderMode.pipe(Schema.withDecodingDefaultKey(Effect.succeed('source' as const))),
 }).annotate({ identifier: 'Settings' });
 export type Settings = typeof Settings.Type;
 
-export const defaultSettings: Settings = { language: defaultLanguage, providers: [], channels: defaultChannels };
+export const defaultSettings: Settings = { language: defaultLanguage, providers: [], channels: defaultChannels, reader: 'source' };

@@ -1,15 +1,18 @@
 import { execFile } from 'node:child_process';
-import { readdir, readFile, realpath, stat } from 'node:fs/promises';
+import { open, readdir, readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { Context, Effect, Layer } from 'effect';
 import { FilesError } from '../../src/shared/files/files-error.model';
 import {
+  MAX_IMAGE_BYTES,
+  MAX_IMAGE_PIXELS,
   MAX_LISTED_PATHS,
   MAX_PREVIEW_BYTES,
   type ChangedFile,
   type ChangedFiles,
   type ChangeKind,
-  type FileContent, type FileList, type FolderEntry, type FolderListing } from '../../src/shared/files/files.model';
+  type FileContent, type FileList, type FolderEntry, type FolderListing, type ImageContent } from '../../src/shared/files/files.model';
+import { imageOf, imageTypeOf } from './image-header';
 
 /**
  * What the Files browser reads of a working directory. `list` is the flat index of what git sees (no disk walk);
@@ -24,6 +27,8 @@ export class ProjectFiles extends Context.Service<
     /** The absolute path of an existing file of `cwd`, confined to it as `read` is. */
     readonly locate: (cwd: string, file: string) => Effect.Effect<string, FilesError>;
     readonly changes: (cwd: string) => Effect.Effect<ChangedFiles, FilesError>;
+    /** One file of `cwd` as an image, confined as `read` is; its caps are checked before any byte leaves main. */
+    readonly readImage: (cwd: string, file: string) => Effect.Effect<ImageContent, FilesError>;
   }
 >()('files/ProjectFiles') {}
 
@@ -256,6 +261,41 @@ const locateFile = Effect.fn('ProjectFiles.locate')(function* (cwd: string, file
   return target;
 });
 
+/** How much of a file tells what kind of image it is. */
+const IMAGE_SNIFF_BYTES = 4096;
+
+/**
+ * The file as an image. Its first bytes say whether it is one; the byte cap is checked on its size before it is read whole,
+ * and the pixel cap on its header before anything is answered, so an image over either never leaves main.
+ */
+const readImageContent = Effect.fn('ProjectFiles.readImage')(function* (cwd: string, file: string) {
+  const target = yield* confine(cwd, file);
+  const size = yield* fileSize(target, file);
+  const failure = (error: unknown) => fsFailure(error, 'file', file);
+  const head = yield* Effect.tryPromise({ try: () => readHead(target, IMAGE_SNIFF_BYTES), catch: failure });
+  if (imageTypeOf(head) === undefined) return { kind: 'notAnImage', size } satisfies ImageContent;
+  if (size > MAX_IMAGE_BYTES) return { kind: 'tooLarge', limit: 'bytes', size } satisfies ImageContent;
+  const bytes = yield* Effect.tryPromise({ try: () => readFile(target), catch: failure });
+  const image = imageOf(bytes);
+  if (image === undefined) return { kind: 'notAnImage', size: bytes.length } satisfies ImageContent;
+  if (image.width !== null && image.height !== null && image.width * image.height > MAX_IMAGE_PIXELS) {
+    return { kind: 'tooLarge', limit: 'pixels', size: bytes.length, width: image.width, height: image.height } satisfies ImageContent;
+  }
+  return { kind: 'image', ...image, bytes: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.length), size: bytes.length } satisfies ImageContent;
+});
+
+/** The first `length` bytes of a file, or all of a shorter one. */
+const readHead = async (target: string, length: number): Promise<Uint8Array> => {
+  const handle = await open(target, 'r');
+  try {
+    const buffer = new Uint8Array(length);
+    const { bytesRead } = await handle.read(buffer, 0, length, 0);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+};
+
 /** Applies the cap. */
 export const toFileList = (all: ReadonlyArray<string>, limit: number): FileList => ({ paths: all.slice(0, limit), truncated: all.length > limit });
 
@@ -271,4 +311,5 @@ export const layerProjectFiles = (limit: number = MAX_LISTED_PATHS) =>
     read: readFileContent,
     locate: locateFile,
     changes: readChanges,
+    readImage: readImageContent,
   });

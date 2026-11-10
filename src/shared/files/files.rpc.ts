@@ -2,7 +2,7 @@ import { Schema } from 'effect';
 import { Rpc, RpcGroup } from 'effect/rpc';
 import { FilesError } from './files-error.model';
 import { ProjectId } from '../projects/projects.model';
-import { ChangedFiles, FileContent, FileList, FilesBrowserState, FolderListing, ProjectBrowserState } from './files.model';
+import { ChangedFiles, FileContent, FileList, FilesBrowserState, FolderListing, ImageContent, ProjectBrowserState } from './files.model';
 
 /** What the `@` popup (and later Mention validation) knows about a working directory's files. */
 export const FilesRpcs = RpcGroup.make(
@@ -33,6 +33,15 @@ export const FilesRpcs = RpcGroup.make(
   Rpc.make('Files.changes', {
     payload: { cwd: Schema.String },
     success: ChangedFiles,
+    error: FilesError,
+  }),
+  /**
+   * One file of `cwd` as an image: its type from its bytes, and the bytes when it is under both caps (`MAX_IMAGE_BYTES`,
+   * `MAX_IMAGE_PIXELS`); over one, which. `file` is relative to `cwd`, with `/`.
+   */
+  Rpc.make('Files.readImage', {
+    payload: { cwd: Schema.String, file: Schema.String },
+    success: ImageContent,
     error: FilesError,
   }),
   /** What the browser remembers for a Project, with the window's width. Defaults when nothing (readable) was saved. */

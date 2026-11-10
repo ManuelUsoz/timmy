@@ -60,7 +60,7 @@ test.describe('The Quick look', () => {
       await page().keyboard.press('ArrowDown');
       await expect(look().locator('.name')).toHaveText('logo.bin');
       await expect(look().locator('.counter')).toHaveText('3 of 4 in demo-project');
-      await expect(look().locator('.note')).toHaveText("Can't preview");
+      await expect(look().locator('.note')).toHaveText('Binary file, 10 B');
       await timmy.shot('quick-look-binary');
       await page().keyboard.press('ArrowDown');
       await page().keyboard.press('ArrowDown');

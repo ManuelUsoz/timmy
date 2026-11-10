@@ -28,6 +28,7 @@ const setup = async (stored: Settings = defaultSettings, options: { slowSettings
       'Settings.setProvider': () => Ref.get(settings),
       'Settings.setChannel': ({ channel, change }) =>
         Ref.updateAndGet(settings, (s) => ({ ...s, channels: { ...s.channels, [channel]: withChannelChange(s.channels[channel], change) } })),
+      'Settings.setReader': () => Effect.die('unused'),
     }),
   );
   const layer = makeDesktopTestLayer(handlers);

@@ -26,10 +26,12 @@ const setup = async (width = 1400, backend = makeBackend({ projects: [timmy, asc
   const bus = Effect.runSync(PubSub.unbounded<NotificationEvent>());
   const handlers = Layer.mergeAll(
     SettingsRpcs.toLayer({
-      'Settings.get': () => Effect.map(Ref.get(stored), (language) => ({ language, providers: [], channels: defaultChannels })),
+      'Settings.get': () => Effect.map(Ref.get(stored), (language) => ({ language, providers: [], channels: defaultChannels, reader: 'source' as const })),
       'Settings.setProvider': () => Effect.die('unused'),
       'Settings.setChannel': () => Effect.die('unused'),
-      'Settings.setLanguage': ({ language }) => Ref.set(stored, language).pipe(Effect.as({ language, providers: [], channels: defaultChannels })),
+
+      'Settings.setReader': () => Effect.die('unused'),
+      'Settings.setLanguage': ({ language }) => Ref.set(stored, language).pipe(Effect.as({ language, providers: [], channels: defaultChannels, reader: 'source' as const })),
     }),
     NotificationRpcs.toLayer({ 'Notification.subscribe': () => Stream.fromPubSub(bus) }),
     layerFakeProjects(backend),

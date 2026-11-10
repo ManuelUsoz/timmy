@@ -85,6 +85,7 @@ export const layerSettingsUnused = SettingsRpcs.toLayer({
   'Settings.setLanguage': settingsUnused,
   'Settings.setProvider': settingsUnused,
   'Settings.setChannel': settingsUnused,
+  'Settings.setReader': settingsUnused,
 });
 
 const projectsUnused = () => Effect.die('Projects handler not under test');
@@ -108,6 +109,7 @@ export const layerFilesUnused = FilesRpcs.toLayer({
   'Files.read': () => Effect.die('Files handler not under test'),
   'Files.openExternal': () => Effect.die('Files handler not under test'),
   'Files.changes': () => Effect.die('Files handler not under test'),
+  'Files.readImage': () => Effect.die('Files handler not under test'),
   'Files.getState': () => Effect.die('Files handler not under test'),
   'Files.saveState': () => Effect.die('Files handler not under test'),
   'Files.saveWidth': () => Effect.die('Files handler not under test'),

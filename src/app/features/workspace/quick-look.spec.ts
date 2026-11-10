@@ -29,6 +29,7 @@ const timmyDisk = (): FakeDisk => ({
     'logo.png': { kind: 'binary' },
     'big.log': { kind: 'tooLarge', size: 2_621_440 },
   },
+  images: { 'logo.png': { kind: 'notAnImage', size: 4096 } },
   unreadable: ['locked.key'],
   index: ['README.md', 'logo.png', 'big.log', 'locked.key', 'src/main.ts', 'src/util.ts'],
 });
@@ -213,10 +214,28 @@ describe('Quick look', () => {
     await key('ArrowDown');
     expect(shown()).toMatchObject({ name: 'locked.key', text: t('files.unreadable') });
     await key('ArrowDown');
-    expect(shown()).toMatchObject({ name: 'logo.png', text: t('files.cantPreview') });
+    expect(shown()).toMatchObject({ name: 'logo.png', text: t('reader.binary', { size: '4.0 KB' }) });
     await key('ArrowDown');
     expect(shown()).toMatchObject({ name: 'README.md', text: t('files.gone') });
     expect(look()!.querySelector('.code')).toBeNull();
+  });
+
+  it('shows an image as a picture fitted to the modal', async () => {
+    const disk = timmyDisk();
+    disk.images = { 'logo.png': { kind: 'image', type: 'image/png', bytes: new Uint8Array([1]), size: 2048, width: 64, height: 32 } };
+    const { createObjectURL, revokeObjectURL } = URL;
+    URL.createObjectURL = () => 'blob:timmy/logo';
+    URL.revokeObjectURL = () => undefined;
+    try {
+      const { rowOf, space, look } = await setup(disk);
+      await space(rowOf('logo.png'));
+      expect(look()!.querySelector('.picture img')?.getAttribute('src')).toBe('blob:timmy/logo');
+      expect(look()!.querySelector('.picture')?.classList.contains('actual')).toBe(false);
+      expect([...look()!.querySelectorAll('.status > span')].map((part) => part.textContent?.trim())).toEqual(['64 × 32', '2.0 KB', 'PNG']);
+    } finally {
+      URL.createObjectURL = createObjectURL;
+      URL.revokeObjectURL = revokeObjectURL;
+    }
   });
 
   it('reads the file again on each step of its walk', async () => {
