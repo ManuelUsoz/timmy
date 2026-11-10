@@ -1,5 +1,6 @@
 :host {
   display: flex;
+  flex-direction: column;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -20,24 +21,31 @@
   outline-offset: -2px;
 }
 
-/* Both columns scroll together, so a line number never drifts from its line; the numbers stay when it scrolls sideways. */
+/*
+ * One element per line, laid out only near the viewport (`content-visibility`), so a long file costs what is on screen.
+ * A line out of view has no width, so the width comes from the longest line, counted in characters (`--columns`).
+ */
 .code {
-  display: flex;
-  min-width: max-content;
+  width: max-content;
+  min-width: calc((var(--digits) + var(--columns)) * 1ch + 3 * var(--spacing-03) + var(--spacing-05));
+  padding-block: var(--spacing-03);
   font: 400 12px/18px var(--font-mono);
   letter-spacing: 0;
 }
 
-.code pre {
-  margin: 0;
-  padding-block: var(--spacing-03);
-  font: inherit;
+.line {
+  display: flex;
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 18px;
 }
 
-.gutter {
+/* The number stays when the text scrolls sideways. */
+.number {
   position: sticky;
   inset-inline-start: 0;
   flex: none;
+  box-sizing: content-box;
+  width: calc(var(--digits) * 1ch);
   padding-inline: var(--spacing-03);
   background: var(--layer-01);
   color: var(--text-helper);
@@ -45,11 +53,41 @@
   user-select: none;
 }
 
-.source {
+.text {
   flex: none;
   padding-inline: var(--spacing-03) var(--spacing-05);
   tab-size: 2;
   white-space: pre;
+}
+
+.tok-keyword { color: var(--syntax-keyword); }
+.tok-string { color: var(--syntax-string); }
+.tok-number { color: var(--syntax-number); }
+.tok-comment { color: var(--syntax-comment); font-style: italic; }
+.tok-function { color: var(--syntax-function); }
+.tok-type { color: var(--syntax-type); }
+.tok-variable { color: var(--syntax-variable); }
+.tok-punctuation { color: var(--syntax-punctuation); }
+.tok-meta { color: var(--syntax-meta); }
+
+.status {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--spacing-05);
+  height: 28px;
+  padding-inline: var(--spacing-04);
+  border-top: 1px solid var(--border-subtle);
+  font: var(--text-label-01) / var(--text-label-01--line-height) var(--font-sans);
+  letter-spacing: var(--text-label-01--letter-spacing);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* The lines and the language on the left, the kind of file on the right. */
+.status > span:nth-child(2) {
+  margin-inline-end: auto;
 }
 
 .note {

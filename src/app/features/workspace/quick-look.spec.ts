@@ -107,7 +107,7 @@ const setup = async (disk: FakeDisk = timmyDisk()) => {
     const dialog = look();
     if (dialog === null) return null;
     const read = (selector: string) => dialog.querySelector(selector)?.textContent?.trim();
-    return { name: read('.name'), dir: read('.dir') ?? '', counter: read('.counter'), text: dialog.querySelector('.source')?.textContent ?? read('.note') };
+    return { name: read('.name'), dir: read('.dir') ?? '', counter: read('.counter'), text: dialog.querySelector('.code') === null ? read('.note') : [...dialog.querySelectorAll('.line .text')].map((line) => line.textContent).join('\n') };
   };
   const panes = () => Array.from(el.querySelectorAll<HTMLElement>('app-pane-stack'));
   return { backend, el, settle, t, sidebar, rows, rowOf, results, resultOf, filter, key, space, click, type, withTab, look, shown, panes };
@@ -123,7 +123,7 @@ describe('Quick look', () => {
     await space(rowOf('README.md'));
     expect(look()?.getAttribute('aria-modal')).toBe('true');
     expect(look()?.getAttribute('aria-label')).toBe(t('quickLook.label', { name: 'README.md' }));
-    expect(shown()).toEqual({ name: 'README.md', dir: '', counter: t('quickLook.counter', { at: 4, total: 4, project: 'timmy' }), text: '# timmy\n\nread me\n' });
+    expect(shown()).toEqual({ name: 'README.md', dir: '', counter: t('quickLook.counter', { at: 4, total: 4, project: 'timmy' }), text: '# timmy\n\nread me' });
     expect(look()!.contains(document.activeElement)).toBe(true);
     // A modal of the Workspace, not a part of the sidebar.
     expect(look()!.closest('app-files-sidebar')).toBeNull();
@@ -162,7 +162,7 @@ describe('Quick look', () => {
     await key('ArrowUp');
     expect(shown()).toMatchObject({ name: 'main.ts', counter: at(1) });
     await key('ArrowDown');
-    expect(shown()).toMatchObject({ name: 'util.ts', counter: at(2), text: 'export const twice = 2;\n' });
+    expect(shown()).toMatchObject({ name: 'util.ts', counter: at(2), text: 'export const twice = 2;' });
     await key('ArrowDown');
     expect(shown()).toMatchObject({ name: 'util.ts', counter: at(2) });
     await key('ArrowUp');
@@ -226,7 +226,7 @@ describe('Quick look', () => {
     backend.files.disks[timmy.cwd].files['README.md'] = text('changed since\n');
     await key('ArrowUp');
     await key('ArrowDown');
-    expect(shown()).toMatchObject({ name: 'README.md', text: 'changed since\n' });
+    expect(shown()).toMatchObject({ name: 'README.md', text: 'changed since' });
   });
 
   it('closes on Esc or Space, and the row of the last file shown has the keyboard and is the tree selection', async () => {
@@ -379,7 +379,7 @@ describe('Quick look', () => {
       const { rowOf, space, key, look, shown, t } = await setup(changedDisk());
       await space(rowOf('README.md'));
       expect(modeOf(look()!)).toEqual({ on: 'file', changes: t('quickLook.changes'), enabled: true });
-      expect(shown()?.text).toBe('# timmy\n\nread me\n');
+      expect(shown()?.text).toBe('# timmy\n\nread me');
       expect(diffShown(look()!)).toBeNull();
       await key('ArrowRight');
       expect(modeOf(look()!).on).toBe('changes');
@@ -387,7 +387,7 @@ describe('Quick look', () => {
       expect(look()!.querySelector('app-file-view')).toBeNull();
       await key('ArrowLeft');
       expect(modeOf(look()!).on).toBe('file');
-      expect(shown()?.text).toBe('# timmy\n\nread me\n');
+      expect(shown()?.text).toBe('# timmy\n\nread me');
     });
 
     it('switches with a click on either half', async () => {
