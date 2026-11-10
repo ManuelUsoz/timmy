@@ -1,13 +1,13 @@
 import { DestroyRef, Injectable, InjectionToken, computed, effect, inject, signal, untracked } from '@angular/core';
-import { Cause, Effect, Exit, Stream } from 'effect';
+import { Cause, Effect, Exit } from 'effect';
 import { DEFAULT_BROWSER_WIDTH, type FolderEntry } from '../../../shared/files/files.model';
 import type { Project, ProjectId } from '../../../shared/projects/projects.model';
-import type { TerminalHookReport } from '../../../shared/terminal/terminal.model';
 import { DesktopApi } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { I18n } from '../../core/i18n';
 import type { TreeNode } from '../../shared/ui/tree-view/tree-view.types';
 import { Changes, changedOnlyTree, flagOf, marks, withChanges } from './changed-files';
+import { ChangesRefreshSource } from './changes-refresh';
 import { ProjectsState } from './projects-state';
 import { TabsState } from './tabs-state';
 import { TerminalsState } from './terminals-state';
@@ -158,18 +158,14 @@ export class FilesBrowser {
     });
     // The markers follow what the agents do (a tool use, a stop) and what no Hook sees (the user back in the window). No
     // timer and no watcher: an idle Project costs nothing.
-    const stop = new AbortController();
-    const onFocus = () => this.refreshChanges();
-    window.addEventListener('focus', onFocus);
-    inject(DestroyRef).onDestroy(() => {
-      stop.abort();
-      window.removeEventListener('focus', onFocus);
-      clearTimeout(this.changesTimer);
+    const source = inject(ChangesRefreshSource);
+    effect(() => {
+      const pulse = source.trigger();
+      const selected = this.projects.selectedId();
+      if (pulse === undefined || pulse.projectId !== selected) return;
+      untracked(() => this.refreshChanges());
     });
-    void this.runtime.run(
-      Effect.flatMap(DesktopApi, (desktop) => Stream.runForEach(desktop['Terminal.hookReports'](), (report) => Effect.sync(() => this.heard(report)))),
-      { signal: stop.signal },
-    );
+    inject(DestroyRef).onDestroy(() => clearTimeout(this.changesTimer));
   }
 
   /** "N con cambios": the tree of only the changed paths, or back to the whole tree. */
@@ -188,13 +184,6 @@ export class FilesBrowser {
       this.changesTimer = undefined;
       void this.readChanges();
     }, this.debounce);
-  }
-
-  /** A Hook said an agent used a tool or stopped: the files of its Project may have changed. */
-  private heard(report: TerminalHookReport): void {
-    if (report.signal !== 'Working' && report.signal !== 'Done') return;
-    const projectId = this.terminals.find(report.terminalId)?.projectId;
-    if (projectId !== undefined && projectId === this.projects.selectedId()) this.refreshChanges();
   }
 
   private async readChanges(): Promise<void> {

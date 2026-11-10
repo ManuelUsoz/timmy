@@ -53,12 +53,15 @@ export const file = (name: string, ignored = false): FolderEntry => ({ name, kin
 export const text = (content: string): FileContent => ({ kind: 'text', content });
 /** A Changed file as main reports it; `folder` for a wholly untracked folder or a submodule. */
 export const change = (path: string, kind: ChangedFile['kind'], folder = false): ChangedFile => ({ path, kind, folder });
-/** A diff of one hunk from `lines` written as git does: ` kept`, `+added`, `-removed`, starting at line 1 on both sides. */
-export const hunkOf = (...lines: ReadonlyArray<string>): FileDiff => {
+/**
+ * A diff of one hunk from `lines` written as git does: ` kept`, `+added`, `-removed`, starting at line 1 on both sides.
+ * `untracked` makes it an all-added untracked file.
+ */
+export const hunkOf = (lines: ReadonlyArray<string>, untracked = false): FileDiff => {
   const parsed = lines.map((line) => ({ kind: line[0] === '+' ? ('added' as const) : line[0] === '-' ? ('removed' as const) : ('context' as const), text: line.slice(1) }));
   const oldLines = parsed.filter((line) => line.kind !== 'added').length;
   const newLines = parsed.filter((line) => line.kind !== 'removed').length;
-  return { kind: 'changes', hunks: [{ oldStart: oldLines === 0 ? 0 : 1, oldLines, newStart: newLines === 0 ? 0 : 1, newLines, lines: parsed }] };
+  return { kind: 'changes', untracked, hunks: [{ oldStart: oldLines === 0 ? 0 : 1, oldLines, newStart: newLines === 0 ? 0 : 1, newLines, lines: parsed }] };
 };
 
 export const makeFakeFiles = (initial: Partial<FakeFiles> = {}): FakeFiles => ({

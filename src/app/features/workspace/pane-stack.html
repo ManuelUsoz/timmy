@@ -173,7 +173,7 @@
         @if (view.kind === 'terminal') {
           <app-terminal-screen class="terminal" bare [active]="focused()" [terminal]="view.entry" [cwd]="cwd()" [attr.aria-label]="i18n.t('terminals.screen')" />
         } @else {
-          <app-file-view [cwd]="cwd()" [path]="view.file.path" [tabId]="tab().id" />
+          <app-file-view [cwd]="cwd()" [path]="view.file.path" [tabId]="tab().id" [projectId]="projectId()" />
         }
       </div>
     } @else {

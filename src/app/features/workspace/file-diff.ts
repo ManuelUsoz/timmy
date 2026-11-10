@@ -8,7 +8,7 @@ import { formatSize } from './file-view';
 /** What reading a file's change against the last commit gave. Only `changes` has lines to show. */
 export type DiffState =
   | { readonly status: 'loading' }
-  | { readonly status: 'changes'; readonly hunks: ReadonlyArray<DiffHunk> }
+  | { readonly status: 'changes'; readonly untracked: boolean; readonly hunks: ReadonlyArray<DiffHunk> }
   | { readonly status: 'unchanged' }
   | { readonly status: 'binary' }
   | { readonly status: 'tooLarge'; readonly size: number }
@@ -23,7 +23,7 @@ export const readDiff = (cwd: string, file: string) =>
     Effect.map((diff): DiffState => {
       switch (diff.kind) {
         case 'changes':
-          return { status: 'changes', hunks: diff.hunks };
+          return { status: 'changes', untracked: diff.untracked, hunks: diff.hunks };
         case 'unchanged':
           return { status: 'unchanged' };
         case 'binary':

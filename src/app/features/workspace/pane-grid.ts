@@ -1,5 +1,6 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, inject, input, signal } from '@angular/core';
+import type { ProjectId } from '../../../shared/projects/projects.model';
 import { I18n } from '../../core/i18n';
 import {
   MIN_PANE,
@@ -109,6 +110,8 @@ export class PaneGrid {
   readonly tab = input.required<Tab>();
   /** The Project's folder, where the Terminals of new Panes open. */
   readonly cwd = input.required<string>();
+  /** The Project the Tab belongs to; passed down to File Views for diff refresh triggers. */
+  readonly projectId = input<ProjectId>();
 
   protected readonly layout = computed(() => this.tabs.layoutOf(this.tab()));
   protected readonly root = computed((): Placed | undefined => {

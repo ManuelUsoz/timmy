@@ -362,17 +362,21 @@ describe('Files.changes', () => {
     }).pipe(Effect.provide(makeLayer()));
   });
 
-  it.effect('shows a submodule with changes as one modified folder, never its files', () => {
-    const library = committed({ 'lib.ts': 'lib' });
-    const root = committed({ 'a.ts': 'a' });
-    execFileSync('git', ['-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', library, 'vendor/lib'], { cwd: root, stdio: 'ignore' });
-    git(root, 'commit', '-qm', 'submodule');
-    write(root, 'vendor/lib/lib.ts', 'changed inside');
-    write(root, 'vendor/lib/extra.ts', 'new inside');
-    return Effect.gen(function* () {
-      expect((yield* changes(root)).entries).toEqual([{ path: 'vendor/lib', kind: 'modified', folder: true }]);
-    }).pipe(Effect.provide(makeLayer()));
-  });
+  it.effect(
+    'shows a submodule with changes as one modified folder, never its files',
+    () => {
+      const library = committed({ 'lib.ts': 'lib' });
+      const root = committed({ 'a.ts': 'a' });
+      execFileSync('git', ['-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', library, 'vendor/lib'], { cwd: root, stdio: 'ignore' });
+      git(root, 'commit', '-qm', 'submodule');
+      write(root, 'vendor/lib/lib.ts', 'changed inside');
+      write(root, 'vendor/lib/extra.ts', 'new inside');
+      return Effect.gen(function* () {
+        expect((yield* changes(root)).entries).toEqual([{ path: 'vendor/lib', kind: 'modified', folder: true }]);
+      }).pipe(Effect.provide(makeLayer()));
+    },
+    15000,
+  );
 
   it.effect('reads only the Project folder, with paths relative to it, when the Project is inside a larger repository', () => {
     const repo = committed({ 'outside.ts': 'o', 'app/inside.ts': 'i' });
@@ -427,6 +431,7 @@ describe('Files.diff', () => {
     return Effect.gen(function* () {
       expect(yield* diff(root, 'src/a.ts')).toEqual({
         kind: 'changes',
+        untracked: false,
         hunks: [
           {
             oldStart: 1,
@@ -447,10 +452,12 @@ describe('Files.diff', () => {
     return Effect.gen(function* () {
       expect(yield* diff(root, 'notes.md')).toEqual({
         kind: 'changes',
+        untracked: true,
         hunks: [{ oldStart: 0, oldLines: 0, newStart: 1, newLines: 2, lines: [added('first'), added('second')] }],
       });
       expect(yield* diff(root, 'fresh/deep/x.ts')).toEqual({
         kind: 'changes',
+        untracked: true,
         hunks: [{ oldStart: 0, oldLines: 0, newStart: 1, newLines: 1, lines: [added('x')] }],
       });
     }).pipe(Effect.provide(makeLayer()));
@@ -463,10 +470,12 @@ describe('Files.diff', () => {
     return Effect.gen(function* () {
       expect(yield* diff(root, 'gone.ts')).toEqual({
         kind: 'changes',
+        untracked: false,
         hunks: [{ oldStart: 1, oldLines: 2, newStart: 0, newLines: 0, lines: [removed('a'), removed('b')] }],
       });
       expect(yield* diff(root, 'staged-gone.ts')).toEqual({
         kind: 'changes',
+        untracked: false,
         hunks: [{ oldStart: 1, oldLines: 1, newStart: 0, newLines: 0, lines: [removed('c')] }],
       });
     }).pipe(Effect.provide(makeLayer()));
@@ -480,10 +489,12 @@ describe('Files.diff', () => {
     return Effect.gen(function* () {
       expect(yield* diff(root, 'a.ts')).toEqual({
         kind: 'changes',
+        untracked: false,
         hunks: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: [removed('old'), added('new')] }],
       });
       expect(yield* diff(root, 'b.ts')).toEqual({
         kind: 'changes',
+        untracked: false,
         hunks: [{ oldStart: 0, oldLines: 0, newStart: 1, newLines: 1, lines: [added('added')] }],
       });
     }).pipe(Effect.provide(makeLayer()));

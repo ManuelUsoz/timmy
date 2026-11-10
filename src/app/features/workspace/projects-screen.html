@@ -44,7 +44,7 @@
       } @else if (routeTab(); as tab) {
         <!-- Deferred: the Panes bring xterm, which the rest of the screen does not need. -->
         @defer (on immediate) {
-          <app-pane-grid class="terminal" [tab]="tab" [cwd]="project.cwd" [attr.aria-label]="i18n.t('terminals.screen')" />
+          <app-pane-grid class="terminal" [tab]="tab" [cwd]="project.cwd" [projectId]="project.projectId" [attr.aria-label]="i18n.t('terminals.screen')" />
         }
       } @else {
         <app-workspace-hero icon="terminal" [title]="i18n.t('terminals.pickTitle')" [detail]="i18n.t('terminals.pickDetail')" />

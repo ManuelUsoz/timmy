@@ -8,6 +8,52 @@
   color: var(--text-primary);
 }
 
+/* Archivo/Cambios in a File View: the same toggle as the Quick look, above the Breadcrumb. */
+.mode-bar {
+  display: inline-flex;
+  flex: none;
+  align-self: center;
+  margin: var(--spacing-02) 0;
+  border: 1px solid var(--border-subtle);
+}
+
+.mode-bar button {
+  min-width: 96px;
+  height: 24px;
+  border: 0;
+  padding: 0 var(--spacing-03);
+  background: none;
+  color: var(--text-secondary);
+  font: var(--text-body-compact-01);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mode-bar button + button {
+  border-left: 1px solid var(--border-subtle);
+}
+
+.mode-bar button[aria-pressed='true'] {
+  background: var(--layer-selected);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.mode-bar button:hover:not([disabled], [aria-pressed='true']) {
+  background: var(--layer-hover);
+  color: var(--text-primary);
+}
+
+.mode-bar button[disabled] {
+  color: var(--text-disabled);
+  cursor: default;
+}
+
+.mode-bar button:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
 /* The Breadcrumb: one line above the text. In a narrow Pane the other parts give way before the strong ones. */
 .breadcrumb {
   display: flex;
@@ -67,10 +113,17 @@
 .code {
   position: relative;
   width: max-content;
-  min-width: calc((var(--digits) + var(--columns)) * 1ch + 3 * var(--spacing-03) + var(--spacing-05));
+  min-width: calc(var(--gutter, 0px) + (var(--digits) + var(--columns)) * 1ch + 3 * var(--spacing-03) + var(--spacing-05));
   padding-block: var(--spacing-03);
   font: 400 12px/18px var(--font-mono);
   letter-spacing: 0;
+}
+
+/* Cambios reuses the Quick look's diff component; it fills the scroll area. */
+.diff-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
 }
 
 .line {
@@ -79,10 +132,41 @@
   contain-intrinsic-block-size: auto 18px;
 }
 
+/* The gutter stays when the text scrolls sideways, before the number. */
+.gutter {
+  position: sticky;
+  inset-inline-start: 0;
+  flex: none;
+  width: var(--gutter);
+  align-self: stretch;
+  background: var(--layer-01);
+}
+
+.gutter[data-kind='added'] {
+  background: var(--support-success);
+}
+
+.gutter[data-kind='modified'] {
+  background: var(--support-warning);
+}
+
+.gutter[data-kind='deleted'] {
+  background: transparent;
+}
+
+.gutter[data-kind='deleted']::before {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 4px;
+  margin-top: 7px;
+  background: var(--support-error);
+}
+
 /* The number stays when the text scrolls sideways. */
 .number {
   position: sticky;
-  inset-inline-start: 0;
+  inset-inline-start: var(--gutter, 0px);
   flex: none;
   box-sizing: content-box;
   width: calc(var(--digits) * 1ch);

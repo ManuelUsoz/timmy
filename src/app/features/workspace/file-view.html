@@ -1,4 +1,12 @@
 @let state = file();
+@if (inTab()) {
+  <div class="mode-bar" role="group" [attr.aria-label]="i18n.t('quickLook.mode')">
+    <button type="button" data-mode="file" [attr.aria-pressed]="mode() === 'file'" (click)="show('file')">{{ i18n.t('quickLook.file') }}</button>
+    <button type="button" data-mode="changes" [attr.aria-pressed]="mode() === 'changes'" [disabled]="!canDiff()" (click)="show('changes')">
+      {{ changesLabel() }}
+    </button>
+  </div>
+}
 @if (state.status === 'text' && tabId() !== undefined) {
   <nav class="breadcrumb" [attr.aria-label]="i18n.t('fileView.breadcrumb')">
     @for (crumb of breadcrumb(); track $index) {
@@ -21,12 +29,21 @@
 >
   @switch (state.status) {
     @case ('text') {
-      @if (lines().length === 0) {
+      @if (mode() === 'changes') {
+        <app-file-diff class="diff-body" [name]="name()" [diff]="diff()" />
+      } @else if (lines().length === 0) {
         <p class="note">{{ i18n.t('files.emptyFile') }}</p>
       } @else {
-        <div class="code" [class.selectable]="tabId() !== undefined" [style.--columns]="columns()" [style.--digits]="digits()" (mousedown)="pressLine($event)">
-          @for (row of rows(); track $index) {
-            <div class="line" [attr.data-line]="$index + 1"><span class="number" aria-hidden="true">{{ $index + 1 }}</span><span class="text">@for (run of row; track $index) {<span [class]="run.token === '' ? '' : 'tok-' + run.token">{{ run.text }}</span>}</span></div>
+        <div class="code" [class.selectable]="tabId() !== undefined" [style.--columns]="columns()" [style.--digits]="digits()" [style.--gutter]="inTab() ? '4px' : '0px'" (mousedown)="pressLine($event)">
+          @for (row of rows(); track $index; let lineIndex = $index) {
+            <div class="line" [attr.data-line]="$index + 1">
+              @let gutter = gutters()[lineIndex];
+              @if (inTab()) {
+                <span class="gutter" [attr.data-kind]="gutter" [attr.aria-label]="gutter === undefined ? null : i18n.t(gutter === 'deleted' ? 'fileDiff.removed' : gutter === 'modified' ? 'files.modified' : 'files.added')"></span>
+              }
+              <span class="number" aria-hidden="true">{{ $index + 1 }}</span>
+              <span class="text">@for (run of row; track $index) {<span [class]="run.token === '' ? '' : 'tok-' + run.token">{{ run.text }}</span>}</span>
+            </div>
           }
           <!-- The Line selection: one layer over the lines, placed by line height, apart from how the lines are drawn. -->
           @if (marks(); as marked) {
