@@ -71,6 +71,59 @@ test.describe('A File View', () => {
     });
   });
 
+  test('a Line selection marked from the numbers, with its popover; the header gives way in a narrow Pane', async ({ timmy }) => {
+    const { page } = timmy;
+    const lines = ['export const answer = 42;', "export const question = 'unknown';", 'export const ask = () => question;'];
+    writeFileSync(path.join(timmy.projectDir, 'main.ts'), lines.join('\n') + '\n');
+    commitAll(timmy.projectDir);
+    const sidebar = page.getByRole('complementary', { name: 'Files' });
+    const terminal = page.locator('app-pane-stack').filter({ has: page.locator('app-terminal-screen') });
+    const behind = [terminal.locator('.body')];
+    const filePane = page.locator('app-pane-stack').filter({ has: page.locator('app-file-view') });
+    const header = filePane.locator('.view-header.act');
+    const text = page.getByRole('region', { name: 'Contents of main.ts' });
+
+    await timmy.openProjectTerminal();
+    await page.keyboard.press('Control+p');
+    await sidebar.getByRole('treeitem', { name: 'main.ts', exact: true }).click();
+    await expect(text).toBeFocused();
+
+    await test.step('a click on a number and a shift-click mark lines 1-3; the popover copies them and their path', async () => {
+      const numbers = text.locator('.line .number');
+      await numbers.nth(0).click();
+      await numbers.nth(2).click({ modifiers: ['Shift'] });
+      const popover = page.getByRole('toolbar', { name: 'Lines 1-3' });
+      await expect(popover).toBeVisible();
+      await expect(page.locator('app-file-view .status > span').first()).toHaveText('Ln 1–3 of 3');
+      await timmy.shot('file-view-line-selection', { mask: behind });
+      await popover.getByRole('button', { name: 'Copy path' }).click();
+      expect(await timmy.app.evaluate(({ clipboard }) => clipboard.readText())).toBe('main.ts:1-3');
+      await popover.getByRole('button', { name: 'Copy', exact: true }).click();
+      // The Windows clipboard gives the lines back with CRLF.
+      const copied = (await timmy.app.evaluate(({ clipboard }) => clipboard.readText())).replace(/\r\n/g, '\n');
+      expect(copied).toBe(lines.join('\n'));
+      await text.press('Escape');
+      await expect(popover).toHaveCount(0);
+    });
+
+    await test.step('beside the Files browser the Pane is narrow: the file name and pin stay, the other actions are in the menu', async () => {
+      await expect(header.locator('.name')).toHaveText('main.ts');
+      await expect(header.getByRole('button', { name: 'Pin' })).toBeVisible();
+      await expect(header.getByRole('button', { name: 'Copy path' })).toBeHidden();
+      await header.getByRole('button', { name: 'More actions' }).click();
+      await expect(filePane.getByRole('menuitem', { name: 'Copy path' })).toBeVisible();
+      await timmy.shot('file-view-narrow-header', { mask: behind });
+      await filePane.getByRole('menuitem', { name: 'Copy path' }).click();
+      expect(await timmy.app.evaluate(({ clipboard }) => clipboard.readText())).toBe('main.ts');
+    });
+
+    await test.step('with the Files browser closed there is room for the actions, as icons', async () => {
+      await sidebar.getByRole('button', { name: 'Close files' }).click();
+      await expect(header.getByRole('button', { name: 'Copy path' })).toBeVisible();
+      await expect(header.locator('.file-actions .label').first()).toBeHidden();
+    });
+  });
+
   test('source is highlighted by language, with a status bar that says what kind of file it is', async ({ timmy }) => {
     const { page } = timmy;
     const source = [

@@ -26,6 +26,7 @@
  * A line out of view has no width, so the width comes from the longest line, counted in characters (`--columns`).
  */
 .code {
+  position: relative;
   width: max-content;
   min-width: calc((var(--digits) + var(--columns)) * 1ch + 3 * var(--spacing-03) + var(--spacing-05));
   padding-block: var(--spacing-03);
@@ -51,6 +52,78 @@
   color: var(--text-helper);
   text-align: end;
   user-select: none;
+}
+
+/* In a Tab the numbers mark the Line selection. */
+.selectable .number {
+  cursor: pointer;
+}
+
+/*
+ * The Line selection: a layer over the lines, from the top of the first one. It takes no pointer, so the text under it
+ * is still selected and the numbers still pressed; only the popover does.
+ */
+.marks {
+  position: absolute;
+  inset: var(--spacing-03) 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.selected {
+  position: absolute;
+  inset-inline: 0;
+  background: color-mix(in srgb, var(--link) 16%, transparent);
+}
+
+/* The accent bar stays on the numbers when the text scrolls sideways. */
+.bar {
+  position: sticky;
+  inset-inline-start: 0;
+  display: block;
+  width: 2px;
+  height: 100%;
+  background: var(--link);
+}
+
+/* The popover: under the last selected line (above the first near the Pane's bottom), in sight when scrolled sideways. */
+.line-actions {
+  position: sticky;
+  inset-inline-start: var(--spacing-07);
+  display: flex;
+  align-items: center;
+  width: max-content;
+  height: 32px;
+  box-sizing: border-box;
+  background: var(--layer-02);
+  box-shadow: var(--shadow-overlay);
+  font: var(--text-body-compact-01);
+  pointer-events: auto;
+}
+
+.range {
+  padding-inline: var(--spacing-04) var(--spacing-03);
+  color: var(--text-helper);
+  font: 400 12px/16px var(--font-mono);
+}
+
+.line-action {
+  height: 100%;
+  padding: 0 var(--spacing-04);
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.line-action:hover {
+  background: var(--layer-hover);
+}
+
+.line-action:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
 }
 
 .text {

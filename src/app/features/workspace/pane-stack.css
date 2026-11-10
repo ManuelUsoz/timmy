@@ -154,6 +154,107 @@
   font-style: italic;
 }
 
+/*
+ * The expanded File View's header: the path left, the file actions right. It degrades with the Pane's width: the
+ * folders of the path give way from the left (the file name stays), then the actions lose their labels, then all but
+ * pin move into the Pane menu.
+ */
+.view-header.act[data-kind='file'] {
+  container: file-header / inline-size;
+}
+
+/* Its folders and name are items of the header itself, so the folders give way long before the name does. */
+.path {
+  display: contents;
+}
+
+.path .dir {
+  flex: 0 1000 auto;
+  direction: rtl;
+  text-align: left;
+}
+
+/* The actions sit right, from the pin on. */
+.view-header.act[data-kind='file'] .tool.pin {
+  margin-inline-start: auto;
+}
+
+/* Inside the isolate, so the right-to-left truncation does not move the slash to the left. */
+.path .dir bdi::after {
+  content: '/';
+}
+
+/* The file name gives way last, after the folders, and keeps a few characters; the Pane controls never do. */
+.view-header.act .path .name {
+  flex: 0 1 auto;
+  min-width: 6ch;
+}
+
+.view-header.act[data-kind='file'] .tag {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+.tool.labelled {
+  gap: var(--spacing-03);
+  width: auto;
+  min-width: 32px;
+  padding: 0 var(--spacing-03);
+}
+
+.tool[disabled] {
+  color: var(--text-disabled, var(--text-helper));
+  cursor: not-allowed;
+}
+
+.tool[disabled]:hover {
+  background: transparent;
+}
+
+.label {
+  font: var(--text-body-compact-01);
+  white-space: nowrap;
+}
+
+/* The file actions of the menu are there only for a header without room for them. */
+.menu .file-action {
+  display: none;
+}
+
+@container file-header (width < 720px) {
+  .tool.labelled {
+    width: 32px;
+    padding: 0;
+  }
+
+  .tool.labelled .label {
+    display: none;
+  }
+}
+
+@container file-header (width < 460px) {
+  .file-actions {
+    display: none;
+  }
+
+  .menu .mi.file-action {
+    display: flex;
+  }
+
+  .menu .divider.file-action {
+    display: block;
+  }
+}
+
 .tool.pin[aria-pressed='true'] {
   color: var(--text-primary);
   cursor: default;
