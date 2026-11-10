@@ -10,21 +10,14 @@ import { NewTerminal } from './new-terminal';
 import { ProjectsState } from './projects-state';
 import { TabBar } from './tab-bar';
 import { PaneGrid } from './pane-grid';
-import { focusPane, panesOf, showView, type TabLayout } from './pane-layout';
+import { bringForward, panesOf } from './pane-layout';
 import { neighbourOf, tabPath, terminalPath, type Tab, type TabId } from './tabs';
 import { TabsState } from './tabs-state';
 import type { TerminalEntry, TerminalId } from './terminal-entries';
 import { TerminalsState } from './terminals-state';
-import { hasView, indexOfView, terminalOf, terminalView } from './views';
+import { terminalOf, terminalView } from './views';
 import { WorkspaceHero } from './workspace-hero';
 import { entryPath, entryTarget } from './workspace-entry';
-
-/** The layout with the Pane holding this Terminal focused and its View expanded; unchanged when no Pane holds it. */
-const bringForward = (layout: TabLayout, terminal: TerminalId): TabLayout => {
-  const view = terminalView(terminal);
-  const pane = panesOf(layout).find((candidate) => hasView(candidate.views, view));
-  return pane === undefined ? layout : showView(focusPane(layout, pane.id), pane.id, indexOfView(pane.views, view));
-};
 
 /**
  * Projects: the selected Project's Tab bar and the Tab on screen (the list is in the sidebar). One component serves
@@ -127,14 +120,16 @@ export class ProjectsScreen {
         const tab = this.routeTab();
         const layout = tab === undefined ? undefined : this.tabsState.layoutOf(tab);
         if (tab === undefined || layout === undefined || this.front()?.view === ids.terminal) return;
-        this.tabsState.update(tab, (current) => bringForward(current, ids.terminal));
+        this.tabsState.update(tab, (current) => bringForward(current, terminalView(ids.terminal)));
       });
     });
 
     // And the other way: when the user focuses another Pane or View, or a split opens a Terminal, the route follows.
+    // A File View in front leaves the route on the Terminal it was on (the route names a Terminal).
     let previous: { readonly tab: TabId; readonly view: TerminalId } | undefined;
     effect(() => {
       const front = this.front();
+      if (front === undefined && this.routeTab() !== undefined) return;
       const before = previous;
       previous = front;
       if (front === undefined || before === undefined || before.tab !== front.tab || before.view === front.view) return;

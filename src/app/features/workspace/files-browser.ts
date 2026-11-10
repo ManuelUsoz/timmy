@@ -7,6 +7,8 @@ import { EffectRuntime } from '../../core/effect-runtime';
 import { I18n } from '../../core/i18n';
 import type { TreeNode } from '../../shared/ui/tree-view/tree-view.types';
 import { ProjectsState } from './projects-state';
+import { TabsState } from './tabs-state';
+import { TerminalsState } from './terminals-state';
 import { WorkspaceLayoutState } from './workspace-layout';
 
 /** The narrowest the sidebar gets, and the widest as a share of the window. */
@@ -54,17 +56,6 @@ export type FilesTree =
   | { readonly status: 'failed'; readonly detail: string }
   | { readonly status: 'ready'; readonly nodes: ReadonlyArray<TreeNode> };
 
-/** What reading the open file gave. `gone` is a file deleted since it was remembered or listed. */
-export type FileState =
-  | { readonly status: 'none' }
-  | { readonly status: 'loading'; readonly path: string }
-  | { readonly status: 'text'; readonly path: string; readonly content: string }
-  | { readonly status: 'binary'; readonly path: string }
-  | { readonly status: 'tooLarge'; readonly path: string; readonly size: number }
-  | { readonly status: 'gone'; readonly path: string }
-  | { readonly status: 'unreadable'; readonly path: string }
-  | { readonly status: 'failed'; readonly path: string; readonly detail: string };
-
 const join = (dir: string, name: string): string => (dir === '' ? name : `${dir}/${name}`);
 
 /**
@@ -77,6 +68,8 @@ export class FilesBrowser {
   private readonly i18n = inject(I18n);
   private readonly projects = inject(ProjectsState);
   private readonly layout = inject(WorkspaceLayoutState);
+  private readonly tabs = inject(TabsState);
+  private readonly terminals = inject(TerminalsState);
 
   /** Open for the whole window; what it shows follows the selected Project. */
   readonly open = signal(false);
@@ -102,13 +95,8 @@ export class FilesBrowser {
   private readonly dirs = signal<ReadonlyMap<string, Dir>>(new Map());
   private readonly expanded = signal<ReadonlyArray<string>>([]);
   private readonly lastFile = signal<string | null>(null);
-  private readonly mode = signal<'tree' | 'file'>('tree');
-  /** Whether the sidebar shows the tree or the file picked in it. */
-  readonly view = this.mode.asReadonly();
-  /** The last file picked: highlighted in the tree, and the one the file view reads. */
+  /** The last file picked: only the tree's highlight. The file itself is read in a File View (ADR 0013). */
   readonly selected = this.lastFile.asReadonly();
-  private readonly fileState = signal<FileState>({ status: 'none' });
-  readonly file = this.fileState.asReadonly();
 
   /** The Project being shown (its state may still be arriving), so asking again does not start over. */
   private activeFor: ProjectId | undefined;
@@ -149,7 +137,6 @@ export class FilesBrowser {
   openWithFilter(): void {
     if (!this.open()) this.toggle();
     if (!this.open()) return;
-    if (this.mode() === 'file') this.back();
     this.filterFocus.update((count) => count + 1);
   }
 
@@ -165,9 +152,12 @@ export class FilesBrowser {
     this.persist();
   }
 
-  /** A row of the tree was picked: a file opens; a folder (the tree opens it) or a status row does nothing. */
-  pick(path: string): void {
-    if (this.entryAt(path)?.kind === 'file') this.openFile(path);
+  /**
+   * A row of the tree was picked: a file opens as a File View, a preview on a click and pinned with `pin` (a double
+   * click); a folder (the tree opens it) or a status row does nothing.
+   */
+  pick(path: string, pin = false): void {
+    if (this.entryAt(path)?.kind === 'file') this.openFile(path, pin);
   }
 
   /** The entry at `path` as its folder listed it, if that folder has been read. */
@@ -196,33 +186,24 @@ export class FilesBrowser {
     return chain;
   }
 
-  /** Picks a file: the sidebar shows it, read now, and remembers it. */
-  openFile(path: string): void {
+  /**
+   * Picks a file: it opens as a File View in the Tab on screen (`TabsState.openFile`), a preview unless `pin`, and the
+   * tree highlights it. With no Tab of the Project on screen there is nowhere to open it: a Tab exists only while it has
+   * a Terminal.
+   */
+  openFile(path: string, pin = false): void {
     const project = this.projects.selected();
     if (project === undefined) return;
     this.lastFile.set(path);
-    this.mode.set('file');
-    // Picked from the filter: Back should find the whole tree, not the search.
-    this.filter.set('');
-    void this.readFile(project, path, this.generation);
     this.persist();
+    const current = this.terminals.current();
+    const tab = current?.projectId === project.projectId ? this.tabs.tabsOf(project.projectId).find((each) => each.id === current.tabId) : undefined;
+    if (tab !== undefined) this.tabs.openFile(tab, path, pin);
   }
 
-  /** Back to the tree from a file, with the file highlighted and the folders it lives in open. */
-  back(): void {
-    this.mode.set('tree');
-    const path = this.lastFile();
-    if (path !== null) {
-      const parts = path.split('/').slice(0, -1);
-      this.openFolders(parts.map((_, index) => parts.slice(0, index + 1).join('/')));
-    }
-    this.persist();
-  }
-
-  /** Esc inside the sidebar: out of a file first, then out of the sidebar. */
+  /** Esc inside the sidebar closes it. */
   escape(): void {
-    if (this.mode() === 'file') this.back();
-    else this.open.set(false);
+    this.open.set(false);
   }
 
   /** The user drags the edge: a width that fits the window as it is now. */
@@ -309,8 +290,6 @@ export class FilesBrowser {
     this.dirs.set(new Map([['', { status: 'loading' }]]));
     this.expanded.set([]);
     this.lastFile.set(null);
-    this.mode.set('tree');
-    this.fileState.set({ status: 'none' });
     this.filter.set('');
     this.index.set({ status: 'loading' });
     void this.restore(project, this.generation);
@@ -347,52 +326,11 @@ export class FilesBrowser {
     const wanted = saved?.expanded ?? [];
     this.expanded.set(wanted);
     this.lastFile.set(saved?.lastFile ?? null);
-    this.mode.set(saved?.view ?? 'tree');
     this.loadedFor = project.projectId;
-    const remembered = this.mode() === 'file' ? this.lastFile() : null;
-    await Promise.all([
-      ...['', ...wanted].map((dir) => this.loadDir(project, dir)),
-      ...(remembered === null ? [] : [this.readFile(project, remembered, generation)]),
-    ]);
+    await Promise.all(['', ...wanted].map((dir) => this.loadDir(project, dir)));
     if (generation !== this.generation) return;
-    // What is gone is forgotten: a folder drops out of the tree, a file sends the sidebar back to the tree.
+    // A folder that is gone drops out of the tree.
     this.forgetGone(wanted);
-    if (remembered !== null && this.fileState().status === 'gone') {
-      this.lastFile.set(null);
-      this.mode.set('tree');
-      this.fileState.set({ status: 'none' });
-      this.persist();
-    }
-  }
-
-  private async readFile(project: Project, path: string, generation: number): Promise<void> {
-    this.fileState.set({ status: 'loading', path });
-    const exit = await this.runtime.run(
-      Effect.flatMap(DesktopApi, (desktop) => desktop['Files.read']({ cwd: project.cwd, file: path })).pipe(
-        Effect.map((content): FileState => {
-          switch (content.kind) {
-            case 'text':
-              return { status: 'text', path, content: content.content };
-            case 'binary':
-              return { status: 'binary', path };
-            case 'tooLarge':
-              return { status: 'tooLarge', path, size: content.size };
-          }
-        }),
-        Effect.catchTag('FilesError', (error) =>
-          Effect.succeed<FileState>(
-            error.reason === 'FileNotFound'
-              ? { status: 'gone', path }
-              : error.reason === 'Unreadable'
-                ? { status: 'unreadable', path }
-                : { status: 'failed', path, detail: error.detail },
-          ),
-        ),
-      ),
-    );
-    // Another file was picked, or another Project selected, while this one was being read.
-    if (generation !== this.generation || this.lastFile() !== path) return;
-    this.fileState.set(Exit.isSuccess(exit) ? exit.value : { status: 'failed', path, detail: Cause.pretty(exit.cause) });
   }
 
   /** Reads one folder. `keepVisible` leaves what is already shown in place until the answer, as a refresh does. */
@@ -439,7 +377,7 @@ export class FilesBrowser {
     if (projectId === undefined) return;
     void this.runtime.run(
       Effect.flatMap(DesktopApi, (desktop) =>
-        desktop['Files.saveState']({ projectId, expanded: this.expanded(), lastFile: this.lastFile(), view: this.mode() }),
+        desktop['Files.saveState']({ projectId, expanded: this.expanded(), lastFile: this.lastFile() }),
       ),
     );
   }

@@ -1,0 +1,60 @@
+:host {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--layer-01);
+  color: var(--text-primary);
+}
+
+/* The View scrolls both ways; lines never wrap, so a long one scrolls sideways. */
+.scroll {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.scroll:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
+/* Both columns scroll together, so a line number never drifts from its line; the numbers stay when it scrolls sideways. */
+.code {
+  display: flex;
+  min-width: max-content;
+  font: 400 12px/18px var(--font-mono);
+  letter-spacing: 0;
+}
+
+.code pre {
+  margin: 0;
+  padding-block: var(--spacing-03);
+  font: inherit;
+}
+
+.gutter {
+  position: sticky;
+  inset-inline-start: 0;
+  flex: none;
+  padding-inline: var(--spacing-03);
+  background: var(--layer-01);
+  color: var(--text-helper);
+  text-align: end;
+  user-select: none;
+}
+
+.source {
+  flex: none;
+  padding-inline: var(--spacing-03) var(--spacing-05);
+  tab-size: 2;
+  white-space: pre;
+}
+
+.note {
+  margin: 0;
+  padding: var(--spacing-05);
+  font: var(--text-body-01);
+  color: var(--text-secondary);
+}

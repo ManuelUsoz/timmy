@@ -5,7 +5,7 @@ import { split, singlePane, panesOf } from './pane-layout';
 import { restoredFrom, savedTabsOf } from './saved-layout';
 import { tabsOf } from './tabs';
 import type { TerminalEntry } from './terminal-entries';
-import { terminalView } from './views';
+import { fileView, terminalView } from './views';
 
 const project = ProjectId.make('p-timmy');
 const entry = (id: string, tabId: string, number: number, provider?: 'ClaudeCode'): TerminalEntry => ({
@@ -38,6 +38,13 @@ describe('saved layout', () => {
       },
       { tabId: 't2', terminals: [{ terminalId: 'c', number: 3, name: 'shell 3' }] },
     ]);
+  });
+
+  it('saves the layout without its File Views, as if they were closed: a file is read again, never saved with the Tab yet', () => {
+    const withFile = split(layout, PaneId.make('b'), 'right', fileView('README.md'));
+    const [saved] = savedTabsOf(tabs, (tab) => (tab.id === TabId.make('t1') ? withFile : undefined));
+    expect(panesOf(saved.layout!)).toEqual(panesOf(layout));
+    expect(saved.layout?.focused).toBe(PaneId.make('b'));
   });
 
   it('restores every Terminal Idle, under its saved id, in its Tab, with its Provider', () => {

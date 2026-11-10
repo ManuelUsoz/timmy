@@ -38,11 +38,6 @@
   padding-inline: var(--spacing-05) var(--spacing-02);
 }
 
-/* Reading a file: the header names it, and a line keeps it apart from the text. */
-.head.reading {
-  border-bottom: 1px solid var(--border-subtle);
-}
-
 /* Every glyph of the sidebar is a 1.2 stroke line icon. */
 svg {
   flex: none;
@@ -80,20 +75,6 @@ svg {
   white-space: nowrap;
 }
 
-.who {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.who .name {
-  overflow: hidden;
-  font: 400 13px/16px var(--font-mono);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .icon {
   display: inline-flex;
   flex: none;
@@ -115,8 +96,7 @@ svg {
 
 .icon:focus-visible,
 .match:focus-visible,
-.retry:focus-visible,
-.code:focus-visible {
+.retry:focus-visible {
   outline: var(--focus-width) solid var(--focus);
   outline-offset: -2px;
 }
@@ -269,39 +249,4 @@ kbd {
   background: transparent;
   color: var(--text-primary);
   cursor: pointer;
-}
-
-/* Both columns scroll together, so a line number never drifts from its line; the numbers stay when it scrolls sideways. */
-.code {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  font: 400 12px/18px var(--font-mono);
-  letter-spacing: 0;
-}
-
-.code pre {
-  margin: 0;
-  padding-block: var(--spacing-03);
-  font: inherit;
-}
-
-.gutter {
-  position: sticky;
-  inset-inline-start: 0;
-  flex: none;
-  padding-inline: var(--spacing-03);
-  background: var(--layer-01);
-  color: var(--text-helper);
-  text-align: end;
-  user-select: none;
-}
-
-.source {
-  flex: none;
-  min-width: max-content;
-  padding-inline: var(--spacing-03) var(--spacing-05);
-  tab-size: 2;
-  white-space: pre;
 }

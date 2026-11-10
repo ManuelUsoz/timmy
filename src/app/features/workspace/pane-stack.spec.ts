@@ -5,13 +5,13 @@ import type { NotificationEvent, TerminalStatus } from '../../../shared/notifica
 import { NotificationRpcs } from '../../../shared/notification/notification.rpc';
 import { makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
-import { MAX_PANES, panesOf, split } from './pane-layout';
+import { MAX_PANES, addToStack, panesOf, split } from './pane-layout';
 import { PaneStack, VIEW_MIME, type DropMark, type ViewDrag } from './pane-stack';
 import { layerFakeBackend, layerFakeWorkspace, makeBackend, project } from './projects-fakes';
 import { TabsState } from './tabs-state';
 import { TerminalId } from './terminal-entries';
 import { TerminalsState } from './terminals-state';
-import { terminalView } from './views';
+import { fileView, terminalView } from './views';
 
 const timmy = project('timmy');
 
@@ -374,5 +374,77 @@ describe('A Terminal named in its header', () => {
     await typeIn(el, 'review', 'Enter', settle);
     expect(el.querySelector('app-terminal-name-field [role=alert]')?.textContent).toBe('Ya hay una terminal llamada «review» en este proyecto.');
     expect(headers()[0].querySelector('.name')).toBeNull();
+  });
+});
+
+describe('A File View in a Pane', () => {
+  /** The Tab with its Terminal and a preview File View of README.md beside it, as a click in the tree opens it. */
+  const withFile = async () => {
+    const context = await setup();
+    context.backend.files.disks['/work/timmy'] = { dirs: { '': [] }, files: { 'README.md': { kind: 'text', content: '# timmy\n' } }, index: [] };
+    context.terminals.setCurrent(context.tab().terminals[0].id);
+    context.tabs.openFile(context.tab(), 'README.md');
+    await context.settle();
+    const files = () => context.tabs.filesOf(context.tab()).map((open) => `${open.path}${open.pinned ? ' (pinned)' : ''}`);
+    return { ...context, files };
+  };
+
+  it('has a header of its own: the file name, a preview mark, a pin button and the Pane controls, and the text below', async () => {
+    const { panes, headers } = await withFile();
+    expect(panes()).toHaveLength(2);
+    const [header] = headers(panes()[1]);
+    expect(header.getAttribute('aria-label')).toBe('README.md');
+    expect(header.querySelector('.tag')?.textContent?.trim()).toBe('Vista previa');
+    expect(header.querySelector('.pin')?.getAttribute('aria-pressed')).toBe('false');
+    expect(header.querySelector('ui-state')).toBeNull();
+    expect(header.querySelector('.number')).toBeNull();
+    expect(panes()[1].querySelector('app-file-view .source')?.textContent).toBe('# timmy\n');
+    expect(panes()[1].querySelector('app-terminal-screen')).toBeNull();
+  });
+
+  it('is pinned by dragging its header, which also tells the grid it moves', async () => {
+    const { host, panes, headers, files, settle } = await withFile();
+    host.movable.set(true);
+    await settle();
+    headers(panes()[1])[0].dispatchEvent(new Event('dragstart'));
+    await settle();
+    expect(files()).toEqual(['README.md (pinned)']);
+    expect(host.drags).toEqual([{ view: fileView('README.md'), fromPane: 'file:README.md' }]);
+  });
+
+  it('stacks with a Terminal and unstacks into a Pane of its own, like a Terminal', async () => {
+    const { tabs, tab, panes, names, click, button, settle } = await withFile();
+    tabs.update(tab(), (layout) => addToStack(layout, panesOf(layout)[0].id, fileView('README.md')));
+    await settle();
+    expect(panes()).toHaveLength(1);
+    expect(names()).toEqual(['shell 1', 'README.md']);
+    await click(button('Más acciones'));
+    const items = Array.from(panes()[0].querySelectorAll<HTMLButtonElement>('[role=menu] [role=menuitem]')).map((item) => item.querySelector('.mi-label')?.textContent?.trim());
+    // A file has no name to change, nothing to restart, no diff or PR of its own here.
+    expect(items).toEqual(['Mostrar shell 1', 'Mover un lugar arriba', 'Mover un lugar abajo', 'Desapilar en un panel nuevo', 'Cerrar README.md', 'Cerrar panel']);
+    await click(Array.from(panes()[0].querySelectorAll<HTMLButtonElement>('[role=menuitem]')).find((item) => item.textContent?.includes('Desapilar')));
+    expect(panes()).toHaveLength(2);
+    expect(names(panes()[1])).toEqual(['README.md']);
+  });
+
+  it('closes on its own from a Stack, at once and without asking, the Terminal staying', async () => {
+    const { el, tabs, tab, panes, names, click, button, files, hear, settle } = await withFile();
+    tabs.update(tab(), (layout) => addToStack(layout, panesOf(layout)[0].id, fileView('README.md')));
+    await hear(tab().terminals[0].id, 'Working');
+    await settle();
+    await click(button('Más acciones'));
+    await click(Array.from(panes()[0].querySelectorAll<HTMLButtonElement>('[role=menuitem]')).find((item) => item.textContent?.includes('Cerrar README.md')));
+    expect(el.querySelector('ui-modal')).toBeNull();
+    expect(files()).toEqual([]);
+    expect(names()).toEqual(['shell 1']);
+  });
+
+  it('closes the Tab with its File Views when the last Terminal closes, a pinned one in another Pane included', async () => {
+    const { tabs, tab, panes, click, button, settle } = await withFile();
+    tabs.pinFile(tab(), 'README.md');
+    await settle();
+    await click(button('Cerrar panel', panes()[0]));
+    expect(tabs.tabsOf(timmy.projectId)).toEqual([]);
+    expect(panes()).toHaveLength(0);
   });
 });

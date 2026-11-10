@@ -44,11 +44,14 @@ export type FileContent = typeof FileContent.Type;
 /** Width of the Files browser the first time, in pixels. */
 export const DEFAULT_BROWSER_WIDTH = 360;
 
-/** What the Files browser remembers of one Project: the folders open in its tree, the last file read, and which of the two it was showing. */
+/**
+ * What the Files browser remembers of one Project: the folders open in its tree, and the last file picked, which the
+ * tree highlights. A file is read in a File View (ADR 0013), never in the sidebar; a state saved while the sidebar was
+ * also a reader still decodes, its `view` ignored.
+ */
 export const ProjectBrowserState = Schema.Struct({
   expanded: Schema.Array(Schema.String),
   lastFile: Schema.NullOr(Schema.String),
-  view: Schema.Literals(['tree', 'file']),
 }).annotate({ identifier: 'ProjectBrowserState' });
 export type ProjectBrowserState = typeof ProjectBrowserState.Type;
 

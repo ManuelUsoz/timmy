@@ -226,6 +226,12 @@ export const dropView = (layout: TabLayout, view: ViewId, target: PaneId, place:
 
 export const focusPane = (layout: TabLayout, id: PaneId): TabLayout => (paneOf(layout, id) === undefined ? layout : { ...layout, focused: id });
 
+/** The layout with the Pane holding this View focused and the View expanded in it; unchanged when no Pane holds it. */
+export const bringForward = (layout: TabLayout, view: ViewId): TabLayout => {
+  const pane = holderOf(layout, view);
+  return pane === undefined ? layout : showView(focusPane(layout, pane.id), pane.id, indexOfView(pane.views, view));
+};
+
 /** A divider was dragged: the split at `path` (child indexes from the root) takes these shares. */
 export const resizeSplit = (layout: TabLayout, path: ReadonlyArray<number>, sizes: ReadonlyArray<number>): TabLayout => {
   const walk = (node: LayoutNode, depth: number): LayoutNode => {

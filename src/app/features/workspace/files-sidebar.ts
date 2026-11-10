@@ -9,17 +9,10 @@ import { ProjectsState } from './projects-state';
 /** How far one arrow key moves the edge. */
 const RESIZE_STEP = 16;
 
-/** `2.5 MB`: the size of a file too large to preview. */
-const formatSize = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-};
-
 /**
  * The Files browser (GLOSSARY: Files browser) docked on the right of the Workspace: the Project's folder as a tree read a
- * folder at a time, a filter above it, and the chosen file read in its place, with Back. Esc goes out of a file, then out of
- * the sidebar. Its left edge resizes it. The state lives in `FilesBrowser`.
+ * folder at a time and a filter above it. A file picked opens as a File View in a Pane (ADR 0013): a click opens a
+ * preview, a double click pins it. Esc closes the sidebar. Its left edge resizes it. The state lives in `FilesBrowser`.
  */
 @Component({
   selector: 'app-files-sidebar',
@@ -40,43 +33,27 @@ export class FilesSidebar {
   private readonly projects = inject(ProjectsState);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly filterField = viewChild<ElementRef<HTMLInputElement>>('filterField');
-  private readonly codeRegion = viewChild<ElementRef<HTMLElement>>('codeRegion');
-  private readonly backButton = viewChild<ElementRef<HTMLElement>>('backButton');
 
   protected readonly minWidth = MIN_BROWSER_WIDTH;
   protected readonly projectName = computed(() => this.projects.selected()?.name ?? '');
-  protected readonly fileName = computed(() => this.browser.selected()?.split('/').at(-1) ?? '');
-  protected readonly fileDir = computed(() => this.browser.selected()?.split('/').slice(0, -1).join('/') ?? '');
   protected readonly filtering = computed(() => this.browser.filter().trim() !== '');
-
-  /** One number per line of the open text file; a final newline does not start another line. */
-  protected readonly gutter = computed(() => {
-    const file = this.browser.file();
-    if (file.status !== 'text' || file.content === '') return '';
-    const lines = file.content.split('\n');
-    const count = lines.at(-1) === '' ? lines.length - 1 : lines.length;
-    return Array.from({ length: count }, (_, index) => index + 1).join('\n');
-  });
 
   private resizing = false;
 
   constructor() {
-    // The filter takes the keyboard when the sidebar opens, when the tree comes back, and on every Ctrl+P.
+    // The filter takes the keyboard when the sidebar opens and on every Ctrl+P.
     effect(() => {
       this.browser.filterFocus();
       this.filterField()?.nativeElement.focus();
     });
     afterNextRender(() => this.filterField()?.nativeElement.focus());
-    // The row that was clicked goes away with the tree, and the focus with it: a file taking its place takes the keyboard,
-    // or Esc and the arrows would go nowhere. Its text when there is some (it scrolls with the arrows), the way back otherwise.
-    effect(() => {
-      if (this.browser.view() !== 'file') return;
-      (this.codeRegion() ?? this.backButton())?.nativeElement.focus();
-    });
   }
 
-  protected size(bytes: number): string {
-    return formatSize(bytes);
+  /** A double click on a file's row pins its File View (the click before it opened the preview). */
+  protected pinRow(event: MouseEvent): void {
+    const row = (event.target as HTMLElement | null)?.closest<HTMLElement>('[role=treeitem][data-id]');
+    const path = row?.dataset['id'];
+    if (path !== undefined) this.browser.pick(path, true);
   }
 
   protected escape(event: Event): void {

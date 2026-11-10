@@ -121,6 +121,48 @@
   white-space: nowrap;
 }
 
+/*
+ * A File View's header: its name (in italics while it is the preview), then its folder taking the room left. In a
+ * narrow Pane the folder gives way first, then the name, which keeps a few characters.
+ */
+.view-header[data-kind='file'] .name {
+  flex: 0 1 auto;
+  min-width: 6ch;
+}
+
+.name.preview {
+  font-style: italic;
+}
+
+.dir {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-helper);
+  font: 400 12px/16px var(--font-mono);
+  letter-spacing: 0.32px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag {
+  flex: none;
+  padding: 0 var(--spacing-03);
+  background: var(--tag-gray-bg);
+  color: var(--tag-gray-text);
+  font: 400 12px/18px var(--font-mono);
+  font-style: italic;
+}
+
+.tool.pin[aria-pressed='true'] {
+  color: var(--text-primary);
+  cursor: default;
+}
+
+.tool.pin[aria-pressed='true'] .icon {
+  fill: currentColor;
+}
+
 .count {
   flex: none;
   padding: 0 var(--spacing-03);
