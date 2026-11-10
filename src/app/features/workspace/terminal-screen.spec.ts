@@ -33,7 +33,7 @@ const setup = async (options: { createFails?: boolean } = {}) => {
     providers: [{ provide: EffectRuntime, useValue: { run: (e: Effect.Effect<unknown, unknown, never>) => Effect.runPromiseExit(Effect.provide(e as never, layer)) } }],
   }).compileComponents();
   const terminals = TestBed.inject(TerminalsState);
-  terminals.restore([{ id: saved, projectId: timmy, tabId: TabId.make('t1'), number: 3, state: 'Idle', activity: 'Idle', provider: 'ClaudeCode' }]);
+  terminals.restore([{ id: saved, projectId: timmy, tabId: TabId.make('t1'), number: 3, name: 'claude 3', state: 'Idle', activity: 'Idle', provider: 'ClaudeCode' }]);
   const fixture = TestBed.createComponent(TerminalScreen);
   fixture.componentRef.setInput('terminal', terminals.find(saved)!);
   fixture.componentRef.setInput('cwd', '/work/timmy');

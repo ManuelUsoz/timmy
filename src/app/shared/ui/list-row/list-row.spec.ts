@@ -10,6 +10,7 @@ import { ListRow } from './list-row';
     <as-list-row
       label="Fix bug"
       meta="main"
+      [hint]="hint"
       [selected]="selected"
       [disabled]="disabled"
       [lead]="lead"
@@ -24,6 +25,7 @@ class Host {
   selected = false;
   disabled = false;
   lead = false;
+  hint: string | undefined = undefined;
   count = 0;
 }
 
@@ -43,6 +45,17 @@ describe('ListRow', () => {
     expect(el.querySelector('.as-row__sub')?.textContent).toBe('main');
     expect(el.querySelector('i')?.textContent).toBe('L');
     expect(el.querySelector('b')?.textContent).toBe('T');
+  });
+
+  it('shows a hint after the label only when given, apart from the label', async () => {
+    const { el } = await render({ hint: '#2' });
+    expect(el.querySelector('.as-row__title')?.textContent).toBe('Fix bug');
+    expect(el.querySelector('.as-row__hint')?.textContent).toBe('#2');
+  });
+
+  it('renders no hint without one', async () => {
+    const { el } = await render();
+    expect(el.querySelector('.as-row__hint')).toBeNull();
   });
 
   it('applies selected and disabled classes', async () => {

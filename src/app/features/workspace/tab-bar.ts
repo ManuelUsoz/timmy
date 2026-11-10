@@ -65,7 +65,7 @@ export class TabBar {
   }
 
   protected nameOf(tab: Tab): string {
-    return tab.name ?? this.i18n.t('terminals.name', { number: tab.terminals[0].number });
+    return tab.name ?? tab.terminals[0].name;
   }
 
   protected dot(tab: Tab): 'Waiting' | 'Error' | undefined {

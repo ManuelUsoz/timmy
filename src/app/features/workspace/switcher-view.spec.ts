@@ -29,9 +29,9 @@ describe('Switcher view', () => {
       terminalNames,
     });
     const cards = [
-      named('t1', 'timmy', 'dev', ['Terminal 1', 'Terminal 4']),
-      named('t2', 'timmy', 'review', ['Terminal 2']),
-      named('a1', 'API de pagos', 'Terminal 3', ['Terminal 3']),
+      named('t1', 'timmy', 'dev', ['shell 1', 'shell 4']),
+      named('t2', 'timmy', 'review', ['shell 2']),
+      named('a1', 'API de pagos', 'shell 3', ['shell 3']),
     ];
     const ids = (query: string) => searchCards(cards, query).map((each) => each.tabId);
 
@@ -49,7 +49,7 @@ describe('Switcher view', () => {
     });
 
     it('matches a Terminal of the Tab, so picking it lands on the Tab that holds it', () => {
-      expect(ids('terminal 4')).toEqual(['t1']);
+      expect(ids('SHELL 4')).toEqual(['t1']);
     });
 
     it('keeps no card when nothing matches', () => {

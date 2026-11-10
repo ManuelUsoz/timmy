@@ -2,6 +2,10 @@ import path from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { Clock, Context, Effect, Layer, Option, Schema } from 'effect';
 import { Project, type ProjectId } from '../../src/shared/projects/projects.model';
+import { Provider } from '../../src/shared/settings/settings.model';
+import type { TerminalId } from '../../src/shared/terminal/terminal.model';
+import { defaultTerminalName, isTerminalNameTaken } from '../../src/shared/workspace/terminal-name';
+import { WorkspaceError } from '../../src/shared/workspace/workspace-error.model';
 import { ProjectLayout as ProjectLayoutSchema, SavedTab, TabLayout, type ProjectLayout, type SavedTab as SavedTabType } from '../../src/shared/workspace/workspace.model';
 import { projectIdOfCwd } from './project-id';
 
@@ -28,13 +32,19 @@ export class ProjectStore extends Context.Service<
     /** A small piece of UI state a feature keeps under its own key; the store does not look inside it. */
     readonly getState: (key: string) => Effect.Effect<Option.Option<string>>;
     readonly putState: (key: string, value: string) => Effect.Effect<void>;
-    /** The saved Tabs of every listed Project (ADR 0011); a Project with none is left out. */
+    /** The saved Tabs of every listed Project (ADR 0011); a Project with none, that never numbered a Terminal, is left out. */
     readonly layouts: Effect.Effect<ReadonlyArray<ProjectLayout>>;
     /**
      * Saves the Project's Tabs in place of what was saved, so a Tab, Pane or Terminal that is gone leaves the store.
-     * Nothing is saved for a Project that is not listed.
+     * The Project's last Terminal number becomes the highest of what it was, `lastNumber` and the numbers in `tabs`: it
+     * never goes down. Nothing is saved for a Project that is not listed.
      */
-    readonly saveLayout: (projectId: ProjectId, tabs: ReadonlyArray<SavedTabType>) => Effect.Effect<void>;
+    readonly saveLayout: (projectId: ProjectId, tabs: ReadonlyArray<SavedTabType>, lastNumber: number) => Effect.Effect<void>;
+    /**
+     * Names a Terminal of the Project, trimmed. Refused when it is blank or another saved Terminal of the Project has that
+     * name (its default one if it has none), ignoring case. A Terminal not saved yet gets its name with the next save.
+     */
+    readonly renameTerminal: (projectId: ProjectId, terminalId: TerminalId, name: string) => Effect.Effect<void, WorkspaceError>;
   }
 >()('projects/ProjectStore') {}
 
@@ -108,6 +118,16 @@ const migrations: ReadonlyArray<string> = [
   );
   CREATE INDEX terminals_by_tab ON terminals(tab_id, position);
   `,
+  // A Terminal has a name, and a Project numbers its Terminals without reusing a number (GLOSSARY: Terminal). A Terminal
+  // saved before has no name (it takes its default), and the count goes on from the highest number already saved.
+  `
+  ALTER TABLE terminals ADD COLUMN name TEXT;
+  ALTER TABLE projects ADD COLUMN last_terminal_number INTEGER NOT NULL DEFAULT 0;
+  UPDATE projects SET last_terminal_number = COALESCE(
+    (SELECT MAX(terminals.number) FROM terminals JOIN tabs ON tabs.id = terminals.tab_id WHERE tabs.project_id = projects.id),
+    0
+  );
+  `,
 ];
 
 const SELECT_PROJECT = `
@@ -118,6 +138,10 @@ const LayoutJson = Schema.fromJsonString(TabLayout);
 const encodeLayout = Schema.encodeSync(LayoutJson);
 const decodeLayout = Schema.decodeUnknownOption(LayoutJson);
 const decodeTerminals = Schema.decodeUnknownEffect(SavedTab.fields.terminals);
+/** What a saved Terminal's name is made of: the name the store holds (none before Terminals had names), number and Provider. */
+const decodeNamedTerminals = Schema.decodeUnknownEffect(
+  Schema.Array(Schema.Struct({ name: Schema.NullOr(Schema.String), number: Schema.Int, provider: Schema.NullOr(Provider) })),
+);
 
 const decodeProjects = Schema.decodeUnknownEffect(Schema.Array(Project));
 
@@ -170,9 +194,10 @@ export const layerProjectStore = (path: string) =>
            WHERE projects.listed = 1 ORDER BY tabs.project_id, tabs.position`,
         );
         const terminalRows = yield* all(
-          'SELECT tab_id AS tabId, id AS terminalId, number, provider FROM terminals ORDER BY tab_id, position',
+          'SELECT tab_id AS tabId, id AS terminalId, number, name, provider FROM terminals ORDER BY tab_id, position',
         );
-        const projects = new Map<string, SavedTabType[]>();
+        const numbered = yield* all('SELECT id AS projectId, last_terminal_number AS lastNumber FROM projects WHERE listed = 1 AND last_terminal_number > 0 ORDER BY id');
+        const projects = new Map<string, SavedTabType[]>(numbered.map((row) => [String(row['projectId']), []]));
         for (const row of tabRows) {
           const terminals = yield* decodeTerminals(
             terminalRows
@@ -180,6 +205,7 @@ export const layerProjectStore = (path: string) =>
               .map((terminal) => ({
                 terminalId: terminal['terminalId'],
                 number: terminal['number'],
+                ...(terminal['name'] === null ? {} : { name: terminal['name'] }),
                 ...(terminal['provider'] === null ? {} : { provider: terminal['provider'] }),
               })),
           );
@@ -193,8 +219,9 @@ export const layerProjectStore = (path: string) =>
           const key = String(row['projectId']);
           projects.set(key, [...(projects.get(key) ?? []), tab]);
         }
+        const lastNumbers = new Map(numbered.map((row) => [String(row['projectId']), Number(row['lastNumber'])]));
         return yield* Schema.decodeUnknownEffect(Schema.Array(ProjectLayoutSchema))(
-          Array.from(projects, ([projectId, tabs]) => ({ projectId, tabs })),
+          Array.from(projects, ([projectId, tabs]) => ({ projectId, tabs, lastNumber: lastNumbers.get(projectId) ?? 0 })),
         );
       }).pipe(Effect.orDie);
 
@@ -238,7 +265,7 @@ export const layerProjectStore = (path: string) =>
             Effect.map((rows) => Option.fromNullishOr(rows[0]).pipe(Option.map((row) => String(row['value'])))),
           ),
         layouts: loadLayouts,
-        saveLayout: (projectId, tabs) =>
+        saveLayout: (projectId, tabs, lastNumber) =>
           Effect.sync(() => {
             if (db.prepare('SELECT 1 FROM projects WHERE id = ? AND listed = 1').get(projectId) === undefined) return;
             db.exec('BEGIN');
@@ -246,13 +273,15 @@ export const layerProjectStore = (path: string) =>
               // Replaced whole: what is no longer in `tabs` is deleted, its Terminals with it.
               db.prepare('DELETE FROM tabs WHERE project_id = ?').run(projectId);
               const insertTab = db.prepare('INSERT INTO tabs (id, project_id, position, name, layout) VALUES (?, ?, ?, ?, ?)');
-              const insertTerminal = db.prepare('INSERT INTO terminals (id, tab_id, position, number, provider) VALUES (?, ?, ?, ?, ?)');
+              const insertTerminal = db.prepare('INSERT INTO terminals (id, tab_id, position, number, name, provider) VALUES (?, ?, ?, ?, ?, ?)');
               tabs.forEach((tab, tabPosition) => {
                 insertTab.run(tab.tabId, projectId, tabPosition, tab.name ?? null, tab.layout === undefined ? null : encodeLayout(tab.layout));
                 tab.terminals.forEach((terminal, position) =>
-                  insertTerminal.run(terminal.terminalId, tab.tabId, position, terminal.number, terminal.provider ?? null),
+                  insertTerminal.run(terminal.terminalId, tab.tabId, position, terminal.number, terminal.name ?? null, terminal.provider ?? null),
                 );
               });
+              const highest = Math.max(lastNumber, ...tabs.flatMap((tab) => tab.terminals.map((terminal) => terminal.number)));
+              db.prepare('UPDATE projects SET last_terminal_number = MAX(last_terminal_number, ?) WHERE id = ?').run(highest, projectId);
               db.exec('COMMIT');
             } catch (error) {
               db.exec('ROLLBACK');
@@ -260,6 +289,21 @@ export const layerProjectStore = (path: string) =>
               throw error;
             }
           }),
+        renameTerminal: Effect.fn('ProjectStore.renameTerminal')(function* (projectId, terminalId, name) {
+          const trimmed = name.trim();
+          if (trimmed === '') return yield* new WorkspaceError({ reason: 'NameEmpty', detail: `Terminal ${terminalId} cannot be named blank` });
+          const others = yield* all(
+            `SELECT terminals.name AS name, terminals.number AS number, terminals.provider AS provider
+             FROM terminals JOIN tabs ON tabs.id = terminals.tab_id WHERE tabs.project_id = ? AND terminals.id <> ?`,
+            projectId,
+            terminalId,
+          ).pipe(Effect.flatMap(decodeNamedTerminals), Effect.orDie);
+          const taken = others.map((other) => other.name ?? defaultTerminalName(other.provider ?? undefined, other.number));
+          if (isTerminalNameTaken(taken, trimmed)) {
+            return yield* new WorkspaceError({ reason: 'NameTaken', detail: `Another Terminal of ${projectId} is called ${trimmed}` });
+          }
+          yield* run('UPDATE terminals SET name = ? WHERE id = ?', trimmed, terminalId);
+        }),
         putState: (key, value) =>
           run('INSERT INTO ui_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', key, value),
       });

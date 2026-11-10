@@ -9,6 +9,8 @@ export interface RailRow {
   readonly id: TerminalId;
   /** The Project it runs in. */
   readonly projectId: ProjectId;
+  /** Its name; its number (`#2`) shows on hover. */
+  readonly name: string;
   readonly number: number;
   readonly status: TerminalStatus;
   /** A Done or Error the user has viewed: it no longer counts for the Mascot (GLOSSARY: Seen). */
@@ -58,6 +60,7 @@ export const railView = (
       id: entry.id,
       projectId: entry.projectId,
       number: entry.number,
+      name: entry.name,
       status: said.get(entry.id)?.type ?? 'Idle',
       seen: said.get(entry.id)?.seen ?? false,
       projectName: projectName(entry.projectId),

@@ -12,6 +12,7 @@ const terminal = (id: string, tab: string, projectId = timmy, number = 1): Termi
   projectId,
   tabId: TabId.make(tab),
   number,
+  name: id,
   state: 'Live',
   activity: 'Idle',
 });

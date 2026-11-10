@@ -25,11 +25,12 @@ const savedTab = (id: string, terminals: ReadonlyArray<readonly [string, number]
 /** Main's saved layout in memory: what `Workspace.load` answers, and every `Workspace.save` it got. */
 const withStore = (initial: ReadonlyArray<ProjectLayout> = [], options: { loadFails?: boolean } = {}) => {
   const failSaves = { now: false };
-  const saves: Array<{ readonly projectId: ProjectId; readonly tabs: ReadonlyArray<SavedTab> }> = [];
+  const saves: Array<{ readonly projectId: ProjectId; readonly tabs: ReadonlyArray<SavedTab>; readonly lastNumber: number }> = [];
   let created = 0;
   const workspace = WorkspaceRpcs.toLayer({
     'Workspace.load': () => (options.loadFails ? Effect.die('the store is unreadable') : Effect.succeed(initial)),
     'Workspace.save': (payload) => (failSaves.now ? Effect.die('the disk is full') : Effect.sync(() => void saves.push(payload))),
+    'Workspace.renameTerminal': () => Effect.void,
   });
   const terminal = TerminalRpcs.toLayer({
     'Terminal.create': () => Effect.sync(() => ({ terminalId: TerminalId.make(`live-${++created}`) })),
@@ -70,7 +71,7 @@ describe('WorkspacePersistence', () => {
       root: { kind: 'pane' as const, pane: { id: PaneId.make('a'), views: [terminalView(TerminalId.make('a'))], expanded: terminalView(TerminalId.make('a')) } },
       focused: PaneId.make('a'),
     };
-    const { tabs, terminals } = withStore([{ projectId: timmy, tabs: [{ ...savedTab('t1', [['a', 1]], 'Work'), layout }, savedTab('t2', [['b', 2]])] }]);
+    const { tabs, terminals } = withStore([{ projectId: timmy, tabs: [{ ...savedTab('t1', [['a', 1]], 'Work'), layout }, savedTab('t2', [['b', 2]])], lastNumber: 2 }]);
     await start();
     expect(tabs.tabsOf(timmy).map((tab) => [tab.id, tab.name, tab.terminals.map((entry) => [entry.id, entry.state])])).toEqual([
       ['t1', 'Work', [['a', 'Idle']]],
@@ -81,19 +82,19 @@ describe('WorkspacePersistence', () => {
   });
 
   it('writes nothing back when the layout is just restored', async () => {
-    const { saves } = withStore([{ projectId: timmy, tabs: [savedTab('t1', [['a', 1]])] }]);
+    const { saves } = withStore([{ projectId: timmy, tabs: [savedTab('t1', [['a', 1]])], lastNumber: 1 }]);
     await start();
     expect(saves).toEqual([]);
   });
 
   it("saves a Project's Tabs once they change, and only that Project's", async () => {
-    const { saves, terminals, tabs } = withStore([{ projectId: ascua, tabs: [savedTab('t9', [['z', 1]])] }]);
+    const { saves, terminals, tabs } = withStore([{ projectId: ascua, tabs: [savedTab('t9', [['z', 1]])], lastNumber: 1 }]);
     await start();
     const opened = (await terminals.createLive(timmy, '/work/timmy', 'ClaudeCode'))!;
     await settle();
     expect(saves).toHaveLength(1);
     expect(saves[0].projectId).toBe(timmy);
-    expect(saves[0].tabs).toMatchObject([{ tabId: opened.tabId, terminals: [{ terminalId: opened.id, number: 1, provider: 'ClaudeCode' }] }]);
+    expect(saves[0].tabs).toMatchObject([{ tabId: opened.tabId, terminals: [{ terminalId: opened.id, number: 1, name: 'claude 1', provider: 'ClaudeCode' }] }]);
     tabs.rename(opened.tabId, 'Review');
     await settle();
     expect(saves.at(-1)?.tabs).toMatchObject([{ name: 'Review' }]);
@@ -118,7 +119,8 @@ describe('WorkspacePersistence', () => {
     await settle();
     await terminals.close(opened.id);
     await settle();
-    expect(saves.at(-1)).toEqual({ projectId: timmy, tabs: [] });
+    // Its number stays given: the next Terminal of the Project is not #1 again.
+    expect(saves.at(-1)).toEqual({ projectId: timmy, tabs: [], lastNumber: 1 });
   });
 
   it("does not save what is not part of the layout: a Terminal's exit", async () => {
@@ -142,7 +144,7 @@ describe('WorkspacePersistence', () => {
   });
 
   it('keeps a Terminal opened before the load finished as a change to save, in a Project that already had Tabs', async () => {
-    const { saves, terminals } = withStore([{ projectId: timmy, tabs: [savedTab('t1', [['a', 1]])] }]);
+    const { saves, terminals } = withStore([{ projectId: timmy, tabs: [savedTab('t1', [['a', 1]])], lastNumber: 1 }]);
     TestBed.inject(WorkspacePersistence);
     const early = terminals.create(timmy);
     await settle();
@@ -160,6 +162,34 @@ describe('WorkspacePersistence', () => {
     await terminals.createLive(timmy, '/work/timmy');
     await settle();
     expect(saves.at(-1)?.tabs).toHaveLength(2);
+  });
+
+  it('numbers a new Terminal after the highest number its Project gave before the restart, closed ones included', async () => {
+    const { saves, terminals } = withStore([{ projectId: timmy, tabs: [savedTab('t1', [['a', 2]])], lastNumber: 7 }]);
+    await start();
+    const opened = (await terminals.createLive(timmy, '/work/timmy', 'Codex'))!;
+    expect(opened).toMatchObject({ number: 8, name: 'codex 8' });
+    await settle();
+    expect(saves.at(-1)?.lastNumber).toBe(8);
+  });
+
+  it('restores a Terminal saved before Terminals had names with its default name, and saves it under that name', async () => {
+    const { saves, terminals } = withStore([{ projectId: timmy, tabs: [savedTab('t1', [['a', 3]])], lastNumber: 3 }]);
+    await start();
+    expect(terminals.find(TerminalId.make('a'))?.name).toBe('shell 3');
+    await terminals.createLive(timmy, '/work/timmy');
+    await settle();
+    expect(saves.at(-1)?.tabs[0].terminals[0]).toEqual({ terminalId: 'a', number: 3, name: 'shell 3' });
+  });
+
+  it('saves a Terminal renamed by the user under its new name', async () => {
+    const { saves, terminals } = withStore();
+    await start();
+    const opened = (await terminals.createLive(timmy, '/work/timmy'))!;
+    await settle();
+    await terminals.rename(opened.id, 'deploy');
+    await settle();
+    expect(saves.at(-1)?.tabs[0].terminals[0].name).toBe('deploy');
   });
 
   it('batches the changes of a quiet moment into one save per Project', async () => {

@@ -91,7 +91,7 @@ export class SwitcherState {
     const cards = this.projects.all().flatMap((project) =>
       this.tabs.tabsOf(project.projectId).map((tab): SwitcherCard => {
         const layout = this.tabs.layoutOf(tab);
-        const terminalNames = tab.terminals.map((terminal) => this.i18n.t('terminals.name', { number: terminal.number }));
+        const terminalNames = tab.terminals.map((terminal) => terminal.name);
         return {
           tabId: tab.id,
           projectId: project.projectId,

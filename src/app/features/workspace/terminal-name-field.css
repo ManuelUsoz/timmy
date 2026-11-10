@@ -1,0 +1,45 @@
+/* The same inline field the Tab bar renames a Tab with; the error hangs below it, over what follows. */
+:host {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.field {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 var(--spacing-03);
+  border: 0;
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--field);
+  color: var(--text-primary);
+  font: 400 12px/16px var(--font-mono);
+  letter-spacing: 0.32px;
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
+.field[aria-invalid='true'] {
+  outline-color: var(--support-error);
+}
+
+.error {
+  position: absolute;
+  top: calc(100% + var(--spacing-02));
+  /* As wide as the field, so it never sticks out of a narrow sidebar or Pane. */
+  right: 0;
+  left: 0;
+  z-index: 20;
+  box-sizing: border-box;
+  padding: var(--spacing-02) var(--spacing-04);
+  background: var(--layer-02);
+  border-left: 2px solid var(--support-error);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text-error);
+  font: 400 12px/16px var(--font-sans);
+  letter-spacing: 0.32px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}

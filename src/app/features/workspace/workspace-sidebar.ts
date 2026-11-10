@@ -17,6 +17,8 @@ import { ProjectsState } from './projects-state';
 import { SettingsDialogState } from './settings-dialog-state';
 import { terminalPath } from './tabs';
 import { TabsState } from './tabs-state';
+import type { TerminalEntry, TerminalId } from './terminal-entries';
+import { TerminalNameField } from './terminal-name-field';
 import { statusKey } from './terminal-view';
 import { TerminalsState } from './terminals-state';
 import { WorkspaceLayoutState } from './workspace-layout';
@@ -31,12 +33,13 @@ const PROVIDER_MARK: Readonly<Record<Provider, ProviderMark>> = {
 
 /**
  * The Workspace's sidebar: the Projects, every Terminal across them (ordered and grouped as in the Panel's rail) and
- * the button that opens Settings over the Workspace. Ctrl+B (see `WorkspaceComponent`) or its own button collapses it
+ * the button that opens Settings over the Workspace. A Terminal shows its name, its number on hover; a double click or
+ * F2 renames it. Ctrl+B (see `WorkspaceComponent`) or its own button collapses it
  * to a 48 px strip.
  */
 @Component({
   selector: 'app-workspace-sidebar',
-  imports: [ListGroupLabel, ListRow, ProjectList, ProviderIconComponent, StateComponent],
+  imports: [ListGroupLabel, ListRow, ProjectList, ProviderIconComponent, StateComponent, TerminalNameField],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './workspace-sidebar.html',
   styleUrl: './workspace-sidebar.css',
@@ -65,6 +68,9 @@ export class WorkspaceSidebar {
   /** The most urgent status among all Terminals, which the collapsed strip shows on its Terminals button. */
   protected readonly urgent = computed(() => mostUrgent(this.groups().flatMap((group) => group.rows.map((row) => row.status))));
 
+  /** The Terminal the user is renaming in its row (a double click or F2 on it). */
+  protected readonly renaming = signal<TerminalId | undefined>(undefined);
+
   /** The URL, to tell which Terminal is on screen. */
   private readonly url = signal(this.router.url);
 
@@ -77,6 +83,10 @@ export class WorkspaceSidebar {
 
   protected isOpen(row: RailRow): boolean {
     return this.url().endsWith(`/terminals/${row.id}`);
+  }
+
+  protected terminalOf(row: RailRow): TerminalEntry | undefined {
+    return this.terminals.find(row.id);
   }
 
   protected tone(status: TerminalStatus): StateTone {

@@ -18,6 +18,7 @@ const entry = (id: string, projectId: ProjectId, number: number, provider?: Term
   projectId,
   tabId: TabId.make(id),
   number,
+  name: `shell ${number}`,
   state: 'Live',
   activity: 'Idle',
   ...(provider === undefined ? {} : { provider }),

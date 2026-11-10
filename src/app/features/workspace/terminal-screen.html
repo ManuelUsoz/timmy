@@ -4,7 +4,8 @@
 @if (!bare()) {
 <header class="head">
   <ui-state [tone]="tone(entry.state)">{{ i18n.t(stateKey(entry.state)) }}</ui-state>
-  <h1>{{ i18n.t('terminals.name', { number: entry.number }) }}</h1>
+  <h1>{{ entry.name }}</h1>
+  <span class="number">#{{ entry.number }}</span>
   <span class="cwd" [attr.title]="cwd()">{{ cwd() }}</span>
   <span class="spacer"></span>
   <button uiButton kind="secondary" size="sm" type="button" [disabled]="idle" (click)="restart()">

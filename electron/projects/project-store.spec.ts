@@ -86,8 +86,8 @@ describe('ProjectStore', () => {
         Effect.gen(function* () {
           const { projectId } = yield* store.add(at('app'));
           const tabs = [tab('t1', [term('a', 1, 'ClaudeCode'), term('b', 2)], 'Work'), tab('t2', [term('c', 3)])];
-          yield* store.saveLayout(projectId, tabs);
-          expect(yield* store.layouts).toEqual([{ projectId, tabs }]);
+          yield* store.saveLayout(projectId, tabs, 0);
+          expect(yield* store.layouts).toEqual([{ projectId, tabs, lastNumber: 3 }]);
         }),
       ));
 
@@ -95,12 +95,13 @@ describe('ProjectStore', () => {
       withStore((store) =>
         Effect.gen(function* () {
           const { projectId } = yield* store.add(at('app'));
-          yield* store.saveLayout(projectId, [tab('t1', [term('a', 1), term('b', 2)]), tab('t2', [term('c', 3)])]);
+          yield* store.saveLayout(projectId, [tab('t1', [term('a', 1), term('b', 2)]), tab('t2', [term('c', 3)])], 0);
           const after = [tab('t1', [term('a', 1)])];
-          yield* store.saveLayout(projectId, after);
-          expect(yield* store.layouts).toEqual([{ projectId, tabs: after }]);
-          yield* store.saveLayout(projectId, []);
-          expect(yield* store.layouts).toEqual([]);
+          yield* store.saveLayout(projectId, after, 0);
+          expect(yield* store.layouts).toEqual([{ projectId, tabs: after, lastNumber: 3 }]);
+          yield* store.saveLayout(projectId, [], 0);
+          // The Tabs go; the numbers given stay given.
+          expect(yield* store.layouts).toEqual([{ projectId, tabs: [], lastNumber: 3 }]);
         }),
       ));
 
@@ -109,10 +110,11 @@ describe('ProjectStore', () => {
         Effect.gen(function* () {
           const one = yield* store.add(at('one'));
           const two = yield* store.add(at('two'));
-          yield* store.saveLayout(one.projectId, [tab('t1', [term('a', 1)])]);
-          yield* store.saveLayout(two.projectId, [tab('t2', [term('b', 1)])]);
-          yield* store.saveLayout(one.projectId, []);
-          expect((yield* store.layouts).map((each) => each.projectId)).toEqual([two.projectId]);
+          yield* store.saveLayout(one.projectId, [tab('t1', [term('a', 1)])], 0);
+          yield* store.saveLayout(two.projectId, [tab('t2', [term('b', 1)])], 0);
+          yield* store.saveLayout(one.projectId, [], 0);
+          const tabCounts = Object.fromEntries((yield* store.layouts).map((each) => [each.projectId, each.tabs.length]));
+          expect(tabCounts).toEqual({ [one.projectId]: 0, [two.projectId]: 1 });
         }),
       ));
 
@@ -120,12 +122,13 @@ describe('ProjectStore', () => {
       withStore((store) =>
         Effect.gen(function* () {
           const { projectId } = yield* store.add(at('app'));
-          yield* store.saveLayout(projectId, [tab('t1', [term('a', 1)])]);
+          yield* store.saveLayout(projectId, [tab('t1', [term('a', 1)])], 0);
           yield* store.remove(projectId);
           expect(yield* store.layouts).toEqual([]);
-          yield* store.saveLayout(projectId, [tab('t1', [term('a', 1)])]);
+          yield* store.saveLayout(projectId, [tab('t1', [term('a', 1)])], 0);
           yield* store.add(at('app'));
-          expect(yield* store.layouts).toEqual([]);
+          // Added back, it starts with no Tabs and goes on numbering where it left off.
+          expect(yield* store.layouts).toEqual([{ projectId, tabs: [], lastNumber: 1 }]);
         }),
       ));
 
@@ -136,7 +139,7 @@ describe('ProjectStore', () => {
         (store) =>
           Effect.gen(function* () {
             const { projectId } = yield* store.add(at('app'));
-            yield* store.saveLayout(projectId, [tab('t1', [term('a', 1)])]);
+            yield* store.saveLayout(projectId, [tab('t1', [term('a', 1)])], 0);
           }),
         file,
       ).pipe(
@@ -181,7 +184,7 @@ describe('ProjectStore', () => {
         (store) =>
           Effect.gen(function* () {
             const { projectId } = yield* store.add(at('app'));
-            yield* store.saveLayout(projectId, [tab('t1', [term('a', 1), term('b', 2), term('c', 3)])]);
+            yield* store.saveLayout(projectId, [tab('t1', [term('a', 1), term('b', 2), term('c', 3)])], 0);
           }),
         file,
       ).pipe(
@@ -211,7 +214,7 @@ describe('ProjectStore', () => {
                   focused: 'b',
                 });
                 // Saved again, each View is written in its own form.
-                yield* store.saveLayout(saved.projectId, saved.tabs);
+                yield* store.saveLayout(saved.projectId, saved.tabs, saved.lastNumber);
                 const db = new DatabaseSync(file);
                 const written = db.prepare('SELECT layout FROM tabs').get()?.['layout'];
                 db.close();
@@ -242,7 +245,7 @@ describe('ProjectStore', () => {
             expect((yield* store.list).map((p) => p.name)).toEqual(['app']);
             expect(yield* store.getState('files.width')).toEqual(Option.some('300'));
             expect(yield* store.layouts).toEqual([]);
-            yield* store.saveLayout(ProjectId.make('p1'), [tab('t1', [term('a', 1)])]);
+            yield* store.saveLayout(ProjectId.make('p1'), [tab('t1', [term('a', 1)])], 0);
             expect((yield* store.layouts).length).toBe(1);
           }),
         file,

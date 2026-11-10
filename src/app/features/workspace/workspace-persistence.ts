@@ -1,6 +1,7 @@
 import { DestroyRef, Injectable, effect, inject, signal, untracked } from '@angular/core';
 import { Cause, Effect, Exit } from 'effect';
 import type { ProjectId } from '../../../shared/projects/projects.model';
+import type { SavedTab } from '../../../shared/workspace/workspace.model';
 import { DesktopApi } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { ToastService } from '../../core/toast';
@@ -9,6 +10,9 @@ import { TerminalsState } from './terminals-state';
 
 /** How long after a change the Project's Tabs are saved: a divider being dragged changes the layout many times a second. */
 export const SAVE_AFTER_MS = 250;
+
+/** What a Project that never had a Terminal looks like saved. */
+const NOTHING_SAVED = JSON.stringify({ tabs: [], lastNumber: 0 });
 
 /**
  * Keeps the layout across restarts (ADR 0011). When the app starts it loads each Project's saved Tabs, Panes, sizes,
@@ -43,7 +47,7 @@ export class WorkspacePersistence {
       if (!this.loaded()) return;
       // Read here, so a change to any Tab, Terminal, name or layout runs this again.
       const projects = new Set([...this.terminals.entries().map((entry) => entry.projectId), ...this.saved.keys()]);
-      const now = new Map(Array.from(projects, (projectId) => [projectId, JSON.stringify(this.tabs.savedTabs(projectId))] as const));
+      const now = new Map(Array.from(projects, (projectId) => [projectId, JSON.stringify(this.snapshot(projectId))] as const));
       untracked(() => this.schedule(now));
     });
     void this.load();
@@ -60,15 +64,20 @@ export class WorkspacePersistence {
     this.tabs.restore(exit.value);
     // What is saved is the layout as it is now, tidied to its Terminals, so a clean start writes nothing back.
     for (const { projectId } of exit.value) {
-      if (!opened.has(projectId)) this.saved.set(projectId, JSON.stringify(this.tabs.savedTabs(projectId)));
+      if (!opened.has(projectId)) this.saved.set(projectId, JSON.stringify(this.snapshot(projectId)));
     }
     this.loaded.set(true);
+  }
+
+  /** What is saved of a Project: its Tabs and the highest number it has given a Terminal. */
+  private snapshot(projectId: ProjectId): { readonly tabs: ReadonlyArray<SavedTab>; readonly lastNumber: number } {
+    return { tabs: this.tabs.savedTabs(projectId), lastNumber: this.terminals.lastNumberOf(projectId) };
   }
 
   private schedule(now: ReadonlyMap<ProjectId, string>): void {
     for (const [projectId, json] of now) {
       // A Project with no Tabs, and none saved, has nothing to say.
-      if ((this.saved.get(projectId) ?? '[]') === json) continue;
+      if ((this.saved.get(projectId) ?? NOTHING_SAVED) === json) continue;
       this.saved.set(projectId, json);
       this.dirty.add(projectId);
     }
@@ -83,9 +92,9 @@ export class WorkspacePersistence {
     const projects = Array.from(this.dirty);
     this.dirty.clear();
     for (const projectId of projects) {
-      const tabs = this.tabs.savedTabs(projectId);
+      const { tabs, lastNumber } = this.snapshot(projectId);
       this.queue = this.queue.then(async () => {
-        const exit = await this.runtime.run(Effect.flatMap(DesktopApi, (desktop) => desktop['Workspace.save']({ projectId, tabs })));
+        const exit = await this.runtime.run(Effect.flatMap(DesktopApi, (desktop) => desktop['Workspace.save']({ projectId, tabs, lastNumber })));
         if (Exit.isSuccess(exit)) return;
         // The store still holds the old layout: the next change to the Project saves it again.
         this.saved.delete(projectId);

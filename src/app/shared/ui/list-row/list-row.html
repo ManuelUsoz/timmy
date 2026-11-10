@@ -1,6 +1,11 @@
 <span class="as-row__lead"><ng-content select="[leading]" /></span>
 <span class="as-row__body">
-  <span class="as-row__title">{{ label() }}</span>
+  <span class="as-row__line">
+    <span class="as-row__title">{{ label() }}</span>
+    @if (hint()) {
+      <span class="as-row__hint">{{ hint() }}</span>
+    }
+  </span>
   @if (meta()) {
     <span class="as-row__sub">{{ meta() }}</span>
   }

@@ -116,6 +116,16 @@ describe('TerminalsState: Providers', () => {
     expect(restarted).toMatchObject({ number: 1, provider: 'ClaudeCode' });
   });
 
+  it('names a Terminal after its Provider and number, and never gives a closed Terminal\'s number again', async () => {
+    const { terminals } = withMain();
+    const first = (await terminals.createLive(timmy, '/work/timmy', 'ClaudeCode'))!;
+    const second = (await terminals.createLive(timmy, '/work/timmy'))!;
+    expect([first.name, second.name]).toEqual(['claude 1', 'shell 2']);
+    await terminals.close(second.id);
+    expect(await terminals.createLive(timmy, '/work/timmy', 'Codex')).toMatchObject({ number: 3, name: 'codex 3' });
+    expect(terminals.lastNumberOf(timmy)).toBe(3);
+  });
+
   it('restarts a plain shell as a plain shell', async () => {
     const { created, terminals } = withMain();
     const opened = await terminals.createLive(timmy, '/work/timmy');
@@ -130,6 +140,7 @@ describe('TerminalsState: restored Terminals', () => {
     projectId: timmy,
     tabId: TabId.make('t1'),
     number: 4,
+    name: provider === undefined ? 'shell 4' : 'claude 4',
     state: 'Idle' as const,
     activity: 'Idle' as const,
     ...(provider === undefined ? {} : { provider }),

@@ -1,12 +1,28 @@
 import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 import { Effect, Exit, Stream, pipe } from 'effect';
+import type { RpcClientError } from 'effect/rpc';
 import type { ProjectId } from '../../../shared/projects/projects.model';
 import type { Provider } from '../../../shared/settings/settings.model';
 import { TerminalId, type TerminalActivityEntry } from '../../../shared/terminal/terminal.model';
+import { isTerminalNameTaken } from '../../../shared/workspace/terminal-name';
+import { WorkspaceError } from '../../../shared/workspace/workspace-error.model';
 import { DesktopApi } from '../../core/desktop-api';
+import type { DesktopBridgeError } from '../../core/desktop-error';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { TabId } from './tabs';
-import { addTerminal, restarted, withActivity, withExit, withScreen, withState, type TerminalEntry, type TerminalScreenSnapshot, type TerminalState } from './terminal-entries';
+import {
+  addTerminal,
+  restarted,
+  terminalsOf,
+  withActivity,
+  withExit,
+  withName,
+  withScreen,
+  withState,
+  type TerminalEntry,
+  type TerminalScreenSnapshot,
+  type TerminalState,
+} from './terminal-entries';
 import { previewLines } from './terminal-tail';
 
 /** A Terminal opens in a Tab of its own unless it is opened into a Pane or Stack of an existing one. */
@@ -16,6 +32,8 @@ const newTab = (): TabId => TabId.make(crypto.randomUUID());
 export class TerminalsState {
   private readonly all = signal<ReadonlyArray<TerminalEntry>>([]);
   readonly entries = this.all.asReadonly();
+  /** The highest number each Project has given a Terminal, closed ones included: numbers are never reused. */
+  private readonly numbered = signal<ReadonlyMap<ProjectId, number>>(new Map());
   /** The last activity main reported, kept for a Terminal whose entry is added after main already spoke of it. */
   private reported: ReadonlyArray<TerminalActivityEntry> = [];
   private readonly currentId = signal<TerminalId | undefined>(undefined);
@@ -69,20 +87,25 @@ export class TerminalsState {
       }),
     );
     if (result._tag === 'Failure') return undefined;
-    const entry = addTerminal(this.all(), projectId, tabId, result.value.terminalId, provider).at(-1)!;
+    const entry = this.numberNew(projectId, tabId, result.value.terminalId, provider);
     this.all.update((entries) => pipe(withState([...entries, entry], entry.id, 'Live'), (next) => withActivity(next, this.reported)));
     this.currentId.set(entry.id);
     return { ...entry, state: 'Live' };
   }
 
   /**
-   * Adds the Terminals saved by a previous run (Idle, not started; ADR 0011). One already here, opened before the saved
-   * ones arrived, is kept as it is.
+   * Adds the Terminals saved by a previous run (Idle, not started; ADR 0011) and the highest number each Project had
+   * given, so no number is given twice. One already here, opened before the saved ones arrived, is kept as it is.
    */
-  restore(saved: ReadonlyArray<TerminalEntry>): void {
+  restore(saved: ReadonlyArray<TerminalEntry>, lastNumbers: ReadonlyMap<ProjectId, number> = new Map()): void {
     this.all.update((entries) => {
       const known = new Set(entries.map((entry) => entry.id));
       return [...entries, ...saved.filter((entry) => !known.has(entry.id))];
+    });
+    this.numbered.update((numbers) => {
+      const next = new Map(numbers);
+      for (const [projectId, last] of lastNumbers) next.set(projectId, Math.max(last, next.get(projectId) ?? 0));
+      return next;
     });
   }
 
@@ -109,10 +132,42 @@ export class TerminalsState {
   }
 
   create(projectId: ProjectId, tabId: TabId = newTab()): TerminalEntry {
-    const id = TerminalId.make(crypto.randomUUID());
-    const entry = addTerminal(this.all(), projectId, tabId, id).at(-1)!;
+    const entry = this.numberNew(projectId, tabId, TerminalId.make(crypto.randomUUID()));
     this.all.update((entries) => [...entries, entry]);
     return entry;
+  }
+
+  /** A new entry with the Project's next number and its default name; the number counts as given from now on. */
+  private numberNew(projectId: ProjectId, tabId: TabId, id: TerminalId, provider?: Provider): TerminalEntry {
+    const entry = addTerminal(this.all(), projectId, tabId, id, provider, this.numbered().get(projectId) ?? 0).at(-1)!;
+    this.numbered.update((numbers) => new Map(numbers).set(projectId, entry.number));
+    return entry;
+  }
+
+  /** The highest number the Project has given a Terminal, closed ones included: the next one is numbered after it. */
+  lastNumberOf(projectId: ProjectId): number {
+    return terminalsOf(this.all(), projectId).reduce((max, entry) => Math.max(max, entry.number), this.numbered().get(projectId) ?? 0);
+  }
+
+  /**
+   * The user renames a Terminal. The name is trimmed; the same name leaves it as it is. Refused, with nothing changed,
+   * when it is blank or another Terminal of the Project has it, ignoring case, here or in what main saved.
+   */
+  async rename(id: TerminalId, name: string): Promise<Exit.Exit<void, WorkspaceError | RpcClientError.RpcClientError | DesktopBridgeError>> {
+    const entry = this.find(id);
+    const trimmed = name.trim();
+    if (entry === undefined || trimmed === entry.name) return Exit.void;
+    if (trimmed === '') return Exit.fail(new WorkspaceError({ reason: 'NameEmpty', detail: `Terminal ${id} cannot be named blank` }));
+    const others = terminalsOf(this.all(), entry.projectId).filter((other) => other.id !== id);
+    if (isTerminalNameTaken(others.map((other) => other.name), trimmed)) {
+      return Exit.fail(new WorkspaceError({ reason: 'NameTaken', detail: `Another Terminal of ${entry.projectId} is called ${trimmed}` }));
+    }
+    const result = await this.runtime.run(
+      Effect.flatMap(DesktopApi, (desktop) => desktop['Workspace.renameTerminal']({ projectId: entry.projectId, terminalId: id, name: trimmed })),
+    );
+    if (Exit.isFailure(result)) return result;
+    this.all.update((entries) => withName(entries, id, trimmed));
+    return Exit.void;
   }
 
   find(id: string): TerminalEntry | undefined {

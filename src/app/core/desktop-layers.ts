@@ -35,6 +35,7 @@ export const makeDesktopTestLayer = (
 export const layerWorkspaceUnused = WorkspaceRpcs.toLayer({
   'Workspace.load': () => Effect.die('Workspace handler not under test'),
   'Workspace.save': () => Effect.die('Workspace handler not under test'),
+  'Workspace.renameTerminal': () => Effect.die('Workspace handler not under test'),
 });
 
 const windowUnused = () => Effect.die('Window handler not under test');

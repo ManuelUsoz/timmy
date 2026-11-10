@@ -57,9 +57,9 @@ describe('Channels: the toast Channel', () => {
     await hear('Done');
     await hear('Error');
     expect(shown()).toEqual([
-      { tone: 'warning', title: 'notifications.waiting.title', body: 'notifications.waiting.body', params: { number: 1, project: 'demo' } },
-      { tone: 'success', title: 'notifications.done.title', body: 'notifications.done.body', params: { number: 1, project: 'demo' } },
-      { tone: 'error', title: 'notifications.error.title', body: 'notifications.error.body', params: { number: 1, project: 'demo' } },
+      { tone: 'warning', title: 'notifications.waiting.title', body: 'notifications.waiting.body', params: { name: 'shell 1', project: 'demo' } },
+      { tone: 'success', title: 'notifications.done.title', body: 'notifications.done.body', params: { name: 'shell 1', project: 'demo' } },
+      { tone: 'error', title: 'notifications.error.title', body: 'notifications.error.body', params: { name: 'shell 1', project: 'demo' } },
     ]);
   });
 

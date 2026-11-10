@@ -85,11 +85,11 @@ describe('Tabs of a Project', () => {
     const { el, router, bar, tabNames, activeTab, click } = await setup();
     await click(el.querySelector<HTMLButtonElement>('.no-tabs button'));
     expect(bar()?.getAttribute('aria-label')).toBe('Pestañas de timmy');
-    expect(tabNames()).toEqual(['Terminal 1']);
+    expect(tabNames()).toEqual(['shell 1']);
     expect(router.url).toMatch(/^\/projects\/p-timmy\/terminals\/.+/);
     await click(el.querySelector<HTMLButtonElement>('app-tab-bar button[aria-label="Nueva pestaña"]'));
-    expect(tabNames()).toEqual(['Terminal 1', 'Terminal 2']);
-    expect(activeTab()).toBe('Terminal 2');
+    expect(tabNames()).toEqual(['shell 1', 'shell 2']);
+    expect(activeTab()).toBe('shell 2');
     expect(Array.from(el.querySelectorAll('app-tab-bar .ix')).map((ix) => ix.textContent)).toEqual(['1', '2']);
   });
 
@@ -97,14 +97,14 @@ describe('Tabs of a Project', () => {
     const { tabNames, activeTab, press, el } = await setup();
     await press('t');
     await press('t');
-    expect(tabNames()).toEqual(['Terminal 1', 'Terminal 2']);
+    expect(tabNames()).toEqual(['shell 1', 'shell 2']);
     await press('1');
-    expect(activeTab()).toBe('Terminal 1');
-    expect(el.querySelector('app-pane-stack .view-header.act .name')?.textContent).toBe('Terminal 1');
+    expect(activeTab()).toBe('shell 1');
+    expect(el.querySelector('app-pane-stack .view-header.act .name')?.textContent).toBe('shell 1');
     await press('2');
-    expect(activeTab()).toBe('Terminal 2');
+    expect(activeTab()).toBe('shell 2');
     await press('5');
-    expect(activeTab()).toBe('Terminal 2');
+    expect(activeTab()).toBe('shell 2');
   });
 
   it('ignores Ctrl+T and Ctrl+number while Settings covers the screen', async () => {
@@ -115,8 +115,8 @@ describe('Tabs of a Project', () => {
     await press('t');
     await press('1');
     await press(',');
-    expect(tabNames()).toEqual(['Terminal 1', 'Terminal 2']);
-    expect(activeTab()).toBe('Terminal 2');
+    expect(tabNames()).toEqual(['shell 1', 'shell 2']);
+    expect(activeTab()).toBe('shell 2');
   });
 
   it('closes the Tab on screen for the one after it, or the one before when it was the last', async () => {
@@ -125,11 +125,11 @@ describe('Tabs of a Project', () => {
     await press('t');
     await press('t');
     await press('2');
-    await click(closeButton('Terminal 2'));
-    expect(tabNames()).toEqual(['Terminal 1', 'Terminal 3']);
-    expect(activeTab()).toBe('Terminal 3');
-    await click(closeButton('Terminal 3'));
-    expect(activeTab()).toBe('Terminal 1');
+    await click(closeButton('shell 2'));
+    expect(tabNames()).toEqual(['shell 1', 'shell 3']);
+    expect(activeTab()).toBe('shell 3');
+    await click(closeButton('shell 3'));
+    expect(activeTab()).toBe('shell 1');
   });
 
   it('goes to a Tab with a click', async () => {
@@ -137,7 +137,7 @@ describe('Tabs of a Project', () => {
     await press('t');
     await press('t');
     await click(tabButton(0));
-    expect(activeTab()).toBe('Terminal 1');
+    expect(activeTab()).toBe('shell 1');
   });
 
   it('renames a Tab with a double click; Escape keeps the name, and a blank name gives back the Terminal\'s', async () => {
@@ -157,7 +157,7 @@ describe('Tabs of a Project', () => {
     await rename('other', 'Escape');
     expect(tabNames()).toEqual(['review']);
     await rename('  ', 'Enter');
-    expect(tabNames()).toEqual(['Terminal 1']);
+    expect(tabNames()).toEqual(['shell 1']);
   });
 
   it('shows a dot only while a Terminal of the Tab is Waiting or Error', async () => {
@@ -180,10 +180,10 @@ describe('Tabs of a Project', () => {
     await press('t');
     await press('t');
     await hear(terminalOfTab(1), 'Done');
-    await click(closeButton('Terminal 2'));
+    await click(closeButton('shell 2'));
     expect(el.querySelector('ui-modal')).toBeNull();
-    expect(tabNames()).toEqual(['Terminal 1']);
-    expect(activeTab()).toBe('Terminal 1');
+    expect(tabNames()).toEqual(['shell 1']);
+    expect(activeTab()).toBe('shell 1');
     expect(TestBed.inject(TerminalsState).entries().map((entry) => entry.number)).toEqual([1]);
   });
 
@@ -191,14 +191,14 @@ describe('Tabs of a Project', () => {
     const { el, tabNames, press, click, hear, terminalOfTab, closeButton, bar } = await setup();
     await press('t');
     await hear(terminalOfTab(0), 'Working');
-    await click(closeButton('Terminal 1'));
+    await click(closeButton('shell 1'));
     const modal = el.querySelector('ui-modal')!;
-    expect(modal.querySelector('h2')?.textContent).toBe('¿Cerrar la pestaña Terminal 1?');
+    expect(modal.querySelector('h2')?.textContent).toBe('¿Cerrar la pestaña shell 1?');
     await click(modal.querySelector<HTMLButtonElement>('.dismiss'));
-    expect(tabNames()).toEqual(['Terminal 1']);
+    expect(tabNames()).toEqual(['shell 1']);
 
     await hear(terminalOfTab(0), 'Waiting');
-    await click(closeButton('Terminal 1'));
+    await click(closeButton('shell 1'));
     await click(el.querySelector<HTMLButtonElement>('ui-modal .primary'));
     expect(tabNames()).toEqual([]);
     expect(el.querySelector('.no-tabs button')).not.toBeNull();
@@ -211,7 +211,7 @@ describe('Tabs of a Project', () => {
     await settle();
     expect(tabNames()).toEqual([]);
     await press('t');
-    expect(tabNames()).toEqual(['Terminal 1']);
+    expect(tabNames()).toEqual(['shell 1']);
     await press('1');
     expect(router.url).toMatch(/^\/projects\/p-ascua\//);
   });

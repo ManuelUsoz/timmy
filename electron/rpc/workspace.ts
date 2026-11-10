@@ -7,7 +7,8 @@ export const layerWorkspaceHandlers = WorkspaceRpcs.toLayer(
     const store = yield* ProjectStore;
     return {
       'Workspace.load': () => store.layouts,
-      'Workspace.save': ({ projectId, tabs }) => store.saveLayout(projectId, tabs),
+      'Workspace.save': ({ projectId, tabs, lastNumber }) => store.saveLayout(projectId, tabs, lastNumber),
+      'Workspace.renameTerminal': ({ projectId, terminalId, name }) => store.renameTerminal(projectId, terminalId, name),
     };
   }),
 );

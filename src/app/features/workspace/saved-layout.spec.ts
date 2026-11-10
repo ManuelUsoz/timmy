@@ -13,6 +13,7 @@ const entry = (id: string, tabId: string, number: number, provider?: 'ClaudeCode
   projectId: project,
   tabId: TabId.make(tabId),
   number,
+  name: provider === undefined ? `shell ${number}` : `claude ${number}`,
   state: 'Live',
   activity: 'Active',
   ...(provider === undefined ? {} : { provider }),
@@ -24,46 +25,54 @@ describe('saved layout', () => {
   const layouts = new Map([[TabId.make('t1'), layout]]);
   const tabs = tabsOf(entries, project, new Map([[TabId.make('t1'), 'Work']]));
 
-  it('saves what a Tab keeps: its name, its Terminals (number and Provider) and its layout, and nothing of the process', () => {
+  it('saves what a Tab keeps: its name, its Terminals (number, name and Provider) and its layout, and nothing of the process', () => {
     expect(savedTabsOf(tabs, (tab) => layouts.get(tab.id))).toEqual([
       {
         tabId: 't1',
         name: 'Work',
         terminals: [
-          { terminalId: 'a', number: 1, provider: 'ClaudeCode' },
-          { terminalId: 'b', number: 2 },
+          { terminalId: 'a', number: 1, name: 'claude 1', provider: 'ClaudeCode' },
+          { terminalId: 'b', number: 2, name: 'shell 2' },
         ],
         layout,
       },
-      { tabId: 't2', terminals: [{ terminalId: 'c', number: 3 }] },
+      { tabId: 't2', terminals: [{ terminalId: 'c', number: 3, name: 'shell 3' }] },
     ]);
   });
 
   it('restores every Terminal Idle, under its saved id, in its Tab, with its Provider', () => {
-    const saved: ProjectLayout[] = [{ projectId: project, tabs: savedTabsOf(tabs, (tab) => layouts.get(tab.id)) }];
+    const saved: ProjectLayout[] = [{ projectId: project, tabs: savedTabsOf(tabs, (tab) => layouts.get(tab.id)), lastNumber: 5 }];
     const restored = restoredFrom(saved);
     expect(restored.entries).toEqual([
-      { id: 'a', projectId: project, tabId: 't1', number: 1, state: 'Idle', activity: 'Idle', provider: 'ClaudeCode' },
-      { id: 'b', projectId: project, tabId: 't1', number: 2, state: 'Idle', activity: 'Idle' },
-      { id: 'c', projectId: project, tabId: 't2', number: 3, state: 'Idle', activity: 'Idle' },
+      { id: 'a', projectId: project, tabId: 't1', number: 1, name: 'claude 1', state: 'Idle', activity: 'Idle', provider: 'ClaudeCode' },
+      { id: 'b', projectId: project, tabId: 't1', number: 2, name: 'shell 2', state: 'Idle', activity: 'Idle' },
+      { id: 'c', projectId: project, tabId: 't2', number: 3, name: 'shell 3', state: 'Idle', activity: 'Idle' },
     ]);
     expect(restored.names).toEqual(new Map([[TabId.make('t1'), 'Work']]));
     expect(restored.layouts).toEqual(new Map([[TabId.make('t1'), layout]]));
+    expect(restored.lastNumbers).toEqual(new Map([[project, 5]]));
+  });
+
+  it('gives a Terminal saved before Terminals had names its default name', () => {
+    const restored = restoredFrom([
+      { projectId: project, tabs: [{ tabId: TabId.make('t1'), terminals: [{ terminalId: TerminalId.make('a'), number: 2, provider: 'Codex' }, { terminalId: TerminalId.make('b'), number: 7 }] }], lastNumber: 7 },
+    ]);
+    expect(restored.entries.map((each) => each.name)).toEqual(['codex 2', 'shell 7']);
   });
 
   it('restores a layout whose focused Pane is gone onto its first Pane', () => {
     const broken = { ...layout, focused: PaneId.make('nowhere') };
-    const restored = restoredFrom([{ projectId: project, tabs: [{ tabId: TabId.make('t1'), terminals: [{ terminalId: TerminalId.make('a'), number: 1 }, { terminalId: TerminalId.make('b'), number: 2 }], layout: broken }] }]);
+    const restored = restoredFrom([{ projectId: project, tabs: [{ tabId: TabId.make('t1'), terminals: [{ terminalId: TerminalId.make('a'), number: 1 }, { terminalId: TerminalId.make('b'), number: 2 }], layout: broken }], lastNumber: 2 }]);
     expect(restored.layouts.get(TabId.make('t1'))?.focused).toBe(panesOf(layout)[0].id);
   });
 
   it('leaves a Tab saved without a layout to get the default one', () => {
-    const restored = restoredFrom([{ projectId: project, tabs: [{ tabId: TabId.make('t1'), terminals: [{ terminalId: TerminalId.make('a'), number: 1 }] }] }]);
+    const restored = restoredFrom([{ projectId: project, tabs: [{ tabId: TabId.make('t1'), terminals: [{ terminalId: TerminalId.make('a'), number: 1 }] }], lastNumber: 1 }]);
     expect(restored.layouts.size).toBe(0);
   });
 
   it('skips a saved Tab with no Terminals: Timmy never keeps an empty Tab', () => {
-    const restored = restoredFrom([{ projectId: project, tabs: [{ tabId: TabId.make('t1'), terminals: [] }] }]);
+    const restored = restoredFrom([{ projectId: project, tabs: [{ tabId: TabId.make('t1'), terminals: [] }], lastNumber: 0 }]);
     expect(restored.entries).toEqual([]);
   });
 });
