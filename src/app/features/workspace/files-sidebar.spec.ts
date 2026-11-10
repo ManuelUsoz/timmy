@@ -7,9 +7,14 @@ import { EffectRuntime } from '../../core/effect-runtime';
 import { I18n } from '../../core/i18n';
 import { change, file, folder, text, type FakeDisk } from './files-fakes';
 import { CHANGES_DEBOUNCE_MS, FilesBrowser } from './files-browser';
+import { TerminalId } from '../../../shared/terminal/terminal.model';
+import { PaneId, TabId } from '../../../shared/workspace/workspace.model';
+import { singlePane, split } from './pane-layout';
 import { layerFakeBackend, makeBackend, project } from './projects-fakes';
 import { terminalPath } from './tabs';
+import { TabsState } from './tabs-state';
 import { TerminalsState } from './terminals-state';
+import { fileView, terminalView } from './views';
 import { WorkspaceComponent } from './workspace';
 import { WorkspaceLayoutState } from './workspace-layout';
 import { provideWorkspaceRouter } from './workspace.routes';
@@ -261,6 +266,26 @@ describe('FilesSidebar', () => {
     expect(note()).toBe(t('files.gone'));
     // Each click replaced the preview: still one File View.
     expect(panes()).toHaveLength(2);
+  });
+
+  it('reads a pinned File View again after a restart, pinned in its Pane, and says one whose file was deleted meanwhile is gone', async () => {
+    const { fixture, el, settle, panes, t } = await setup();
+    const shell = terminalView(TerminalId.make('a'));
+    const layout = split(split(singlePane(shell), PaneId.make('a'), 'right', fileView('README.md')), PaneId.make('file:README.md'), 'right', fileView('docs/old.md'));
+    TestBed.inject(TabsState).restore([{ projectId: timmy.projectId, tabs: [{ tabId: TabId.make('t1'), terminals: [{ terminalId: TerminalId.make('a'), number: 1 }], layout }], lastNumber: 1 }]);
+    await TestBed.inject(Router).navigate(terminalPath(TestBed.inject(TerminalsState).entries()[0]));
+    await settle();
+    fixture.detectChanges();
+    const [, readme, old] = panes();
+    expect(panes()).toHaveLength(3);
+    expect(readme.querySelector('.view-header .name')?.textContent?.trim()).toBe('README.md');
+    expect(readme.querySelector('.view-header .name')?.classList).not.toContain('preview');
+    expect(readme.querySelector('.view-header .tool.pin')?.getAttribute('aria-pressed')).toBe('true');
+    expect([...readme.querySelectorAll('.code .line .text')].map((line) => line.textContent)).toEqual(['# timmy', '', 'read me']);
+    expect(old.querySelector('.view-header .name')?.textContent?.trim()).toBe('old.md');
+    expect(old.querySelector('app-file-view .note')?.textContent?.trim()).toBe(t('files.gone'));
+    expect(old.querySelector('.code')).toBeNull();
+    expect(el.querySelector('app-files-sidebar')).toBeNull();
   });
 
   it('pins a File View with a double click on its row, or with the pin button on its header', async () => {

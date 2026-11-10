@@ -135,6 +135,19 @@ export class FilesBrowser {
     return { status: 'ready', nodes: this.nodesOf('', new Set(this.expanded())) };
   });
 
+  /**
+   * The files on screen, in order: the filter's results while it lists them, else the files of the tree as shown (inside
+   * open folders only; the changed ones when "N con cambios" is on). Folders are not in it. The list a Quick look walks.
+   */
+  readonly shownFiles = computed((): ReadonlyArray<string> => {
+    const matches = this.matches();
+    if (this.filter().trim() !== '' && matches.status === 'ready') return matches.items.map((item) => item.path);
+    const tree = this.tree();
+    const filesIn = (nodes: ReadonlyArray<TreeNode>): ReadonlyArray<string> =>
+      nodes.flatMap((node) => (node.kind === 'file' ? [node.id] : filesIn(node.children ?? [])));
+    return tree.status === 'ready' ? filesIn(tree.nodes) : [];
+  });
+
   constructor() {
     // Another Project selected while the sidebar is open: it shows that Project's tree.
     effect(() => {
@@ -289,16 +302,29 @@ export class FilesBrowser {
   /**
    * Picks a file: it opens as a File View in the Tab on screen (`TabsState.openFile`), a preview unless `pin`, and the
    * tree highlights it. With no Tab of the Project on screen there is nowhere to open it: a Tab exists only while it has
-   * a Terminal.
+   * a Terminal. Says whether a File View took it.
    */
-  openFile(path: string, pin = false): void {
+  openFile(path: string, pin = false): boolean {
     const project = this.projects.selected();
-    if (project === undefined) return;
+    if (project === undefined) return false;
     this.lastFile.set(path);
     this.persist();
     const current = this.terminals.current();
     const tab = current?.projectId === project.projectId ? this.tabs.tabsOf(project.projectId).find((each) => each.id === current.tabId) : undefined;
     if (tab !== undefined) this.tabs.openFile(tab, path, pin);
+    return tab !== undefined;
+  }
+
+  /** Makes a file the tree's highlight without opening it: where a Quick look ended. */
+  highlight(path: string): void {
+    if (this.lastFile() === path) return;
+    this.lastFile.set(path);
+    this.persist();
+  }
+
+  /** Whether git says the file was deleted: there is nothing to open as a File View. */
+  isDeleted(path: string): boolean {
+    return this.changes().kindOf(path) === 'deleted';
   }
 
   /** Esc inside the sidebar closes it. */

@@ -195,6 +195,11 @@ export class TreeViewComponent implements ControlValueAccessor {
     this.toggleExpand(row.node.id);
   }
 
+  /** Gives the keyboard to the row with that id, if it is shown: the arrows then walk from it. */
+  focusRow(id: string): void {
+    if (this.rows().some((row) => row.node.id === id)) this.moveTo(id);
+  }
+
   private moveTo(id: string | undefined): void {
     if (!id) return;
     this.activeRaw.set(id);

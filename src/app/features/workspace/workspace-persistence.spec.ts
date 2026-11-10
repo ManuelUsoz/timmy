@@ -10,7 +10,8 @@ import { EffectRuntime } from '../../core/effect-runtime';
 import { ToastService } from '../../core/toast';
 import { TabsState } from './tabs-state';
 import { TerminalsState } from './terminals-state';
-import { terminalView, viewKey } from './views';
+import { panesOf } from './pane-layout';
+import { fileView, terminalView, viewKey } from './views';
 import { SAVE_AFTER_MS, WorkspacePersistence } from './workspace-persistence';
 
 const timmy = ProjectId.make('p-timmy');
@@ -239,5 +240,53 @@ describe('WorkspacePersistence', () => {
     await settle();
     expect(saves).toHaveLength(1);
     expect(saves[0].tabs).toHaveLength(2);
+  });
+
+  describe('with File Views (ADR 0013)', () => {
+    const paneKeys = (tabs: TabsState) => {
+      const layout = tabs.layoutOf(tabs.tabsOf(timmy)[0]);
+      return layout === undefined ? [] : panesOf(layout).map((pane) => pane.views.map(viewKey));
+    };
+
+    it('saves a File View once it is pinned, in its place; a preview is never saved', async () => {
+      const { saves, terminals, tabs } = withStore();
+      await start();
+      const opened = (await terminals.createLive(timmy, '/work/timmy'))!;
+      await settle();
+      const tab = () => tabs.tabsOf(timmy)[0];
+      tabs.openFile(tab(), 'README.md');
+      await settle();
+      expect(saves).toHaveLength(1);
+      tabs.pinFile(tab(), 'README.md');
+      tabs.openFile(tab(), 'src/main.ts');
+      await settle();
+      expect(saves).toHaveLength(2);
+      expect(panesOf(saves[1].tabs[0].layout!).map((pane) => pane.views)).toEqual([[terminalView(opened.id)], [fileView('README.md')]]);
+    });
+
+    it('brings a pinned File View back in its place, still pinned, and writes nothing back', async () => {
+      const first = withStore();
+      await start();
+      await first.terminals.createLive(timmy, '/work/timmy');
+      const tab = first.tabs.tabsOf(timmy)[0];
+      first.tabs.openFile(tab, 'docs/guide.md', true);
+      first.tabs.openFile(tab, 'README.md', true);
+      first.tabs.openFile(tab, 'src/main.ts');
+      await settle();
+      const stored = first.saves.at(-1)!;
+      const before = paneKeys(first.tabs);
+      expect(before).toEqual([['live-1'], ['file:docs/guide.md'], ['file:README.md'], ['file:src/main.ts']]);
+
+      TestBed.resetTestingModule();
+      const { saves, tabs } = withStore([stored]);
+      await start();
+      expect(paneKeys(tabs)).toEqual(before.slice(0, 3));
+      expect(tabs.filesOf(tabs.tabsOf(timmy)[0])).toEqual([{ path: 'docs/guide.md', pinned: true }, { path: 'README.md', pinned: true }]);
+      await settle();
+      expect(saves).toEqual([]);
+      // The next file picked opens a preview beside them: none of the restored ones is taken for the preview.
+      tabs.openFile(tabs.tabsOf(timmy)[0], 'LICENSE');
+      expect(paneKeys(tabs)).toEqual([...before.slice(0, 3), ['file:LICENSE']]);
+    });
   });
 });

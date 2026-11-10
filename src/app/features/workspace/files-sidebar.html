@@ -77,7 +77,7 @@
   } @else {
     <div class="results" role="listbox" [attr.aria-label]="i18n.t('files.results')">
       @for (item of matches.items; track item.path) {
-        <button type="button" class="match" role="option" [attr.aria-selected]="false" (click)="browser.openFile(item.path)" (dblclick)="browser.openFile(item.path, true)" (keydown)="walk($event, $any($event.currentTarget))">
+        <button type="button" class="match" role="option" [attr.aria-selected]="false" [attr.data-path]="item.path" (click)="browser.openFile(item.path)" (dblclick)="browser.openFile(item.path, true)" (keydown)="walk($event, $any($event.currentTarget))">
           <span class="name">{{ item.name }}</span>
           @if (item.dir !== '') {
             <span class="dir">{{ item.dir }}</span>
