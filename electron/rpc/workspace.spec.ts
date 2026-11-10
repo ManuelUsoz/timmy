@@ -101,7 +101,11 @@ describe('Workspace RPCs: a Terminal has a name and a number', () => {
       yield* save(ascua, [tab('t2', [terminal('c', 1, 'tests')])], 1);
       yield* rename(timmy, 1, 'tests');
       yield* rename(timmy, 2, 'SHELL 2');
-      expect((yield* load).map((each) => each.tabs[0]?.terminals.map((saved) => saved.name))).toEqual([['tests', 'SHELL 2'], ['tests']]);
+      // `load` does not promise an order of Projects, so each is looked up by id.
+      const layouts = yield* load;
+      const namesOf = (projectId: ProjectId) => layouts.find((each) => each.projectId === projectId)?.tabs[0]?.terminals.map((saved) => saved.name);
+      expect(namesOf(timmy)).toEqual(['tests', 'SHELL 2']);
+      expect(namesOf(ascua)).toEqual(['tests']);
     }).pipe(Effect.provide(appOn(':memory:'))),
   );
 
