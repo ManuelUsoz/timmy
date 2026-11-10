@@ -1,5 +1,5 @@
 import { ProjectId } from '../../../shared/projects/projects.model';
-import { addTerminal, restarted, terminalsOf, withActivity, withExit, withName, withScreen, withState, TerminalId, type TerminalEntry } from './terminal-entries';
+import { addTerminal, renumberedAfter, restarted, terminalsOf, withActivity, withExit, withName, withScreen, withState, TerminalId, type TerminalEntry } from './terminal-entries';
 import { TabId } from './tabs';
 
 const timmy = ProjectId.make('p-timmy');
@@ -31,6 +31,16 @@ describe('terminal entries', () => {
   it('keeps a default name unique when the user already gave it to another Terminal', () => {
     const renamed = withName(addTerminal([], timmy, tab, id('a')), id('a'), 'Shell 2');
     expect(addTerminal(renamed, timmy, tab, id('b')).at(-1)?.name).toBe('shell 2 (2)');
+  });
+
+  it('moves an entry numbered with a number its Project already gave to the next one, keeping a name the user gave', () => {
+    const entries = withName(addTerminal(addTerminal(addTerminal([], timmy, tab, id('a')), timmy, tab, id('b')), ascua, tab, id('c')), id('b'), 'build');
+    const next = renumberedAfter(entries, new Map([[timmy, 4]]));
+    expect(next.map((entry) => [entry.id, entry.number, entry.name])).toEqual([
+      ['a', 5, 'shell 5'],
+      ['b', 6, 'build'],
+      ['c', 1, 'shell 1'],
+    ]);
   });
 
   it('numbers each project on its own', () => {

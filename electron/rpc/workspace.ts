@@ -8,7 +8,7 @@ export const layerWorkspaceHandlers = WorkspaceRpcs.toLayer(
     return {
       'Workspace.load': () => store.layouts,
       'Workspace.save': ({ projectId, tabs, lastNumber }) => store.saveLayout(projectId, tabs, lastNumber),
-      'Workspace.renameTerminal': ({ projectId, terminalId, name }) => store.renameTerminal(projectId, terminalId, name),
+      'Workspace.renameTerminal': ({ projectId, number, name }) => store.renameTerminal(projectId, number, name),
     };
   }),
 );

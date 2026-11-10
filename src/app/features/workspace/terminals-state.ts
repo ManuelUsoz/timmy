@@ -12,6 +12,7 @@ import { EffectRuntime } from '../../core/effect-runtime';
 import { TabId } from './tabs';
 import {
   addTerminal,
+  renumberedAfter,
   restarted,
   terminalsOf,
   withActivity,
@@ -33,7 +34,7 @@ export class TerminalsState {
   private readonly all = signal<ReadonlyArray<TerminalEntry>>([]);
   readonly entries = this.all.asReadonly();
   /** The highest number each Project has given a Terminal, closed ones included: numbers are never reused. */
-  private readonly numbered = signal<ReadonlyMap<ProjectId, number>>(new Map());
+  private readonly lastNumbers = signal<ReadonlyMap<ProjectId, number>>(new Map());
   /** The last activity main reported, kept for a Terminal whose entry is added after main already spoke of it. */
   private reported: ReadonlyArray<TerminalActivityEntry> = [];
   private readonly currentId = signal<TerminalId | undefined>(undefined);
@@ -87,7 +88,7 @@ export class TerminalsState {
       }),
     );
     if (result._tag === 'Failure') return undefined;
-    const entry = this.numberNew(projectId, tabId, result.value.terminalId, provider);
+    const entry = this.newEntry(projectId, tabId, result.value.terminalId, provider);
     this.all.update((entries) => pipe(withState([...entries, entry], entry.id, 'Live'), (next) => withActivity(next, this.reported)));
     this.currentId.set(entry.id);
     return { ...entry, state: 'Live' };
@@ -95,16 +96,17 @@ export class TerminalsState {
 
   /**
    * Adds the Terminals saved by a previous run (Idle, not started; ADR 0011) and the highest number each Project had
-   * given, so no number is given twice. One already here, opened before the saved ones arrived, is kept as it is.
+   * given, so no number is given twice. One already here, opened before the saved ones arrived, is kept; it was numbered
+   * without knowing them, so it takes the Project's next number (and the default name that goes with it, unless renamed).
    */
-  restore(saved: ReadonlyArray<TerminalEntry>, lastNumbers: ReadonlyMap<ProjectId, number> = new Map()): void {
+  restore(saved: ReadonlyArray<TerminalEntry>, given: ReadonlyMap<ProjectId, number> = new Map()): void {
     this.all.update((entries) => {
       const known = new Set(entries.map((entry) => entry.id));
-      return [...entries, ...saved.filter((entry) => !known.has(entry.id))];
+      return [...renumberedAfter(entries, given), ...saved.filter((entry) => !known.has(entry.id))];
     });
-    this.numbered.update((numbers) => {
+    this.lastNumbers.update((numbers) => {
       const next = new Map(numbers);
-      for (const [projectId, last] of lastNumbers) next.set(projectId, Math.max(last, next.get(projectId) ?? 0));
+      for (const [projectId, last] of given) next.set(projectId, Math.max(last, next.get(projectId) ?? 0));
       return next;
     });
   }
@@ -132,21 +134,21 @@ export class TerminalsState {
   }
 
   create(projectId: ProjectId, tabId: TabId = newTab()): TerminalEntry {
-    const entry = this.numberNew(projectId, tabId, TerminalId.make(crypto.randomUUID()));
+    const entry = this.newEntry(projectId, tabId, TerminalId.make(crypto.randomUUID()));
     this.all.update((entries) => [...entries, entry]);
     return entry;
   }
 
   /** A new entry with the Project's next number and its default name; the number counts as given from now on. */
-  private numberNew(projectId: ProjectId, tabId: TabId, id: TerminalId, provider?: Provider): TerminalEntry {
-    const entry = addTerminal(this.all(), projectId, tabId, id, provider, this.numbered().get(projectId) ?? 0).at(-1)!;
-    this.numbered.update((numbers) => new Map(numbers).set(projectId, entry.number));
+  private newEntry(projectId: ProjectId, tabId: TabId, id: TerminalId, provider?: Provider): TerminalEntry {
+    const entry = addTerminal(this.all(), projectId, tabId, id, provider, this.lastNumbers().get(projectId) ?? 0).at(-1)!;
+    this.lastNumbers.update((numbers) => new Map(numbers).set(projectId, entry.number));
     return entry;
   }
 
   /** The highest number the Project has given a Terminal, closed ones included: the next one is numbered after it. */
   lastNumberOf(projectId: ProjectId): number {
-    return terminalsOf(this.all(), projectId).reduce((max, entry) => Math.max(max, entry.number), this.numbered().get(projectId) ?? 0);
+    return terminalsOf(this.all(), projectId).reduce((max, entry) => Math.max(max, entry.number), this.lastNumbers().get(projectId) ?? 0);
   }
 
   /**
@@ -163,7 +165,7 @@ export class TerminalsState {
       return Exit.fail(new WorkspaceError({ reason: 'NameTaken', detail: `Another Terminal of ${entry.projectId} is called ${trimmed}` }));
     }
     const result = await this.runtime.run(
-      Effect.flatMap(DesktopApi, (desktop) => desktop['Workspace.renameTerminal']({ projectId: entry.projectId, terminalId: id, name: trimmed })),
+      Effect.flatMap(DesktopApi, (desktop) => desktop['Workspace.renameTerminal']({ projectId: entry.projectId, number: entry.number, name: trimmed })),
     );
     if (Exit.isFailure(result)) return result;
     this.all.update((entries) => withName(entries, id, trimmed));

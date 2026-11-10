@@ -348,6 +348,25 @@ describe('A Terminal named in its header', () => {
     expect(headers().map((header) => header.getAttribute('aria-label'))).toEqual(['shell 1', 'shell 2']);
   });
 
+  it('does on leaving the field what Enter does: a taken name is refused there, not dropped', async () => {
+    const { el, headers, stack, terminals, settle } = await setup();
+    await stack();
+    headers()[1].querySelector('.name')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    await settle();
+    const field = el.querySelector<HTMLInputElement>('app-terminal-name-field input')!;
+    field.value = 'Shell 1';
+    field.dispatchEvent(new Event('input'));
+    field.dispatchEvent(new FocusEvent('blur'));
+    await settle();
+    expect(el.querySelector('app-terminal-name-field [role=alert]')?.textContent).toBe('Ya hay una terminal llamada «Shell 1» en este proyecto.');
+    field.value = 'tests';
+    field.dispatchEvent(new Event('input'));
+    field.dispatchEvent(new FocusEvent('blur'));
+    await settle();
+    expect(el.querySelector('app-terminal-name-field')).toBeNull();
+    expect(terminals.entries().map((entry) => entry.name)).toEqual(['shell 1', 'tests']);
+  });
+
   it('shows inline a refusal from main, which knows the Terminals saved', async () => {
     const { el, headers, settle } = await setup();
     headers()[0].querySelector('.name')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));

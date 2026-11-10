@@ -60,8 +60,8 @@ const tab = (id: string, terminals: SavedTab['terminals']): SavedTab => ({ tabId
 
 const save = (projectId: ProjectId, tabs: ReadonlyArray<SavedTab>, lastNumber: number) =>
   Effect.flatMap(DesktopApi, (api) => api['Workspace.save']({ projectId, tabs, lastNumber }));
-const rename = (projectId: ProjectId, id: string, name: string) =>
-  Effect.flatMap(DesktopApi, (api) => api['Workspace.renameTerminal']({ projectId, terminalId: TerminalId.make(id), name }));
+const rename = (projectId: ProjectId, number: number, name: string) =>
+  Effect.flatMap(DesktopApi, (api) => api['Workspace.renameTerminal']({ projectId, number, name }));
 const load = Effect.flatMap(DesktopApi, (api) => api['Workspace.load']());
 
 describe('Workspace RPCs: a Terminal has a name and a number', () => {
@@ -78,7 +78,7 @@ describe('Workspace RPCs: a Terminal has a name and a number', () => {
     Effect.gen(function* () {
       const timmy = yield* addProject('/work/timmy');
       yield* save(timmy, [tab('t1', [terminal('a', 1, 'claude 1', 'ClaudeCode'), terminal('b', 2, 'Build')])], 2);
-      const error = yield* rename(timmy, 'a', '  build ').pipe(Effect.flip);
+      const error = yield* rename(timmy, 1, '  build ').pipe(Effect.flip);
       expect(error).toMatchObject({ _tag: 'WorkspaceError', reason: 'NameTaken' });
       expect((yield* load)[0]?.tabs[0]?.terminals.map((each) => each.name)).toEqual(['claude 1', 'Build']);
     }).pipe(Effect.provide(appOn(':memory:'))),
@@ -88,8 +88,8 @@ describe('Workspace RPCs: a Terminal has a name and a number', () => {
     Effect.gen(function* () {
       const timmy = yield* addProject('/work/timmy');
       yield* save(timmy, [tab('t1', [terminal('a', 1), terminal('b', 2, undefined, 'Codex')])], 2);
-      expect((yield* rename(timmy, 'a', 'Codex 2').pipe(Effect.flip)).reason).toBe('NameTaken');
-      expect((yield* rename(timmy, 'b', 'SHELL 1').pipe(Effect.flip)).reason).toBe('NameTaken');
+      expect((yield* rename(timmy, 1, 'Codex 2').pipe(Effect.flip)).reason).toBe('NameTaken');
+      expect((yield* rename(timmy, 2, 'SHELL 1').pipe(Effect.flip)).reason).toBe('NameTaken');
     }).pipe(Effect.provide(appOn(':memory:'))),
   );
 
@@ -99,9 +99,30 @@ describe('Workspace RPCs: a Terminal has a name and a number', () => {
       const ascua = yield* addProject('/work/ascua');
       yield* save(timmy, [tab('t1', [terminal('a', 1, 'claude 1', 'ClaudeCode'), terminal('b', 2, 'shell 2')])], 2);
       yield* save(ascua, [tab('t2', [terminal('c', 1, 'tests')])], 1);
-      yield* rename(timmy, 'a', 'tests');
-      yield* rename(timmy, 'b', 'SHELL 2');
+      yield* rename(timmy, 1, 'tests');
+      yield* rename(timmy, 2, 'SHELL 2');
       expect((yield* load).map((each) => each.tabs[0]?.terminals.map((saved) => saved.name))).toEqual([['tests', 'SHELL 2'], ['tests']]);
+    }).pipe(Effect.provide(appOn(':memory:'))),
+  );
+
+  it.effect('renames only the Terminal of that Project with that number', () =>
+    Effect.gen(function* () {
+      const timmy = yield* addProject('/work/timmy');
+      const ascua = yield* addProject('/work/ascua');
+      yield* save(timmy, [tab('t1', [terminal('a', 1, 'shell 1')])], 1);
+      yield* save(ascua, [tab('t2', [terminal('c', 1, 'tests')])], 1);
+      yield* rename(timmy, 1, 'deploy');
+      const names = Object.fromEntries((yield* load).map((each) => [each.projectId, each.tabs[0]?.terminals.map((saved) => saved.name)]));
+      expect(names).toEqual({ [timmy]: ['deploy'], [ascua]: ['tests'] });
+    }).pipe(Effect.provide(appOn(':memory:'))),
+  );
+
+  it.effect('lets a Terminal restarted in place change the case of its name, though the store still holds it under its old id', () =>
+    Effect.gen(function* () {
+      const timmy = yield* addProject('/work/timmy');
+      yield* save(timmy, [tab('t1', [terminal('old-id', 2, 'claude 2', 'ClaudeCode')])], 2);
+      yield* rename(timmy, 2, 'Claude 2');
+      expect((yield* load)[0]?.tabs[0]?.terminals[0]?.name).toBe('Claude 2');
     }).pipe(Effect.provide(appOn(':memory:'))),
   );
 
@@ -109,7 +130,7 @@ describe('Workspace RPCs: a Terminal has a name and a number', () => {
     Effect.gen(function* () {
       const timmy = yield* addProject('/work/timmy');
       yield* save(timmy, [tab('t1', [terminal('a', 1, 'shell 1')])], 1);
-      expect((yield* rename(timmy, 'a', '   ').pipe(Effect.flip)).reason).toBe('NameEmpty');
+      expect((yield* rename(timmy, 1, '   ').pipe(Effect.flip)).reason).toBe('NameEmpty');
     }).pipe(Effect.provide(appOn(':memory:'))),
   );
 
@@ -132,7 +153,7 @@ describe('Workspace RPCs: a Terminal has a name and a number', () => {
       const timmy = yield* addProject('/work/timmy').pipe(Effect.provide(appOn(file)));
       yield* Effect.gen(function* () {
         yield* save(timmy, [tab('t1', [terminal('a', 4, 'build')])], 7);
-        yield* rename(timmy, 'a', 'deploy');
+        yield* rename(timmy, 4, 'deploy');
       }).pipe(Effect.provide(appOn(file)));
       const [restored] = yield* load.pipe(Effect.provide(appOn(file)));
       expect(restored).toEqual({ projectId: timmy, tabs: [tab('t1', [terminal('a', 4, 'deploy')])], lastNumber: 7 });

@@ -1,7 +1,6 @@
 import { Schema } from 'effect';
 import { Rpc, RpcGroup } from 'effect/rpc';
 import { ProjectId } from '../projects/projects.model';
-import { TerminalId } from '../terminal/terminal.model';
 import { WorkspaceError } from './workspace-error.model';
 import { ProjectLayout, SavedTab } from './workspace.model';
 
@@ -18,11 +17,12 @@ export const WorkspaceRpcs = RpcGroup.make(
     success: Schema.Void,
   }),
   /**
-   * The user renames a Terminal. Refused (`NameTaken`) when another Terminal of the Project is called that, ignoring
+   * The user renames the Terminal with that number (`#2`) in the Project: its id changes with a restart in place, its
+   * number does not. Refused (`NameTaken`) when another Terminal of the Project is called that, ignoring
    * case, and (`NameEmpty`) when the name is blank. The name is saved trimmed.
    */
   Rpc.make('Workspace.renameTerminal', {
-    payload: { projectId: ProjectId, terminalId: TerminalId, name: Schema.String },
+    payload: { projectId: ProjectId, number: Schema.Int, name: Schema.String },
     success: Schema.Void,
     error: WorkspaceError,
   }),

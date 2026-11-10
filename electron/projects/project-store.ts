@@ -3,7 +3,6 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { Clock, Context, Effect, Layer, Option, Schema } from 'effect';
 import { Project, type ProjectId } from '../../src/shared/projects/projects.model';
 import { Provider } from '../../src/shared/settings/settings.model';
-import type { TerminalId } from '../../src/shared/terminal/terminal.model';
 import { defaultTerminalName, isTerminalNameTaken } from '../../src/shared/workspace/terminal-name';
 import { WorkspaceError } from '../../src/shared/workspace/workspace-error.model';
 import { ProjectLayout as ProjectLayoutSchema, SavedTab, TabLayout, type ProjectLayout, type SavedTab as SavedTabType } from '../../src/shared/workspace/workspace.model';
@@ -41,10 +40,12 @@ export class ProjectStore extends Context.Service<
      */
     readonly saveLayout: (projectId: ProjectId, tabs: ReadonlyArray<SavedTabType>, lastNumber: number) => Effect.Effect<void>;
     /**
-     * Names a Terminal of the Project, trimmed. Refused when it is blank or another saved Terminal of the Project has that
-     * name (its default one if it has none), ignoring case. A Terminal not saved yet gets its name with the next save.
+     * Names the Terminal with that number in the Project, trimmed. Refused when it is blank or another saved Terminal of
+     * the Project has that name (its default one if it has none), ignoring case. By number, not id: a restart in place
+     * gives the Terminal a new id, and the store may still hold the old one. A Terminal not saved yet gets its name with
+     * the next save.
      */
-    readonly renameTerminal: (projectId: ProjectId, terminalId: TerminalId, name: string) => Effect.Effect<void, WorkspaceError>;
+    readonly renameTerminal: (projectId: ProjectId, number: number, name: string) => Effect.Effect<void, WorkspaceError>;
   }
 >()('projects/ProjectStore') {}
 
@@ -289,20 +290,25 @@ export const layerProjectStore = (path: string) =>
               throw error;
             }
           }),
-        renameTerminal: Effect.fn('ProjectStore.renameTerminal')(function* (projectId, terminalId, name) {
+        renameTerminal: Effect.fn('ProjectStore.renameTerminal')(function* (projectId, number, name) {
           const trimmed = name.trim();
-          if (trimmed === '') return yield* new WorkspaceError({ reason: 'NameEmpty', detail: `Terminal ${terminalId} cannot be named blank` });
+          if (trimmed === '') return yield* new WorkspaceError({ reason: 'NameEmpty', detail: `Terminal #${number} cannot be named blank` });
           const others = yield* all(
             `SELECT terminals.name AS name, terminals.number AS number, terminals.provider AS provider
-             FROM terminals JOIN tabs ON tabs.id = terminals.tab_id WHERE tabs.project_id = ? AND terminals.id <> ?`,
+             FROM terminals JOIN tabs ON tabs.id = terminals.tab_id WHERE tabs.project_id = ? AND terminals.number <> ?`,
             projectId,
-            terminalId,
+            number,
           ).pipe(Effect.flatMap(decodeNamedTerminals), Effect.orDie);
           const taken = others.map((other) => other.name ?? defaultTerminalName(other.provider ?? undefined, other.number));
           if (isTerminalNameTaken(taken, trimmed)) {
             return yield* new WorkspaceError({ reason: 'NameTaken', detail: `Another Terminal of ${projectId} is called ${trimmed}` });
           }
-          yield* run('UPDATE terminals SET name = ? WHERE id = ?', trimmed, terminalId);
+          yield* run(
+            'UPDATE terminals SET name = ? WHERE number = ? AND tab_id IN (SELECT id FROM tabs WHERE project_id = ?)',
+            trimmed,
+            number,
+            projectId,
+          );
         }),
         putState: (key, value) =>
           run('INSERT INTO ui_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', key, value),

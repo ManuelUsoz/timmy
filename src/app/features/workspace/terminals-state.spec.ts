@@ -161,6 +161,16 @@ describe('TerminalsState: restored Terminals', () => {
     expect(terminals.find(opened.id)?.number).toBe(1);
   });
 
+  it('numbers a Terminal opened before the restore finished after the numbers the Project had given, and names it so', () => {
+    const terminals = TestBed.inject(TerminalsState);
+    const early = terminals.create(timmy);
+    const second = terminals.create(timmy);
+    terminals.restore([restoredEntry('saved-1')], new Map([[timmy, 6]]));
+    expect(terminals.find(early.id)).toMatchObject({ number: 7, name: 'shell 7' });
+    expect(terminals.find(second.id)).toMatchObject({ number: 8, name: 'shell 8' });
+    expect(terminals.create(timmy).number).toBe(9);
+  });
+
   it('starts an Idle Terminal in the Project folder with its Provider, under the id it was saved with', async () => {
     const { created, terminals } = withMain();
     terminals.restore([restoredEntry('saved-1', 'ClaudeCode')]);

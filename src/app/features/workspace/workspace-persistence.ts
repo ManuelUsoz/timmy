@@ -1,7 +1,7 @@
 import { DestroyRef, Injectable, effect, inject, signal, untracked } from '@angular/core';
 import { Cause, Effect, Exit } from 'effect';
 import type { ProjectId } from '../../../shared/projects/projects.model';
-import type { SavedTab } from '../../../shared/workspace/workspace.model';
+import type { ProjectLayout } from '../../../shared/workspace/workspace.model';
 import { DesktopApi } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { ToastService } from '../../core/toast';
@@ -70,7 +70,7 @@ export class WorkspacePersistence {
   }
 
   /** What is saved of a Project: its Tabs and the highest number it has given a Terminal. */
-  private snapshot(projectId: ProjectId): { readonly tabs: ReadonlyArray<SavedTab>; readonly lastNumber: number } {
+  private snapshot(projectId: ProjectId): Omit<ProjectLayout, 'projectId'> {
     return { tabs: this.tabs.savedTabs(projectId), lastNumber: this.terminals.lastNumberOf(projectId) };
   }
 
