@@ -2,7 +2,7 @@ import { Schema } from 'effect';
 import { Rpc, RpcGroup } from 'effect/rpc';
 import { FilesError } from './files-error.model';
 import { ProjectId } from '../projects/projects.model';
-import { ChangedFiles, FileContent, FileList, FilesBrowserState, FolderListing, ProjectBrowserState } from './files.model';
+import { ChangedFiles, FileContent, FileDiff, FileList, FilesBrowserState, FolderListing, ProjectBrowserState } from './files.model';
 
 /** What the `@` popup (and later Mention validation) knows about a working directory's files. */
 export const FilesRpcs = RpcGroup.make(
@@ -33,6 +33,15 @@ export const FilesRpcs = RpcGroup.make(
   Rpc.make('Files.changes', {
     payload: { cwd: Schema.String },
     success: ChangedFiles,
+    error: FilesError,
+  }),
+  /**
+   * The change of one file of `cwd` against the last commit (`git diff HEAD`), unified. `file` is relative to `cwd`, with
+   * `/`. Fails with `NotAGitRepository` outside a repository.
+   */
+  Rpc.make('Files.diff', {
+    payload: { cwd: Schema.String, file: Schema.String },
+    success: FileDiff,
     error: FilesError,
   }),
   /** What the browser remembers for a Project, with the window's width. Defaults when nothing (readable) was saved. */

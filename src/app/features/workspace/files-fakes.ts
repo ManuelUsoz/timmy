@@ -5,6 +5,7 @@ import {
   DEFAULT_BROWSER_WIDTH,
   type ChangedFile,
   type FileContent,
+  type FileDiff,
   type FolderEntry,
   type ProjectBrowserState,
 } from '../../../shared/files/files.model';
@@ -21,6 +22,8 @@ export interface FakeDisk {
   index: ReadonlyArray<string> | null;
   /** What `Files.changes` answers; none when absent. A folder without git (`index` null) fails instead. */
   changes?: ReadonlyArray<ChangedFile>;
+  /** What `Files.diff` answers per file; `unchanged` when absent. A folder without a repository (`index` null) fails instead. */
+  diffs?: Record<string, FileDiff>;
 }
 
 /** The Files RPCs as main answers them, in memory. Tests read `calls` and `saved`, and change `disks` while the UI runs. */
@@ -45,6 +48,13 @@ export const file = (name: string, ignored = false): FolderEntry => ({ name, kin
 export const text = (content: string): FileContent => ({ kind: 'text', content });
 /** A Changed file as main reports it; `folder` for a wholly untracked folder or a submodule. */
 export const change = (path: string, kind: ChangedFile['kind'], folder = false): ChangedFile => ({ path, kind, folder });
+/** A diff of one hunk from `lines` written as git does: ` kept`, `+added`, `-removed`, starting at line 1 on both sides. */
+export const hunkOf = (...lines: ReadonlyArray<string>): FileDiff => {
+  const parsed = lines.map((line) => ({ kind: line[0] === '+' ? ('added' as const) : line[0] === '-' ? ('removed' as const) : ('context' as const), text: line.slice(1) }));
+  const oldLines = parsed.filter((line) => line.kind !== 'added').length;
+  const newLines = parsed.filter((line) => line.kind !== 'removed').length;
+  return { kind: 'changes', hunks: [{ oldStart: oldLines === 0 ? 0 : 1, oldLines, newStart: newLines === 0 ? 0 : 1, newLines, lines: parsed }] };
+};
 
 export const makeFakeFiles = (initial: Partial<FakeFiles> = {}): FakeFiles => ({
   disks: {},
@@ -99,6 +109,14 @@ export const layerFakeFiles = (fake: FakeFiles) =>
         if (disk.index === null) return yield* new FilesError({ reason: 'NotAGitRepository', detail: 'not a git repository' });
         if (fake.changesFail) return yield* new FilesError({ reason: 'GitFailed', detail: 'index file corrupt' });
         return { entries: [...(disk.changes ?? [])] };
+      }),
+    'Files.diff': ({ cwd, file: path }) =>
+      Effect.gen(function* () {
+        fake.calls.push(`Files.diff:${path}`);
+        const disk = fake.disks[cwd];
+        if (disk === undefined) return yield* new FilesError({ reason: 'FolderNotFound', detail: cwd });
+        if (disk.index === null) return yield* new FilesError({ reason: 'NotAGitRepository', detail: 'not a git repository' });
+        return disk.diffs?.[path] ?? ({ kind: 'unchanged' } as const);
       }),
     'Files.getState': ({ projectId }) =>
       Effect.sync(() => {

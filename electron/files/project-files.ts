@@ -9,7 +9,8 @@ import {
   type ChangedFile,
   type ChangedFiles,
   type ChangeKind,
-  type FileContent, type FileList, type FolderEntry, type FolderListing } from '../../src/shared/files/files.model';
+  type DiffLine,
+  type FileContent, type FileDiff, type FileList, type FolderEntry, type FolderListing } from '../../src/shared/files/files.model';
 
 /**
  * What the Files browser reads of a working directory. `list` is the flat index of what git sees (no disk walk);
@@ -24,6 +25,7 @@ export class ProjectFiles extends Context.Service<
     /** The absolute path of an existing file of `cwd`, confined to it as `read` is. */
     readonly locate: (cwd: string, file: string) => Effect.Effect<string, FilesError>;
     readonly changes: (cwd: string) => Effect.Effect<ChangedFiles, FilesError>;
+    readonly diff: (cwd: string, file: string) => Effect.Effect<FileDiff, FilesError>;
   }
 >()('files/ProjectFiles') {}
 
@@ -250,6 +252,66 @@ const readFileContent = Effect.fn('ProjectFiles.read')(function* (cwd: string, f
   return toFileContent(bytes);
 });
 
+/** `@@ -oldStart,oldLines +newStart,newLines @@`; a count left out is 1. */
+const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+
+const MARKS: Readonly<Record<string, DiffLine['kind']>> = { ' ': 'context', '+': 'added', '-': 'removed' };
+
+/**
+ * Reads the output of `git diff` for one file into its hunks. A line's text loses its mark and a final `\r` (a Windows
+ * line ending). "\ No newline at end of file" is not a line of the file and is skipped. Nothing to show is `unchanged`;
+ * git's "Binary files ... differ" is `binary`.
+ */
+export const parseDiff = (output: string): FileDiff => {
+  const hunks: Array<{ oldStart: number; oldLines: number; newStart: number; newLines: number; lines: DiffLine[] }> = [];
+  for (const line of output.split('\n')) {
+    const header = HUNK_HEADER.exec(line);
+    if (header !== null) {
+      const count = (value: string | undefined) => (value === undefined ? 1 : Number(value));
+      hunks.push({ oldStart: Number(header[1]), oldLines: count(header[2]), newStart: Number(header[3]), newLines: count(header[4]), lines: [] });
+      continue;
+    }
+    const hunk = hunks.at(-1);
+    if (hunk === undefined) {
+      if (line.startsWith('Binary files ') || line === 'GIT binary patch') return { kind: 'binary' };
+      continue;
+    }
+    const kind = MARKS[line.slice(0, 1)];
+    if (kind !== undefined) hunk.lines.push({ kind, text: line.slice(1).replace(/\r$/, '') });
+  }
+  return hunks.length === 0 ? { kind: 'unchanged' } : { kind: 'changes', hunks };
+};
+
+/** A file git does not track yet, as a diff: one hunk with every line added. */
+const allAdded = (content: string): FileDiff => {
+  if (content === '') return { kind: 'changes', hunks: [] };
+  const lines = content.split('\n');
+  if (lines.at(-1) === '') lines.pop();
+  return {
+    kind: 'changes',
+    hunks: [{ oldStart: 0, oldLines: 0, newStart: 1, newLines: lines.length, lines: lines.map((text) => ({ kind: 'added', text: text.replace(/\r$/, '') })) }],
+  };
+};
+
+/**
+ * The file's change against HEAD. `status` tells first whether git knows the file at all: an untracked one is read from
+ * disk as all lines added (`git diff HEAD` has nothing to say of it), an unchanged one needs no diff. Paths are literal, so
+ * a name with `*` is not a pattern.
+ */
+const readDiff = Effect.fn('ProjectFiles.diff')(function* (cwd: string, file: string) {
+  if (!(yield* isDirectory(cwd))) return yield* new FilesError({ reason: 'FolderNotFound', detail: `${cwd} is not a folder` });
+  const target = yield* confine(cwd, file);
+  const status = splitNul(yield* runGit(cwd, ['--literal-pathspecs', 'status', '--porcelain=v2', '-z', '--', file]));
+  if (status.length === 0) return { kind: 'unchanged' } satisfies FileDiff;
+  const size = yield* fileSize(target, file).pipe(Effect.catchTag('FilesError', () => Effect.succeed(0)));
+  if (size > MAX_PREVIEW_BYTES) return { kind: 'tooLarge', size } satisfies FileDiff;
+  if (status.some((record) => record.startsWith('? '))) {
+    const content = yield* readFileContent(cwd, file);
+    return content.kind === 'text' ? allAdded(content.content) : ({ kind: 'binary' } satisfies FileDiff);
+  }
+  return parseDiff(yield* runGit(cwd, ['--literal-pathspecs', 'diff', 'HEAD', '--no-color', '--no-ext-diff', '--no-textconv', '--', file]));
+});
+
 const locateFile = Effect.fn('ProjectFiles.locate')(function* (cwd: string, file: string) {
   const target = yield* confine(cwd, file);
   yield* fileSize(target, file);
@@ -271,4 +333,5 @@ export const layerProjectFiles = (limit: number = MAX_LISTED_PATHS) =>
     read: readFileContent,
     locate: locateFile,
     changes: readChanges,
+    diff: readDiff,
   });
