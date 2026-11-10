@@ -26,4 +26,11 @@ export const WorkspaceRpcs = RpcGroup.make(
     success: Schema.Void,
     error: WorkspaceError,
   }),
+  /**
+   * Each time Timmy is about to quit. The window saves what it has not saved yet and answers with `Workspace.saved`;
+   * Timmy waits for that answer, briefly, so a change made just before quitting is not lost.
+   */
+  Rpc.make('Workspace.quitting', { success: Schema.Literal('Quitting'), stream: true }),
+  /** The window saved what it had: Timmy may quit. */
+  Rpc.make('Workspace.saved', { success: Schema.Void }),
 );

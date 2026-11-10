@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { Effect, Layer } from 'effect';
+import { Effect, Layer, PubSub, Stream } from 'effect';
 import { ProjectId } from '../../../shared/projects/projects.model';
 import { TerminalId } from '../../../shared/terminal/terminal.model';
 import { TerminalRpcs } from '../../../shared/terminal/terminal.rpc';
@@ -22,16 +22,25 @@ const savedTab = (id: string, terminals: ReadonlyArray<readonly [string, number]
   terminals: terminals.map(([terminalId, number]) => ({ terminalId: TerminalId.make(terminalId), number })),
 });
 
-/** Main's saved layout in memory: what `Workspace.load` answers, and every `Workspace.save` it got. */
+/**
+ * Main's saved layout in memory: what `Workspace.load` answers, and every `Workspace.save` it got. `quit()` is Timmy about
+ * to quit; `calls` is what the window told main, in order: each save, and `saved`.
+ */
 const withStore = (initial: ReadonlyArray<ProjectLayout> = [], options: { loadFails?: boolean } = {}) => {
   const failSaves = { now: false };
   const saves: Array<{ readonly projectId: ProjectId; readonly tabs: ReadonlyArray<SavedTab>; readonly lastNumber: number }> = [];
+  const calls: string[] = [];
+  const quitting = Effect.runSync(PubSub.unbounded<'Quitting'>());
   let created = 0;
   const workspace = WorkspaceRpcs.toLayer({
     'Workspace.load': () => (options.loadFails ? Effect.die('the store is unreadable') : Effect.succeed(initial)),
-    'Workspace.save': (payload) => (failSaves.now ? Effect.die('the disk is full') : Effect.sync(() => void saves.push(payload))),
+    'Workspace.save': (payload) =>
+      failSaves.now ? Effect.die('the disk is full') : Effect.sync(() => void (saves.push(payload), calls.push(`save ${payload.projectId}`))),
     'Workspace.renameTerminal': () => Effect.void,
+    'Workspace.quitting': () => Stream.fromPubSub(quitting),
+    'Workspace.saved': () => Effect.sync(() => void calls.push('saved')),
   });
+  const quit = () => Effect.runSync(PubSub.publish(quitting, 'Quitting'));
   const terminal = TerminalRpcs.toLayer({
     'Terminal.create': () => Effect.sync(() => ({ terminalId: TerminalId.make(`live-${++created}`) })),
     'Terminal.close': () => Effect.void,
@@ -46,7 +55,7 @@ const withStore = (initial: ReadonlyArray<ProjectLayout> = [], options: { loadFa
   TestBed.configureTestingModule({
     providers: [{ provide: EffectRuntime, useValue: { run: (e: Effect.Effect<unknown, unknown, never>) => Effect.runPromiseExit(Effect.provide(e as never, layer)) } }],
   });
-  return { saves, failSaves, tabs: TestBed.inject(TabsState), terminals: TestBed.inject(TerminalsState), toasts: TestBed.inject(ToastService) };
+  return { saves, calls, quit, failSaves, tabs: TestBed.inject(TabsState), terminals: TestBed.inject(TerminalsState), toasts: TestBed.inject(ToastService) };
 };
 
 /** Lets the pending RPCs answer, the effect run and the quiet moment pass. */
@@ -190,6 +199,35 @@ describe('WorkspacePersistence', () => {
     await terminals.rename(opened.id, 'deploy');
     await settle();
     expect(saves.at(-1)?.tabs[0].terminals[0].name).toBe('deploy');
+  });
+
+  it('saves a change made just before Timmy quits, then tells main it may quit', async () => {
+    const { calls, quit, terminals } = withStore();
+    await start();
+    await terminals.createLive(timmy, '/work/timmy');
+    // No quiet moment passes: the save is still waiting when Timmy quits.
+    quit();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toEqual([`save ${timmy}`, 'saved']);
+  });
+
+  it('answers only once a save already on its way and the last change are both in', async () => {
+    const { calls, quit, terminals, tabs } = withStore();
+    await start();
+    const opened = (await terminals.createLive(timmy, '/work/timmy'))!;
+    await settle();
+    tabs.rename(opened.tabId, 'Review');
+    quit();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toEqual([`save ${timmy}`, `save ${timmy}`, 'saved']);
+  });
+
+  it('tells main at once that it may quit when there is nothing to save', async () => {
+    const { calls, quit } = withStore([], { loadFails: true });
+    await start();
+    quit();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls).toEqual(['saved']);
   });
 
   it('batches the changes of a quiet moment into one save per Project', async () => {

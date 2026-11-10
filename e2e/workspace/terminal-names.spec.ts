@@ -72,8 +72,7 @@ test.describe('A Terminal has a name and a #n', () => {
       await page().getByRole('listbox', { name: 'Add to stack' }).getByRole('option', { name: 'Shell' }).click();
       await expect(headers().locator('.name')).toHaveText(['claude 1', 'shell 3']);
 
-      // Saving waits a moment for changes to settle.
-      await page().waitForTimeout(600);
+      // Right after the last change: Timmy saves what is pending before it quits.
       await timmy.restart();
       await timmy.switchMode('Expanded');
       await page().locator('app-project-list .as-row__title', { hasText: 'demo-project' }).click();

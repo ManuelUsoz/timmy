@@ -18,6 +18,7 @@ import type { Provider } from '../../src/shared/settings/settings.model';
 import { TerminalId } from '../../src/shared/terminal/terminal.model';
 import { TabId, type SavedTab } from '../../src/shared/workspace/workspace.model';
 import { layerProjectStore, ProjectStore } from '../projects/project-store';
+import { layerQuitGate } from '../workspace/quit-gate';
 import { layerWorkspaceHandlers } from './workspace';
 
 const roots: string[] = [];
@@ -35,7 +36,7 @@ const appOn = (file: string) => {
   return Layer.merge(
     makeDesktopTestLayer(
       Layer.mergeAll(
-        layerWorkspaceHandlers.pipe(Layer.provide(store)),
+        layerWorkspaceHandlers.pipe(Layer.provide(store), Layer.provide(layerQuitGate)),
         AppInfoRpcs.toLayer({ 'AppInfo.get': () => Effect.die('unused') }),
         layerWindowUnused,
         layerSettingsUnused,

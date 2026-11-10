@@ -36,6 +36,9 @@ export const layerWorkspaceUnused = WorkspaceRpcs.toLayer({
   'Workspace.load': () => Effect.die('Workspace handler not under test'),
   'Workspace.save': () => Effect.die('Workspace handler not under test'),
   'Workspace.renameTerminal': () => Effect.die('Workspace handler not under test'),
+  // WorkspacePersistence listens from the start in every Workspace test: nobody quits, and the answer is accepted.
+  'Workspace.quitting': () => Stream.empty,
+  'Workspace.saved': () => Effect.void,
 });
 
 const windowUnused = () => Effect.die('Window handler not under test');

@@ -11,8 +11,7 @@ test.describe('The layout across restarts', () => {
     const panes = () => page().locator('app-pane-stack');
     const sidebarTerminals = () => page().getByRole('complementary', { name: 'Sidebar' }).getByRole('listbox', { name: 'Terminals' }).getByRole('option');
     const reopen = async () => {
-      // Saving waits a moment for changes to settle.
-      await page().waitForTimeout(600);
+      // Right after the last change: Timmy saves what is pending before it quits.
       await timmy.restart();
       await timmy.switchMode('Expanded');
       await page().locator('app-project-list .as-row__title', { hasText: 'demo-project' }).click();

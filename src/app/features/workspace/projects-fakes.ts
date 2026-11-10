@@ -1,4 +1,4 @@
-import { Effect, Layer } from 'effect';
+import { Effect, Layer, Stream } from 'effect';
 import { AppInfoRpcs } from '../../../shared/app-info/app-info.rpc';
 import type { FolderInspection, Project } from '../../../shared/projects/projects.model';
 import { ProjectsError } from '../../../shared/projects/projects-error.model';
@@ -154,6 +154,8 @@ export const layerFakeWorkspace = (backend: FakeBackend, takenInMain: ReadonlyAr
         backend.calls.push(`Workspace.renameTerminal:${name}`);
         if (takenInMain.includes(name)) return yield* new WorkspaceError({ reason: 'NameTaken', detail: name });
       }),
+    'Workspace.quitting': () => Stream.empty,
+    'Workspace.saved': () => Effect.void,
   });
 
 /** The `EffectRuntime` stand-in tests provide: the real client served by the fake backend. */
