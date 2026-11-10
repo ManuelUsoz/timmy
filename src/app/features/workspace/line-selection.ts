@@ -11,6 +11,16 @@ export interface LineSelection {
   readonly end: number;
 }
 
+/** Lines of a File View to bring to its middle (`LineSelections.reveal`). */
+export interface RevealRequest {
+  readonly tab: TabId;
+  readonly path: string;
+  readonly start: number;
+  readonly end: number;
+  /** True when a Path link with a line opened a Markdown file: that View is forced to Fuente. #208 will wire the global setting. */
+  readonly source?: boolean;
+}
+
 const single = (line: number): LineSelection => ({ anchor: line, start: line, end: line });
 
 /** The range from `anchor` to `line`, whichever comes first. */
@@ -75,6 +85,18 @@ export class LineSelections {
   /** Marks lines `start` to `end` of a file: what a jump to a position does. The View shows what its file can hold of it. */
   select(tab: TabId, path: string, start: number, end = start): void {
     this.set(tab, path, rangeFrom(start, end));
+  }
+
+  /**
+   * The last jump asked for: its File View scrolls the lines to its middle once it has its text, then clears it. A new
+   * object on each jump, so jumping again to the same lines scrolls again.
+   */
+  readonly revealed = signal<RevealRequest | undefined>(undefined);
+
+  /** A jump to lines `start` to `end` of a file (a Path link): marks them and scrolls them into view. */
+  reveal(tab: TabId, path: string, start: number, end = start, source?: boolean): void {
+    this.select(tab, path, start, end);
+    this.revealed.set({ tab, path, start: Math.min(start, end), end: Math.max(start, end), source });
   }
 
   /** Forgets the selections of the Tab's files that are no longer open. */

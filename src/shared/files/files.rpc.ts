@@ -2,7 +2,16 @@ import { Schema } from 'effect';
 import { Rpc, RpcGroup } from 'effect/rpc';
 import { FilesError } from './files-error.model';
 import { ProjectId } from '../projects/projects.model';
-import { ChangedFiles, FileContent, FileDiff, FileList, FilesBrowserState, FolderListing, ProjectBrowserState } from './files.model';
+import {
+  ChangedFiles,
+  FileContent,
+  FileDiff,
+  FileList,
+  FilesBrowserState,
+  FolderListing,
+  PathLinkTarget,
+  ProjectBrowserState,
+} from './files.model';
 
 /** What the `@` popup (and later Mention validation) knows about a working directory's files. */
 export const FilesRpcs = RpcGroup.make(
@@ -42,6 +51,16 @@ export const FilesRpcs = RpcGroup.make(
   Rpc.make('Files.diff', {
     payload: { cwd: Schema.String, file: Schema.String },
     success: FileDiff,
+    error: FilesError,
+  }),
+  /**
+   * Whether `candidate`, a path a Terminal printed, names an existing file of the Project `cwd` (a Path link), asked when the
+   * user points at it. It is tried from `cwd`, then from `folder` (the Terminal's folder, if its shell reported one) while
+   * that is inside the Project. Null when it is not a file of the Project: nothing is guessed.
+   */
+  Rpc.make('Files.resolvePathLink', {
+    payload: { cwd: Schema.String, candidate: Schema.String, folder: Schema.NullOr(Schema.String) },
+    success: Schema.NullOr(PathLinkTarget),
     error: FilesError,
   }),
   /** What the browser remembers for a Project, with the window's width. Defaults when nothing (readable) was saved. */

@@ -7,6 +7,7 @@ import {
   type FileContent,
   type FileDiff,
   type FolderEntry,
+  type PathLinkTarget,
   type ProjectBrowserState,
 } from '../../../shared/files/files.model';
 
@@ -24,6 +25,8 @@ export interface FakeDisk {
   changes?: ReadonlyArray<ChangedFile>;
   /** What `Files.diff` answers per file; `unchanged` when absent. A folder without a repository (`index` null) fails instead. */
   diffs?: Record<string, FileDiff>;
+  /** What `Files.resolvePathLink` answers, by the candidate as printed (with its position); anything else is not a Path link. */
+  links?: Record<string, PathLinkTarget>;
 }
 
 /** The Files RPCs as main answers them, in memory. Tests read `calls` and `saved`, and change `disks` while the UI runs. */
@@ -41,6 +44,8 @@ export interface FakeFiles {
   changesFail: boolean;
   /** Holds every `Files.changes` answer until it is resolved, to see what shows while a run is in flight. */
   changesGate: Promise<void> | undefined;
+  /** Holds every `Files.resolvePathLink` answer until it is resolved, to see how many are asked at once. */
+  linksGate?: Promise<void>;
 }
 
 export const folder = (name: string, ignored = false): FolderEntry => ({ name, kind: 'folder', ignored });
@@ -117,6 +122,15 @@ export const layerFakeFiles = (fake: FakeFiles) =>
         if (disk === undefined) return yield* new FilesError({ reason: 'FolderNotFound', detail: cwd });
         if (disk.index === null) return yield* new FilesError({ reason: 'NotAGitRepository', detail: 'not a git repository' });
         return disk.diffs?.[path] ?? ({ kind: 'unchanged' } as const);
+      }),
+    'Files.resolvePathLink': ({ cwd, candidate, folder }) =>
+      Effect.gen(function* () {
+        fake.calls.push(`Files.resolvePathLink:${candidate}${folder === null ? '' : `@${folder}`}`);
+        const gate = fake.linksGate;
+        if (gate !== undefined) yield* Effect.promise(() => gate);
+        const disk = fake.disks[cwd];
+        if (disk === undefined) return yield* new FilesError({ reason: 'UnknownProject', detail: cwd });
+        return disk.links?.[candidate] ?? null;
       }),
     'Files.getState': ({ projectId }) =>
       Effect.sync(() => {

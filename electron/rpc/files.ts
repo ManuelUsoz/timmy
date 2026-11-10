@@ -29,6 +29,7 @@ export const layerFilesHandlers = FilesRpcs.toLayer(
       'Files.openExternal': ({ cwd, file }) => inProject(cwd, files.locate(cwd, file).pipe(Effect.flatMap(opener.open))),
       'Files.changes': ({ cwd }) => inProject(cwd, files.changes(cwd)),
       'Files.diff': ({ cwd, file }) => inProject(cwd, files.diff(cwd, file)),
+      'Files.resolvePathLink': ({ cwd, candidate, folder }) => inProject(cwd, files.resolveLink(cwd, candidate, folder)),
       'Files.getState': ({ projectId }) => state.get(projectId),
       'Files.saveState': ({ projectId, ...saved }) => state.saveProject(projectId, saved),
       'Files.saveWidth': ({ width }) => state.saveWidth(width),

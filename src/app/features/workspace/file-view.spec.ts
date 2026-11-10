@@ -7,6 +7,7 @@ import { EffectRuntime } from '../../core/effect-runtime';
 import { FileView } from './file-view';
 import type { HljsId, SymbolsId } from './file-language';
 import { layerFakeFiles, makeFakeFiles, text } from './files-fakes';
+import { LineSelections } from './line-selection';
 import type { ColourRange } from './source-text';
 import { SYMBOL_OUTLINER, outlineOf } from './symbol-outline';
 import { MAX_COLOURED_LENGTH, SYNTAX_HIGHLIGHTER } from './syntax-highlighter';
@@ -172,5 +173,50 @@ describe('A File View of source', () => {
   it('tells mixed line endings, and leaves out the indent of a file with none', async () => {
     const { status } = await setup({ 'notes.txt': 'one\r\ntwo\nthree\n' }, 'notes.txt');
     expect(status()).toEqual(['Ln –', 'Texto plano', 'Mixto', 'UTF-8']);
+  });
+});
+
+describe('A File View jumped to (a Path link)', () => {
+  const content = Array.from({ length: 60 }, (_, index) => `line ${index + 1}`).join('\n');
+  const scroller = (el: HTMLElement) => el.querySelector<HTMLElement>('.scroll')!;
+
+  it('scrolls the marked lines to the middle of the View once its text is there', async () => {
+    const { el, settle } = await setup({ 'src/main.ts': content }, 'src/main.ts');
+    Object.defineProperty(scroller(el), 'clientHeight', { configurable: true, value: 180 });
+    TestBed.inject(LineSelections).reveal(TabId.make('tab'), 'src/main.ts', 42);
+    await settle();
+    // Line 42 starts 41 lines down, 18 px each; its middle sits in the middle of 180 px.
+    expect(scroller(el).scrollTop).toBe(41 * 18 + 9 - 90);
+    expect(el.querySelector('.marks .selected')).not.toBeNull();
+  });
+
+  it('scrolls again when the same lines are jumped to after the user scrolled away, and centres a range', async () => {
+    const { el, settle } = await setup({ 'src/main.ts': content }, 'src/main.ts');
+    const selections = TestBed.inject(LineSelections);
+    Object.defineProperty(scroller(el), 'clientHeight', { configurable: true, value: 180 });
+    selections.reveal(TabId.make('tab'), 'src/main.ts', 42, 50);
+    await settle();
+    expect(scroller(el).scrollTop).toBe(((41 + 50) / 2) * 18 - 90);
+    scroller(el).scrollTop = 0;
+    selections.reveal(TabId.make('tab'), 'src/main.ts', 42, 50);
+    await settle();
+    expect(scroller(el).scrollTop).toBe(((41 + 50) / 2) * 18 - 90);
+  });
+
+  it('opens a line past the end at the top, with nothing marked', async () => {
+    const { el, settle } = await setup({ 'src/main.ts': content }, 'src/main.ts');
+    scroller(el).scrollTop = 300;
+    TestBed.inject(LineSelections).reveal(TabId.make('tab'), 'src/main.ts', 400);
+    await settle();
+    expect(scroller(el).scrollTop).toBe(0);
+    expect(el.querySelector('.marks .selected')).toBeNull();
+  });
+
+  it('leaves the jump to the File View of its own file', async () => {
+    const { el, settle } = await setup({ 'src/main.ts': content }, 'src/main.ts');
+    TestBed.inject(LineSelections).reveal(TabId.make('tab'), 'other.ts', 42);
+    await settle();
+    expect(scroller(el).scrollTop).toBe(0);
+    expect(TestBed.inject(LineSelections).revealed()).toBeDefined();
   });
 });
