@@ -4,6 +4,7 @@ import type { ProjectId } from '../../../shared/projects/projects.model';
 import type { ProjectLayout, SavedTab } from '../../../shared/workspace/workspace.model';
 import { NotificationsState } from '../shell/notifications-state';
 import type { Provider } from '../../../shared/settings/settings.model';
+import { LineSelections } from './line-selection';
 import { bringForward, inStep, replaceView, type TabLayout } from './pane-layout';
 import type { TerminalEntry, TerminalId } from './terminal-entries';
 import { TerminalsState } from './terminals-state';
@@ -25,6 +26,7 @@ export interface OpenFile {
 export class TabsState {
   private readonly terminals = inject(TerminalsState);
   private readonly notifications = inject(NotificationsState);
+  private readonly selections = inject(LineSelections);
   private readonly names = signal<ReadonlyMap<TabId, string>>(new Map());
   /** Each Ctrl+T adds one; the New Tab button on screen opens the new-terminal picker for it. */
   readonly newTabRequests = signal(0);
@@ -186,6 +188,8 @@ export class TabsState {
   }
 
   private setFiles(id: TabId, files: ReadonlyArray<OpenFile>): void {
+    // A File View that closes (or a preview replaced) takes its Line selection with it.
+    this.selections.retain(id, files.map((open) => open.path));
     this.files.update((all) => {
       const next = new Map(all);
       if (files.length === 0) next.delete(id);
@@ -238,6 +242,7 @@ export class TabsState {
     await Promise.all(terminals.map((id) => this.terminals.close(id)));
     const live = new Set(this.terminals.entries().map((entry) => entry.tabId));
     this.files.update((all) => new Map([...all].filter(([id]) => live.has(id))));
+    this.selections.retainTabs(live);
   }
 
   statusOf(terminal: TerminalId): TerminalStatus {

@@ -143,6 +143,8 @@ export class PaneStack {
   private readonly splitRightButton = viewChild('splitRight', { read: NewTerminal });
   private readonly splitDownButton = viewChild('splitDown', { read: NewTerminal });
   private readonly addToStackButton = viewChild('addToStack', { read: NewTerminal });
+  /** The expanded File View, whose header actions (Copiar, Copiar ruta, open outside) act on its file and Line selection. */
+  protected readonly fileView = viewChild(FileView);
 
   protected readonly menuOpen = signal(false);
   /** The View (by `viewKey`) whose Terminal the user is renaming in its header (a double click on the name, or the menu). */

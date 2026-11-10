@@ -38,8 +38,13 @@
           <ui-state [tone]="status.tone" [attr.data-activity]="status.activity ?? null">{{ i18n.t(status.key) }}</ui-state>
         } @else {
           <svg class="glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2h5l3 3v9H4zM9 2v3h3" /></svg>
-          <span class="name" [class.preview]="!view.file.pinned">{{ view.name }}</span>
-          <span class="dir" [attr.title]="view.file.path">{{ view.dir }}</span>
+          <!-- The path in the Project: in a narrow Pane its folders give way from the left, the file name stays. -->
+          <span class="path">
+            @if (view.dir !== '') {
+              <span class="dir" [attr.title]="view.file.path"><bdi>{{ view.dir }}</bdi></span>
+            }
+            <span class="name" [class.preview]="!view.file.pinned" [attr.title]="view.file.path">{{ view.name }}</span>
+          </span>
           @if (stacked()) {
             <span class="count">{{ view.index + 1 }}/{{ pane().views.length }}</span>
           }
@@ -57,6 +62,21 @@
           >
             <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2h4M7 2v4L4.5 9h7L9 6V2M8 9v5" /></svg>
           </button>
+          <!-- Labelled when there is room, icons in a narrower Pane, and in the menu below in a narrow one. -->
+          <span class="file-actions">
+            <button type="button" class="tool labelled" [attr.aria-label]="i18n.t('fileView.copy')" [attr.title]="i18n.t('fileView.copy')" [disabled]="fileView()?.hasText() !== true" (click)="fileView()?.copy()">
+              <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 5h8v9H5zM3 11V2h8" /></svg>
+              <span class="label">{{ i18n.t('fileView.copy') }}</span>
+            </button>
+            <button type="button" class="tool labelled" [attr.aria-label]="i18n.t('fileView.copyPath')" [attr.title]="i18n.t('fileView.copyPath')" (click)="fileView()?.copyPath()">
+              <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M7 9l2-2M6 7.5L4.5 9a2.1 2.1 0 003 3L9 10.5M10 8.5L11.5 7a2.1 2.1 0 00-3-3L7 5.5" /></svg>
+              <span class="label">{{ i18n.t('fileView.copyPath') }}</span>
+            </button>
+            <button type="button" class="tool labelled" [attr.aria-label]="i18n.t('fileView.openExternal')" [attr.title]="i18n.t('fileView.openExternal')" (click)="fileView()?.openExternal()">
+              <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M9 2h5v5M14 2L7 9M12 10v4H2V4h4" /></svg>
+              <span class="label">{{ i18n.t('fileView.openExternal') }}</span>
+            </button>
+          </span>
         }
         <span class="ctl">
           <app-new-terminal #splitRight kind="ghost" size="sm" iconOnly neutral [label]="i18n.t('pane.splitRight')" [hint]="withKeys('pane.splitRight', keys.splitRight)" [disabled]="!canSplitRight()" (chosen)="splitPane('right', $event)">
@@ -115,6 +135,19 @@
                   </button>
                   <button type="button" class="mi" role="menuitem" disabled>
                     <span class="mi-label">{{ soon('stack.openPr') }}</span>
+                  </button>
+                }
+                @if (view.kind === 'file') {
+                  <!-- Shown only when the header has no room for them (pane-stack.css). -->
+                  <div class="divider file-action" role="separator"></div>
+                  <button type="button" class="mi file-action" role="menuitem" [disabled]="fileView()?.hasText() !== true" (click)="menuOpen.set(false); fileView()?.copy()">
+                    <span class="mi-label">{{ i18n.t('fileView.copy') }}</span>
+                  </button>
+                  <button type="button" class="mi file-action" role="menuitem" (click)="menuOpen.set(false); fileView()?.copyPath()">
+                    <span class="mi-label">{{ i18n.t('fileView.copyPath') }}</span>
+                  </button>
+                  <button type="button" class="mi file-action" role="menuitem" (click)="menuOpen.set(false); fileView()?.openExternal()">
+                    <span class="mi-label">{{ i18n.t('fileView.openExternal') }}</span>
                   </button>
                 }
                 <div class="divider" role="separator"></div>
