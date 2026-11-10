@@ -214,3 +214,53 @@
   font: var(--text-body-01);
   color: var(--text-secondary);
 }
+
+/* A state the reader cannot help with: what is true, then the way out. */
+.state-actions {
+  display: flex;
+  gap: var(--spacing-03);
+  padding: 0 var(--spacing-05) var(--spacing-05);
+}
+
+.action {
+  height: 32px;
+  padding: 0 var(--spacing-04);
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-primary);
+  font: var(--text-body-01);
+  cursor: pointer;
+}
+
+.action:hover {
+  background: var(--layer-hover);
+}
+
+.action:focus-visible,
+.modes button:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
+/* Fuente or Imagen for an SVG: one choice for every View, at the end of the status bar. */
+.modes {
+  display: flex;
+  margin-inline-start: auto;
+  border: 1px solid var(--border-subtle);
+}
+
+.modes button {
+  height: 20px;
+  padding: 0 var(--spacing-03);
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.modes button[aria-pressed='true'] {
+  background: var(--layer-02);
+  color: var(--text-primary);
+}

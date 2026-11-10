@@ -1,4 +1,4 @@
-@let state = file();
+@let state = shown();
 @if (state.status === 'text' && tabId() !== undefined) {
   <nav class="breadcrumb" [attr.aria-label]="i18n.t('fileView.breadcrumb')">
     @for (crumb of breadcrumb(); track $index) {
@@ -18,6 +18,7 @@
   (scroll)="measure()"
   (mousemove)="dragLine($event)"
   (keydown.escape)="clearSelection()"
+  (keydown)="keydown($event)"
 >
   @switch (state.status) {
     @case ('text') {
@@ -51,30 +52,49 @@
         </div>
       }
     }
-    @case ('binary') {
-      <p class="note">{{ i18n.t('files.cantPreview') }}</p>
+    @case ('image') {
+      <app-file-picture [picture]="state.picture" [name]="name()" [(actual)]="actual" (natural)="pictureDrawn($event)" />
     }
-    @case ('tooLarge') {
-      <p class="note">{{ i18n.t('files.tooLarge', { size: size(state.size) }) }}</p>
+    @case ('notAnImage') {
+      <p class="note">{{ i18n.t('reader.notAnImage') }}</p>
     }
     @case ('gone') {
       <p class="note">{{ i18n.t('files.gone') }}</p>
     }
-    @case ('unreadable') {
-      <p class="note">{{ i18n.t('files.unreadable') }}</p>
-    }
-    @case ('failed') {
-      <p class="note">{{ i18n.t('files.fileFailed', { detail: state.detail }) }}</p>
+    @case ('loading') {
+      <p class="note">{{ i18n.t('files.loading') }}</p>
     }
     @default {
-      <p class="note">{{ i18n.t('files.loading') }}</p>
+      <!-- A state the reader cannot help with: what is true, and the way out. -->
+      @let way = stuck();
+      <div class="stuck">
+        <p class="note">{{ way.note }}</p>
+        <div class="state-actions">
+          @if (way.retry) {
+            <button type="button" class="action" (click)="retry()">{{ i18n.t('files.retry') }}</button>
+          }
+          <button type="button" class="action" (click)="openExternal()">{{ i18n.t('reader.openOutside') }}</button>
+        </div>
+      </div>
     }
   }
 </div>
-@if (state.status === 'text') {
+@if (state.status === 'text' || state.status === 'image' || isSvg()) {
   <div class="status">
-    @for (part of status(); track $index) {
-      <span>{{ part }}</span>
+    @if (state.status === 'text') {
+      @for (part of status(); track $index) {
+        <span>{{ part }}</span>
+      }
+    } @else {
+      @for (part of pictureStatus(); track $index) {
+        <span>{{ part }}</span>
+      }
+    }
+    @if (isSvg()) {
+      <div class="modes" role="group" [attr.aria-label]="i18n.t('reader.showAs')">
+        <button type="button" [attr.aria-pressed]="!drawn()" (click)="choose('source')">{{ i18n.t('reader.source') }}</button>
+        <button type="button" [attr.aria-pressed]="drawn()" (click)="choose('rendered')">{{ i18n.t('reader.image') }}</button>
+      </div>
     }
   </div>
 }

@@ -30,6 +30,7 @@ export const layerFilesHandlers = FilesRpcs.toLayer(
       'Files.changes': ({ cwd }) => inProject(cwd, files.changes(cwd)),
       'Files.diff': ({ cwd, file }) => inProject(cwd, files.diff(cwd, file)),
       'Files.resolvePathLink': ({ cwd, candidate, folder }) => inProject(cwd, files.resolveLink(cwd, candidate, folder)),
+      'Files.readImage': ({ cwd, file }) => inProject(cwd, files.readImage(cwd, file)),
       'Files.getState': ({ projectId }) => state.get(projectId),
       'Files.saveState': ({ projectId, ...saved }) => state.saveProject(projectId, saved),
       'Files.saveWidth': ({ width }) => state.saveWidth(width),

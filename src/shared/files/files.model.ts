@@ -106,6 +106,45 @@ export const PathLinkTarget = Schema.Struct({
 }).annotate({ identifier: 'PathLinkTarget' });
 export type PathLinkTarget = typeof PathLinkTarget.Type;
 
+/** Largest image the reader shows, in bytes: well under the RPC frame limit (16 MiB). A bigger one is not read at all. */
+export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
+/** Most pixels an image the reader shows may have: 40 megapixels, about 160 MB once decoded, however small the file is. */
+export const MAX_IMAGE_PIXELS = 40_000_000;
+
+/** The kinds of image the reader shows, as MIME types. Read from the bytes, never from the extension. */
+export const ImageType = Schema.Literals([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'image/avif',
+  'image/x-icon',
+  'image/bmp',
+  'image/svg+xml',
+]).annotate({ identifier: 'ImageType' });
+export type ImageType = typeof ImageType.Type;
+
+/**
+ * What main answers for a file asked for as an image. `image` carries the bytes and the size in pixels from the header
+ * (none for an SVG, whose size is what it draws); `tooLarge` names the limit it is over, and none of its bytes leave main;
+ * `notAnImage` is anything else (PDF, tiff, audio, text), with its size.
+ */
+export const ImageContent = Schema.Union([
+  Schema.Struct({
+    kind: Schema.Literal('image'),
+    type: ImageType,
+    bytes: Schema.Uint8Array,
+    size: Schema.Number,
+    width: Schema.NullOr(Schema.Number),
+    height: Schema.NullOr(Schema.Number),
+  }),
+  Schema.Struct({ kind: Schema.Literal('tooLarge'), limit: Schema.Literal('bytes'), size: Schema.Number }),
+  Schema.Struct({ kind: Schema.Literal('tooLarge'), limit: Schema.Literal('pixels'), size: Schema.Number, width: Schema.Number, height: Schema.Number }),
+  Schema.Struct({ kind: Schema.Literal('notAnImage'), size: Schema.Number }),
+]).annotate({ identifier: 'ImageContent' });
+export type ImageContent = typeof ImageContent.Type;
+
 /** Width of the Files browser the first time, in pixels. */
 export const DEFAULT_BROWSER_WIDTH = 360;
 
