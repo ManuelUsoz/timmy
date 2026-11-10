@@ -8,7 +8,7 @@ import { SettingsRpcs } from '../../../shared/settings/settings.rpc';
 import { makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
 import type { TerminalId } from './terminal-entries';
-import { layerFakeProjects, makeBackend, project } from './projects-fakes';
+import { layerFakeProjects, layerFakeWorkspace, makeBackend, project } from './projects-fakes';
 import { addToStack, panesOf, split } from './pane-layout';
 import { TabsState } from './tabs-state';
 import { TerminalsState } from './terminals-state';
@@ -33,6 +33,7 @@ const setup = async (width = 1400, backend = makeBackend({ projects: [timmy, asc
     }),
     NotificationRpcs.toLayer({ 'Notification.subscribe': () => Stream.fromPubSub(bus) }),
     layerFakeProjects(backend),
+    layerFakeWorkspace(backend),
   );
   const layer = makeDesktopTestLayer(handlers);
   await TestBed.configureTestingModule({
@@ -227,9 +228,9 @@ describe('WorkspaceComponent', () => {
       await say(t2.id, 'Waiting');
       await say(a1.id, 'Error');
       expect(terminalRows().map((row) => [row.querySelector('.as-row__title')?.textContent?.trim(), row.querySelector('ui-state')?.textContent?.trim()])).toEqual([
-        ['Terminal 2', 'Waiting'],
-        ['Terminal 1', 'Error'],
-        ['Terminal 1', 'Working'],
+        ['shell 2', 'Waiting'],
+        ['shell 1', 'Error'],
+        ['shell 1', 'Working'],
       ]);
     });
 
@@ -246,6 +247,57 @@ describe('WorkspaceComponent', () => {
       expect(other.querySelector('.count')).toBeNull();
     });
 
+    it("shows a Terminal's name, and its #n only as a hint", async () => {
+      const { terminalRows, settle } = await setup();
+      TestBed.inject(TerminalsState).create(timmy.projectId);
+      await settle();
+      expect(terminalRows()[0].querySelector('.as-row__title')?.textContent?.trim()).toBe('shell 1');
+      expect(terminalRows()[0].querySelector('.as-row__hint')?.textContent?.trim()).toBe('#1');
+    });
+
+    it('renames a Terminal from its row with F2; a name another Terminal of the Project has, in any case, is refused inline', async () => {
+      const { sidebar, terminalRows, settle } = await setup();
+      const terminals = TestBed.inject(TerminalsState);
+      const first = terminals.create(timmy.projectId);
+      terminals.create(timmy.projectId);
+      terminals.create(ascua.projectId);
+      await settle();
+      const field = () => sidebar().querySelector<HTMLInputElement>('app-terminal-name-field input');
+      const type = async (value: string, key: string) => {
+        field()!.value = value;
+        field()!.dispatchEvent(new Event('input'));
+        field()!.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+        await settle();
+      };
+      terminalRows()[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true }));
+      await settle();
+      expect(field()?.value).toBe('shell 1');
+
+      await type('Shell 2', 'Enter');
+      expect(sidebar().querySelector('app-terminal-name-field [role=alert]')?.textContent).toBe('Ya hay una terminal llamada «Shell 2» en este proyecto.');
+      expect(terminals.find(first.id)?.name).toBe('shell 1');
+
+      // The same name in another Project is free.
+      await type('shell 3', 'Enter');
+      expect(field()).toBeNull();
+      expect(terminals.find(first.id)?.name).toBe('shell 3');
+      expect(terminalRows().map((row) => row.querySelector('.as-row__title')?.textContent?.trim())).toContain('shell 3');
+    });
+
+    it('renames a Terminal from its row with a double click, and keeps the name when the user leaves it blank', async () => {
+      const { sidebar, terminalRows, settle } = await setup();
+      const terminal = TestBed.inject(TerminalsState).create(timmy.projectId);
+      await settle();
+      terminalRows()[0].dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+      await settle();
+      const field = sidebar().querySelector<HTMLInputElement>('app-terminal-name-field input')!;
+      field.value = '   ';
+      field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await settle();
+      expect(sidebar().querySelector('app-terminal-name-field')).toBeNull();
+      expect(TestBed.inject(TerminalsState).find(terminal.id)?.name).toBe('shell 1');
+    });
+
     it('opens a Terminal at its own route from its row', async () => {
       const { terminalRows, settle } = await setup();
       const terminal = TestBed.inject(TerminalsState).create(ascua.projectId);
@@ -259,14 +311,14 @@ describe('WorkspaceComponent', () => {
       const { terminalRows, settle, el } = await setup();
       const terminals = TestBed.inject(TerminalsState);
       const tabs = TestBed.inject(TabsState);
-      // ascua's Tab holds a Stack of Terminals 1 and 2; Terminal 2 is expanded and the user is looking at timmy.
+      // ascua's Tab holds a Stack of Terminals 1 and 2; shell 2 is expanded and the user is looking at timmy.
       const hidden = terminals.create(ascua.projectId);
       const tab = tabs.tabsOf(ascua.projectId)[0];
       await tabs.openInTab(tab, ascua.cwd, undefined, (layout, terminal) => addToStack(layout, layout.focused, terminal));
       await settle();
       expect(panesOf(tabs.layoutOf(tabs.tabsOf(ascua.projectId)[0])!)[0].expanded).not.toEqual(terminalView(hidden.id));
 
-      const row = terminalRows().find((candidate) => candidate.querySelector('.as-row__title')?.textContent?.trim() === 'Terminal 1')!;
+      const row = terminalRows().find((candidate) => candidate.querySelector('.as-row__title')?.textContent?.trim() === 'shell 1')!;
       row.click();
       await settle();
 
@@ -274,7 +326,7 @@ describe('WorkspaceComponent', () => {
       expect(TestBed.inject(Router).url).toBe(`/projects/p-ascua/terminals/${hidden.id}`);
       expect(panesOf(layout)[0].expanded).toEqual(terminalView(hidden.id));
       expect(layout.focused).toBe(panesOf(layout)[0].id);
-      expect(el.querySelector('app-pane-stack .view-header.act .name')?.textContent).toBe('Terminal 1');
+      expect(el.querySelector('app-pane-stack .view-header.act .name')?.textContent).toBe('shell 1');
     });
 
     it('reveals a Terminal in a Pane that is not focused, in a Tab that is not the open one', async () => {
@@ -288,7 +340,7 @@ describe('WorkspaceComponent', () => {
       await TestBed.inject(Router).navigate(['/projects', timmy.projectId, 'terminals', other.id]);
       await settle();
 
-      terminalRows().find((candidate) => candidate.querySelector('.as-row__title')?.textContent?.trim() === 'Terminal 1')!.click();
+      terminalRows().find((candidate) => candidate.querySelector('.as-row__title')?.textContent?.trim() === 'shell 1')!.click();
       await settle();
 
       const layout = tabs.layoutOf(tabs.tabsOf(timmy.projectId)[0])!;
@@ -373,7 +425,7 @@ describe('WorkspaceComponent', () => {
       const event = await key({ key: 'Tab', code: 'Tab', ctrlKey: true });
       expect(event.defaultPrevented).toBe(true);
       expect(switcher()).not.toBeNull();
-      expect(cards().map((card) => card.querySelector('.names')?.textContent?.trim())).toEqual(['timmy · Terminal 1', 'ascua · Terminal 1']);
+      expect(cards().map((card) => card.querySelector('.names')?.textContent?.trim())).toEqual(['timmy · shell 1', 'ascua · shell 1']);
       expect(cards().map((card) => card.getAttribute('aria-selected'))).toEqual(['false', 'true']);
       expect(cards().map((card) => card.querySelector('kbd')?.textContent)).toEqual(['1', '2']);
       expect(cards()[0].querySelector('ui-state')?.textContent?.trim()).toBe('Idle');
@@ -426,7 +478,7 @@ describe('WorkspaceComponent', () => {
       field.value = 'ASC';
       field.dispatchEvent(new Event('input'));
       await settle();
-      expect(cards().map((card) => card.querySelector('.names')?.textContent?.trim())).toEqual(['ascua · Terminal 1']);
+      expect(cards().map((card) => card.querySelector('.names')?.textContent?.trim())).toEqual(['ascua · shell 1']);
       await key({ key: 'Enter', code: 'Enter' });
       expect(router.url).toBe(`/projects/p-ascua/terminals/${ascuaTerminal.id}`);
     });

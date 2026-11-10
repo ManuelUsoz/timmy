@@ -1,5 +1,5 @@
 import { ProjectId } from '../../../shared/projects/projects.model';
-import { addTerminal, restarted, terminalsOf, withActivity, withExit, withScreen, withState, TerminalId, type TerminalEntry } from './terminal-entries';
+import { addTerminal, renumberedAfter, restarted, terminalsOf, withActivity, withExit, withName, withScreen, withState, TerminalId, type TerminalEntry } from './terminal-entries';
 import { TabId } from './tabs';
 
 const timmy = ProjectId.make('p-timmy');
@@ -15,6 +15,31 @@ describe('terminal entries', () => {
     expect(second.map((entry) => [entry.id, entry.number, entry.state])).toEqual([
       ['a', 1, 'Idle'],
       ['b', 2, 'Idle'],
+    ]);
+  });
+
+  it('names a new Terminal after its Provider and number, a plain shell "shell"', () => {
+    const entries = addTerminal(addTerminal([], timmy, tab, id('a'), 'ClaudeCode'), timmy, tab, id('b'));
+    expect(entries.map((entry) => entry.name)).toEqual(['claude 1', 'shell 2']);
+  });
+
+  it('numbers after the highest number the Project has given, even one whose Terminal is closed', () => {
+    const entries = addTerminal([], timmy, tab, id('a'), 'Codex', 7);
+    expect(entries[0]).toMatchObject({ number: 8, name: 'codex 8' });
+  });
+
+  it('keeps a default name unique when the user already gave it to another Terminal', () => {
+    const renamed = withName(addTerminal([], timmy, tab, id('a')), id('a'), 'Shell 2');
+    expect(addTerminal(renamed, timmy, tab, id('b')).at(-1)?.name).toBe('shell 2 (2)');
+  });
+
+  it('moves an entry numbered with a number its Project already gave to the next one, keeping a name the user gave', () => {
+    const entries = withName(addTerminal(addTerminal(addTerminal([], timmy, tab, id('a')), timmy, tab, id('b')), ascua, tab, id('c')), id('b'), 'build');
+    const next = renumberedAfter(entries, new Map([[timmy, 4]]));
+    expect(next.map((entry) => [entry.id, entry.number, entry.name])).toEqual([
+      ['a', 5, 'shell 5'],
+      ['b', 6, 'build'],
+      ['c', 1, 'shell 1'],
     ]);
   });
 
@@ -58,11 +83,11 @@ describe('terminal entries', () => {
     expect(entries.map((entry) => entry.screen)).toEqual([undefined, undefined]);
   });
 
-  it('restarts an entry under a new id, keeping its project, Tab and number but not its screen or exit code', () => {
-    const entries = withScreen(withExit(addTerminal(addTerminal([], timmy, tab, id('a')), timmy, tab, id('b')), id('b'), 1), id('b'), screen);
+  it('restarts an entry under a new id, keeping its project, Tab, number and name but not its screen or exit code', () => {
+    const entries = withName(withScreen(withExit(addTerminal(addTerminal([], timmy, tab, id('a')), timmy, tab, id('b')), id('b'), 1), id('b'), screen), id('b'), 'build');
     const next = restarted(entries, id('b'), id('c'));
     expect(next.map((entry) => entry.id)).toEqual(['a', 'c']);
-    expect(next[1]).toEqual({ id: 'c', projectId: timmy, tabId: tab, number: 2, state: 'Live', activity: 'Idle' });
+    expect(next[1]).toEqual({ id: 'c', projectId: timmy, tabId: tab, number: 2, name: 'build', state: 'Live', activity: 'Idle' });
   });
 });
 

@@ -19,10 +19,10 @@ test.describe('Panes and Stacks inside a Tab', () => {
     await test.step('Split right and Split down each put a new Terminal in a new, focused Pane', async () => {
       await focused.getByRole('button', { name: 'Split right' }).click();
       await expect(panes).toHaveCount(2);
-      await expect(expandedName).toHaveText('Terminal 2');
+      await expect(expandedName).toHaveText('shell 2');
       await focused.getByRole('button', { name: 'Split down' }).click();
       await expect(panes).toHaveCount(3);
-      await expect(expandedName).toHaveText('Terminal 3');
+      await expect(expandedName).toHaveText('shell 3');
       await expect(page.getByRole('separator', { name: 'Resize panes' })).toHaveCount(2);
       await expect(page.locator('.xterm-screen')).toHaveCount(3);
       await timmy.shot('panes-split', { mask: prompt });
@@ -34,15 +34,15 @@ test.describe('Panes and Stacks inside a Tab', () => {
       await add.click();
       await expect(focused.locator('.view-header')).toHaveCount(3);
       await expect(add).toBeDisabled();
-      await expect(expandedName).toHaveText('Terminal 5');
+      await expect(expandedName).toHaveText('shell 5');
       await timmy.shot('panes-stack-full', { mask: prompt });
     });
 
     await test.step('Alt+1–3 shows a View; Alt+Shift+↑ moves it one place', async () => {
       await page.keyboard.press('Alt+1');
-      await expect(expandedName).toHaveText('Terminal 3');
+      await expect(expandedName).toHaveText('shell 3');
       await page.keyboard.press('Alt+Shift+ArrowDown');
-      await expect(focused.locator('.view-header .name')).toHaveText(['Terminal 4', 'Terminal 3', 'Terminal 5']);
+      await expect(focused.locator('.view-header .name')).toHaveText(['shell 4', 'shell 3', 'shell 5']);
     });
 
     await test.step('the header menu lists the actions with their keys, and Open diff and Open PR as Soon', async () => {
@@ -60,7 +60,7 @@ test.describe('Panes and Stacks inside a Tab', () => {
       await page.keyboard.press('Alt+Shift+Enter');
       await expect(panes).toHaveCount(4);
       await expect(focused.locator('.view-header')).toHaveCount(1);
-      await expect(expandedName).toHaveText('Terminal 3');
+      await expect(expandedName).toHaveText('shell 3');
     });
 
     await test.step('closing a Pane with a live shell asks first, then closes its Terminals', async () => {

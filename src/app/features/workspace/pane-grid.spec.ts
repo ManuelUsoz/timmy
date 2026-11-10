@@ -252,7 +252,7 @@ describe('PaneGrid', () => {
       // The upper half of the second header (36–72 px): before it.
       await over({ x: 1200, y: 40 });
       expect(preview()).toBeUndefined();
-      expect(paneEls()[1].querySelector('.drop')?.nextElementSibling?.getAttribute('aria-label')).toBe('Terminal 3');
+      expect(paneEls()[1].querySelector('.drop')?.nextElementSibling?.getAttribute('aria-label')).toBe('shell 3');
       await drop();
       expect(panesOf(layout())).toEqual([{ id: ids[1], views: [v(ids[1]), v(ids[0]), v(ids[2])], expanded: v(ids[0]) }]);
     });

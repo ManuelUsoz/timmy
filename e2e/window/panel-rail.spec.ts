@@ -46,7 +46,7 @@ test.describe('the Panel rail leads with the Mascot', () => {
     await expect(rail.locator('ui-mascot')).toHaveAttribute('data-status', 'Working');
     await expect(rail.locator('.tally ui-state')).toHaveText(['1 live']);
     await expect(rail.locator('as-list-group-label')).toContainText('demo-project');
-    const row = rail.getByRole('option', { name: /Terminal 1/ });
+    const row = rail.getByRole('option', { name: /shell 1/ });
     await expect(row).toHaveAttribute('aria-selected', 'true');
     await expect(row).toContainText('Shell');
     await timmy.shot('panel-rail-working', { mask: [page.locator('app-terminal-screen .cwd'), page.locator('.xterm-screen')] });

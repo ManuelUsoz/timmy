@@ -18,6 +18,7 @@ const projects: ReadonlyArray<Project> = [
 const entry = (id: string, projectId: ProjectId, number: number): TerminalEntry => ({
   id: TerminalId.make(id),
   projectId,
+  name: `shell ${number}`,
   tabId: TabId.make(id),
   number,
   state: 'Live',

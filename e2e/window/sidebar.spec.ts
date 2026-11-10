@@ -11,11 +11,11 @@ test('the sidebar lists every Terminal, opens one, and collapses to 48 px with C
 
   await test.step('the Terminal is listed under its Project, and the Project counts it', async () => {
     const terminals = sidebar.getByRole('listbox', { name: 'Terminals' });
-    await expect(terminals.getByRole('group', { name: 'demo-project' }).getByRole('option')).toHaveText([/Terminal 1/]);
-    await expect(terminals.getByRole('option', { name: /Terminal 1/ })).toHaveAttribute('aria-current', 'true');
+    await expect(terminals.getByRole('group', { name: 'demo-project' }).getByRole('option')).toHaveText([/shell 1/]);
+    await expect(terminals.getByRole('option', { name: /shell 1/ })).toHaveAttribute('aria-current', 'true');
     await expect(sidebar.getByRole('listbox', { name: 'Projects' }).getByRole('option', { name: /demo-project/ }).locator('.count')).toHaveText('1');
   });
-  // Sidebar: demo-project with one Terminal; Terminals with Terminal 1 open; Settings with Ctrl , at the foot.
+  // Sidebar: demo-project with one Terminal; Terminals with shell 1 open; Settings with Ctrl , at the foot.
   await timmy.shot('sidebar-terminal', { mask: volatile });
 
   await test.step('Ctrl+B collapses the sidebar to 48 px, even from the Terminal', async () => {

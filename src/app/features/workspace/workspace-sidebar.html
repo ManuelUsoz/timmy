@@ -62,22 +62,32 @@
             <as-list-group-label [label]="group.name" [count]="group.rows.length" />
           }
           @for (row of group.rows; track row.id) {
-            <as-list-row
-              class="row"
-              [label]="i18n.t('terminals.name', { number: row.number })"
-              [selected]="isOpen(row)"
-              [attr.aria-current]="isOpen(row) ? 'true' : null"
-              (activate)="openTerminal(row)"
-            >
-              <span leading class="mark" aria-hidden="true">
-                @if (row.provider; as provider) {
-                  <ui-provider-icon [provider]="mark(provider)" [size]="14" />
-                } @else {
-                  <svg viewBox="0 0 16 16"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
-                }
-              </span>
-              <ui-state trailing [tone]="tone(row.status)">{{ word(row.status) }}</ui-state>
-            </as-list-row>
+            @let entry = renaming() === row.id ? terminalOf(row) : undefined;
+            @if (entry) {
+              <div class="row renaming">
+                <app-terminal-name-field [terminal]="entry" (done)="renaming.set(undefined)" />
+              </div>
+            } @else {
+              <as-list-row
+                class="row"
+                [label]="row.name"
+                [hint]="'#' + row.number"
+                [selected]="isOpen(row)"
+                [attr.aria-current]="isOpen(row) ? 'true' : null"
+                (activate)="openTerminal(row)"
+                (dblclick)="renaming.set(row.id)"
+                (keydown.f2)="renaming.set(row.id)"
+              >
+                <span leading class="mark" aria-hidden="true">
+                  @if (row.provider; as provider) {
+                    <ui-provider-icon [provider]="mark(provider)" [size]="14" />
+                  } @else {
+                    <svg viewBox="0 0 16 16"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
+                  }
+                </span>
+                <ui-state trailing [tone]="tone(row.status)">{{ word(row.status) }}</ui-state>
+              </as-list-row>
+            }
           }
         </div>
       } @empty {

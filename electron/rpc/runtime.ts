@@ -12,6 +12,7 @@ import { layerSettingsStore } from '../settings/settings-store';
 import { layerDesktopHandlers } from './index';
 import { layerElectronWindowHost } from '../window/electron-window-host';
 import { layerIpcServer } from './ipc-server';
+import { layerQuitGate } from '../workspace/quit-gate';
 
 /** Projects live in one database file in the app's data directory. */
 const layerProjectStoreFile = Layer.unwrap(
@@ -43,5 +44,8 @@ const layerRpcServer = RpcServer.layer(DesktopRpcs).pipe(
   Layer.provide(layerDesktopHandlers.pipe(Layer.provide(layerProjectStoreFile), Layer.provide(layerSettingsStoreFile), Layer.provide(layerElectronWindowHost), Layer.provide(layerFolderPicker), Layer.provide(layerHookIntegrationsLive), Layer.provide(layerHookChannelLive))),
 );
 
-/** App-lifetime runtime running the RPC server. Disposed on `before-quit`. */
-export const MainRuntime = ManagedRuntime.make(layerRpcServer);
+/**
+ * App-lifetime runtime running the RPC server. Disposed on `before-quit`. Its `QuitGate` is the one the Workspace handlers
+ * answer through, so `main.ts` can hold the quit until the window has saved.
+ */
+export const MainRuntime = ManagedRuntime.make(layerRpcServer.pipe(Layer.provideMerge(layerQuitGate)));

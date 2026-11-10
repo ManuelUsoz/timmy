@@ -28,7 +28,7 @@ test.describe('Notifications: the toast Channel', () => {
     await expect(toasts).toBeEmpty();
     await timmy.shot('notifications-settings');
 
-    await expect(toasts).toContainText('Terminal 1 in demo-project failed.', { timeout: 10_000 });
+    await expect(toasts).toContainText('shell 1 in demo-project failed.', { timeout: 10_000 });
     await timmy.shot('notifications-toast-error');
 
     // Switched off, the Channel stays silent about the next failure.
@@ -43,9 +43,9 @@ test.describe('Notifications: the toast Channel', () => {
     await expect(page.locator('app-terminal-screen')).toHaveCount(0);
     await settingsButton.click();
     await expect(settings).toBeVisible();
-    await expect(toasts).not.toContainText('Terminal 2', { timeout: 1_000 });
+    await expect(toasts).not.toContainText('shell 2', { timeout: 1_000 });
     await page.waitForTimeout(4_000);
-    await expect(toasts).not.toContainText('Terminal 2');
+    await expect(toasts).not.toContainText('shell 2');
   });
 
   test('a Terminal that fails while it is on screen shows no toast', async ({ timmy }) => {

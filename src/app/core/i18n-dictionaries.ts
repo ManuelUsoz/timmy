@@ -53,7 +53,9 @@ export const es = {
   'terminals.emptyTitle': 'Aún no hay terminales',
   'terminals.pickTitle': 'Elige una terminal',
   'terminals.pickDetail': 'Abre una terminal de la lista para ver su salida.',
-  'terminals.name': 'Terminal {number}',
+  'terminals.rename': 'Renombrar terminal',
+  'terminals.nameTaken': 'Ya hay una terminal llamada «{name}» en este proyecto.',
+  'terminals.renameFailed': 'No se pudo renombrar la terminal.',
   'terminals.screen': 'Terminal',
   'terminals.output': 'Salida de la terminal',
   'terminals.restart': 'Reiniciar',
@@ -254,11 +256,11 @@ export const es = {
   'settings.notifications.loadFailed': 'No se pudieron leer los ajustes. Reinicia Timmy e inténtalo de nuevo.',
   'settings.notifications.saveFailed': 'No se pudo guardar el cambio. Las notificaciones siguen como estaban; inténtalo de nuevo.',
   'notifications.waiting.title': 'Esperando',
-  'notifications.waiting.body': 'Terminal {number} de {project} te espera.',
+  'notifications.waiting.body': '{name} de {project} te espera.',
   'notifications.done.title': 'Terminado',
-  'notifications.done.body': 'Terminal {number} de {project} ha terminado.',
+  'notifications.done.body': '{name} de {project} ha terminado.',
   'notifications.error.title': 'Error',
-  'notifications.error.body': 'Terminal {number} de {project} ha fallado.',
+  'notifications.error.body': '{name} de {project} ha fallado.',
 } as const;
 
 export type MessageKey = keyof typeof es;
@@ -316,7 +318,9 @@ export const en: Dictionary = {
   'terminals.emptyTitle': 'No terminals yet',
   'terminals.pickTitle': 'Choose a terminal',
   'terminals.pickDetail': 'Open a terminal from the list to see its output.',
-  'terminals.name': 'Terminal {number}',
+  'terminals.rename': 'Rename terminal',
+  'terminals.nameTaken': 'Another terminal in this project is already called “{name}”.',
+  'terminals.renameFailed': 'The terminal could not be renamed.',
   'terminals.screen': 'Terminal',
   'terminals.output': 'Terminal output',
   'terminals.restart': 'Restart',
@@ -517,11 +521,11 @@ export const en: Dictionary = {
   'settings.notifications.loadFailed': 'The settings could not be read. Restart Timmy and try again.',
   'settings.notifications.saveFailed': 'The change could not be saved. Notifications stay as they were; try again.',
   'notifications.waiting.title': 'Waiting',
-  'notifications.waiting.body': 'Terminal {number} in {project} is waiting for you.',
+  'notifications.waiting.body': '{name} in {project} is waiting for you.',
   'notifications.done.title': 'Done',
-  'notifications.done.body': 'Terminal {number} in {project} is done.',
+  'notifications.done.body': '{name} in {project} is done.',
   'notifications.error.title': 'Error',
-  'notifications.error.body': 'Terminal {number} in {project} failed.',
+  'notifications.error.body': '{name} in {project} failed.',
 };
 
 export const dictionaries: Readonly<Record<Language, Dictionary>> = { es, en };

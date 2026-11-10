@@ -12,7 +12,7 @@
         role="group"
         [attr.aria-label]="view.name"
         [attr.data-index]="view.index"
-        [attr.draggable]="draggable() ? 'true' : null"
+        [attr.draggable]="draggable() && renaming() !== view.key ? 'true' : null"
         [class.dragging]="isDragged(view)"
         (dragstart)="dragStart($event, view)"
         (dragover)="dragOver($event, view)"
@@ -24,7 +24,12 @@
           <kbd class="ix" aria-hidden="true">{{ view.index + 1 }}</kbd>
         }
         <svg class="glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
-        <span class="name">{{ view.name }}</span>
+        @if (renaming() === view.key) {
+          <app-terminal-name-field [terminal]="view.entry" (done)="renaming.set(undefined)" />
+        } @else {
+          <span class="name" (dblclick)="renaming.set(view.key)">{{ view.name }}</span>
+        }
+        <span class="number">#{{ view.entry.number }}</span>
         @if (stacked()) {
           <span class="count">{{ view.index + 1 }}/{{ pane().views.length }}</span>
         }
@@ -74,6 +79,9 @@
                   <span class="hint">@for (key of keys.unstack; track $index) {<kbd>{{ key }}</kbd>}</span>
                 </button>
                 <div class="divider" role="separator"></div>
+                <button type="button" class="mi" role="menuitem" (click)="menuOpen.set(false); renaming.set(view.key)">
+                  <span class="mi-label">{{ i18n.t('terminals.rename') }}</span>
+                </button>
                 <button type="button" class="mi" role="menuitem" [disabled]="view.entry.state === 'Idle'" (click)="restart(view)">
                   <span class="mi-label">{{ i18n.t('terminals.restart') }}</span>
                 </button>
@@ -122,6 +130,7 @@
         <kbd class="ix" aria-hidden="true">{{ view.index + 1 }}</kbd>
         <svg class="glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
         <span class="name">{{ view.name }}</span>
+        <span class="number">#{{ view.entry.number }}</span>
         <ui-state [tone]="status.tone" [attr.data-activity]="status.activity ?? null">{{ i18n.t(status.key) }}</ui-state>
       </button>
     }

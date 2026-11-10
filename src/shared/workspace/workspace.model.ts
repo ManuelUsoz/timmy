@@ -83,8 +83,10 @@ export type TabLayout = typeof TabLayout.Type;
  */
 export const SavedTerminal = Schema.Struct({
   terminalId: TerminalId,
-  /** Its position among the Terminals the Project has had, which names it ("Terminal 2"). */
+  /** The number the Project gave it when it was opened (shown as `#2`), never reused (GLOSSARY: Terminal). */
   number: Schema.Int,
+  /** Its name; absent only in a layout saved before Terminals had names, which then takes its default ("claude 2"). */
+  name: Schema.optionalKey(Schema.String),
   /** The Provider whose CLI it runs; absent for a plain shell. */
   provider: Schema.optionalKey(Provider),
 }).annotate({ identifier: 'SavedTerminal' });
@@ -101,9 +103,11 @@ export const SavedTab = Schema.Struct({
 }).annotate({ identifier: 'SavedTab' });
 export type SavedTab = typeof SavedTab.Type;
 
-/** The saved Tabs of one Project, in the order they were opened. */
+/** The saved Tabs of one Project, in the order they were opened, and the highest number it has given a Terminal. */
 export const ProjectLayout = Schema.Struct({
   projectId: ProjectId,
   tabs: Schema.Array(SavedTab),
+  /** The next Terminal the Project opens is numbered after this, so a number is never reused, even once closed. */
+  lastNumber: Schema.Int,
 }).annotate({ identifier: 'ProjectLayout' });
 export type ProjectLayout = typeof ProjectLayout.Type;

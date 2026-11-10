@@ -25,6 +25,6 @@ export class ToastChannel implements ChannelDelivery {
     // A Terminal this window does not list cannot be named; there is nothing useful to say about it.
     if (terminal === undefined) return;
     const project = this.projects.all().find((candidate) => candidate.projectId === terminal.projectId)?.name ?? '';
-    this.toasts.show({ ...presentation[notification.type], params: { number: terminal.number, project } });
+    this.toasts.show({ ...presentation[notification.type], params: { name: terminal.name, project } });
   }
 }

@@ -1,6 +1,7 @@
 import { TerminalId, type TerminalActivity, type TerminalActivityEntry } from '../../../shared/terminal/terminal.model';
 import type { ProjectId } from '../../../shared/projects/projects.model';
 import type { Provider } from '../../../shared/settings/settings.model';
+import { defaultTerminalName, freeDefaultName } from '../../../shared/workspace/terminal-name';
 import type { TabId } from './tabs';
 
 export { TerminalId } from '../../../shared/terminal/terminal.model';
@@ -16,14 +17,16 @@ export interface TerminalScreenSnapshot {
   readonly data: string;
 }
 
-/** A terminal of a project. Local to this run of the app: nothing about terminals is stored. */
+/** A Terminal of a Project. Its identity, number, name, Provider and Tab are saved with the layout (ADR 0011); the rest is local to this run. */
 export interface TerminalEntry {
   readonly id: TerminalId;
   readonly projectId: ProjectId;
   /** The Tab it is in (GLOSSARY: Tab). Closing that Tab closes it. */
   readonly tabId: TabId;
-  /** Its position among the terminals the project has had, which names it ("Terminal 2"). */
+  /** The number its Project gave it when it was opened (shown as `#2`), never reused, kept across restarts (GLOSSARY: Terminal). */
   readonly number: number;
+  /** Its name: the default one ("claude 2", "shell 2") until the user renames it. Unique in its Project, ignoring case. */
+  readonly name: string;
   readonly state: TerminalState;
   /** What its output says it is doing, as main reads it. Meaningful while the process is alive. */
   readonly activity: TerminalActivity;
@@ -39,11 +42,43 @@ export interface TerminalEntry {
 export const terminalsOf = (entries: ReadonlyArray<TerminalEntry>, projectId: ProjectId): ReadonlyArray<TerminalEntry> =>
   entries.filter((entry) => entry.projectId === projectId);
 
-/** A new, Idle terminal for the project, in the given Tab, numbered after the last one the project has. */
-export const addTerminal = (entries: ReadonlyArray<TerminalEntry>, projectId: ProjectId, tabId: TabId, id: TerminalId, provider?: Provider): ReadonlyArray<TerminalEntry> => {
-  const last = terminalsOf(entries, projectId).reduce((max, entry) => Math.max(max, entry.number), 0);
-  return [...entries, { id, projectId, tabId, number: last + 1, state: 'Idle', activity: 'Idle', ...(provider === undefined ? {} : { provider }) }];
+/**
+ * A new, Idle Terminal for the Project, in the given Tab, with its default name. It is numbered after `lastNumber` (the
+ * highest number the Project has given, its closed Terminals included) and after every Terminal it has now.
+ */
+export const addTerminal = (
+  entries: ReadonlyArray<TerminalEntry>,
+  projectId: ProjectId,
+  tabId: TabId,
+  id: TerminalId,
+  provider?: Provider,
+  lastNumber = 0,
+): ReadonlyArray<TerminalEntry> => {
+  const siblings = terminalsOf(entries, projectId);
+  const number = siblings.reduce((max, entry) => Math.max(max, entry.number), lastNumber) + 1;
+  const name = freeDefaultName(siblings.map((entry) => entry.name), provider, number);
+  return [...entries, { id, projectId, tabId, number, name, state: 'Idle', activity: 'Idle', ...(provider === undefined ? {} : { provider }) }];
 };
+
+/**
+ * The entries with each one numbered at or below its Project's `lastNumber` (a number that Project already gave) moved
+ * to the Project's next numbers, in order; one still under its default name takes the new default.
+ */
+export const renumberedAfter = (entries: ReadonlyArray<TerminalEntry>, lastNumbers: ReadonlyMap<ProjectId, number>): ReadonlyArray<TerminalEntry> => {
+  const next = new Map(lastNumbers);
+  return entries.map((entry) => {
+    const last = next.get(entry.projectId);
+    if (last === undefined || entry.number > (lastNumbers.get(entry.projectId) ?? 0)) return entry;
+    const number = last + 1;
+    next.set(entry.projectId, number);
+    const named = entry.name === defaultTerminalName(entry.provider, entry.number) ? defaultTerminalName(entry.provider, number) : entry.name;
+    return { ...entry, number, name: named };
+  });
+};
+
+/** The user renamed a Terminal. Whether the name is free is checked before (see `TerminalsState.rename`). */
+export const withName = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, name: string): ReadonlyArray<TerminalEntry> =>
+  entries.map((entry) => (entry.id === id ? { ...entry, name } : entry));
 
 export const withState = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, state: TerminalState): ReadonlyArray<TerminalEntry> =>
   entries.map((entry) => (entry.id === id ? { ...entry, state } : entry));
@@ -62,6 +97,6 @@ export const withScreen = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId
 export const withExit = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, exitCode: number): ReadonlyArray<TerminalEntry> =>
   entries.map((entry) => (entry.id === id ? { ...entry, state: exitCode === 0 ? 'Done' : 'Error', exitCode } : entry));
 
-/** A fresh Live process takes the place of an entry: same project, Tab, number and Provider, new id, no screen carried over. */
+/** A fresh Live process takes the place of an entry: same project, Tab, number, name and Provider, new id, no screen carried over. */
 export const restarted = (entries: ReadonlyArray<TerminalEntry>, id: TerminalId, next: TerminalId): ReadonlyArray<TerminalEntry> =>
-  entries.map((entry) => (entry.id === id ? { id: next, projectId: entry.projectId, tabId: entry.tabId, number: entry.number, state: 'Live', activity: 'Idle', ...(entry.provider === undefined ? {} : { provider: entry.provider }) } : entry));
+  entries.map((entry) => (entry.id === id ? { id: next, projectId: entry.projectId, tabId: entry.tabId, number: entry.number, name: entry.name, state: 'Live', activity: 'Idle', ...(entry.provider === undefined ? {} : { provider: entry.provider }) } : entry));

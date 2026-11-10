@@ -272,7 +272,7 @@ describe('ShellComponent', () => {
       expect(TestBed.inject(Router).url).toBe(`/projects/${timmy.projectId}/terminals/${first.id}`);
       const layout = tabs.layoutOf(tabs.tabsOf(timmy.projectId)[0])!;
       expect(layout.focused).toBe(first.id);
-      expect(activeHeader(ctx)).toBe('Terminal 1');
+      expect(activeHeader(ctx)).toBe('shell 1');
       expect(panesOf(layout)).toHaveLength(1);
     });
 
@@ -372,13 +372,13 @@ describe('ShellComponent', () => {
 
       const groups = Array.from(rail(ctx).querySelectorAll('[role=group]'));
       expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['Te necesitan', null]);
-      expect(Array.from(groups[0]!.querySelectorAll('.as-row__title')).map((title) => title.textContent)).toEqual(['Terminal 2']);
+      expect(Array.from(groups[0]!.querySelectorAll('.as-row__title')).map((title) => title.textContent)).toEqual(['shell 2']);
       expect(groups[0]!.querySelector('as-list-row')?.classList).toContain('row--waiting');
-      expect(rail(ctx).querySelector('as-list-row[aria-selected=true] .as-row__title')?.textContent).toBe('Terminal 1');
+      expect(rail(ctx).querySelector('as-list-row[aria-selected=true] .as-row__title')?.textContent).toBe('shell 1');
 
       rail(ctx).querySelector<HTMLButtonElement>('.id')!.click();
       await ctx.settle();
-      expect(rail(ctx).querySelector('as-list-row[aria-selected=true] .as-row__title')?.textContent).toBe('Terminal 2');
+      expect(rail(ctx).querySelector('as-list-row[aria-selected=true] .as-row__title')?.textContent).toBe('shell 2');
     });
 
     it('adds nothing to the Mascot but the way back: a double-click on it returns to the Pill', async () => {

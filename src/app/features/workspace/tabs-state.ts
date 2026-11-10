@@ -38,7 +38,7 @@ export class TabsState {
    */
   restore(saved: ReadonlyArray<ProjectLayout>): void {
     const restored = restoredFrom(saved);
-    this.terminals.restore(restored.entries);
+    this.terminals.restore(restored.entries, restored.lastNumbers);
     this.names.update((names) => new Map([...restored.names, ...names]));
     this.layouts.update((layouts) => new Map([...restored.layouts, ...layouts]));
   }

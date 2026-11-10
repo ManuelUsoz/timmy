@@ -160,7 +160,7 @@ describe('Projects screen', () => {
       el.querySelector<HTMLButtonElement>('.no-tabs button')!.click();
       await settle();
       expect(router.url).toMatch(/^\/projects\/p-timmy\/terminals\/.+/);
-      expect(tabNames(el)).toEqual(['Terminal 1']);
+      expect(tabNames(el)).toEqual(['shell 1']);
     });
 
     it('asks to pick a terminal when the project has some but none is open', async () => {
@@ -176,9 +176,9 @@ describe('Projects screen', () => {
       const calls = [...backend.calls];
       await click('Nueva pestaña');
       expect(router.url).toMatch(/^\/projects\/p-timmy\/terminals\/.+/);
-      expect(tabNames(el)).toEqual(['Terminal 1']);
+      expect(tabNames(el)).toEqual(['shell 1']);
       expect(el.querySelector('app-tab-bar .tab-button')?.getAttribute('aria-current')).toBe('page');
-      expect(el.querySelector('app-pane-stack .view-header.act .name')?.textContent).toBe('Terminal 1');
+      expect(el.querySelector('app-pane-stack .view-header.act .name')?.textContent).toBe('shell 1');
       // Nothing about terminals goes to main.
       expect(backend.calls).toEqual(calls);
     });
@@ -187,12 +187,12 @@ describe('Projects screen', () => {
       const { el, router, click, settle } = await setup({ backend: makeBackend({ projects: [timmy] }) });
       await click('Nueva pestaña');
       await click('Nueva pestaña');
-      expect(tabNames(el)).toEqual(['Terminal 1', 'Terminal 2']);
+      expect(tabNames(el)).toEqual(['shell 1', 'shell 2']);
       const second = router.url;
       el.querySelector<HTMLButtonElement>('app-tab-bar .tab-button')!.click();
       await settle();
       expect(router.url).not.toBe(second);
-      expect(el.querySelector('app-pane-stack .view-header.act .name')?.textContent).toBe('Terminal 1');
+      expect(el.querySelector('app-pane-stack .view-header.act .name')?.textContent).toBe('shell 1');
     });
 
     it('keeps the terminals of each project apart', async () => {
@@ -256,7 +256,7 @@ describe('Projects screen', () => {
       it('follows a split to the new Terminal, keeping one Tab with both Panes', async () => {
         const { el, router, second } = await splitTab();
         expect(router.url).toBe(`/projects/p-timmy/terminals/${second.id}`);
-        expect(tabNames(el)).toEqual(['Terminal 1']);
+        expect(tabNames(el)).toEqual(['shell 1']);
         expect(el.querySelectorAll('app-pane-grid app-pane-stack')).toHaveLength(2);
       });
 
@@ -320,7 +320,7 @@ describe('Projects screen', () => {
       await click('Nueva pestaña');
       TestBed.inject(I18n).setLanguage('en');
       await settle();
-      expect(tabNames(el)).toEqual(['Terminal 1']);
+      expect(tabNames(el)).toEqual(['shell 1']);
       expect(el.querySelector('app-tab-bar nav')?.getAttribute('aria-label')).toBe('Tabs of timmy');
       expect(el.querySelector('app-pane-stack .view-header.act ui-state')?.textContent?.trim()).toBe('Idle');
     });

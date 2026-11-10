@@ -24,6 +24,7 @@ import {
 import { closeNeedsConfirm, type Tab } from './tabs';
 import { TabsState } from './tabs-state';
 import type { TerminalEntry, TerminalId } from './terminal-entries';
+import { TerminalNameField } from './terminal-name-field';
 import { TerminalScreen } from './terminal-screen';
 import { terminalBadge } from './terminal-view';
 import { TerminalsState } from './terminals-state';
@@ -67,7 +68,7 @@ interface PendingClose {
  */
 @Component({
   selector: 'app-pane-stack',
-  imports: [ModalComponent, NewTerminal, StateComponent, TerminalScreen],
+  imports: [ModalComponent, NewTerminal, StateComponent, TerminalNameField, TerminalScreen],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './pane-stack.html',
   styleUrl: './pane-stack.css',
@@ -112,7 +113,7 @@ export class PaneStack {
   protected readonly views = computed((): ReadonlyArray<StackView> =>
     this.pane().views.flatMap((view, index) => {
       const entry = this.tab().terminals.find((terminal) => terminal.id === terminalOf(view));
-      return entry === undefined ? [] : [{ key: viewKey(view), view, index, entry, name: this.i18n.t('terminals.name', { number: entry.number }) }];
+      return entry === undefined ? [] : [{ key: viewKey(view), view, index, entry, name: entry.name }];
     }),
   );
   protected readonly expanded = computed(() => this.views().find((view) => sameView(view.view, this.pane().expanded)) ?? this.views()[0]);
@@ -135,6 +136,8 @@ export class PaneStack {
   private readonly addToStackButton = viewChild('addToStack', { read: NewTerminal });
 
   protected readonly menuOpen = signal(false);
+  /** The View (by `viewKey`) whose Terminal the user is renaming in its header (a double click on the name, or the menu). */
+  protected readonly renaming = signal<string | undefined>(undefined);
   protected readonly pending = signal<PendingClose | undefined>(undefined);
   /** The View whose header is being dragged, and the place it would land on. */
   protected readonly dragging = linkedSignal<Pane, ViewId | undefined>({

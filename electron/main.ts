@@ -4,6 +4,7 @@ import { registerIpc } from './ipc';
 import { plannedWindow, setAppWindow } from './window/app-window';
 import { planFor, startupMode } from '../src/shared/window/window.model';
 import { MainRuntime } from './rpc/runtime';
+import { QUIT_WAIT_MS, QuitGate } from './workspace/quit-gate';
 
 /**
  * In development the Angular dev server is used so we get HMR and source maps.
@@ -116,8 +117,20 @@ if (!app.requestSingleInstanceLock()) {
     });
   });
 
-  app.on('before-quit', () => {
-    void MainRuntime.dispose();
+  // The first quit, while a window is open, waits for it to save its pending layout, then quits again for real. The
+  // whole wait is capped here too: building the runtime (a quit during startup) must not hold the quit either.
+  let quitHeld = false;
+  app.on('before-quit', (event) => {
+    if (quitHeld || BrowserWindow.getAllWindows().length === 0) {
+      void MainRuntime.dispose();
+      return;
+    }
+    event.preventDefault();
+    quitHeld = true;
+    const cap = new Promise<void>((resolve) => setTimeout(resolve, QUIT_WAIT_MS + 500));
+    void Promise.race([MainRuntime.runPromise(QuitGate.use((gate) => gate.beforeQuit)), cap])
+      .catch(() => undefined)
+      .finally(() => app.quit());
   });
 
   app.on('window-all-closed', () => {

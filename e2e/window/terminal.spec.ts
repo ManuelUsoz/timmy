@@ -38,7 +38,7 @@ test.describe('real terminals', () => {
 
     await timmy.page.getByRole('navigation', { name: /^Tabs of / }).getByRole('button', { name: 'New tab' }).click();
     await expect(timmy.page.locator('app-terminal-screen')).toHaveCount(1);
-    await timmy.page.getByRole('complementary', { name: 'Sidebar' }).getByRole('listbox', { name: 'Terminals' }).getByRole('option', { name: /Terminal 1/ }).click();
+    await timmy.page.getByRole('complementary', { name: 'Sidebar' }).getByRole('listbox', { name: 'Terminals' }).getByRole('option', { name: /shell 1/ }).click();
     await expect(timmy.page.locator('.xterm-screen')).toContainText('timmy-terminal');
     await timmy.shot('terminal-switched');
   });

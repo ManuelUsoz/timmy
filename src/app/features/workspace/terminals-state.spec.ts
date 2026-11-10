@@ -116,6 +116,16 @@ describe('TerminalsState: Providers', () => {
     expect(restarted).toMatchObject({ number: 1, provider: 'ClaudeCode' });
   });
 
+  it('names a Terminal after its Provider and number, and never gives a closed Terminal\'s number again', async () => {
+    const { terminals } = withMain();
+    const first = (await terminals.createLive(timmy, '/work/timmy', 'ClaudeCode'))!;
+    const second = (await terminals.createLive(timmy, '/work/timmy'))!;
+    expect([first.name, second.name]).toEqual(['claude 1', 'shell 2']);
+    await terminals.close(second.id);
+    expect(await terminals.createLive(timmy, '/work/timmy', 'Codex')).toMatchObject({ number: 3, name: 'codex 3' });
+    expect(terminals.lastNumberOf(timmy)).toBe(3);
+  });
+
   it('restarts a plain shell as a plain shell', async () => {
     const { created, terminals } = withMain();
     const opened = await terminals.createLive(timmy, '/work/timmy');
@@ -130,6 +140,7 @@ describe('TerminalsState: restored Terminals', () => {
     projectId: timmy,
     tabId: TabId.make('t1'),
     number: 4,
+    name: provider === undefined ? 'shell 4' : 'claude 4',
     state: 'Idle' as const,
     activity: 'Idle' as const,
     ...(provider === undefined ? {} : { provider }),
@@ -148,6 +159,16 @@ describe('TerminalsState: restored Terminals', () => {
     terminals.restore([restoredEntry(opened.id), restoredEntry('saved-1')]);
     expect(terminals.entries().map((entry) => entry.id)).toEqual([opened.id, 'saved-1']);
     expect(terminals.find(opened.id)?.number).toBe(1);
+  });
+
+  it('numbers a Terminal opened before the restore finished after the numbers the Project had given, and names it so', () => {
+    const terminals = TestBed.inject(TerminalsState);
+    const early = terminals.create(timmy);
+    const second = terminals.create(timmy);
+    terminals.restore([restoredEntry('saved-1')], new Map([[timmy, 6]]));
+    expect(terminals.find(early.id)).toMatchObject({ number: 7, name: 'shell 7' });
+    expect(terminals.find(second.id)).toMatchObject({ number: 8, name: 'shell 8' });
+    expect(terminals.create(timmy).number).toBe(9);
   });
 
   it('starts an Idle Terminal in the Project folder with its Provider, under the id it was saved with', async () => {

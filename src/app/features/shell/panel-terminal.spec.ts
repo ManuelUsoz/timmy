@@ -79,7 +79,7 @@ describe('PanelTerminal', () => {
       const { el, running, heading } = await setup();
       await running(timmy.projectId);
       expect(el.querySelector('app-workspace-hero')).toBeNull();
-      expect(heading()).toBe('Terminal 1');
+      expect(heading()).toBe('shell 1');
       expect(el.querySelector('app-terminal-screen .cwd')?.textContent).toBe('/work/timmy');
     });
 
@@ -87,12 +87,12 @@ describe('PanelTerminal', () => {
       const { running, rows, rowTitles, heading, settle } = await setup();
       await running(timmy.projectId);
       await running(timmy.projectId);
-      expect(rowTitles()).toEqual(['Terminal 1', 'Terminal 2']);
-      expect(heading()).toBe('Terminal 2');
+      expect(rowTitles()).toEqual(['shell 1', 'shell 2']);
+      expect(heading()).toBe('shell 2');
       expect(rows().map((row) => row.getAttribute('aria-selected'))).toEqual(['false', 'true']);
       rows()[0]!.click();
       await settle();
-      expect(heading()).toBe('Terminal 1');
+      expect(heading()).toBe('shell 1');
       expect(rows().map((row) => row.getAttribute('aria-selected'))).toEqual(['true', 'false']);
     });
 
@@ -102,7 +102,7 @@ describe('PanelTerminal', () => {
       await running(timmy.projectId);
       terminals.setCurrent(first);
       await settle();
-      expect(heading()).toBe('Terminal 1');
+      expect(heading()).toBe('shell 1');
     });
 
     it('groups the Terminals by Project, each group with its Project and how many Terminals it has', async () => {
@@ -111,7 +111,7 @@ describe('PanelTerminal', () => {
       await running(ascua.projectId);
       await running(timmy.projectId);
       expect(groupLabels()).toEqual(['timmy:2', 'ascua:1']);
-      expect(rowTitles()).toEqual(['Terminal 1', 'Terminal 2', 'Terminal 1']);
+      expect(rowTitles()).toEqual(['shell 1', 'shell 2', 'shell 1']);
     });
 
     it('goes to the Pill from a double-click on the Mascot of the rail', async () => {

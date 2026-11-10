@@ -33,7 +33,7 @@ test.describe('the Panel shows the current Terminal', () => {
 
     await panel.getByRole('button', { name: 'New terminal' }).click();
     await expect(page.locator('.xterm-screen')).toContainText('PS ', { timeout: 15_000 });
-    await expect(panel.getByRole('listbox', { name: 'Terminals' }).locator('.as-row__title')).toHaveText(['Terminal 1']);
+    await expect(panel.getByRole('listbox', { name: 'Terminals' }).locator('.as-row__title')).toHaveText(['shell 1']);
     await page.locator('.xterm-helper-textarea').focus();
     await page.keyboard.type('echo from-the-panel');
     await page.keyboard.press('Enter');
@@ -42,7 +42,7 @@ test.describe('the Panel shows the current Terminal', () => {
     await timmy.shot('panel-terminal', { mask: [page.locator('app-terminal-screen .cwd'), page.locator('.xterm-screen')] });
 
     await timmy.switchMode('Expanded');
-    await page.getByRole('complementary', { name: 'Sidebar' }).getByRole('listbox', { name: 'Terminals' }).getByRole('option', { name: /Terminal 1/ }).click();
+    await page.getByRole('complementary', { name: 'Sidebar' }).getByRole('listbox', { name: 'Terminals' }).getByRole('option', { name: /shell 1/ }).click();
     await expect(page.locator('app-workspace .xterm-screen')).toContainText('from-the-panel');
   });
 
@@ -58,13 +58,13 @@ test.describe('the Panel shows the current Terminal', () => {
     await timmy.switchMode('Panel');
     const panel = page.getByRole('region', { name: 'Timmy panel' });
     const rail = panel.getByRole('listbox', { name: 'Terminals' });
-    await expect(rail.locator('.as-row__title')).toHaveText(['Terminal 1', 'Terminal 2']);
-    await expect(panel.getByRole('heading', { name: 'Terminal 2' })).toBeVisible();
+    await expect(rail.locator('.as-row__title')).toHaveText(['shell 1', 'shell 2']);
+    await expect(panel.getByRole('heading', { name: 'shell 2' })).toBeVisible();
     await expect(page.locator('.xterm-screen')).toContainText('only-in-two');
 
-    await rail.getByRole('option', { name: /Terminal 1/ }).click();
-    await expect(panel.getByRole('heading', { name: 'Terminal 1' })).toBeVisible();
-    // Terminal 1 was recorded in the Workspace (wide) and is shown here (narrow): its screen is restored whole, not cut at the start.
+    await rail.getByRole('option', { name: /shell 1/ }).click();
+    await expect(panel.getByRole('heading', { name: 'shell 1' })).toBeVisible();
+    // shell 1 was recorded in the Workspace (wide) and is shown here (narrow): its screen is restored whole, not cut at the start.
     await expect(page.locator('.xterm-screen')).toContainText(/PS C:\\Users.*demo-project>/);
     await expect(page.locator('.xterm-screen')).not.toContainText('only-in-two');
     await timmy.shot('panel-switched', { mask: [page.locator('app-terminal-screen .cwd'), page.locator('.xterm-screen')] });
@@ -73,16 +73,16 @@ test.describe('the Panel shows the current Terminal', () => {
     await timmy.switchMode('Expanded');
     const terminals = page.getByRole('complementary', { name: 'Sidebar' }).getByRole('listbox', { name: 'Terminals' });
     await expect(page.locator('app-workspace .xterm-screen')).toContainText(/PS C:\\Users.*demo-project>/);
-    await terminals.getByRole('option', { name: /Terminal 2/ }).click();
+    await terminals.getByRole('option', { name: /shell 2/ }).click();
     await expect(page.locator('app-workspace .xterm-screen')).toContainText('only-in-two');
-    await terminals.getByRole('option', { name: /Terminal 1/ }).click();
+    await terminals.getByRole('option', { name: /shell 1/ }).click();
     await expect(page.locator('app-workspace .xterm-screen')).toContainText(/PS C:\\Users.*demo-project>/);
     await timmy.switchMode('Panel');
-    await expect(panel.getByRole('heading', { name: 'Terminal 1' })).toBeVisible();
+    await expect(panel.getByRole('heading', { name: 'shell 1' })).toBeVisible();
 
     // Stopping the open one leaves the other as the current Terminal; stopping that one brings the empty state back.
     await panel.getByRole('button', { name: 'Stop' }).click();
-    await expect(panel.getByRole('heading', { name: 'Terminal 2' })).toBeVisible();
+    await expect(panel.getByRole('heading', { name: 'shell 2' })).toBeVisible();
     await panel.getByRole('button', { name: 'Stop' }).click();
     await expect(panel.getByRole('heading', { name: 'No terminals yet' })).toBeVisible();
   });

@@ -22,17 +22,17 @@ test.describe('Tabs per Project', () => {
     // Ctrl+T opens a Tab; with no Provider enabled the picker goes straight to a shell.
     await page.keyboard.press('Control+t');
     await expect(page.locator('.xterm-screen')).toContainText('PS ', { timeout: 15_000 });
-    await expect(active).toHaveText('Terminal 1');
+    await expect(active).toHaveText('shell 1');
     await timmy.shot('tabs-one', { mask: prompt });
 
     await bar.getByRole('button', { name: 'New tab' }).click();
-    await expect(active).toHaveText('Terminal 2');
+    await expect(active).toHaveText('shell 2');
     await expect(page.locator('.xterm-screen')).toContainText('PS ', { timeout: 15_000 });
 
     await page.keyboard.press('Control+1');
-    await expect(active).toHaveText('Terminal 1');
+    await expect(active).toHaveText('shell 1');
 
-    await tab('Terminal 1').dblclick();
+    await tab('shell 1').dblclick();
     const field = bar.getByRole('textbox', { name: 'Tab name' });
     await field.fill('review');
     await field.press('Enter');
@@ -50,13 +50,13 @@ test.describe('Tabs per Project', () => {
     // No mask: it would cover the dialog, and the backdrop already blurs the prompt behind it.
     await timmy.shot('tabs-confirm-close');
     await confirm.getByRole('button', { name: 'Close tab' }).click();
-    await expect(bar.locator('.tab-button .name')).toHaveText(['Terminal 2']);
-    await expect(active).toHaveText('Terminal 2');
+    await expect(bar.locator('.tab-button .name')).toHaveText(['shell 2']);
+    await expect(active).toHaveText('shell 2');
 
     // A Tab whose Terminal is Done closes at once, and the Project is back to the New Tab action.
     await timmy.run('exit 0');
     await expect(page.locator('.view-header.act ui-state')).toHaveText('Done', { timeout: 15_000 });
-    await bar.getByRole('button', { name: 'Close tab Terminal 2' }).click();
+    await bar.getByRole('button', { name: 'Close tab shell 2' }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(bar.locator('.tab-button')).toHaveCount(0);
     await expect(page.locator('.no-tabs').getByRole('button', { name: 'New tab' })).toBeVisible();

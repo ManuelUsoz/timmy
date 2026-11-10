@@ -1,4 +1,4 @@
-import { Effect, Layer } from 'effect';
+import { Effect, Layer, Stream } from 'effect';
 import { AppInfoRpcs } from '../../../shared/app-info/app-info.rpc';
 import type { FolderInspection, Project } from '../../../shared/projects/projects.model';
 import { ProjectsError } from '../../../shared/projects/projects-error.model';
@@ -6,6 +6,8 @@ import { ProjectsRpcs } from '../../../shared/projects/projects.rpc';
 import { ProjectId } from '../../../shared/projects/projects.model';
 import { defaultChannels } from '../../../shared/settings/settings.model';
 import { SettingsRpcs } from '../../../shared/settings/settings.rpc';
+import { WorkspaceError } from '../../../shared/workspace/workspace-error.model';
+import { WorkspaceRpcs } from '../../../shared/workspace/workspace.rpc';
 import { layerWindowUnused, makeDesktopTestLayer } from '../../core/desktop-layers';
 import { layerFakeFiles, makeFakeFiles, type FakeFiles } from './files-fakes';
 
@@ -138,6 +140,23 @@ export const layerFakeBackend = (backend: FakeBackend) =>
       'Settings.setChannel': () => Effect.die('unused'),
     }),
   );
+
+/**
+ * The Workspace RPCs as main answers them with nothing saved: renaming a Terminal is recorded in `calls` and refused
+ * for a name in `takenInMain` (another Terminal main has saved under it), as main would.
+ */
+export const layerFakeWorkspace = (backend: FakeBackend, takenInMain: ReadonlyArray<string> = []) =>
+  WorkspaceRpcs.toLayer({
+    'Workspace.load': () => Effect.succeed([]),
+    'Workspace.save': () => Effect.void,
+    'Workspace.renameTerminal': ({ name }) =>
+      Effect.gen(function* () {
+        backend.calls.push(`Workspace.renameTerminal:${name}`);
+        if (takenInMain.includes(name)) return yield* new WorkspaceError({ reason: 'NameTaken', detail: name });
+      }),
+    'Workspace.quitting': () => Stream.empty,
+    'Workspace.saved': () => Effect.void,
+  });
 
 /** The `EffectRuntime` stand-in tests provide: the real client served by the fake backend. */
 export const fakeRuntime = (backend: FakeBackend) => {

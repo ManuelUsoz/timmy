@@ -21,6 +21,8 @@ import { ChangeDetectionStrategy, Component, booleanAttribute, input, output } f
 export class ListRow {
   readonly label = input.required<string>();
   readonly meta = input<string>();
+  /** A quiet detail after the label (an id, a count), shown only while the row is hovered or has keyboard focus. */
+  readonly hint = input<string>();
   readonly selected = input(false, { transform: booleanAttribute });
   readonly disabled = input(false, { transform: booleanAttribute });
   readonly lead = input(false, { transform: booleanAttribute });

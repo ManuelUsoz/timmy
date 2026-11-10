@@ -7,7 +7,7 @@ import { makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { MAX_PANES, panesOf, split } from './pane-layout';
 import { PaneStack, VIEW_MIME, type DropMark, type ViewDrag } from './pane-stack';
-import { layerFakeBackend, makeBackend, project } from './projects-fakes';
+import { layerFakeBackend, layerFakeWorkspace, makeBackend, project } from './projects-fakes';
 import { TabsState } from './tabs-state';
 import { TerminalId } from './terminal-entries';
 import { TerminalsState } from './terminals-state';
@@ -46,8 +46,9 @@ class Host {
 
 const setup = async () => {
   const bus = Effect.runSync(PubSub.unbounded<NotificationEvent>());
+  const backend = makeBackend({ projects: [timmy] });
   const layer = makeDesktopTestLayer(
-    Layer.mergeAll(layerFakeBackend(makeBackend({ projects: [timmy] })), NotificationRpcs.toLayer({ 'Notification.subscribe': () => Stream.fromPubSub(bus) })),
+    Layer.mergeAll(layerFakeBackend(backend), layerFakeWorkspace(backend, ['review']), NotificationRpcs.toLayer({ 'Notification.subscribe': () => Stream.fromPubSub(bus) })),
   );
   await TestBed.configureTestingModule({
     imports: [Host],
@@ -91,7 +92,7 @@ const setup = async () => {
   };
   /** "Add to stack" with no Provider enabled opens a shell at once. */
   const stack = async () => click(button('Apilar en este panel'));
-  return { el, host: fixture.componentInstance, tabs, terminals, tab, panes, headers, names, expandedName, button, click, press, hear, stack, settle };
+  return { el, backend, host: fixture.componentInstance, tabs, terminals, tab, panes, headers, names, expandedName, button, click, press, hear, stack, settle };
 };
 
 describe('A Pane and its Stack', () => {
@@ -99,7 +100,7 @@ describe('A Pane and its Stack', () => {
     const { headers, button, panes } = await setup();
     const [header] = headers();
     expect(header.classList).toContain('act');
-    expect(header.getAttribute('aria-label')).toBe('Terminal 1');
+    expect(header.getAttribute('aria-label')).toBe('shell 1');
     expect(header.querySelector('ui-state')?.textContent?.trim()).toBe('Idle');
     expect(header.querySelector('.count')).toBeNull();
     expect(header.querySelector('.grip')).toBeNull();
@@ -107,18 +108,18 @@ describe('A Pane and its Stack', () => {
     expect(button('Dividir hacia abajo')?.disabled).toBe(true);
     expect(button('Cerrar panel')).not.toBeNull();
     expect(panes()[0].querySelector('app-terminal-screen header')).toBeNull();
-    expect(panes()[0].getAttribute('aria-label')).toBe('Panel de Terminal 1');
+    expect(panes()[0].getAttribute('aria-label')).toBe('Panel de shell 1');
   });
 
   it('adds up to 3 Views to the Stack, expanding the new one, then disables Add to stack with "3/3"', async () => {
     const { names, expandedName, button, stack, headers } = await setup();
     await stack();
-    expect(names()).toEqual(['Terminal 1', 'Terminal 2']);
-    expect(expandedName()).toBe('Terminal 2');
+    expect(names()).toEqual(['shell 1', 'shell 2']);
+    expect(expandedName()).toBe('shell 2');
     expect(headers()[1].querySelector('.count')?.textContent).toBe('2/2');
     expect(button('Apilar en este panel')?.disabled).toBe(false);
     await stack();
-    expect(names()).toEqual(['Terminal 1', 'Terminal 2', 'Terminal 3']);
+    expect(names()).toEqual(['shell 1', 'shell 2', 'shell 3']);
     const add = button('Apilar en este panel')!;
     expect(add.disabled).toBe(true);
     expect(add.getAttribute('title')).toBe('Apilar en este panel · 3/3');
@@ -134,7 +135,7 @@ describe('A Pane and its Stack', () => {
     expect(collapsed.querySelector('.ctl')).toBeNull();
     expect(panes()[0].querySelectorAll('app-terminal-screen')).toHaveLength(1);
     await click(collapsed);
-    expect(expandedName()).toBe('Terminal 1');
+    expect(expandedName()).toBe('shell 1');
   });
 
   it('splits right into a new, focused Pane', async () => {
@@ -164,17 +165,17 @@ describe('A Pane and its Stack', () => {
     await stack();
     await stack();
     await press('1');
-    expect(expandedName()).toBe('Terminal 1');
+    expect(expandedName()).toBe('shell 1');
     await press('ArrowDown', { shiftKey: true });
-    expect(names()).toEqual(['Terminal 2', 'Terminal 1', 'Terminal 3']);
+    expect(names()).toEqual(['shell 2', 'shell 1', 'shell 3']);
     await press('ArrowUp', { shiftKey: true });
-    expect(names()).toEqual(['Terminal 1', 'Terminal 2', 'Terminal 3']);
+    expect(names()).toEqual(['shell 1', 'shell 2', 'shell 3']);
     await press('3');
-    expect(expandedName()).toBe('Terminal 3');
+    expect(expandedName()).toBe('shell 3');
     await press('Enter', { shiftKey: true });
     expect(panes()).toHaveLength(2);
-    expect(names(panes()[0])).toEqual(['Terminal 1', 'Terminal 2']);
-    expect(names(panes()[1])).toEqual(['Terminal 3']);
+    expect(names(panes()[0])).toEqual(['shell 1', 'shell 2']);
+    expect(names(panes()[1])).toEqual(['shell 3']);
   });
 
   it('splits right with Alt+Shift+R and adds to the Stack with Alt+Shift+S, and names the keys in the tooltips', async () => {
@@ -183,10 +184,10 @@ describe('A Pane and its Stack', () => {
     expect(button('Dividir hacia abajo')?.getAttribute('title')).toBe('Dividir hacia abajo (Alt+Shift+D)');
     expect(button('Apilar en este panel')?.getAttribute('title')).toBe('Apilar en este panel (Alt+Shift+S)');
     await press('S', { shiftKey: true, code: 'KeyS' });
-    expect(names()).toEqual(['Terminal 1', 'Terminal 2']);
+    expect(names()).toEqual(['shell 1', 'shell 2']);
     await press('R', { shiftKey: true, code: 'KeyR' });
     expect(panes()).toHaveLength(2);
-    expect(names(panes()[1])).toEqual(['Terminal 3']);
+    expect(names(panes()[1])).toEqual(['shell 3']);
   });
 
   it('leaves Alt+Shift+D to the Terminal when the Pane cannot split down', async () => {
@@ -223,7 +224,7 @@ describe('A Pane and its Stack', () => {
     expect(third.nextElementSibling?.nextElementSibling?.classList).toContain('drop');
     third.dispatchEvent(new Event('drop', { cancelable: true }));
     await settle();
-    expect(names()).toEqual(['Terminal 2', 'Terminal 3', 'Terminal 1']);
+    expect(names()).toEqual(['shell 2', 'shell 3', 'shell 1']);
   });
 
   it('lets a lone View\'s header be dragged only when the grid can move it to another Pane', async () => {
@@ -268,14 +269,15 @@ describe('A Pane and its Stack', () => {
       item.disabled,
     ]);
     expect(items).toEqual([
-      ['Mostrar Terminal 1', 'Alt 1', false],
+      ['Mostrar shell 1', 'Alt 1', false],
       ['Mover un lugar arriba', 'Alt Shift ↑', false],
       ['Mover un lugar abajo', 'Alt Shift ↓', true],
       ['Desapilar en un panel nuevo', 'Alt Shift ⏎', false],
+      ['Renombrar terminal', '', false],
       ['Reiniciar', '', true],
       ['Abrir diff · Pronto', '', true],
       ['Abrir PR · Pronto', '', true],
-      ['Cerrar Terminal 2', '', false],
+      ['Cerrar shell 2', '', false],
       ['Cerrar panel', '', false],
     ]);
   });
@@ -284,9 +286,9 @@ describe('A Pane and its Stack', () => {
     const { el, panes, names, button, click, stack, hear, terminals } = await setup();
     await stack();
     await click(button('Más acciones'));
-    await click(Array.from(panes()[0].querySelectorAll<HTMLButtonElement>('[role=menuitem]')).find((item) => item.textContent?.includes('Cerrar Terminal 2')));
+    await click(Array.from(panes()[0].querySelectorAll<HTMLButtonElement>('[role=menuitem]')).find((item) => item.textContent?.includes('Cerrar shell 2')));
     expect(el.querySelector('ui-modal')).toBeNull();
-    expect(names()).toEqual(['Terminal 1']);
+    expect(names()).toEqual(['shell 1']);
 
     await hear(terminals.entries()[0].id, 'Working');
     await click(button('Cerrar panel'));
@@ -295,5 +297,82 @@ describe('A Pane and its Stack', () => {
     await click(modal.querySelector<HTMLButtonElement>('.primary'));
     expect(panes()).toHaveLength(0);
     expect(terminals.entries()).toEqual([]);
+  });
+});
+
+describe('A Terminal named in its header', () => {
+  /** Types `value` in the open name field and presses `key` in it. */
+  const typeIn = async (el: HTMLElement, value: string, key: 'Enter' | 'Escape', settle: () => Promise<void>) => {
+    const field = el.querySelector<HTMLInputElement>('app-terminal-name-field input')!;
+    field.value = value;
+    field.dispatchEvent(new Event('input'));
+    field.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+    await settle();
+  };
+
+  it('shows the name and its #n, in the expanded header and the collapsed ones', async () => {
+    const { headers, stack } = await setup();
+    await stack();
+    expect(headers().map((header) => [header.querySelector('.name')?.textContent, header.querySelector('.number')?.textContent])).toEqual([
+      ['shell 1', '#1'],
+      ['shell 2', '#2'],
+    ]);
+  });
+
+  it('renames the Terminal with a double click on its name, keeping its #n', async () => {
+    const { el, headers, backend, terminals, settle } = await setup();
+    headers()[0].querySelector('.name')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    await settle();
+    const field = el.querySelector<HTMLInputElement>('app-terminal-name-field input')!;
+    expect(field.value).toBe('shell 1');
+    expect(document.activeElement).toBe(field);
+    await typeIn(el, '  build ', 'Enter', settle);
+    expect(el.querySelector('app-terminal-name-field')).toBeNull();
+    expect(headers()[0].getAttribute('aria-label')).toBe('build');
+    expect(headers()[0].querySelector('.number')?.textContent).toBe('#1');
+    expect(terminals.entries()[0].name).toBe('build');
+    expect(backend.calls).toContain('Workspace.renameTerminal:build');
+  });
+
+  it('refuses inline a name another Terminal of the Project has, in any case, and Escape keeps the old name', async () => {
+    const { el, headers, stack, click, button, backend, settle } = await setup();
+    await stack();
+    await click(button('Más acciones'));
+    await click(Array.from(el.querySelectorAll<HTMLButtonElement>('[role=menuitem]')).find((item) => item.textContent?.includes('Renombrar terminal')));
+    await typeIn(el, 'SHELL 1', 'Enter', settle);
+    expect(el.querySelector('app-terminal-name-field [role=alert]')?.textContent).toBe('Ya hay una terminal llamada «SHELL 1» en este proyecto.');
+    expect(el.querySelector('app-terminal-name-field input')?.getAttribute('aria-invalid')).toBe('true');
+    expect(backend.calls.filter((call) => call.startsWith('Workspace.renameTerminal'))).toEqual([]);
+    await typeIn(el, 'SHELL 1', 'Escape', settle);
+    expect(el.querySelector('app-terminal-name-field')).toBeNull();
+    expect(headers().map((header) => header.getAttribute('aria-label'))).toEqual(['shell 1', 'shell 2']);
+  });
+
+  it('does on leaving the field what Enter does: a taken name is refused there, not dropped', async () => {
+    const { el, headers, stack, terminals, settle } = await setup();
+    await stack();
+    headers()[1].querySelector('.name')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    await settle();
+    const field = el.querySelector<HTMLInputElement>('app-terminal-name-field input')!;
+    field.value = 'Shell 1';
+    field.dispatchEvent(new Event('input'));
+    field.dispatchEvent(new FocusEvent('blur'));
+    await settle();
+    expect(el.querySelector('app-terminal-name-field [role=alert]')?.textContent).toBe('Ya hay una terminal llamada «Shell 1» en este proyecto.');
+    field.value = 'tests';
+    field.dispatchEvent(new Event('input'));
+    field.dispatchEvent(new FocusEvent('blur'));
+    await settle();
+    expect(el.querySelector('app-terminal-name-field')).toBeNull();
+    expect(terminals.entries().map((entry) => entry.name)).toEqual(['shell 1', 'tests']);
+  });
+
+  it('shows inline a refusal from main, which knows the Terminals saved', async () => {
+    const { el, headers, settle } = await setup();
+    headers()[0].querySelector('.name')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    await settle();
+    await typeIn(el, 'review', 'Enter', settle);
+    expect(el.querySelector('app-terminal-name-field [role=alert]')?.textContent).toBe('Ya hay una terminal llamada «review» en este proyecto.');
+    expect(headers()[0].querySelector('.name')).toBeNull();
   });
 });

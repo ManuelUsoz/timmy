@@ -11,8 +11,7 @@ test.describe('The layout across restarts', () => {
     const panes = () => page().locator('app-pane-stack');
     const sidebarTerminals = () => page().getByRole('complementary', { name: 'Sidebar' }).getByRole('listbox', { name: 'Terminals' }).getByRole('option');
     const reopen = async () => {
-      // Saving waits a moment for changes to settle.
-      await page().waitForTimeout(600);
+      // Right after the last change: Timmy saves what is pending before it quits.
       await timmy.restart();
       await timmy.switchMode('Expanded');
       await page().locator('app-project-list .as-row__title', { hasText: 'demo-project' }).click();
@@ -31,7 +30,7 @@ test.describe('The layout across restarts', () => {
       await bar().getByRole('button', { name: 'New tab' }).click();
       await page().getByRole('listbox', { name: 'New tab' }).getByRole('option', { name: 'Shell' }).click();
       await expect(page().locator('.xterm-screen')).toContainText('PS ', { timeout: 15_000 });
-      await tab('Terminal 3').dblclick();
+      await tab('shell 3').dblclick();
       const field = bar().getByRole('textbox', { name: 'Tab name' });
       await field.fill('scratch');
       await field.press('Enter');
@@ -41,9 +40,9 @@ test.describe('The layout across restarts', () => {
 
     await test.step('after a restart the Tabs, Panes and Terminals are back, none of them started', async () => {
       await reopen();
-      await expect(bar().locator('.tab-button .name')).toHaveText(['Terminal 1', 'scratch']);
+      await expect(bar().locator('.tab-button .name')).toHaveText(['claude 1', 'scratch']);
       await expect(sidebarTerminals()).toHaveCount(3);
-      await tab('Terminal 1').click();
+      await tab('claude 1').click();
       await expect(panes()).toHaveCount(2);
       await expect(page().locator('app-terminal-screen .start')).toHaveCount(2);
       await expect(page().locator('app-pane-stack .view-header [data-activity]')).toHaveCount(0);
@@ -68,7 +67,7 @@ test.describe('The layout across restarts', () => {
       // Its Terminal was never started, so closing the Tab asks nothing.
       await expect(tab('scratch')).toHaveCount(0);
       await reopen();
-      await expect(bar().locator('.tab-button .name')).toHaveText(['Terminal 1']);
+      await expect(bar().locator('.tab-button .name')).toHaveText(['claude 1']);
       await expect(sidebarTerminals()).toHaveCount(2);
     });
   });
