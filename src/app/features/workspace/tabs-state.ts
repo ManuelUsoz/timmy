@@ -4,11 +4,12 @@ import type { ProjectId } from '../../../shared/projects/projects.model';
 import type { ProjectLayout, SavedTab } from '../../../shared/workspace/workspace.model';
 import { NotificationsState } from '../shell/notifications-state';
 import type { Provider } from '../../../shared/settings/settings.model';
-import { inStep, replaceTerminal, type TabLayout } from './pane-layout';
+import { inStep, replaceView, type TabLayout } from './pane-layout';
 import type { TerminalEntry, TerminalId } from './terminal-entries';
 import { TerminalsState } from './terminals-state';
 import { restoredFrom, savedTabsOf } from './saved-layout';
 import { tabsOf, type Tab, type TabId } from './tabs';
+import { terminalView, type ViewId } from './views';
 
 /**
  * The Tabs of every Project. `WorkspacePersistence` saves them and brings them back (ADR 0011). A Tab is made of the Terminals
@@ -119,9 +120,9 @@ export class TabsState {
   private layoutWith(id: TabId, terminals: ReadonlyArray<TerminalId>): TabLayout | undefined {
     let stored = this.layouts().get(id);
     if (stored !== undefined) {
-      for (const [from, to] of this.terminals.restarts()) stored = replaceTerminal(stored, from, to);
+      for (const [from, to] of this.terminals.restarts()) stored = replaceView(stored, terminalView(from), terminalView(to));
     }
-    return inStep(stored, terminals);
+    return inStep(stored, terminals.map(terminalView));
   }
 
   /** Applies a rule to the Tab's current layout and keeps the result. */
@@ -141,7 +142,7 @@ export class TabsState {
    * Opens a Terminal in this Tab (a local entry if main cannot start one) and places it with `place`, e.g. a split or
    * a Stack. Returns it, so the screen can show its route.
    */
-  async openInTab(tab: Tab, cwd: string, provider: Provider | undefined, place: (layout: TabLayout, terminal: TerminalId) => TabLayout): Promise<TerminalEntry> {
+  async openInTab(tab: Tab, cwd: string, provider: Provider | undefined, place: (layout: TabLayout, view: ViewId) => TabLayout): Promise<TerminalEntry> {
     const projectId = tab.terminals[0].projectId;
     const terminal = (await this.terminals.createLive(projectId, cwd, provider, tab.id)) ?? this.terminals.create(projectId, tab.id);
     // Placed on the layout as it is now, not as it was before the await, so a focus, resize or other split made while
@@ -152,7 +153,7 @@ export class TabsState {
       ?.terminals.map((each) => each.id)
       .filter((id) => id !== terminal.id);
     const current = others === undefined ? undefined : this.layoutWith(tab.id, others);
-    if (current !== undefined) this.layouts.update((layouts) => new Map(layouts).set(tab.id, place(current, terminal.id)));
+    if (current !== undefined) this.layouts.update((layouts) => new Map(layouts).set(tab.id, place(current, terminalView(terminal.id))));
     return terminal;
   }
 

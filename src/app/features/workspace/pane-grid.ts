@@ -17,6 +17,7 @@ import {
 import { PaneStack, VIEW_MIME, type DropMark, type ViewDrag } from './pane-stack';
 import type { Tab } from './tabs';
 import { TabsState } from './tabs-state';
+import { indexOfView } from './views';
 import { WorkspaceLayoutState } from './workspace-layout';
 
 /** How far one arrow key press moves a divider, in px. */
@@ -269,7 +270,7 @@ export class PaneGrid {
     const header = pane.views.length > 1 ? Array.from(element.querySelectorAll<HTMLElement>('.view-header[data-index]')).find((each) => contains(each.getBoundingClientRect(), point)) : undefined;
     if (header !== undefined) {
       const index = Number(header.dataset['index']);
-      const from = pane.views.indexOf(drag.view);
+      const from = indexOfView(pane.views, drag.view);
       if (from === index) return undefined;
       // In its own Stack the View takes the place it is dropped on, as reordering always has; from elsewhere it goes
       // before or after the header, by the half the pointer is on.

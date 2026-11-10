@@ -15,13 +15,15 @@ import { neighbourOf, tabPath, terminalPath, type Tab, type TabId } from './tabs
 import { TabsState } from './tabs-state';
 import type { TerminalEntry, TerminalId } from './terminal-entries';
 import { TerminalsState } from './terminals-state';
+import { hasView, indexOfView, terminalOf, terminalView } from './views';
 import { WorkspaceHero } from './workspace-hero';
 import { entryPath, entryTarget } from './workspace-entry';
 
 /** The layout with the Pane holding this Terminal focused and its View expanded; unchanged when no Pane holds it. */
 const bringForward = (layout: TabLayout, terminal: TerminalId): TabLayout => {
-  const pane = panesOf(layout).find((candidate) => candidate.views.includes(terminal));
-  return pane === undefined ? layout : showView(focusPane(layout, pane.id), pane.id, pane.views.indexOf(terminal));
+  const view = terminalView(terminal);
+  const pane = panesOf(layout).find((candidate) => hasView(candidate.views, view));
+  return pane === undefined ? layout : showView(focusPane(layout, pane.id), pane.id, indexOfView(pane.views, view));
 };
 
 /**
@@ -81,7 +83,9 @@ export class ProjectsScreen {
     () => {
       const tab = this.routeTab();
       const layout = tab === undefined ? undefined : this.tabsState.layoutOf(tab);
-      const view = layout === undefined ? undefined : panesOf(layout).find((pane) => pane.id === layout.focused)?.expanded;
+      const expanded = layout === undefined ? undefined : panesOf(layout).find((pane) => pane.id === layout.focused)?.expanded;
+      // The route names a Terminal, so only a Terminal's View is followed.
+      const view = expanded === undefined ? undefined : terminalOf(expanded);
       return tab === undefined || view === undefined ? undefined : { tab: tab.id, view };
     },
     { equal: (a, b) => a?.tab === b?.tab && a?.view === b?.view },

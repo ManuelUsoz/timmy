@@ -27,10 +27,12 @@ import type { TerminalEntry, TerminalId } from './terminal-entries';
 import { TerminalScreen } from './terminal-screen';
 import { terminalBadge } from './terminal-view';
 import { TerminalsState } from './terminals-state';
+import { hasView, indexOfView, sameView, terminalOf, viewKey, type ViewId } from './views';
 
-/** A View of the Stack, with its Terminal and its place (0-based). */
+/** A View of the Stack, with its key (`viewKey`), its Terminal and its place (0-based). */
 interface StackView {
-  readonly id: TerminalId;
+  readonly key: string;
+  readonly view: ViewId;
   readonly index: number;
   readonly entry: TerminalEntry;
   readonly name: string;
@@ -41,7 +43,7 @@ export const VIEW_MIME = 'application/x-timmy-view';
 
 /** A View header being dragged, and the Pane it comes from. */
 export interface ViewDrag {
-  readonly view: TerminalId;
+  readonly view: ViewId;
   readonly fromPane: PaneId;
 }
 
@@ -108,12 +110,12 @@ export class PaneStack {
 
   /** The Views whose Terminal is known; one just closed may linger in the layout for a moment. */
   protected readonly views = computed((): ReadonlyArray<StackView> =>
-    this.pane().views.flatMap((id, index) => {
-      const entry = this.tab().terminals.find((terminal) => terminal.id === id);
-      return entry === undefined ? [] : [{ id, index, entry, name: this.i18n.t('terminals.name', { number: entry.number }) }];
+    this.pane().views.flatMap((view, index) => {
+      const entry = this.tab().terminals.find((terminal) => terminal.id === terminalOf(view));
+      return entry === undefined ? [] : [{ key: viewKey(view), view, index, entry, name: this.i18n.t('terminals.name', { number: entry.number }) }];
     }),
   );
-  protected readonly expanded = computed(() => this.views().find((view) => view.id === this.pane().expanded) ?? this.views()[0]);
+  protected readonly expanded = computed(() => this.views().find((view) => sameView(view.view, this.pane().expanded)) ?? this.views()[0]);
   protected readonly stacked = computed(() => this.pane().views.length > 1);
   protected readonly draggable = computed(() => this.stacked() || this.movable());
   protected readonly full = computed(() => this.pane().views.length >= MAX_VIEWS);
@@ -135,10 +137,10 @@ export class PaneStack {
   protected readonly menuOpen = signal(false);
   protected readonly pending = signal<PendingClose | undefined>(undefined);
   /** The View whose header is being dragged, and the place it would land on. */
-  protected readonly dragging = linkedSignal<Pane, TerminalId | undefined>({
+  protected readonly dragging = linkedSignal<Pane, ViewId | undefined>({
     source: this.pane,
     // A View dropped on another Pane leaves this one before its header can tell the drag ended.
-    computation: (pane, previous) => (previous?.value !== undefined && pane.views.includes(previous.value) ? previous.value : undefined),
+    computation: (pane, previous) => (previous?.value !== undefined && hasView(pane.views, previous.value) ? previous.value : undefined),
   });
   protected readonly dropAt = signal<number | undefined>(undefined);
 
@@ -211,32 +213,32 @@ export class PaneStack {
 
   protected move(delta: -1 | 1): void {
     const view = this.expanded();
-    if (view !== undefined) this.change((layout) => moveView(layout, this.pane().id, view.id, delta));
+    if (view !== undefined) this.change((layout) => moveView(layout, this.pane().id, view.view, delta));
   }
 
   protected unstackExpanded(): void {
     const view = this.expanded();
-    if (view !== undefined && this.unstackable()) this.change((layout) => unstack(layout, this.pane().id, view.id));
+    if (view !== undefined && this.unstackable()) this.change((layout) => unstack(layout, this.pane().id, view.view));
   }
 
   protected async splitPane(direction: SplitDirection, provider: Provider | undefined): Promise<void> {
-    await this.tabs.openInTab(this.tab(), this.cwd(), provider, (layout, terminal) => split(layout, this.pane().id, direction, terminal));
+    await this.tabs.openInTab(this.tab(), this.cwd(), provider, (layout, view) => split(layout, this.pane().id, direction, view));
   }
 
   protected async stack(provider: Provider | undefined): Promise<void> {
-    await this.tabs.openInTab(this.tab(), this.cwd(), provider, (layout, terminal) => addToStack(layout, this.pane().id, terminal));
+    await this.tabs.openInTab(this.tab(), this.cwd(), provider, (layout, view) => addToStack(layout, this.pane().id, view));
   }
 
   protected async restart(view: StackView): Promise<void> {
     this.menuOpen.set(false);
-    await this.terminals.restart(view.id, this.cwd());
+    await this.terminals.restart(view.entry.id, this.cwd());
   }
 
   /** Closing asks first only while one of the Terminals that would close is Working or Waiting. */
   protected askClose(kind: PendingClose['kind']): void {
     this.menuOpen.set(false);
     const view = this.expanded();
-    const ids = kind === 'pane' ? this.views().map((each) => each.id) : view === undefined ? [] : [view.id];
+    const ids = kind === 'pane' ? this.views().map((each) => each.entry.id) : view === undefined ? [] : [view.entry.id];
     if (ids.length === 0) return;
     const pending = { kind, ids, name: view?.name ?? '' };
     if (closeNeedsConfirm(ids.map((id) => this.tabs.statusOf(id)))) this.pending.set(pending);
@@ -265,11 +267,11 @@ export class PaneStack {
   // ---- Dragging a header reorders the Stack; the grid takes it to other Panes ----
 
   protected dragStart(event: DragEvent, view: StackView): void {
-    this.dragging.set(view.id);
-    event.dataTransfer?.setData(VIEW_MIME, view.id);
+    this.dragging.set(view.view);
+    event.dataTransfer?.setData(VIEW_MIME, view.key);
     event.dataTransfer?.setData('text/plain', view.name);
     if (event.dataTransfer !== null && event.dataTransfer !== undefined) event.dataTransfer.effectAllowed = 'move';
-    this.dragStarted.emit({ view: view.id, fromPane: this.pane().id });
+    this.dragStarted.emit({ view: view.view, fromPane: this.pane().id });
   }
 
   protected dragOver(event: DragEvent, view: StackView): void {
@@ -282,7 +284,7 @@ export class PaneStack {
     const dragged = this.dragging();
     event.preventDefault();
     this.dragEnd();
-    if (dragged !== undefined && dragged !== view.id) this.change((layout) => reorderView(layout, this.pane().id, dragged, view.index));
+    if (dragged !== undefined && !sameView(dragged, view.view)) this.change((layout) => reorderView(layout, this.pane().id, dragged, view.index));
   }
 
   protected dragEnd(): void {
@@ -300,7 +302,12 @@ export class PaneStack {
     const mark = this.dropMark();
     if (mark !== undefined) return mark.index === view.index ? mark.side : undefined;
     const dragged = this.dragging();
-    if (dragged === undefined || dragged === view.id || this.dropAt() !== view.index) return undefined;
-    return this.pane().views.indexOf(dragged) > view.index ? 'before' : 'after';
+    if (dragged === undefined || sameView(dragged, view.view) || this.dropAt() !== view.index) return undefined;
+    return indexOfView(this.pane().views, dragged) > view.index ? 'before' : 'after';
+  }
+
+  protected isDragged(view: StackView): boolean {
+    const dragged = this.dragging();
+    return dragged !== undefined && sameView(dragged, view.view);
   }
 }

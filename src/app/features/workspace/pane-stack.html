@@ -1,19 +1,19 @@
 @let current = expanded();
 <div class="stack">
-  @for (view of views(); track view.id) {
+  @for (view of views(); track view.key) {
     @let side = dropSide(view);
     @let status = badge(view.entry);
     @if (side === 'before') {
       <div class="drop"><span>{{ i18n.t('stack.drop') }}</span></div>
     }
-    @if (view.id === current?.id) {
+    @if (view.key === current?.key) {
       <div
         class="view-header act"
         role="group"
         [attr.aria-label]="view.name"
         [attr.data-index]="view.index"
         [attr.draggable]="draggable() ? 'true' : null"
-        [class.dragging]="dragging() === view.id"
+        [class.dragging]="isDragged(view)"
         (dragstart)="dragStart($event, view)"
         (dragover)="dragOver($event, view)"
         (drop)="drop($event, view)"
@@ -53,8 +53,8 @@
             </button>
             @if (menuOpen()) {
               <div class="menu" role="menu" [attr.aria-label]="i18n.t('pane.menu')">
-                @for (other of views(); track other.id) {
-                  @if (other.id !== view.id) {
+                @for (other of views(); track other.key) {
+                  @if (other.key !== view.key) {
                     <button type="button" class="mi" role="menuitem" (click)="menuOpen.set(false); show(other.index)">
                       <span class="mi-label">{{ i18n.t('stack.show', { name: other.name }) }}</span>
                       <span class="hint">@for (key of keys.show(other.index + 1); track $index) {<kbd>{{ key }}</kbd>}</span>
@@ -111,7 +111,7 @@
         aria-expanded="false"
         [attr.aria-label]="view.name"
         [attr.data-index]="view.index"
-        [class.dragging]="dragging() === view.id"
+        [class.dragging]="isDragged(view)"
         (click)="show(view.index)"
         (dragstart)="dragStart($event, view)"
         (dragover)="dragOver($event, view)"

@@ -5,6 +5,7 @@ import { split, singlePane, panesOf } from './pane-layout';
 import { restoredFrom, savedTabsOf } from './saved-layout';
 import { tabsOf } from './tabs';
 import type { TerminalEntry } from './terminal-entries';
+import { terminalView } from './views';
 
 const project = ProjectId.make('p-timmy');
 const entry = (id: string, tabId: string, number: number, provider?: 'ClaudeCode'): TerminalEntry => ({
@@ -19,7 +20,7 @@ const entry = (id: string, tabId: string, number: number, provider?: 'ClaudeCode
 
 describe('saved layout', () => {
   const entries = [entry('a', 't1', 1, 'ClaudeCode'), entry('b', 't1', 2), entry('c', 't2', 3)];
-  const layout = split(singlePane(TerminalId.make('a')), PaneId.make('a'), 'right', TerminalId.make('b'));
+  const layout = split(singlePane(terminalView(TerminalId.make('a'))), PaneId.make('a'), 'right', terminalView(TerminalId.make('b')));
   const layouts = new Map([[TabId.make('t1'), layout]]);
   const tabs = tabsOf(entries, project, new Map([[TabId.make('t1'), 'Work']]));
 
