@@ -1,0 +1,33 @@
+@let state = file();
+<div class="scroll" data-scrolls-x tabindex="0" role="region" [attr.aria-label]="i18n.t('fileView.text', { name: name() })">
+  @switch (state.status) {
+    @case ('text') {
+      @if (gutter() === '') {
+        <p class="note">{{ i18n.t('files.emptyFile') }}</p>
+      } @else {
+        <div class="code">
+          <pre class="gutter" aria-hidden="true">{{ gutter() }}</pre>
+          <pre class="source">{{ state.content }}</pre>
+        </div>
+      }
+    }
+    @case ('binary') {
+      <p class="note">{{ i18n.t('files.cantPreview') }}</p>
+    }
+    @case ('tooLarge') {
+      <p class="note">{{ i18n.t('files.tooLarge', { size: size(state.size) }) }}</p>
+    }
+    @case ('gone') {
+      <p class="note">{{ i18n.t('files.gone') }}</p>
+    }
+    @case ('unreadable') {
+      <p class="note">{{ i18n.t('files.unreadable') }}</p>
+    }
+    @case ('failed') {
+      <p class="note">{{ i18n.t('files.fileFailed', { detail: state.detail }) }}</p>
+    }
+    @default {
+      <p class="note">{{ i18n.t('files.loading') }}</p>
+    }
+  }
+</div>

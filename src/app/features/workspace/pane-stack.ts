@@ -5,6 +5,7 @@ import type { MessageKey } from '../../core/i18n-dictionaries';
 import { stackKeys, stackShortcut, type StackShortcut } from '../../core/shortcuts';
 import { ModalComponent } from '../../shared/ui/modal/modal';
 import { StateComponent } from '../../shared/ui/state/state';
+import { FileView } from './file-view';
 import { NewTerminal } from './new-terminal';
 import {
   MAX_VIEWS,
@@ -22,22 +23,21 @@ import {
   type TabLayout,
 } from './pane-layout';
 import { closeNeedsConfirm, type Tab } from './tabs';
-import { TabsState } from './tabs-state';
+import { TabsState, type OpenFile } from './tabs-state';
 import type { TerminalEntry, TerminalId } from './terminal-entries';
 import { TerminalNameField } from './terminal-name-field';
 import { TerminalScreen } from './terminal-screen';
 import { terminalBadge } from './terminal-view';
 import { TerminalsState } from './terminals-state';
-import { hasView, indexOfView, sameView, terminalOf, viewKey, type ViewId } from './views';
+import { fileOf, hasView, indexOfView, sameView, terminalOf, viewKey, type ViewId } from './views';
 
-/** A View of the Stack, with its key (`viewKey`), its Terminal and its place (0-based). */
-interface StackView {
+/** A View of the Stack, with its key (`viewKey`), its place (0-based) and what it shows: a Terminal or a file. */
+type StackView = {
   readonly key: string;
   readonly view: ViewId;
   readonly index: number;
-  readonly entry: TerminalEntry;
   readonly name: string;
-}
+} & ({ readonly kind: 'terminal'; readonly entry: TerminalEntry } | { readonly kind: 'file'; readonly file: OpenFile; readonly dir: string });
 
 /** The type a dragged View header puts in the drag's data, so drags from elsewhere (files, text) start no drop. */
 export const VIEW_MIME = 'application/x-timmy-view';
@@ -54,10 +54,11 @@ export interface DropMark {
   readonly side: 'before' | 'after';
 }
 
-/** What waits for the user's confirmation: closing one View, or the whole Pane. */
+/** What waits for the user's confirmation: closing one View, or the whole Pane, with the Terminals and files that close. */
 interface PendingClose {
   readonly kind: 'view' | 'pane';
   readonly ids: ReadonlyArray<TerminalId>;
+  readonly files: ReadonlyArray<string>;
   readonly name: string;
 }
 
@@ -68,7 +69,7 @@ interface PendingClose {
  */
 @Component({
   selector: 'app-pane-stack',
-  imports: [ModalComponent, NewTerminal, StateComponent, TerminalNameField, TerminalScreen],
+  imports: [FileView, ModalComponent, NewTerminal, StateComponent, TerminalNameField, TerminalScreen],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './pane-stack.html',
   styleUrl: './pane-stack.css',
@@ -109,13 +110,21 @@ export class PaneStack {
   readonly dragStarted = output<ViewDrag>();
   readonly dragEnded = output<void>();
 
-  /** The Views whose Terminal is known; one just closed may linger in the layout for a moment. */
-  protected readonly views = computed((): ReadonlyArray<StackView> =>
-    this.pane().views.flatMap((view, index) => {
+  /** The Views whose Terminal or file is known; one just closed may linger in the layout for a moment. */
+  protected readonly views = computed((): ReadonlyArray<StackView> => {
+    const files = this.tabs.filesOf(this.tab());
+    return this.pane().views.flatMap((view, index): ReadonlyArray<StackView> => {
+      const key = viewKey(view);
+      const path = fileOf(view);
+      if (path !== undefined) {
+        const file = files.find((open) => open.path === path);
+        const slash = path.lastIndexOf('/');
+        return file === undefined ? [] : [{ key, view, index, kind: 'file', file, name: path.slice(slash + 1), dir: slash < 0 ? '' : path.slice(0, slash) }];
+      }
       const entry = this.tab().terminals.find((terminal) => terminal.id === terminalOf(view));
-      return entry === undefined ? [] : [{ key: viewKey(view), view, index, entry, name: entry.name }];
-    }),
-  );
+      return entry === undefined ? [] : [{ key, view, index, kind: 'terminal', entry, name: entry.name }];
+    });
+  });
   protected readonly expanded = computed(() => this.views().find((view) => sameView(view.view, this.pane().expanded)) ?? this.views()[0]);
   protected readonly stacked = computed(() => this.pane().views.length > 1);
   protected readonly draggable = computed(() => this.stacked() || this.movable());
@@ -232,26 +241,41 @@ export class PaneStack {
     await this.tabs.openInTab(this.tab(), this.cwd(), provider, (layout, view) => addToStack(layout, this.pane().id, view));
   }
 
-  protected async restart(view: StackView): Promise<void> {
+  protected async restart(entry: TerminalEntry): Promise<void> {
     this.menuOpen.set(false);
-    await this.terminals.restart(view.entry.id, this.cwd());
+    await this.terminals.restart(entry.id, this.cwd());
   }
 
-  /** Closing asks first only while one of the Terminals that would close is Working or Waiting. */
+  /** The pin button of a preview File View: it stays until closed. */
+  protected pin(path: string): void {
+    this.tabs.pinFile(this.tab(), path);
+  }
+
+  /**
+   * Closing asks first only while one of the Terminals that would close is Working or Waiting; a File View closes at
+   * once. Closing the last Terminal of the Tab closes the Tab, its File Views with it.
+   */
   protected askClose(kind: PendingClose['kind']): void {
     this.menuOpen.set(false);
     const view = this.expanded();
-    const ids = kind === 'pane' ? this.views().map((each) => each.entry.id) : view === undefined ? [] : [view.entry.id];
-    if (ids.length === 0) return;
-    const pending = { kind, ids, name: view?.name ?? '' };
+    const closing = kind === 'pane' ? this.views() : view === undefined ? [] : [view];
+    const ids = closing.flatMap((each) => (each.kind === 'terminal' ? [each.entry.id] : []));
+    const files = closing.flatMap((each) => (each.kind === 'file' ? [each.file.path] : []));
+    if (ids.length === 0 && files.length === 0) return;
+    const pending = { kind, ids, files, name: view?.name ?? '' };
     if (closeNeedsConfirm(ids.map((id) => this.tabs.statusOf(id)))) this.pending.set(pending);
-    else void this.tabs.closeTerminals(ids);
+    else this.close(pending);
   }
 
   protected confirmClose(): void {
     const pending = this.pending();
     this.pending.set(undefined);
-    if (pending !== undefined) void this.tabs.closeTerminals(pending.ids);
+    if (pending !== undefined) this.close(pending);
+  }
+
+  private close(pending: PendingClose): void {
+    if (pending.files.length > 0) this.tabs.closeFiles(this.tab(), pending.files);
+    if (pending.ids.length > 0) void this.tabs.closeTerminals(pending.ids);
   }
 
   protected toggleMenu(): void {
@@ -269,7 +293,9 @@ export class PaneStack {
 
   // ---- Dragging a header reorders the Stack; the grid takes it to other Panes ----
 
+  /** Dragging a File View pins it (ADR 0013): the user cares where it goes. */
   protected dragStart(event: DragEvent, view: StackView): void {
+    if (view.kind === 'file' && !view.file.pinned) this.pin(view.file.path);
     this.dragging.set(view.view);
     event.dataTransfer?.setData(VIEW_MIME, view.key);
     event.dataTransfer?.setData('text/plain', view.name);

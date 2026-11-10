@@ -9,9 +9,13 @@ import { EffectRuntime } from '../../core/effect-runtime';
 import { I18n } from '../../core/i18n';
 import { CHANGES_DEBOUNCE_MS, FilesBrowser } from './files-browser';
 import { change, file, folder, text, type FakeDisk, type FakeFiles } from './files-fakes';
-import { layerFakeBackend, makeBackend, project } from './projects-fakes';
-import { TerminalsState } from './terminals-state';
+import { fakeRuntime, layerFakeBackend, makeBackend, project } from './projects-fakes';
+import { PaneId, addToStack, focusPane, panesOf, showView, type TabLayout } from './pane-layout';
 import { ProjectsState } from './projects-state';
+import type { Tab } from './tabs';
+import { TabsState } from './tabs-state';
+import { TerminalsState } from './terminals-state';
+import { fileView, viewKey } from './views';
 import { WorkspaceLayoutState } from './workspace-layout';
 
 const timmy = project('timmy');
@@ -143,12 +147,12 @@ describe('FilesBrowser tree', () => {
     browser.setFolderOpen('src', true);
     browser.setFolderOpen('src/app', true);
     await settle();
-    expect(backend.files.saved[timmy.projectId]).toEqual({ expanded: ['src', 'src/app'], lastFile: null, view: 'tree' });
+    expect(backend.files.saved[timmy.projectId]).toEqual({ expanded: ['src', 'src/app'], lastFile: null });
   });
 
   it('opens again on the folders it remembered, reading each of them', async () => {
     const { browser, settle, outline, listDirs } = await setup({
-      files: { saved: { [timmy.projectId]: { expanded: ['src', 'src/app'], lastFile: null, view: 'tree' } } },
+      files: { saved: { [timmy.projectId]: { expanded: ['src', 'src/app'], lastFile: null } } },
     });
     browser.toggle();
     await settle();
@@ -158,7 +162,7 @@ describe('FilesBrowser tree', () => {
 
   it('forgets a remembered folder that is gone instead of showing it as broken', async () => {
     const { backend, browser, settle, outline } = await setup({
-      files: { saved: { [timmy.projectId]: { expanded: ['src', 'deleted'], lastFile: null, view: 'tree' } } },
+      files: { saved: { [timmy.projectId]: { expanded: ['src', 'deleted'], lastFile: null } } },
     });
     browser.toggle();
     await settle();
@@ -196,93 +200,141 @@ describe('FilesBrowser tree', () => {
 });
 
 
-describe('FilesBrowser file view', () => {
+describe('FilesBrowser opens a File View', () => {
+  /** The browser open on timmy, with one Tab of one Terminal on screen. */
   const opened = async (initial: Parameters<typeof setup>[0] = {}) => {
     const context = await setup(initial);
+    const tabs = TestBed.inject(TabsState);
+    const terminals = TestBed.inject(TerminalsState);
+    const first = terminals.create(timmy.projectId);
+    terminals.setCurrent(first.id);
     context.browser.toggle();
     await context.settle();
-    return context;
+    const tab = (): Tab => tabs.tabsOf(timmy.projectId).find((each) => each.id === first.tabId) as Tab;
+    const layout = (): TabLayout => tabs.layoutOf(tab()) as TabLayout;
+    /** Each Pane as the keys of its Views, left to right, its expanded View first; the focused Pane starred. */
+    const panes = () =>
+      panesOf(layout()).map((pane) => {
+        const views = [pane.expanded, ...pane.views.filter((view) => viewKey(view) !== viewKey(pane.expanded))];
+        return `${pane.id === layout().focused ? '*' : ''}${views.map(viewKey).join(' ')}`;
+      });
+    const files = () => tabs.filesOf(tab()).map((open) => `${open.path}${open.pinned ? ' (pinned)' : ''}`);
+    return { ...context, tabs, terminals, first, tab, layout, panes, files };
   };
 
-  it('reads a file when it is picked and shows it in place of the tree, remembering it', async () => {
-    const { backend, browser, settle } = await opened();
+  it('opens a click as a preview File View in a Pane to the right of the focused one, which takes the focus', async () => {
+    const { browser, first, panes, files } = await opened();
+    browser.pick('README.md');
+    expect(files()).toEqual(['README.md']);
+    expect(panes()).toEqual([first.id, '*file:README.md']);
+    expect(browser.selected()).toBe('README.md');
+  });
+  it('replaces the preview with the next file clicked, in its place, wherever it was moved', async () => {
+    const { browser, tabs, tab, first, panes, files } = await opened();
+    browser.pick('README.md');
+    // The user moves the preview into the Terminal's Stack.
+    tabs.update(tab(), (layout) => addToStack(layout, PaneId.make(first.id), fileView('README.md')));
+    expect(panes()).toEqual([`*file:README.md ${first.id}`]);
+    tabs.update(tab(), (layout) => showView(layout, PaneId.make(first.id), 0));
     browser.openFile('src/main.ts');
-    expect(browser.view()).toBe('file');
-    expect(browser.file()).toEqual({ status: 'loading', path: 'src/main.ts' });
-    await settle();
-    expect(browser.file()).toEqual({ status: 'text', path: 'src/main.ts', content: 'main\n' });
-    expect(backend.files.calls.filter((call) => call.startsWith('Files.read:'))).toEqual(['Files.read:src/main.ts']);
-    expect(backend.files.saved[timmy.projectId]).toEqual({ expanded: [], lastFile: 'src/main.ts', view: 'file' });
+    expect(files()).toEqual(['src/main.ts']);
+    expect(panes()).toEqual([`*file:src/main.ts ${first.id}`]);
   });
 
-  it('tells a binary file and a file that is too large from text, with no content', async () => {
-    const { browser, settle } = await opened();
-    browser.openFile('logo.png');
-    await settle();
-    expect(browser.file()).toEqual({ status: 'binary', path: 'logo.png' });
-    browser.openFile('big.log');
-    await settle();
-    expect(browser.file()).toEqual({ status: 'tooLarge', path: 'big.log', size: 2_000_000 });
+  it('opens a double click pinned, and the next click as a new preview beside it', async () => {
+    const { browser, first, panes, files } = await opened();
+    browser.pick('README.md', true);
+    expect(files()).toEqual(['README.md (pinned)']);
+    browser.openFile('src/main.ts');
+    expect(files()).toEqual(['README.md (pinned)', 'src/main.ts']);
+    expect(panes()).toEqual([first.id, 'file:README.md', '*file:src/main.ts']);
   });
 
-  it('says a file is gone, and stays on it so the way back is still there', async () => {
-    const { browser, settle } = await opened();
-    browser.openFile('deleted.ts');
-    await settle();
-    expect(browser.file()).toEqual({ status: 'gone', path: 'deleted.ts' });
-    expect(browser.view()).toBe('file');
+  it('pins the preview with a double click on its row, keeping it where it is', async () => {
+    const { browser, first, panes, files } = await opened();
+    browser.pick('README.md');
+    browser.pick('README.md', true);
+    expect(files()).toEqual(['README.md (pinned)']);
+    expect(panes()).toEqual([first.id, '*file:README.md']);
   });
 
-  it('goes back to the tree with the file highlighted and its folders open and read', async () => {
-    const { backend, browser, settle, outline } = await opened();
+  it('keeps a pinned File View when the next file is clicked: the pin button made it stay', async () => {
+    const { browser, tabs, tab, files } = await opened();
+    browser.pick('README.md');
+    tabs.pinFile(tab(), 'README.md');
+    browser.openFile('src/main.ts');
     browser.openFile('src/app/a.ts');
-    await settle();
-    browser.back();
-    await settle();
-    expect(browser.view()).toBe('tree');
-    expect(browser.selected()).toBe('src/app/a.ts');
-    expect(outline()).toEqual(['node_modules', 'src', '  app', '    a.ts', '  main.ts', '.env', 'README.md']);
-    expect(backend.files.saved[timmy.projectId]).toEqual({ expanded: ['src', 'src/app'], lastFile: 'src/app/a.ts', view: 'tree' });
+    expect(files()).toEqual(['README.md (pinned)', 'src/app/a.ts']);
   });
 
-  it('takes Esc to the tree from a file, and closes the sidebar from the tree', async () => {
-    const { browser, settle } = await opened();
+  it('focuses a file already open in the Tab instead of opening it twice', async () => {
+    const { browser, tabs, tab, first, panes, files } = await opened();
+    browser.pick('README.md', true);
+    browser.openFile('src/main.ts');
+    tabs.update(tab(), (layout) => focusPane(layout, PaneId.make(first.id)));
     browser.openFile('README.md');
-    await settle();
-    browser.escape();
-    expect(browser.view()).toBe('tree');
-    expect(browser.open()).toBe(true);
-    browser.escape();
-    expect(browser.open()).toBe(false);
+    expect(files()).toEqual(['README.md (pinned)', 'src/main.ts']);
+    expect(panes()).toEqual([first.id, '*file:README.md', 'file:src/main.ts']);
+    expect(tabs.focusRequest()).toEqual({ tab: first.tabId, view: fileView('README.md') });
   });
 
-  it('resumes the view it was left in when it is closed and opened again', async () => {
-    const { browser, settle } = await opened();
-    browser.openFile('README.md');
-    await settle();
-    browser.toggle();
-    browser.toggle();
-    await settle();
-    expect(browser.view()).toBe('file');
-    expect(browser.file()).toMatchObject({ status: 'text', path: 'README.md' });
+  it('opens like a new Terminal at 6 Panes: in a Stack with room', async () => {
+    const { browser, terminals, panes, first } = await opened();
+    for (let n = 0; n < 4; n++) terminals.create(timmy.projectId, first.tabId);
+    browser.pick('README.md', true);
+    expect(panes()).toHaveLength(6);
+    browser.openFile('src/main.ts');
+    expect(panes()).toHaveLength(6);
+    expect(panes().filter((pane) => pane.startsWith('*'))).toEqual([expect.stringMatching(/^\*file:src\/main\.ts /)]);
   });
 
-  it('reads the file it remembered when it opens in the file view', async () => {
-    const { browser, settle } = await opened({
-      files: { saved: { [timmy.projectId]: { expanded: [], lastFile: 'README.md', view: 'file' } } },
-    });
-    expect(browser.view()).toBe('file');
-    expect(browser.file()).toEqual({ status: 'text', path: 'README.md', content: '# timmy\n' });
+  it('opens a filter match as a File View too, and nothing for a folder or a row that is not an entry', async () => {
+    const { browser, settle, files } = await opened();
+    browser.setFolderOpen('src', true);
+    await settle();
+    browser.pick('src');
+    browser.pick('src/\u0000loading');
+    browser.pick('nope.ts');
+    expect(files()).toEqual([]);
+    browser.filter.set('main');
+    browser.openFile('src/main.ts');
+    expect(files()).toEqual(['src/main.ts']);
   });
 
-  it('falls back to the tree, and forgets the file, when the remembered one is gone', async () => {
-    const { backend, browser, settle } = await opened({
-      files: { saved: { [timmy.projectId]: { expanded: [], lastFile: 'deleted.ts', view: 'file' } } },
-    });
+  it('only highlights the file when no Tab of the Project is on screen: a Tab needs a Terminal', async () => {
+    const { browser, tabs, terminals, first } = await opened();
+    await terminals.close(first.id);
+    browser.pick('README.md');
+    expect(browser.selected()).toBe('README.md');
+    expect(tabs.tabsOf(timmy.projectId)).toEqual([]);
+  });
+
+  it('remembers the file picked as the tree highlight only, never as a reader', async () => {
+    const { backend, browser, settle } = await opened();
+    browser.pick('README.md');
     await settle();
-    expect(browser.view()).toBe('tree');
-    expect(browser.selected()).toBeNull();
-    expect(backend.files.saved[timmy.projectId]).toEqual({ expanded: [], lastFile: null, view: 'tree' });
+    expect(backend.files.saved[timmy.projectId]).toEqual({ expanded: [], lastFile: 'README.md' });
+    expect(backend.files.calls.filter((call) => call.startsWith('Files.read:'))).toEqual([]);
+  });
+
+  it('closes the Tab with its File Views, pinned ones included, when its last Terminal closes', async () => {
+    const { browser, tabs, terminals, first } = await opened();
+    browser.pick('README.md', true);
+    browser.openFile('src/main.ts');
+    await tabs.closeTerminals([first.id]);
+    expect(tabs.tabsOf(timmy.projectId)).toEqual([]);
+    // A Terminal opened again in a Tab of that id (as a restore could) finds no File Views left behind.
+    terminals.create(timmy.projectId, first.tabId);
+    const [again] = tabs.tabsOf(timmy.projectId);
+    expect(tabs.filesOf(again)).toEqual([]);
+  });
+
+  it('closes a File View on its own, and its Pane with it', async () => {
+    const { browser, tabs, tab, first, panes, files } = await opened();
+    browser.pick('README.md', true);
+    tabs.closeFiles(tab(), ['README.md']);
+    expect(files()).toEqual([]);
+    expect(panes()).toEqual([`*${first.id}`]);
   });
 });
 
@@ -331,14 +383,6 @@ describe('FilesBrowser filter', () => {
     expect(browser.matches()).toEqual({ status: 'loading' });
   });
 
-  it('opens a match as a file and clears the filter, so Back returns to the whole tree', async () => {
-    const { browser, settle } = await opened();
-    browser.filter.set('main');
-    browser.openFile('src/main.ts');
-    await settle();
-    expect(browser.filter()).toBe('');
-    expect(browser.view()).toBe('file');
-  });
 });
 
 /** A Project an agent has worked in: git reports each kind of Changed file. */
@@ -368,9 +412,16 @@ const changedDisk = (): FakeDisk => ({
 describe('FilesBrowser changed markers', () => {
   const opened = async () => {
     const context = await setup({ files: { disks: { [timmy.cwd]: changedDisk() } } });
+    // A Tab on screen, so a picked file has a Pane to open in.
+    const tabs = TestBed.inject(TabsState);
+    const terminals = TestBed.inject(TerminalsState);
+    const first = terminals.create(timmy.projectId);
+    terminals.setCurrent(first.id);
     context.browser.toggle();
     await context.settleChanges();
-    return context;
+    /** The paths of the File Views open in that Tab. */
+    const openFiles = () => tabs.tabsOf(timmy.projectId).flatMap((tab) => tabs.filesOf(tab).map((open) => open.path));
+    return { ...context, openFiles };
   };
 
   it('marks each Changed file with its letter and its name, and a collapsed folder with how many changes it holds', async () => {
@@ -405,13 +456,14 @@ describe('FilesBrowser changed markers', () => {
   });
 
   it('does not open a deleted file: there is nothing to read', async () => {
-    const { backend, browser, settle } = await opened();
+    const { browser, settle, openFiles } = await opened();
     browser.setFolderOpen('src', true);
     await settle();
     browser.pick('src/old.ts');
+    browser.pick('src/old.ts', true);
     await settle();
-    expect(browser.view()).toBe('tree');
-    expect(backend.files.calls).not.toContain('Files.read:src/old.ts');
+    expect(openFiles()).toEqual([]);
+    expect(browser.selected()).toBeNull();
   });
 
   it('marks the files of a wholly untracked folder as untracked once it is opened', async () => {
@@ -466,12 +518,13 @@ describe('FilesBrowser changed markers', () => {
   });
 
   it('opens a changed file from the changed-only tree, which needs no folder read', async () => {
-    const { backend, browser, settle } = await opened();
+    const { browser, settle, openFiles, listDirs } = await opened();
     browser.toggleChangedOnly();
     browser.pick('src/app/a.ts');
     await settle();
-    expect(browser.file()).toEqual({ status: 'text', path: 'src/app/a.ts', content: 'a\n' });
-    expect(backend.files.calls).toContain('Files.read:src/app/a.ts');
+    expect(openFiles()).toEqual(['src/app/a.ts']);
+    expect(browser.selected()).toBe('src/app/a.ts');
+    expect(listDirs()).toEqual(['Files.listDir:']);
   });
 
   it('shows no markers and no count in a folder that is not a repository, and the tree still works', async () => {
@@ -678,17 +731,6 @@ describe('FilesBrowser Ctrl+P', () => {
     expect(browser.filterFocus()).toBe(2);
   });
 
-  it('goes back to the tree from a file, so the filter is there to focus', async () => {
-    const { browser, settle } = await setup();
-    browser.toggle();
-    await settle();
-    browser.openFile('README.md');
-    await settle();
-    browser.openWithFilter();
-    expect(browser.view()).toBe('tree');
-    expect(browser.filterFocus()).toBe(1);
-  });
-
   it('does nothing without a Project in view', async () => {
     const { browser, projects } = await setup();
     projects.deselect();
@@ -696,24 +738,6 @@ describe('FilesBrowser Ctrl+P', () => {
     expect(browser.open()).toBe(false);
     browser.toggle();
     expect(browser.open()).toBe(false);
-  });
-});
-
-describe('FilesBrowser pick', () => {
-  it('opens a file picked in the tree, and does nothing for a folder or a row that is not an entry', async () => {
-    const { browser, settle } = await setup();
-    browser.toggle();
-    await settle();
-    browser.setFolderOpen('src', true);
-    await settle();
-    browser.pick('src');
-    browser.pick('src/\u0000loading');
-    browser.pick('nope.ts');
-    expect(browser.view()).toBe('tree');
-    browser.pick('src/main.ts');
-    await settle();
-    expect(browser.view()).toBe('file');
-    expect(browser.file()).toMatchObject({ status: 'text', path: 'src/main.ts' });
   });
 });
 
@@ -736,7 +760,7 @@ describe('FilesBrowser compact folders', () => {
     const context = await setup({
       files: {
         disks: { [timmy.cwd]: chainDisk() },
-        ...(saved === undefined ? {} : { saved: { [timmy.projectId]: { expanded: saved, lastFile: null, view: 'tree' as const } } }),
+        ...(saved === undefined ? {} : { saved: { [timmy.projectId]: { expanded: saved, lastFile: null } } }),
       },
     });
     context.browser.toggle();
@@ -844,8 +868,7 @@ describe('FilesBrowser compact folders', () => {
     await settle();
     browser.pick('src/app/core/rpc/handshake.ts');
     await settle();
-    expect(browser.file()).toEqual({ status: 'text', path: 'src/app/core/rpc/handshake.ts', content: 'handshake\n' });
-    browser.back();
+    expect(browser.selected()).toBe('src/app/core/rpc/handshake.ts');
     browser.filter.set('core/rpc/hand');
     expect(browser.matches()).toMatchObject({ status: 'ready', items: [{ path: 'src/app/core/rpc/handshake.ts', name: 'handshake.ts', dir: 'src/app/core/rpc' }] });
   });

@@ -95,7 +95,7 @@ export const layerFakeFiles = (fake: FakeFiles) =>
     'Files.getState': ({ projectId }) =>
       Effect.sync(() => {
         fake.calls.push('Files.getState');
-        return { width: fake.width, ...(fake.saved[projectId] ?? { expanded: [], lastFile: null, view: 'tree' as const }) };
+        return { width: fake.width, ...(fake.saved[projectId] ?? { expanded: [], lastFile: null }) };
       }),
     'Files.saveState': ({ projectId, ...state }) =>
       Effect.sync(() => {

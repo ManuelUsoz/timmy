@@ -4,12 +4,18 @@ import type { ProjectId } from '../../../shared/projects/projects.model';
 import type { ProjectLayout, SavedTab } from '../../../shared/workspace/workspace.model';
 import { NotificationsState } from '../shell/notifications-state';
 import type { Provider } from '../../../shared/settings/settings.model';
-import { inStep, replaceView, type TabLayout } from './pane-layout';
+import { bringForward, inStep, replaceView, type TabLayout } from './pane-layout';
 import type { TerminalEntry, TerminalId } from './terminal-entries';
 import { TerminalsState } from './terminals-state';
 import { restoredFrom, savedTabsOf } from './saved-layout';
 import { tabsOf, type Tab, type TabId } from './tabs';
-import { terminalView, type ViewId } from './views';
+import { fileView, terminalView, type ViewId } from './views';
+
+/** A File View open in a Tab (GLOSSARY: File View): its file, and whether it is pinned or the Tab's preview. */
+export interface OpenFile {
+  readonly path: string;
+  readonly pinned: boolean;
+}
 
 /**
  * The Tabs of every Project. `WorkspacePersistence` saves them and brings them back (ADR 0011). A Tab is made of the Terminals
@@ -80,10 +86,11 @@ export class TabsState {
     });
   }
 
-  /** Closes every Terminal of the Tab, which ends the Tab. */
+  /** Closes every Terminal of the Tab, which ends the Tab, its File Views with it. */
   async close(tab: Tab): Promise<void> {
     await Promise.all(tab.terminals.map((terminal) => this.terminals.close(terminal.id)));
     this.rename(tab.id, '');
+    this.setFiles(tab.id, []);
     this.visitOrder.update((visits) => {
       const next = new Map(visits);
       next.delete(tab.id);
@@ -116,13 +123,79 @@ export class TabsState {
     return this.layoutWith(tab.id, tab.terminals.map((terminal) => terminal.id));
   }
 
-  /** The kept layout of a Tab, following restarts, in step with these Terminals. */
+  /** The kept layout of a Tab, following restarts, in step with these Terminals and the Tab's File Views. */
   private layoutWith(id: TabId, terminals: ReadonlyArray<TerminalId>): TabLayout | undefined {
     let stored = this.layouts().get(id);
     if (stored !== undefined) {
       for (const [from, to] of this.terminals.restarts()) stored = replaceView(stored, terminalView(from), terminalView(to));
     }
-    return inStep(stored, terminals.map(terminalView));
+    // A Tab exists only while it has a Terminal: without one, its File Views have nowhere to be.
+    if (terminals.length === 0) return undefined;
+    const files = (this.files().get(id) ?? []).map((open) => fileView(open.path));
+    return inStep(stored, [...terminals.map(terminalView), ...files]);
+  }
+
+  // ---- File Views (ADR 0013) ---------------------------------------------------------------------------------------
+
+  /** The File Views open in each Tab, in the order they were opened. A Tab has at most one that is not pinned. */
+  private readonly files = signal<ReadonlyMap<TabId, ReadonlyArray<OpenFile>>>(new Map());
+
+  filesOf(tab: Tab): ReadonlyArray<OpenFile> {
+    return this.files().get(tab.id) ?? [];
+  }
+
+  /** Ticks with the View to take the keyboard: a file picked in the tree focuses its File View, as a click on it would. */
+  readonly focusRequest = signal<{ readonly tab: TabId; readonly view: ViewId } | undefined>(undefined);
+
+  /**
+   * A file picked in the Files browser opens in the Tab (ADR 0013). Already open: its View comes forward (and is pinned
+   * if `pin`). Otherwise it takes the preview's place, or with no preview opens like a new Terminal: a Pane to the right
+   * of the focused one, or a place in a Stack with room at 6 Panes. Either way its Pane is focused and takes the keyboard.
+   * `pin` (a double click) opens it pinned; a click opens a preview.
+   */
+  openFile(tab: Tab, path: string, pin = false): void {
+    const view = fileView(path);
+    const open = this.filesOf(tab);
+    const current = this.layoutOf(tab);
+    if (current === undefined) return;
+    const existing = open.find((each) => each.path === path);
+    const preview = open.find((each) => !each.pinned);
+    if (existing !== undefined) {
+      if (pin) this.setFiles(tab.id, open.map((each) => (each.path === path ? { path, pinned: true } : each)));
+      this.keep(tab.id, bringForward(current, view));
+    } else if (preview !== undefined) {
+      // Placed on the layout before the files change, so the new View takes the preview's place instead of a new Pane.
+      this.keep(tab.id, bringForward(replaceView(current, fileView(preview.path), view), view));
+      this.setFiles(tab.id, open.map((each) => (each === preview ? { path, pinned: pin } : each)));
+    } else {
+      this.setFiles(tab.id, [...open, { path, pinned: pin }]);
+      const placed = this.layoutOf(tab);
+      if (placed !== undefined) this.keep(tab.id, bringForward(placed, view));
+    }
+    this.focusRequest.set({ tab: tab.id, view });
+  }
+
+  /** The pin button, or a drag: the File View stays until closed; the next file picked opens beside it. */
+  pinFile(tab: Tab, path: string): void {
+    this.setFiles(tab.id, this.filesOf(tab).map((each) => (each.path === path ? { path, pinned: true } : each)));
+  }
+
+  /** Closes these File Views of the Tab; a Pane left empty goes. */
+  closeFiles(tab: Tab, paths: ReadonlyArray<string>): void {
+    this.setFiles(tab.id, this.filesOf(tab).filter((each) => !paths.includes(each.path)));
+  }
+
+  private setFiles(id: TabId, files: ReadonlyArray<OpenFile>): void {
+    this.files.update((all) => {
+      const next = new Map(all);
+      if (files.length === 0) next.delete(id);
+      else next.set(id, files);
+      return next;
+    });
+  }
+
+  private keep(id: TabId, layout: TabLayout): void {
+    this.layouts.update((layouts) => new Map(layouts).set(id, layout));
   }
 
   /** Applies a rule to the Tab's current layout and keeps the result. */
@@ -157,9 +230,14 @@ export class TabsState {
     return terminal;
   }
 
-  /** Closes these Terminals of the Tab; their Views, and any Pane left empty, go with them. */
+  /**
+   * Closes these Terminals of the Tab; their Views, and any Pane left empty, go with them. A Tab whose last Terminal
+   * closed is gone, and its File Views, pinned ones included, close with it.
+   */
   async closeTerminals(terminals: ReadonlyArray<TerminalId>): Promise<void> {
     await Promise.all(terminals.map((id) => this.terminals.close(id)));
+    const live = new Set(this.terminals.entries().map((entry) => entry.tabId));
+    this.files.update((all) => new Map([...all].filter(([id]) => live.has(id))));
   }
 
   statusOf(terminal: TerminalId): TerminalStatus {

@@ -2,7 +2,6 @@
 <div class="stack">
   @for (view of views(); track view.key) {
     @let side = dropSide(view);
-    @let status = badge(view.entry);
     @if (side === 'before') {
       <div class="drop"><span>{{ i18n.t('stack.drop') }}</span></div>
     }
@@ -12,6 +11,7 @@
         role="group"
         [attr.aria-label]="view.name"
         [attr.data-index]="view.index"
+        [attr.data-kind]="view.kind"
         [attr.draggable]="draggable() && renaming() !== view.key ? 'true' : null"
         [class.dragging]="isDragged(view)"
         (dragstart)="dragStart($event, view)"
@@ -23,17 +23,41 @@
           <svg class="grip" viewBox="0 0 16 16" aria-hidden="true"><g><circle cx="6" cy="4" r="1" /><circle cx="10" cy="4" r="1" /><circle cx="6" cy="8" r="1" /><circle cx="10" cy="8" r="1" /><circle cx="6" cy="12" r="1" /><circle cx="10" cy="12" r="1" /></g></svg>
           <kbd class="ix" aria-hidden="true">{{ view.index + 1 }}</kbd>
         }
-        <svg class="glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
-        @if (renaming() === view.key) {
-          <app-terminal-name-field [terminal]="view.entry" (done)="renaming.set(undefined)" />
+        @if (view.kind === 'terminal') {
+          @let status = badge(view.entry);
+          <svg class="glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
+          @if (renaming() === view.key) {
+            <app-terminal-name-field [terminal]="view.entry" (done)="renaming.set(undefined)" />
+          } @else {
+            <span class="name" (dblclick)="renaming.set(view.key)">{{ view.name }}</span>
+          }
+          <span class="number">#{{ view.entry.number }}</span>
+          @if (stacked()) {
+            <span class="count">{{ view.index + 1 }}/{{ pane().views.length }}</span>
+          }
+          <ui-state [tone]="status.tone" [attr.data-activity]="status.activity ?? null">{{ i18n.t(status.key) }}</ui-state>
         } @else {
-          <span class="name" (dblclick)="renaming.set(view.key)">{{ view.name }}</span>
+          <svg class="glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2h5l3 3v9H4zM9 2v3h3" /></svg>
+          <span class="name" [class.preview]="!view.file.pinned">{{ view.name }}</span>
+          <span class="dir" [attr.title]="view.file.path">{{ view.dir }}</span>
+          @if (stacked()) {
+            <span class="count">{{ view.index + 1 }}/{{ pane().views.length }}</span>
+          }
+          @if (!view.file.pinned) {
+            <span class="tag">{{ i18n.t('fileView.preview') }}</span>
+          }
+          <button
+            type="button"
+            class="tool pin"
+            [attr.aria-pressed]="view.file.pinned"
+            [attr.aria-label]="view.file.pinned ? i18n.t('fileView.pinned') : i18n.t('fileView.pin')"
+            [attr.title]="view.file.pinned ? i18n.t('fileView.pinned') : i18n.t('fileView.pin')"
+            [disabled]="view.file.pinned"
+            (click)="pin(view.file.path)"
+          >
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2h4M7 2v4L4.5 9h7L9 6V2M8 9v5" /></svg>
+          </button>
         }
-        <span class="number">#{{ view.entry.number }}</span>
-        @if (stacked()) {
-          <span class="count">{{ view.index + 1 }}/{{ pane().views.length }}</span>
-        }
-        <ui-state [tone]="status.tone" [attr.data-activity]="status.activity ?? null">{{ i18n.t(status.key) }}</ui-state>
         <span class="ctl">
           <app-new-terminal #splitRight kind="ghost" size="sm" iconOnly neutral [label]="i18n.t('pane.splitRight')" [hint]="withKeys('pane.splitRight', keys.splitRight)" [disabled]="!canSplitRight()" (chosen)="splitPane('right', $event)">
             <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM8 3v10" /></svg>
@@ -78,19 +102,21 @@
                   <span class="mi-label">{{ i18n.t('stack.unstack') }}</span>
                   <span class="hint">@for (key of keys.unstack; track $index) {<kbd>{{ key }}</kbd>}</span>
                 </button>
-                <div class="divider" role="separator"></div>
-                <button type="button" class="mi" role="menuitem" (click)="menuOpen.set(false); renaming.set(view.key)">
-                  <span class="mi-label">{{ i18n.t('terminals.rename') }}</span>
-                </button>
-                <button type="button" class="mi" role="menuitem" [disabled]="view.entry.state === 'Idle'" (click)="restart(view)">
-                  <span class="mi-label">{{ i18n.t('terminals.restart') }}</span>
-                </button>
-                <button type="button" class="mi" role="menuitem" disabled>
-                  <span class="mi-label">{{ soon('stack.openDiff') }}</span>
-                </button>
-                <button type="button" class="mi" role="menuitem" disabled>
-                  <span class="mi-label">{{ soon('stack.openPr') }}</span>
-                </button>
+                @if (view.kind === 'terminal') {
+                  <div class="divider" role="separator"></div>
+                  <button type="button" class="mi" role="menuitem" (click)="menuOpen.set(false); renaming.set(view.key)">
+                    <span class="mi-label">{{ i18n.t('terminals.rename') }}</span>
+                  </button>
+                  <button type="button" class="mi" role="menuitem" [disabled]="view.entry.state === 'Idle'" (click)="restart(view.entry)">
+                    <span class="mi-label">{{ i18n.t('terminals.restart') }}</span>
+                  </button>
+                  <button type="button" class="mi" role="menuitem" disabled>
+                    <span class="mi-label">{{ soon('stack.openDiff') }}</span>
+                  </button>
+                  <button type="button" class="mi" role="menuitem" disabled>
+                    <span class="mi-label">{{ soon('stack.openPr') }}</span>
+                  </button>
+                }
                 <div class="divider" role="separator"></div>
                 @if (stacked()) {
                   <button type="button" class="mi" role="menuitem" (click)="askClose('view')">
@@ -109,7 +135,11 @@
         </span>
       </div>
       <div class="body">
-        <app-terminal-screen class="terminal" bare [active]="focused()" [terminal]="view.entry" [cwd]="cwd()" [attr.aria-label]="i18n.t('terminals.screen')" />
+        @if (view.kind === 'terminal') {
+          <app-terminal-screen class="terminal" bare [active]="focused()" [terminal]="view.entry" [cwd]="cwd()" [attr.aria-label]="i18n.t('terminals.screen')" />
+        } @else {
+          <app-file-view [cwd]="cwd()" [path]="view.file.path" [tabId]="tab().id" />
+        }
       </div>
     } @else {
       <button
@@ -119,6 +149,7 @@
         aria-expanded="false"
         [attr.aria-label]="view.name"
         [attr.data-index]="view.index"
+        [attr.data-kind]="view.kind"
         [class.dragging]="isDragged(view)"
         (click)="show(view.index)"
         (dragstart)="dragStart($event, view)"
@@ -128,10 +159,20 @@
       >
         <svg class="grip" viewBox="0 0 16 16" aria-hidden="true"><g><circle cx="6" cy="4" r="1" /><circle cx="10" cy="4" r="1" /><circle cx="6" cy="8" r="1" /><circle cx="10" cy="8" r="1" /><circle cx="6" cy="12" r="1" /><circle cx="10" cy="12" r="1" /></g></svg>
         <kbd class="ix" aria-hidden="true">{{ view.index + 1 }}</kbd>
-        <svg class="glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
-        <span class="name">{{ view.name }}</span>
-        <span class="number">#{{ view.entry.number }}</span>
-        <ui-state [tone]="status.tone" [attr.data-activity]="status.activity ?? null">{{ i18n.t(status.key) }}</ui-state>
+        @if (view.kind === 'terminal') {
+          @let status = badge(view.entry);
+          <svg class="glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v10H2zM5 7l2 1.5L5 10M8.5 10.5H11" /></svg>
+          <span class="name">{{ view.name }}</span>
+          <span class="number">#{{ view.entry.number }}</span>
+          <ui-state [tone]="status.tone" [attr.data-activity]="status.activity ?? null">{{ i18n.t(status.key) }}</ui-state>
+        } @else {
+          <svg class="glyph" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2h5l3 3v9H4zM9 2v3h3" /></svg>
+          <span class="name" [class.preview]="!view.file.pinned">{{ view.name }}</span>
+          <span class="dir">{{ view.dir }}</span>
+          @if (!view.file.pinned) {
+            <span class="tag">{{ i18n.t('fileView.preview') }}</span>
+          }
+        }
       </button>
     }
     @if (side === 'after') {

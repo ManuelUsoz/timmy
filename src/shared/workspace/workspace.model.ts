@@ -28,11 +28,15 @@ const TerminalViewByTerminalId = Schema.String.pipe(
   ),
 );
 
+/** A File View (GLOSSARY: File View, ADR 0013): the file it shows, by its path in the Project with `/`. */
+export const FileView = Schema.Struct({ kind: Schema.Literal('file'), path: Schema.String }).annotate({ identifier: 'FileView' });
+export type FileView = typeof FileView.Type;
+
 /**
- * What names a View in a layout (GLOSSARY: View), by the kind of thing it shows. A closed union: a File View joins it
- * as one more member, and the layout rules stay as they are. It is always saved in its own form.
+ * What names a View in a layout (GLOSSARY: View), by the kind of thing it shows: a Terminal or a file. A closed union;
+ * the layout rules compare Views by their key and stay the same for every kind. It is always saved in its own form.
  */
-export const ViewId = Schema.Union([TerminalView, TerminalViewByTerminalId]).annotate({ identifier: 'ViewId' });
+export const ViewId = Schema.Union([TerminalView, FileView, TerminalViewByTerminalId]).annotate({ identifier: 'ViewId' });
 export type ViewId = typeof ViewId.Type;
 
 /** A Pane: its Views in Stack order, and the one expanded. A Pane with one View is not a Stack. */

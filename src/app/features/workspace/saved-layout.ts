@@ -1,9 +1,21 @@
 import type { ProjectId } from '../../../shared/projects/projects.model';
 import { defaultTerminalName } from '../../../shared/workspace/terminal-name';
 import type { ProjectLayout, SavedTab } from '../../../shared/workspace/workspace.model';
-import { focusPane, panesOf, type TabLayout } from './pane-layout';
+import { focusPane, panesOf, withoutView, type TabLayout } from './pane-layout';
 import type { Tab, TabId } from './tabs';
 import type { TerminalEntry } from './terminal-entries';
+
+/**
+ * The layout as if its File Views were closed: they are not saved with the Tab yet (ADR 0013 saves pinned ones, in a
+ * later slice), so a restart brings back the Terminals in their Panes and no File View.
+ */
+const withoutFiles = (layout: TabLayout | undefined): TabLayout | undefined => {
+  let next = layout;
+  for (const view of next === undefined ? [] : panesOf(next).flatMap((pane) => pane.views)) {
+    if (view.kind === 'file' && next !== undefined) next = withoutView(next, view);
+  }
+  return next;
+};
 
 /**
  * A Project's Tabs as they are saved (ADR 0011): the user's name for each, the Terminals in it (identity, number,
@@ -11,7 +23,7 @@ import type { TerminalEntry } from './terminal-entries';
  */
 export const savedTabsOf = (tabs: ReadonlyArray<Tab>, layoutOf: (tab: Tab) => TabLayout | undefined): ReadonlyArray<SavedTab> =>
   tabs.map((tab) => {
-    const layout = layoutOf(tab);
+    const layout = withoutFiles(layoutOf(tab));
     return {
       tabId: tab.id,
       ...(tab.name === undefined ? {} : { name: tab.name }),

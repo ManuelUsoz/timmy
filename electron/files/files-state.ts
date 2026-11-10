@@ -21,7 +21,7 @@ export class FilesState extends Context.Service<
 const WIDTH_KEY = 'files.width';
 const projectKey = (projectId: ProjectId) => `files.project.${projectId}`;
 
-const defaults: ProjectBrowserState = { expanded: [], lastFile: null, view: 'tree' };
+const defaults: ProjectBrowserState = { expanded: [], lastFile: null };
 
 const ProjectJson = Schema.fromJsonString(ProjectBrowserState);
 const WidthJson = Schema.fromJsonString(Schema.Int);

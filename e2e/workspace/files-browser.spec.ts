@@ -5,7 +5,7 @@ import { commitAll, expect, test } from '../fixtures';
 test.describe('The Files browser', () => {
   test.use({ language: 'en' });
 
-  test('a panel on the right: the Project as a tree read folder by folder, and its files read in place', async ({ timmy }) => {
+  test('a panel on the right: the Project as a tree read folder by folder, its files opened as File Views', async ({ timmy }) => {
     const { page } = timmy;
     const write = (file: string, content: string | Buffer) => {
       mkdirSync(path.dirname(path.join(timmy.projectDir, file)), { recursive: true });
@@ -72,49 +72,36 @@ test.describe('The Files browser', () => {
       await expect(row('pkg')).toHaveCount(0);
     });
 
-    await test.step('a file replaces the tree, with line numbers and a long line scrolling sideways', async () => {
+    await test.step('a file opens as a File View beside the Terminal; the sidebar keeps the tree', async () => {
       await row('main.ts').click();
-      await expect(sidebar.getByRole('treeitem')).toHaveCount(0);
-      await expect(sidebar.locator('.head .name')).toHaveText('main.ts');
-      await expect(sidebar.locator('.gutter')).toHaveText('1\n2');
-      await expect(sidebar.locator('.source')).toContainText('export const answer = 42;');
-      const scrolls = await sidebar.locator('.code').evaluate((el) => el.scrollWidth > el.clientWidth);
-      expect(scrolls, 'the long line scrolls sideways').toBe(true);
-      await timmy.shot('files-browser-file', { mask: behind });
-    });
-
-    await test.step("Esc goes back to the tree with the file highlighted; a binary file can't be previewed", async () => {
-      await page.keyboard.press('Escape');
-      await expect(sidebar.getByRole('treeitem').first()).toBeVisible();
+      const view = page.locator('app-pane-stack').filter({ has: page.locator('.view-header[data-kind=file]') });
+      await expect(view.locator('.view-header .name')).toHaveText('main.ts');
+      await expect(view.locator('.gutter')).toHaveText('1\n2');
       await expect(row('main.ts')).toHaveAttribute('aria-selected', 'true');
-      await row('logo.png').click();
-      await expect(sidebar.locator('.note')).toHaveText("Can't preview");
-      await timmy.shot('files-browser-binary', { mask: behind });
-      await sidebar.getByRole('button', { name: 'Back to the tree' }).click();
+      await expect(sidebar.getByRole('treeitem').first()).toBeVisible();
     });
 
     await test.step('Ctrl+P puts the keyboard in the filter, which lists matches by name and opens one with Enter', async () => {
-      await row('README.md').click();
-      await expect(sidebar.locator('.head .name')).toHaveText('README.md');
       await page.keyboard.press('Control+p');
-      await expect(sidebar.getByRole('treeitem').first()).toBeVisible();
       await expect(filter).toBeFocused();
-      await page.keyboard.type('MAIN');
-      await expect(sidebar.getByRole('option')).toHaveText(['main.tssrc']);
+      await page.keyboard.type('READ');
+      await expect(sidebar.getByRole('option')).toHaveText(['README.md']);
       await timmy.shot('files-browser-filter', { mask: behind });
       await page.keyboard.press('Enter');
-      await expect(sidebar.locator('.head .name')).toHaveText('main.ts');
+      await expect(page.locator('.view-header[data-kind=file] .name')).toHaveText(['README.md']);
     });
 
-    await test.step('Esc leaves the file, then the sidebar; it opens again where it was left', async () => {
-      await page.keyboard.press('Escape');
-      await expect(filter).toHaveValue('');
+    await test.step('Esc closes the sidebar; it opens again where it was left', async () => {
+      await filter.focus();
       await page.keyboard.press('Escape');
       await expect(sidebar).toHaveCount(0);
       await expect(filesButton).toHaveAttribute('aria-pressed', 'false');
       await page.keyboard.press('Control+p');
       await expect(sidebar).toBeVisible();
-      await expect(row('main.ts')).toHaveAttribute('aria-selected', 'true');
+      // The filter is kept while the app runs, so more of its matches can be opened; cleared, the tree shows the file picked.
+      await expect(filter).toHaveValue('READ');
+      await filter.fill('');
+      await expect(row('README.md')).toHaveAttribute('aria-selected', 'true');
     });
   });
 });
