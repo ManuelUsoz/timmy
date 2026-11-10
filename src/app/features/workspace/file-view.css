@@ -137,6 +137,12 @@
   background: var(--layer-02);
   box-shadow: var(--shadow-overlay);
   font: var(--text-body-compact-01);
+  /* Only its buttons take the pointer: the lines and numbers under the popover stay clickable (a shift-click to extend
+     the selection must not land on the popover). */
+  pointer-events: none;
+}
+
+.line-actions button {
   pointer-events: auto;
 }
 
