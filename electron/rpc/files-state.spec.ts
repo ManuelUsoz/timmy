@@ -14,6 +14,7 @@ import { AppInfoRpcs } from '../../src/shared/app-info/app-info.rpc';
 import { DEFAULT_BROWSER_WIDTH } from '../../src/shared/files/files.model';
 import { ProjectId } from '../../src/shared/projects/projects.model';
 import { layerFilesState } from '../files/files-state';
+import { layerFileOpenerTest } from '../files/file-opener';
 import { layerProjectFiles } from '../files/project-files';
 import { layerProjectStore, ProjectStore } from '../projects/project-store';
 import { layerFilesHandlers } from './files';
@@ -30,7 +31,7 @@ afterAll(() => roots.forEach((root) => rmSync(root, { recursive: true, force: tr
 const appOn = (file: string) =>
   makeDesktopTestLayer(
     Layer.mergeAll(
-      layerFilesHandlers.pipe(Layer.provide(layerProjectFiles()), Layer.provide(layerFilesState)),
+      layerFilesHandlers.pipe(Layer.provide(layerProjectFiles()), Layer.provide(layerFileOpenerTest()), Layer.provide(layerFilesState)),
       AppInfoRpcs.toLayer({ 'AppInfo.get': () => Effect.die('unused') }),
       layerWindowUnused,
       layerSettingsUnused,
