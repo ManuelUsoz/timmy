@@ -5,9 +5,10 @@ import { TabId } from '../../../shared/workspace/workspace.model';
 import { makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { FileView } from './file-view';
-import type { HljsId } from './file-language';
+import type { HljsId, SymbolsId } from './file-language';
 import { layerFakeFiles, makeFakeFiles, text } from './files-fakes';
 import type { ColourRange } from './source-text';
+import { SYMBOL_OUTLINER, outlineOf } from './symbol-outline';
 import { MAX_COLOURED_LENGTH, SYNTAX_HIGHLIGHTER } from './syntax-highlighter';
 
 @Component({
@@ -26,9 +27,20 @@ const setup = async (files: Record<string, string>, path: string) => {
   const layer = makeDesktopTestLayer(layerFakeFiles(fake));
   /** What the File View asked to colour, in order, each waiting for its answer. */
   const asked: Array<{ readonly hljsId: HljsId; readonly answer: Deferred.Deferred<ReadonlyArray<ColourRange>> }> = [];
+  /** What the File View asked Lezer to outline: the real outline, so a spec reads real symbols. */
+  const outlined: Array<SymbolsId> = [];
   await TestBed.configureTestingModule({
     imports: [Host],
     providers: [
+      {
+        provide: SYMBOL_OUTLINER,
+        useValue: {
+          outline: (content: string, symbols: SymbolsId) => {
+            outlined.push(symbols);
+            return Effect.promise(() => outlineOf(content, symbols));
+          },
+        },
+      },
       { provide: EffectRuntime, useValue: { run: (e: Effect.Effect<unknown, unknown, never>) => Effect.runPromiseExit(Effect.provide(e as never, layer)) } },
       {
         provide: SYNTAX_HIGHLIGHTER,
@@ -65,7 +77,10 @@ const setup = async (files: Record<string, string>, path: string) => {
     );
   const numbers = () => [...el.querySelectorAll('.line .number')].map((number) => number.textContent);
   const status = () => [...el.querySelectorAll('.status > span')].map((part) => part.textContent?.trim());
-  return { el, asked, colour, lines, numbers, status, settle };
+  /** The Breadcrumb as it reads, the strong parts (the file's name, the innermost symbol) written `*name*`. */
+  const breadcrumb = () =>
+    [...el.querySelectorAll('.breadcrumb .crumb')].map((crumb) => (crumb.classList.contains('strong') ? `*${crumb.textContent?.trim()}*` : crumb.textContent?.trim())).join(' › ');
+  return { el, asked, outlined, colour, lines, numbers, status, breadcrumb, settle };
 };
 
 describe('A File View of source', () => {
@@ -105,6 +120,38 @@ describe('A File View of source', () => {
   it('tells CRLF and tabs', async () => {
     const { status } = await setup({ 'Main.java': 'class A {\r\n\tvoid run() {\r\n\t}\r\n}\r\n' }, 'Main.java');
     expect(status()).toEqual(['Ln –', 'Java', 'CRLF', 'Tabulaciones', 'UTF-8']);
+  });
+
+  describe('Breadcrumb', () => {
+    it('shows the path in the Project, then the declarations that hold line 1 while there is no Line selection', async () => {
+      const { breadcrumb, outlined } = await setup({ 'src/app/handshake.service.ts': 'export class HandshakeService {\n  connect() {}\n}\n' }, 'src/app/handshake.service.ts');
+      expect(outlined).toEqual(['typescript']);
+      expect(breadcrumb()).toBe('src › app › *handshake.service.ts* › *HandshakeService*');
+    });
+
+    it('shows Java symbols', async () => {
+      const { breadcrumb } = await setup({ 'Server.java': 'public class Server {\n  void start() {}\n}\n' }, 'Server.java');
+      expect(breadcrumb()).toBe('*Server.java* › *Server*');
+    });
+
+    it('shows the path alone for a line outside any declaration', async () => {
+      const { breadcrumb } = await setup({ 'src/main.ts': "import { a } from './a';\nexport class A {}\n" }, 'src/main.ts');
+      expect(breadcrumb()).toBe('src › *main.ts*');
+    });
+
+    it('shows the path alone for a language with no outline, without loading Lezer', async () => {
+      const { breadcrumb, outlined } = await setup({ 'scripts/build.py': 'class Build:\n  pass\n' }, 'scripts/build.py');
+      expect(breadcrumb()).toBe('scripts › *build.py*');
+      expect(outlined).toEqual([]);
+    });
+
+    it('does not parse a file over the size limit: it shows the path alone', async () => {
+      const line = `export const a = '${'x'.repeat(4000)}';\n`;
+      const big = `export class Big {}\n${line.repeat(Math.ceil(MAX_COLOURED_LENGTH / line.length) + 1)}`;
+      const { breadcrumb, outlined } = await setup({ 'big.ts': big }, 'big.ts');
+      expect(breadcrumb()).toBe('*big.ts*');
+      expect(outlined).toEqual([]);
+    });
   });
 
   it('tells mixed line endings, and leaves out the indent of a file with none', async () => {

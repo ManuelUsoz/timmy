@@ -8,6 +8,45 @@
   color: var(--text-primary);
 }
 
+/* The Breadcrumb: one line above the text. In a narrow Pane the other parts give way before the strong ones. */
+.breadcrumb {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--spacing-02);
+  height: 28px;
+  padding-inline: var(--spacing-04);
+  border-bottom: 1px solid var(--border-subtle);
+  font: var(--text-label-01) / var(--text-label-01--line-height) var(--font-sans);
+  letter-spacing: var(--text-label-01--letter-spacing);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.breadcrumb svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  color: var(--text-helper);
+}
+
+.crumb {
+  flex: 0 1 auto;
+  min-width: 1ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.crumb.strong {
+  flex-shrink: 0;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
 /* The View scrolls both ways; lines never wrap, so a long one scrolls sideways. */
 .scroll {
   flex: 1;

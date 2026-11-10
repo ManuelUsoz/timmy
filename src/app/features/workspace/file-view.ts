@@ -7,6 +7,7 @@ import type { TabId } from './tabs';
 import { TabsState } from './tabs-state';
 import { PLAIN_TEXT, languageOf } from './file-language';
 import { columnsOf, eolOf, indentOf, lineRuns, linesOf, type ColourRange, type LineRange } from './source-text';
+import { SYMBOL_OUTLINER, type Outline } from './symbol-outline';
 import { MAX_COLOURED_LENGTH, SYNTAX_HIGHLIGHTER } from './syntax-highlighter';
 import { fileOf } from './views';
 
@@ -49,7 +50,8 @@ export const formatSize = (bytes: number): string => {
 
 /**
  * The body of a File View (GLOSSARY: File View, ADR 0013): one file of the Project, read-only, one element per line
- * with its number, highlighted by language (`file-language.ts`) once the worker colours it, above a status bar; or the
+ * with its number, highlighted by language (`file-language.ts`) once the worker colours it, under a Breadcrumb (in a
+ * Tab; the Quick look's header has the path) and above a status bar; or the
  * state that says why it is not shown (binary, too large, gone, unreadable). It reads the file when it opens and when its path changes (a preview replaced). A file picked in the tree gives it the keyboard
  * (`TabsState.focusRequest`), so the user can scroll at once. Its header is the Pane's (`PaneStack`).
  */
@@ -66,6 +68,7 @@ export class FileView {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private readonly highlighter = inject(SYNTAX_HIGHLIGHTER);
+  private readonly outliner = inject(SYMBOL_OUTLINER);
 
   /** The Project's folder, which the path is relative to. */
   readonly cwd = input.required<string>();
@@ -93,6 +96,23 @@ export class FileView {
   protected readonly language = computed(() => languageOf(this.name()));
   /** The Line selection; none yet. */
   protected readonly selection = signal<LineRange | undefined>(undefined);
+
+  /** The symbols of each line, once Lezer has outlined the text; never for a file with no outline or a large one. */
+  private readonly outline = signal<Outline | undefined>(undefined);
+  /**
+   * The Breadcrumb (GLOSSARY): the folders, the file's name, then the declarations that hold the Line selection's start
+   * (line 1 with none). The file's name and the innermost symbol are strong.
+   */
+  protected readonly breadcrumb = computed(() => {
+    const folders = this.path().split('/');
+    const name = folders.pop() ?? '';
+    const symbols = this.outline()?.(this.selection()?.from ?? 1) ?? [];
+    return [
+      ...folders.map((text) => ({ text, strong: false })),
+      { text: name, strong: true },
+      ...symbols.map((text, index) => ({ text, strong: index === symbols.length - 1 })),
+    ];
+  });
 
   /** The status bar: lines, language, line endings, indent guess and a fixed encoding. */
   protected readonly status = computed(() => {
@@ -138,8 +158,20 @@ export class FileView {
     if (path !== this.path() || cwd !== this.cwd()) return;
     const file: FileState = Exit.isSuccess(exit) ? exit.value : { status: 'failed', detail: Cause.pretty(exit.cause) };
     this.colours.set([]);
+    this.outline.set(undefined);
     this.file.set(file);
-    if (file.status === 'text') void this.colour(cwd, path, file.content);
+    if (file.status !== 'text') return;
+    void this.colour(cwd, path, file.content);
+    void this.outlineText(cwd, path, file.content);
+  }
+
+  /** Has Lezer outline a text whose language has symbols and that is not too large; only the path shows meanwhile. */
+  private async outlineText(cwd: string, path: string, content: string): Promise<void> {
+    const { symbols } = this.language();
+    if (symbols === undefined || content.length > MAX_COLOURED_LENGTH) return;
+    const exit = await this.runtime.run(this.outliner.outline(content, symbols));
+    if (path !== this.path() || cwd !== this.cwd() || this.content() !== content) return;
+    if (Exit.isSuccess(exit)) this.outline.set(exit.value);
   }
 
   /** Asks the worker for the colours of a text that has a language and is not too large; the plain text shows meanwhile. */

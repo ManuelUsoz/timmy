@@ -111,6 +111,31 @@ test.describe('A File View', () => {
     await expect(view.locator('.tok-meta')).toHaveText(['@Injectable']);
     await expect(view.locator('.tok-number').first()).toHaveText('5');
     await expect(view.locator('.status > span')).toHaveText(['Ln –', 'TypeScript', 'CRLF', 'Spaces: 2', 'UTF-8']);
+    // Line 1 is an import: the Breadcrumb is the path alone.
+    await expect(view.locator('.breadcrumb .crumb')).toHaveText(['src', 'handshake.service.ts']);
     await timmy.shot('file-view-highlighted', { mask: behind });
+  });
+
+  test('the Breadcrumb shows the path, then the declarations that hold the line', async ({ timmy }) => {
+    const { page } = timmy;
+    const source = ['export class HandshakeService {', '  connect(attempt: number): boolean {', '    return attempt < 5;', '  }', '}', ''].join('\n');
+    mkdirSync(path.join(timmy.projectDir, 'src', 'core'), { recursive: true });
+    writeFileSync(path.join(timmy.projectDir, 'src', 'core', 'handshake.service.ts'), source);
+    commitAll(timmy.projectDir);
+
+    const sidebar = page.getByRole('complementary', { name: 'Files' });
+    const behind = [page.locator('app-pane-stack').filter({ has: page.locator('app-terminal-screen') }).locator('.body')];
+    await timmy.openProjectTerminal();
+    await page.keyboard.press('Control+p');
+    // Open, a folder with only a folder inside becomes one row (`src/core`), open too.
+    await sidebar.getByRole('treeitem', { name: 'src', exact: true }).click();
+    await sidebar.getByRole('treeitem', { name: 'handshake.service.ts', exact: true }).click();
+
+    const breadcrumb = page.getByRole('navigation', { name: 'Path and symbols' });
+    // Lezer loads with the first file that has symbols; the path shows meanwhile.
+    await expect(breadcrumb.locator('.crumb')).toHaveText(['src', 'core', 'handshake.service.ts', 'HandshakeService']);
+    await expect(breadcrumb.locator('.crumb.strong')).toHaveText(['handshake.service.ts', 'HandshakeService']);
+    await expect(page.locator('app-file-view .tok-keyword').first()).toHaveText('export');
+    await timmy.shot('file-view-breadcrumb', { mask: behind });
   });
 });
