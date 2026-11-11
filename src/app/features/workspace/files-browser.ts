@@ -227,6 +227,15 @@ export class FilesBrowser {
     this.filterFocus.update((count) => count + 1);
   }
 
+  /** Shows a folder of the Project in the tree: the sidebar opens and the folder and those that hold it are open. */
+  reveal(folder: string): void {
+    if (!this.open()) this.toggle();
+    if (!this.open()) return;
+    const parts = folder.split('/');
+    this.openFolders(parts.map((_, index) => parts.slice(0, index + 1).join('/')));
+    this.persist();
+  }
+
   /**
    * Opens or closes a folder of the tree. It is read the first time it opens, and again only after a refresh. A chain of
    * single-child folders is one row whose id is its first folder: the whole chain opens and closes with it.

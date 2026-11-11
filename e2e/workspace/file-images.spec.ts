@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { png } from '../png';
 import { commitAll, expect, test } from '../fixtures';
+import { png } from '../png';
 
 /** A blue disc on a transparent ground, so the checkerboard shows around it. */
 const disc = png(160, 120, (x, y) => ((x - 80) ** 2 + (y - 60) ** 2 < 50 ** 2 ? [69, 137, 255, 255] : [0, 0, 0, 0]));
