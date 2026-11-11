@@ -130,6 +130,11 @@
   min-width: 6ch;
 }
 
+/* A file that no longer exists: its name is struck through. */
+.name.gone {
+  text-decoration: line-through;
+}
+
 .name.preview {
   font-style: italic;
 }

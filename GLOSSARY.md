@@ -57,6 +57,9 @@ A read-only sidebar docked on the right of the Workspace, beside the Panes, whic
 One contiguous range of lines in a File View, marked by clicking or dragging the line numbers. It is separate from the browser's text selection, not saved, and used by Copiar, Copiar ruta and Mencionar.
 _Avoid_: text selection (for the browser's selection).
 
+**Stale File View**
+A File View whose file is no longer the version on screen. Main answers a file's version (modified time and size, or gone) without reading content, for every open File View of the Project at once, on the triggers of the Changed markers (Hook `PostToolUse`/`Stop`, window focus) and when a View is focused; no timer, no watcher. A changed file shows a slim bar with Recargar and never replaces the text by itself; a deleted or renamed one (renames are not followed) keeps its last text dimmed under a "ya no existe" bar, with no Recargar. Mencionar of the Line selection and Copiar ruta with a range wait for Recargar; path-only actions and copying text are never blocked. The Quick look has none of this.
+
 **Stack**
 A Pane holding two or three Views, one expanded and the others collapsed to their headers.
 

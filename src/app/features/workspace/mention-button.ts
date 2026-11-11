@@ -25,7 +25,7 @@ import { statusKey } from './terminal-view';
     <button
       type="button"
       class="mention-go"
-      [disabled]="target === undefined"
+      [disabled]="target === undefined || blocked() !== undefined"
       [attr.aria-label]="target === undefined ? i18n.t('mention.mention') : i18n.t('mention.into', { name: target.entry.name, number: target.entry.number })"
       [attr.title]="hint()"
       (click)="go()"
@@ -39,8 +39,8 @@ import { statusKey } from './terminal-view';
       aria-haspopup="menu"
       [attr.aria-expanded]="open()"
       [attr.aria-label]="i18n.t('mention.choose')"
-      [attr.title]="targets().length === 0 ? hint() : i18n.t('mention.choose')"
-      [disabled]="targets().length === 0"
+      [attr.title]="blocked() ?? (targets().length === 0 ? hint() : i18n.t('mention.choose'))"
+      [disabled]="targets().length === 0 || blocked() !== undefined"
       (click)="toggle()"
     >
       <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" /></svg>
@@ -85,6 +85,8 @@ export class MentionButton {
   readonly lines = input<LineSelection>();
   /** In the header the button says "Mencionar"; in the popover it names the agent it types into. */
   readonly place = input<'header' | 'popover'>('header');
+  /** Why it cannot be used right now (the file is stale or gone), shown as its tooltip; none when it can. */
+  readonly blocked = input<string>();
 
   protected readonly open = signal(false);
   private readonly projectId = computed(() => this.mentions.projectOfTab(this.tabId()));
@@ -103,6 +105,8 @@ export class MentionButton {
 
   /** What the button would do, or why it cannot. */
   protected readonly hint = computed(() => {
+    const blocked = this.blocked();
+    if (blocked !== undefined) return blocked;
     const target = this.chosen();
     if (target !== undefined) return this.i18n.t('mention.hint', { name: target.entry.name, number: target.entry.number });
     return this.targets().length === 0 ? this.i18n.t('mention.none') : this.i18n.t('mention.allWaiting');
@@ -110,12 +114,12 @@ export class MentionButton {
 
   protected go(): void {
     const target = this.chosen();
-    if (target !== undefined) void this.send(target);
+    if (target !== undefined && this.blocked() === undefined) void this.send(target);
   }
 
   protected pick(target: MentionTarget): void {
     this.open.set(false);
-    void this.send(target);
+    if (this.blocked() === undefined) void this.send(target);
   }
 
   private async send(target: MentionTarget): Promise<void> {

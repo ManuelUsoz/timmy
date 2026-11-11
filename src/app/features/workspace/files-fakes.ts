@@ -20,6 +20,8 @@ export interface FakeDisk {
   files: Record<string, FileContent>;
   /** What reading each file as an image gives; a file of `files` missing here is not an image (size 0). */
   images?: Record<string, ImageContent>;
+  /** The modified time `Files.versions` answers per file (0 when absent); `rewrite` bumps it with the content. */
+  mtimes?: Record<string, number>;
   /** Files that exist and cannot be read (no permission). */
   unreadable?: ReadonlyArray<string>;
   /** What `Files.list` answers (non-ignored paths); null for a folder without git. */
@@ -63,6 +65,19 @@ export const hunkOf = (...lines: ReadonlyArray<string>): FileDiff => {
   const newLines = parsed.filter((line) => line.kind !== 'removed').length;
   return { kind: 'changes', hunks: [{ oldStart: oldLines === 0 ? 0 : 1, oldLines, newStart: newLines === 0 ? 0 : 1, newLines, lines: parsed }] };
 };
+
+/**
+ * Changes a file of the fake disk as an agent would: its content and its version move together (`path` is created or
+ * recreated if it was not there). Deleting is `delete disk.files[path]`.
+ */
+export const rewrite = (fake: FakeFiles, cwd: string, path: string, content: string): void => {
+  const disk = fake.disks[cwd]!;
+  disk.files[path] = text(content);
+  disk.mtimes = { ...disk.mtimes, [path]: (disk.mtimes?.[path] ?? 0) + 1 };
+};
+
+/** The size `Files.versions` answers for a file of the fake disk. */
+const sizeOf = (content: FileContent): number => (content.kind === 'text' ? content.content.length : content.kind === 'tooLarge' ? content.size : 0);
 
 export const makeFakeFiles = (initial: Partial<FakeFiles> = {}): FakeFiles => ({
   disks: {},
@@ -142,6 +157,15 @@ export const layerFakeFiles = (fake: FakeFiles) =>
         if (disk?.unreadable?.includes(path) === true) return yield* new FilesError({ reason: 'Unreadable', detail: path });
         if (disk?.files[path] === undefined) return yield* new FilesError({ reason: 'FileNotFound', detail: path });
         return disk.images?.[path] ?? { kind: 'notAnImage' as const, size: 0 };
+      }),
+    'Files.versions': ({ cwd, files }) =>
+      Effect.sync(() => {
+        fake.calls.push(`Files.versions:${files.join(',')}`);
+        const disk = fake.disks[cwd];
+        return files.map((path) => {
+          const content = disk?.files[path];
+          return { file: path, version: content === undefined ? null : { modified: disk?.mtimes?.[path] ?? 0, size: sizeOf(content) } };
+        });
       }),
     'Files.getState': ({ projectId }) =>
       Effect.sync(() => {

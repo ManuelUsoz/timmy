@@ -15,6 +15,7 @@ import {
   type FileContent,
   type FileDiff,
   type FileList,
+  type FileVersionAnswer,
   type FolderEntry,
   type FolderListing,
   type ImageContent,
@@ -41,6 +42,8 @@ export class ProjectFiles extends Context.Service<
     readonly resolveLink: (cwd: string, candidate: string, folder: string | null) => Effect.Effect<PathLinkTarget | null>;
     /** One file of `cwd` as an image, confined as `read` is; its caps are checked before any byte leaves main. */
     readonly readImage: (cwd: string, file: string) => Effect.Effect<ImageContent, FilesError>;
+    /** The version of each of `files` from the disk's metadata alone, never its content; see `Files.versions`. */
+    readonly versions: (cwd: string, files: ReadonlyArray<string>) => Effect.Effect<ReadonlyArray<FileVersionAnswer>>;
   }
 >()('files/ProjectFiles') {}
 
@@ -267,6 +270,22 @@ const readFileContent = Effect.fn('ProjectFiles.read')(function* (cwd: string, f
   return toFileContent(bytes);
 });
 
+/**
+ * The version of one file: its `stat`, never its content. Not a file (gone, a folder) is null; a path that cannot be
+ * confined or whose metadata cannot be read has no answer, so the renderer keeps what it knew.
+ */
+const versionOf = (cwd: string, file: string): Effect.Effect<FileVersionAnswer | undefined> =>
+  confine(cwd, file).pipe(
+    Effect.flatMap((target) => Effect.tryPromise({ try: () => stat(target), catch: (error) => fsFailure(error, 'file', file) })),
+    Effect.map((info): FileVersionAnswer | undefined => ({ file, version: info.isFile() ? { modified: info.mtimeMs, size: info.size } : null })),
+    Effect.catchTag('FilesError', (error) => Effect.succeed<FileVersionAnswer | undefined>(error.reason === 'FileNotFound' ? { file, version: null } : undefined)),
+  );
+
+const readVersions = Effect.fn('ProjectFiles.versions')(function* (cwd: string, files: ReadonlyArray<string>) {
+  const answers = yield* Effect.forEach(files, (file) => versionOf(cwd, file), { concurrency: 16 });
+  return answers.filter((answer) => answer !== undefined);
+});
+
 /** `@@ -oldStart,oldLines +newStart,newLines @@`; a count left out is 1. */
 const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 
@@ -420,4 +439,5 @@ export const layerProjectFiles = (limit: number = MAX_LISTED_PATHS) =>
     diff: readDiff,
     resolveLink,
     readImage: readImageContent,
+    versions: readVersions,
   });

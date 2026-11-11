@@ -208,6 +208,60 @@
   margin-inline-end: auto;
 }
 
+/* The slim bar of a File View whose file changed on disk (stale) or is no longer there (gone), above the text. */
+.notice {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--spacing-04);
+  min-height: 28px;
+  padding-inline: var(--spacing-04);
+  border-bottom: 1px solid var(--border-subtle);
+  border-inline-start: 3px solid var(--support-warning);
+  background: var(--layer-02);
+  font: var(--text-label-01) / var(--text-label-01--line-height) var(--font-sans);
+  letter-spacing: var(--text-label-01--letter-spacing);
+  color: var(--text-primary);
+}
+
+.notice.gone {
+  border-inline-start-color: var(--support-error);
+}
+
+.notice-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notice-action {
+  flex: none;
+  height: 22px;
+  padding: 0 var(--spacing-03);
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.notice-action:hover {
+  background: var(--layer-hover);
+}
+
+.notice-action:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
+/* The last text of a file that is gone, still readable but not current. */
+.scroll.dimmed {
+  opacity: 0.55;
+}
+
 .note {
   margin: 0;
   padding: var(--spacing-05);

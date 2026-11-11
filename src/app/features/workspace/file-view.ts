@@ -5,6 +5,7 @@ import { DesktopApi } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { I18n } from '../../core/i18n';
 import { FilePicture } from './file-picture';
+import { FileVersions, sameVersion, type DiskVersion } from './file-versions';
 import { readFile, readPicture, type FileState } from './file-read';
 import { LineSelections, clampLines, clickLine, isOnlyLine, lineRange, pathWithLines, rangeFrom, selectedText, type LineSelection } from './line-selection';
 import { ReaderMode } from './reader-mode';
@@ -84,7 +85,7 @@ export const formatSize = (bytes: number): string => {
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './file-view.html',
   styleUrl: './file-view.css',
-  host: { '(document:mouseup)': 'endDrag()' },
+  host: { '(document:mouseup)': 'endDrag()', '(focusin)': 'versions.check()' },
 })
 export class FileView {
   protected readonly i18n = inject(I18n);
@@ -96,6 +97,7 @@ export class FileView {
   private readonly outliner = inject(SYMBOL_OUTLINER);
   protected readonly reader = inject(ReaderMode);
   private readonly selections = inject(LineSelections);
+  protected readonly versions = inject(FileVersions);
 
   /** The Project's folder, which the path is relative to. */
   readonly cwd = input.required<string>();
@@ -105,6 +107,37 @@ export class FileView {
 
   protected readonly file = signal<FileState>({ status: 'loading' });
   protected readonly name = computed(() => this.path().split('/').at(-1) ?? this.path());
+
+  /**
+   * The version of the file the text on screen was read from (null: it was not there); none until the first read, and
+   * always none outside a Tab, where there is no hint (the Quick look).
+   */
+  private readonly loaded = signal<DiskVersion | undefined>(undefined);
+  /** Whether the file went missing after it was read: a path that comes back is then stale, even with the same version. */
+  private readonly lost = signal(false);
+  /** The file this View has begun to read. The header asks `freshness` before the inputs are set, which a signal of the inputs cannot answer. */
+  private readonly target = signal<{ readonly cwd: string; readonly path: string } | undefined>(undefined);
+  /**
+   * Stale File View (GLOSSARY): `stale` when the file on disk is not the one on screen, `gone` when it is deleted or renamed
+   * (its last text stays, dimmed), else `current`. A View opened on a path that was never there shows its empty state only.
+   */
+  readonly freshness = computed((): 'current' | 'stale' | 'gone' => {
+    const target = this.target();
+    const loaded = this.loaded();
+    const latest = target === undefined ? undefined : this.versions.latest(target.cwd, target.path);
+    if (loaded === undefined || latest === undefined || this.file().status === 'loading') return 'current';
+    if (latest === null) return loaded === null ? 'current' : 'gone';
+    return loaded === null || this.lost() || !sameVersion(loaded, latest) ? 'stale' : 'current';
+  });
+  /** Why Mencionar of the Line selection is off: it would name lines of a file that is not the one on screen. */
+  protected readonly mentionBlock = computed((): string | undefined => {
+    const freshness = this.freshness();
+    return freshness === 'stale' ? this.i18n.t('fileView.reloadFirst') : freshness === 'gone' ? this.i18n.t('fileView.goneBar') : undefined;
+  });
+  /** Why Mencionar of the whole file is off: only a file that no longer exists cannot be named. */
+  readonly fileMentionBlock = computed((): string | undefined => (this.freshness() === 'gone' ? this.i18n.t('fileView.goneBar') : undefined));
+  /** Why Copiar ruta with a range is off while stale. The path alone, and copying selected text, are never blocked. */
+  readonly rangeBlock = computed((): string | undefined => (this.freshness() === 'stale' && this.selection() !== undefined ? this.i18n.t('fileView.reloadFirst') : undefined));
 
   /** An SVG has two forms, its text (Fuente) and its picture (Imagen); every other file has one. */
   protected readonly isSvg = computed(() => this.language().name === 'SVG' && this.file().status === 'text');
@@ -240,7 +273,18 @@ export class FileView {
     effect(() => {
       const cwd = this.cwd();
       const path = this.path();
-      untracked(() => void this.read(cwd, path));
+      untracked(() => {
+        this.target.set({ cwd, path });
+        void this.read(cwd, path);
+      });
+    });
+    // The open File Views of a Project are checked together (`FileVersions`); a Quick look is not one of them.
+    effect((onCleanup) => {
+      if (this.tabId() === undefined) return;
+      onCleanup(this.versions.watch(this.cwd(), this.path()));
+    });
+    effect(() => {
+      if (this.versions.latest(this.cwd(), this.path()) === null && this.loaded() !== null) untracked(() => this.lost.set(true));
     });
     effect(() => {
       // Imagen chosen for an SVG whose picture is not read yet, here or in another View.
@@ -296,6 +340,15 @@ export class FileView {
     void this.read(this.cwd(), this.path());
   }
 
+  /**
+   * Recargar: reads the file again where it is, keeping the text on screen until the new one arrives, so the scroll and the
+   * Line selection (kept by line number, clamped to the new length) stay. It is the one reload rule of a File View: whatever
+   * else is derived from the file (the diff, the gutter bars) is read in `read`, so it is re-run together with the text.
+   */
+  protected reload(): void {
+    void this.read(this.cwd(), this.path(), true);
+  }
+
   /** `1` toggles a picture between fitted and actual size. */
   protected keydown(event: KeyboardEvent): void {
     if (event.key !== '1' || event.ctrlKey || event.metaKey || event.altKey || this.shown().status !== 'image') return;
@@ -314,14 +367,20 @@ export class FileView {
     this.svgPicture.set(Exit.isSuccess(exit) ? exit.value : { status: 'failed', detail: Cause.pretty(exit.cause) });
   }
 
-  private async read(cwd: string, path: string): Promise<void> {
-    this.file.set({ status: 'loading' });
+  private async read(cwd: string, path: string, reload = false): Promise<void> {
+    if (!reload) this.file.set({ status: 'loading' });
     this.svgPicture.set(undefined);
     this.drawnSize.set(undefined);
+    // The version is asked before the content: a change that lands while it is read leaves the View stale, never wrongly current.
+    const version = this.tabId() === undefined ? undefined : await this.versions.baseline(cwd, path);
     const exit = await this.runtime.run(readFile(cwd, path));
     // Another file took this View's place while this one was read.
     if (path !== this.path() || cwd !== this.cwd()) return;
     const file: FileState = Exit.isSuccess(exit) ? exit.value : { status: 'failed', detail: Cause.pretty(exit.cause) };
+    // A file deleted while it was reloaded keeps its last text and its version, dimmed under the gone bar.
+    if (reload && file.status === 'gone' && this.file().status !== 'gone') return;
+    this.loaded.set(version);
+    this.lost.set(false);
     this.colours.set([]);
     this.outline.set(undefined);
     this.file.set(file);

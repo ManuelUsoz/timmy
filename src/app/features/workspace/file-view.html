@@ -9,8 +9,23 @@
     }
   </nav>
 }
+@switch (freshness()) {
+  @case ('stale') {
+    <!-- The file changed on disk: the text is never replaced under the reader's eyes; Recargar does it on request. -->
+    <div class="notice stale" role="status">
+      <span class="notice-text">{{ i18n.t('fileView.stale') }}</span>
+      <button type="button" class="notice-action" (click)="reload()">{{ i18n.t('fileView.reload') }}</button>
+    </div>
+  }
+  @case ('gone') {
+    <div class="notice gone" role="status">
+      <span class="notice-text">{{ i18n.t('fileView.goneBar') }}</span>
+    </div>
+  }
+}
 <div
   class="scroll"
+  [class.dimmed]="freshness() === 'gone'"
   data-scrolls-x
   tabindex="0"
   role="region"
@@ -42,10 +57,10 @@
               >
                 <span class="range">{{ marked.range }}</span>
                 @if (tabId(); as tab) {
-                  <app-mention place="popover" [tabId]="tab" [path]="path()" [lines]="selection()" />
+                  <app-mention place="popover" [tabId]="tab" [path]="path()" [lines]="selection()" [blocked]="mentionBlock()" />
                 }
                 <button type="button" class="line-action" (click)="copy()">{{ i18n.t('fileView.copy') }}</button>
-                <button type="button" class="line-action" (click)="copyPath()">{{ i18n.t('fileView.copyPath') }}</button>
+                <button type="button" class="line-action" [disabled]="rangeBlock() !== undefined" [attr.title]="rangeBlock() ?? null" (click)="copyPath()">{{ i18n.t('fileView.copyPath') }}</button>
               </div>
             </div>
           }
