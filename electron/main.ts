@@ -1,6 +1,8 @@
 import { app, BrowserWindow, screen, shell } from 'electron';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { registerIpc } from './ipc';
+import { isAppUrl } from './window/app-url';
 import { plannedWindow, setAppWindow } from './window/app-window';
 import { planFor, startupMode } from '../src/shared/window/window.model';
 import { MainRuntime } from './rpc/runtime';
@@ -76,8 +78,8 @@ function createWindow(): void {
 
   // Block navigation away from the renderer we control.
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    const allowedOrigin = DEV_SERVER_URL ?? 'file://';
-    if (!url.startsWith(allowedOrigin)) {
+    const appUrl = DEV_SERVER_URL ?? pathToFileURL(path.join(__dirname, '../dist/renderer/index.html')).href;
+    if (!isAppUrl(url, appUrl)) {
       event.preventDefault();
     }
   });

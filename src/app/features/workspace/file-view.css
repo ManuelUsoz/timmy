@@ -264,3 +264,64 @@
   background: var(--layer-02);
   color: var(--text-primary);
 }
+
+/* Renderizado: the page is inserted as HTML, so it carries no component attribute: its rules reach it through ::ng-deep.
+   Prose wraps; code blocks and tables scroll sideways in their own box; images fit the Pane. */
+.markdown-body {
+  max-width: 880px;
+  padding: var(--spacing-05) var(--spacing-06);
+  font: var(--text-body-02) / 1.6 var(--font-sans);
+  overflow-wrap: anywhere;
+}
+
+.markdown-body ::ng-deep :is(h1, h2, h3, h4, h5, h6) {
+  margin: 1.4em 0 0.5em;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.markdown-body ::ng-deep h1 { font-size: 1.8em; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.3em; }
+.markdown-body ::ng-deep h2 { font-size: 1.4em; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.3em; }
+.markdown-body ::ng-deep h3 { font-size: 1.15em; }
+.markdown-body ::ng-deep :is(p, ul, ol, blockquote) { margin: 0 0 1em; }
+.markdown-body ::ng-deep :is(ul, ol) { padding-inline-start: 1.6em; }
+.markdown-body ::ng-deep blockquote { padding-inline-start: 1em; border-inline-start: 3px solid var(--border-strong); color: var(--text-secondary); }
+.markdown-body ::ng-deep hr { border: 0; border-top: 1px solid var(--border-subtle); margin: 1.5em 0; }
+.markdown-body ::ng-deep img { max-width: 100%; height: auto; }
+.markdown-body ::ng-deep a[data-timmy-link] { color: var(--link-primary, var(--syntax-type)); text-decoration: underline; cursor: pointer; }
+.markdown-body ::ng-deep .inert { color: var(--text-secondary); cursor: default; }
+.markdown-body ::ng-deep :not(pre) > code { padding: 0 0.3em; background: var(--layer-02); font: 0.9em var(--font-mono); overflow-wrap: anywhere; }
+
+.markdown-body ::ng-deep pre {
+  margin: 0 0 1em;
+  padding: var(--spacing-04);
+  background: var(--layer-02);
+  overflow-x: auto;
+  overflow-wrap: normal;
+  font: 0.9em / 1.5 var(--font-mono);
+}
+
+.markdown-body ::ng-deep pre code { white-space: pre; }
+
+.markdown-body ::ng-deep table {
+  display: block;
+  max-width: 100%;
+  margin: 0 0 1em;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.markdown-body ::ng-deep :is(th, td) { padding: var(--spacing-02) var(--spacing-04); border: 1px solid var(--border-subtle); text-align: start; }
+.markdown-body ::ng-deep th { background: var(--layer-02); }
+
+.markdown-body ::ng-deep .tok-keyword { color: var(--syntax-keyword); }
+.markdown-body ::ng-deep .tok-string { color: var(--syntax-string); }
+.markdown-body ::ng-deep .tok-number { color: var(--syntax-number); }
+.markdown-body ::ng-deep .tok-comment { color: var(--syntax-comment); font-style: italic; }
+.markdown-body ::ng-deep .tok-function { color: var(--syntax-function); }
+.markdown-body ::ng-deep .tok-type { color: var(--syntax-type); }
+.markdown-body ::ng-deep .tok-variable { color: var(--syntax-variable); }
+.markdown-body ::ng-deep .tok-punctuation { color: var(--syntax-punctuation); }
+.markdown-body ::ng-deep .tok-meta { color: var(--syntax-meta); }
+
+.modes button:disabled { color: var(--text-disabled, var(--text-helper)); cursor: not-allowed; }

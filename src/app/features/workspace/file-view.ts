@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, ElementRef, afterNextRender, computed, effect, inject, input, signal, untracked, Injector } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, signal, untracked, Injector } from '@angular/core';
+import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import { Cause, Effect, Exit } from 'effect';
 import type { ImageType } from '../../../shared/files/files.model';
 import { DesktopApi } from '../../core/desktop-api';
@@ -6,7 +7,9 @@ import { EffectRuntime } from '../../core/effect-runtime';
 import { I18n } from '../../core/i18n';
 import { FilePicture } from './file-picture';
 import { readFile, readPicture, type FileState } from './file-read';
+import { FilesBrowser } from './files-browser';
 import { LineSelections, clampLines, clickLine, isOnlyLine, lineRange, pathWithLines, rangeFrom, selectedText, type LineSelection } from './line-selection';
+import { QuickLookState } from './quick-look-state';
 import { ReaderMode } from './reader-mode';
 import type { TabId } from './tabs';
 import { TabsState } from './tabs-state';
@@ -15,6 +18,8 @@ import { MentionButton } from './mention-button';
 import { columnsOf, eolOf, indentOf, lineRuns, linesOf, type ColourRange } from './source-text';
 import { SYMBOL_OUTLINER, type Outline } from './symbol-outline';
 import { MAX_COLOURED_LENGTH, SYNTAX_HIGHLIGHTER } from './syntax-highlighter';
+import type { RenderedMarkdown } from './markdown-render';
+import { HEADING_ID_PREFIX } from './resolve-in-project';
 import { fileOf } from './views';
 
 /** The kind of a picture, as the status bar names it. */
@@ -28,6 +33,9 @@ const IMAGE_KIND: Readonly<Record<ImageType, string>> = {
   'image/bmp': 'BMP',
   'image/svg+xml': 'SVG',
 };
+
+/** Above this many characters a Markdown file is not rendered: the toggle is off and says so. About 512 KB. */
+export const MAX_RENDERED_LENGTH = 512 * 1024;
 
 type PixelSize = { readonly width: number; readonly height: number };
 type ReaderModeChoice = ReturnType<ReaderMode['mode']>;
@@ -70,10 +78,10 @@ export const formatSize = (bytes: number): string => {
  * Tab; the Quick look's header has the path) and above a status bar; or the state that says why it is not shown
  * (binary, too large, gone, unreadable), each with its way out (open outside Timmy, Reintentar). An image shows as a
  * picture (`FilePicture`) with its size and weight in the status bar; an SVG is text, and a picture only in Imagen, the
- * reader's one Renderizado/Fuente choice (`ReaderMode`). It reads the file when it opens and when its path changes (a
- * preview replaced). A file picked in the tree gives it the keyboard
- * (`TabsState.focusRequest`), so the user can scroll at once. Its header is the Pane's (`PaneStack`), whose file actions
- * (Copiar, Copiar ruta, open outside) call this View.
+ * reader's one Renderizado/Fuente choice (`ReaderMode`). A Markdown file has Fuente and Renderizado; `.mdx` is Fuente
+ * only. It reads the file when it opens and when its path changes (a preview replaced). A file picked in the tree gives
+ * it the keyboard (`TabsState.focusRequest`), so the user can scroll at once. Its header is the Pane's (`PaneStack`),
+ * whose file actions (Copiar, Copiar ruta, open outside) call this View.
  *
  * In a Tab, the Line selection (GLOSSARY) is marked from the line numbers and kept in `LineSelections`, not in the lines:
  * the tint and the popover are one layer over the text, placed by line height, so how the lines are drawn can change.
@@ -90,6 +98,10 @@ export class FileView {
   protected readonly i18n = inject(I18n);
   private readonly runtime = inject(EffectRuntime);
   private readonly tabs = inject(TabsState);
+  private readonly sanitizer = inject(DomSanitizer);
+  private destroyed = false;
+  private readonly browser = inject(FilesBrowser);
+  private readonly quickLook = inject(QuickLookState);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private readonly highlighter = inject(SYNTAX_HIGHLIGHTER);
@@ -106,18 +118,33 @@ export class FileView {
   protected readonly file = signal<FileState>({ status: 'loading' });
   protected readonly name = computed(() => this.path().split('/').at(-1) ?? this.path());
 
-  /** An SVG has two forms, its text (Fuente) and its picture (Imagen); every other file has one. */
+  /** An SVG has two forms, its text (Fuente) and its picture (Imagen); Markdown has Fuente and Renderizado. */
   protected readonly isSvg = computed(() => this.language().name === 'SVG' && this.file().status === 'text');
-  /** Whether an SVG shows as its picture: the reader's global choice. */
-  protected readonly drawn = computed(() => this.isSvg() && this.reader.mode() === 'rendered');
+  /** Markdown has a rendered form; `.mdx` is JSX in disguise and stays Fuente, highlighted as Markdown. */
+  protected readonly isMarkdown = computed(() => this.language().name === 'Markdown' && this.file().status === 'text' && !this.name().toLowerCase().endsWith('.mdx'));
+  /** Forced to Fuente by a Path link with a line, or by the global choice otherwise. */
+  protected readonly forcedSource = signal(false);
+  /** The effective mode for this View: forced source wins over the global setting. */
+  protected readonly effectiveMode = computed((): ReaderModeChoice => (this.forcedSource() ? 'source' : this.reader.mode()));
+  /** Whether the rendered form (SVG picture or Markdown page) is on screen. */
+  protected readonly drawn = computed(() => (this.isSvg() || this.isMarkdown()) && this.effectiveMode() === 'rendered');
   /** The SVG's picture, read when Imagen is first chosen for it; none until then. */
   protected readonly svgPicture = signal<FileState | undefined>(undefined);
   /** What the body shows: the file, or the SVG's picture in Imagen. */
-  protected readonly shown = computed((): FileState => (this.drawn() ? (this.svgPicture() ?? { status: 'loading' }) : this.file()));
+  protected readonly shown = computed((): FileState => (this.isSvg() && this.drawn() ? (this.svgPicture() ?? { status: 'loading' }) : this.file()));
   /** A picture at its natural size (scrolling) rather than fitted. */
   protected readonly actual = signal(false);
   /** The size an SVG drew at, which only drawing it tells. */
   private readonly drawnSize = signal<PixelSize | undefined>(undefined);
+
+  /** Rendered Markdown state. */
+  protected readonly markdown = signal<RenderedMarkdown | undefined>(undefined);
+  /** The sanitised page, which the renderer already made safe; Angular would drop the `data-timmy-*` marks it carries. */
+  protected readonly page = computed((): SafeHtml => this.sanitizer.bypassSecurityTrustHtml(this.markdown()?.html ?? ''));
+  /** Whether the Markdown file is too large to render. */
+  protected readonly markdownTooLarge = computed(() => this.isMarkdown() && this.content().length > MAX_RENDERED_LENGTH);
+  /** Whether the rendered Markdown body is on screen right now. */
+  protected readonly rendered = computed(() => this.isMarkdown() && this.drawn() && !this.markdownTooLarge() && this.markdown() !== undefined);
 
   /** What a state the reader cannot help with says, and whether reading again may help; the way out is always offered. */
   protected readonly stuck = computed((): { readonly note: string; readonly retry: boolean } => {
@@ -167,13 +194,9 @@ export class FileView {
   /** The Line selection as this file can hold it; none outside a Tab (the Quick look) or while the file is not text. */
   readonly selection = computed((): LineSelection | undefined => {
     const tab = this.tabId();
-    return tab === undefined ? undefined : clampLines(this.selections.of(tab, this.path()), this.lines().length);
+    // The Line selection lives in Fuente only; it is kept while Renderizado shows, and is there again after.
+    return tab === undefined || this.rendered() ? undefined : clampLines(this.selections.of(tab, this.path()), this.lines().length);
   });
-  /**
-   * Whether this View is forced to Fuente because it opened from a Path link with a line. #208 will combine this with the
-   * global Renderizado/Fuente setting; until then the File View is always source, so this only carries the intent forward.
-   */
-  protected readonly sourceMode = signal(false);
 
   /** Whether there is text to copy: the header's Copiar is off for a file that is not shown. */
   readonly hasText = computed(() => this.lines().length > 0);
@@ -237,6 +260,7 @@ export class FileView {
   });
 
   constructor() {
+    inject(DestroyRef).onDestroy(() => (this.destroyed = true));
     effect(() => {
       const cwd = this.cwd();
       const path = this.path();
@@ -244,8 +268,13 @@ export class FileView {
     });
     effect(() => {
       // Imagen chosen for an SVG whose picture is not read yet, here or in another View.
-      if (!this.drawn() || this.svgPicture() !== undefined) return;
+      if (!this.isSvg() || !this.drawn() || this.svgPicture() !== undefined) return;
       untracked(() => void this.readSvgPicture(this.cwd(), this.path()));
+    });
+    effect(() => {
+      // Renderizado chosen for a Markdown file that has not been rendered yet.
+      if (!this.isMarkdown() || !this.drawn() || this.markdownTooLarge() || this.markdown() !== undefined) return;
+      untracked(() => void this.render(this.path(), this.content()));
     });
     effect(() => {
       const request = this.tabs.focusRequest();
@@ -268,7 +297,7 @@ export class FileView {
       const count = this.lines().length;
       untracked(() => {
         this.selections.revealed.set(undefined);
-        if (request.source === true) this.sourceMode.set(true);
+        if (request.source === true) this.forcedSource.set(true);
         afterNextRender(() => this.scrollToLines(request.start, request.end, count), { injector: this.injector });
       });
     });
@@ -287,8 +316,9 @@ export class FileView {
     return this.host.nativeElement.querySelector<HTMLElement>('.scroll');
   }
 
-  /** Shows every SVG (and Markdown) this way, in every View, from now on. */
+  /** Shows every SVG/Markdown this way, in every View, from now on. */
   protected choose(mode: ReaderModeChoice): void {
+    this.forcedSource.set(false);
     this.reader.set(mode);
   }
 
@@ -314,10 +344,22 @@ export class FileView {
     this.svgPicture.set(Exit.isSuccess(exit) ? exit.value : { status: 'failed', detail: Cause.pretty(exit.cause) });
   }
 
+  private async render(path: string, content: string): Promise<void> {
+    this.markdown.set(undefined);
+    const cwd = this.cwd();
+    const { renderMarkdown } = await import('./markdown-render');
+    const rendered = await renderMarkdown({ content, path, inertTitle: this.i18n.t('markdown.inert'), kindOf: (target) => this.kindOf(cwd, target) });
+    if (path !== this.path() || cwd !== this.cwd() || content !== this.content()) return;
+    this.markdown.set(rendered);
+    if (!this.destroyed) afterNextRender(() => void this.loadRenderedImages(), { injector: this.injector });
+  }
+
   private async read(cwd: string, path: string): Promise<void> {
     this.file.set({ status: 'loading' });
     this.svgPicture.set(undefined);
+    this.markdown.set(undefined);
     this.drawnSize.set(undefined);
+    this.forcedSource.set(false);
     const exit = await this.runtime.run(readFile(cwd, path));
     // Another file took this View's place while this one was read.
     if (path !== this.path() || cwd !== this.cwd()) return;
@@ -329,7 +371,7 @@ export class FileView {
       void this.colour(cwd, path, file.content);
       void this.outlineText(cwd, path, file.content);
     }
-    if (this.isSvg()) this.reader.load();
+    if (this.isSvg() || this.isMarkdown()) this.reader.load();
   }
 
   /** Has Lezer outline a text whose language has symbols and that is not too large; only the path shows meanwhile. */
@@ -349,6 +391,67 @@ export class FileView {
     // Another file, or another read of this one, took its place meanwhile.
     if (path !== this.path() || cwd !== this.cwd() || this.content() !== content) return;
     if (Exit.isSuccess(exit)) this.colours.set(exit.value);
+  }
+
+  // ---- Rendered Markdown interactions -------------------------------------------------------------------------------
+
+  /** What a path of the Project is on disk, by the listing of its folder; nothing when it is not there. */
+  private async kindOf(cwd: string, target: string): Promise<'file' | 'folder' | undefined> {
+    const slash = target.lastIndexOf('/');
+    const dir = slash === -1 ? '' : target.slice(0, slash);
+    const name = target.slice(slash + 1);
+    const exit = await this.runtime.run(Effect.flatMap(DesktopApi, (desktop) => desktop['Files.listDir']({ cwd, dir })));
+    return Exit.isSuccess(exit) ? exit.value.entries.find((entry) => entry.name === name)?.kind : undefined;
+  }
+
+  /** Loads every relative image of the rendered page through Files.readImage into a blob URL. */
+  private async loadRenderedImages(): Promise<void> {
+    const cwd = this.cwd();
+    const images = Array.from(this.markdownContainer()?.querySelectorAll<HTMLImageElement>('img[data-timmy-image]') ?? []);
+    await Promise.all(
+      images.map(async (img) => {
+        const file = img.dataset['timmyImage'] ?? '';
+        const exit = await this.runtime.run(readPicture(cwd, file, (size) => ({ status: 'binary', size })));
+        if (!Exit.isSuccess(exit) || exit.value.status !== 'image' || !img.isConnected) return;
+        const { picture } = exit.value;
+        const url = URL.createObjectURL(new Blob([picture.bytes as Uint8Array<ArrayBuffer>], { type: picture.type }));
+        img.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
+        img.src = url;
+      }),
+    );
+  }
+
+  private markdownContainer(): HTMLElement | null {
+    return this.host.nativeElement.querySelector<HTMLElement>('.markdown-body');
+  }
+
+  /**
+   * Every click in rendered Markdown stops here, so the window never navigates. A link to a Project file opens a preview
+   * File View (in the Quick look, closing it first), a folder is revealed in the tree, a `#anchor` scrolls inside the
+   * document, an `https:` link opens in the external browser; anything else had no destination to begin with.
+   */
+  protected markdownClick(event: MouseEvent): void {
+    event.preventDefault();
+    const link = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-timmy-link]') : null;
+    const target = link?.dataset['timmyTarget'];
+    if (link === null || target === undefined) return;
+    switch (link.dataset['timmyLink']) {
+      case 'file':
+        if (this.tabId() === undefined) this.quickLook.close();
+        this.browser.openFile(target);
+        break;
+      case 'folder':
+        this.browser.reveal(target);
+        break;
+      case 'anchor':
+        this.markdownContainer()
+          ?.querySelector<HTMLElement>(`[id="${CSS.escape(HEADING_ID_PREFIX + target)}"], [id="${CSS.escape(target)}"]`)
+          ?.scrollIntoView({ behavior: 'instant' });
+        break;
+      case 'external':
+        window.open(target, '_blank');
+        break;
+    }
   }
 
   // ---- Line selection ----------------------------------------------------------------------------------------------
@@ -411,6 +514,10 @@ export class FileView {
 
   /** Copiar: the selected lines exactly, without their numbers; with no Line selection, the whole text that is shown. */
   copy(): void {
+    if (this.rendered()) {
+      this.toClipboard(this.path());
+      return;
+    }
     if (!this.hasText()) return;
     const content = this.content();
     const selection = this.selection();
