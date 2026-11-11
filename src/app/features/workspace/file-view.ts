@@ -1,10 +1,18 @@
 import { ChangeDetectionStrategy, Component, ElementRef, Injector, InjectionToken, afterNextRender, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Cause, Effect, Exit } from 'effect';
+import type { ImageType } from '../../../shared/files/files.model';
 import type { ProjectId } from '../../../shared/projects/projects.model';
 import { DesktopApi } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { I18n } from '../../core/i18n';
 import { FileDiffView, readDiff, type DiffState } from './file-diff';
+import { formatSize } from './format-size';
+import { FilePicture } from './file-picture';
+import { readFile, readPicture, type FileState } from './file-read';
+import { ReaderMode } from './reader-mode';
+import { ChangesRefreshSource } from './changes-refresh';
+import type { TabId } from './tabs';
+import { TabsState } from './tabs-state';
 import { PLAIN_TEXT, languageOf } from './file-language';
 import { LineSelections, clampLines, clickLine, isOnlyLine, lineRange, pathWithLines, rangeFrom, selectedText, type LineSelection } from './line-selection';
 import { MentionButton } from './mention-button';
@@ -12,42 +20,24 @@ import { columnsOf, eolOf, indentOf, lineRuns, linesOf, type ColourRange } from 
 import { SYMBOL_OUTLINER, type Outline } from './symbol-outline';
 import { MAX_COLOURED_LENGTH, SYNTAX_HIGHLIGHTER } from './syntax-highlighter';
 import { fileOf } from './views';
-import { ChangesRefreshSource } from './changes-refresh';
-import type { TabId } from './tabs';
-import { TabsState } from './tabs-state';
 
 /** How long a burst of diff refresh triggers must be over before the diff is read again, in milliseconds. */
 export const DIFF_REFRESH_DEBOUNCE_MS = new InjectionToken<number>('DIFF_REFRESH_DEBOUNCE_MS', { providedIn: 'root', factory: () => 300 });
 
-/** What reading the file of a File View gave. `gone` is a file deleted since it was listed or opened. */
-export type FileState =
-  | { readonly status: 'loading' }
-  | { readonly status: 'text'; readonly content: string }
-  | { readonly status: 'binary' }
-  | { readonly status: 'tooLarge'; readonly size: number }
-  | { readonly status: 'gone' }
-  | { readonly status: 'unreadable' }
-  | { readonly status: 'failed'; readonly detail: string };
+/** The kind of a picture, as the status bar names it. */
+const IMAGE_KIND: Readonly<Record<ImageType, string>> = {
+  'image/png': 'PNG',
+  'image/jpeg': 'JPEG',
+  'image/gif': 'GIF',
+  'image/webp': 'WebP',
+  'image/avif': 'AVIF',
+  'image/x-icon': 'ICO',
+  'image/bmp': 'BMP',
+  'image/svg+xml': 'SVG',
+};
 
-/** Reads a file of the Project into what a File View shows; what main says of a file it cannot show is one of the states. */
-const readFile = (cwd: string, file: string) =>
-  Effect.flatMap(DesktopApi, (desktop) => desktop['Files.read']({ cwd, file })).pipe(
-    Effect.map((content): FileState => {
-      switch (content.kind) {
-        case 'text':
-          return { status: 'text', content: content.content };
-        case 'binary':
-          return { status: 'binary' };
-        case 'tooLarge':
-          return { status: 'tooLarge', size: content.size };
-      }
-    }),
-    Effect.catchTag('FilesError', (error) =>
-      Effect.succeed<FileState>(
-        error.reason === 'FileNotFound' ? { status: 'gone' } : error.reason === 'Unreadable' ? { status: 'unreadable' } : { status: 'failed', detail: error.detail },
-      ),
-    ),
-  );
+type PixelSize = { readonly width: number; readonly height: number };
+type ReaderModeChoice = ReturnType<ReaderMode['mode']>;
 
 /** Asks main to open a file of the Project outside Timmy, with the app the system has for it. */
 const openOutside = (cwd: string, file: string) => Effect.flatMap(DesktopApi, (desktop) => desktop['Files.openExternal']({ cwd, file }));
@@ -72,13 +62,6 @@ const lineOf = (event: Event): number | undefined => {
   const line = event.target instanceof Element ? event.target.closest<HTMLElement>('.line') : null;
   const number = Number(line?.dataset['line']);
   return Number.isInteger(number) && number > 0 ? number : undefined;
-};
-
-/** `2.5 MB`: the size of a file too large to preview. */
-export const formatSize = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 /** What the gutter shows for a line of a Changed file. */
@@ -131,9 +114,12 @@ const guttersOf = (diff: DiffState, lineCount: number): ReadonlyArray<GutterKind
  * The body of a File View (GLOSSARY: File View, ADR 0013): one file of the Project, read-only, one element per line
  * with its number, highlighted by language (`file-language.ts`) once the worker colours it, under a Breadcrumb (in a
  * Tab; the Quick look's header has the path) and above a status bar; or the state that says why it is not shown
- * (binary, too large, gone, unreadable). It reads the file when it opens and when its path changes (a preview replaced).
- * A file picked in the tree gives it the keyboard (`TabsState.focusRequest`), so the user can scroll at once. Its header
- * is the Pane's (`PaneStack`), whose file actions (Copiar, Copiar ruta, open outside) call this View.
+ * (binary, too large, gone, unreadable), each with its way out (open outside Timmy, Reintentar). An image shows as a
+ * picture (`FilePicture`) with its size and weight in the status bar; an SVG is text, and a picture only in Imagen, the
+ * reader's one Renderizado/Fuente choice (`ReaderMode`). It reads the file when it opens and when its path changes (a
+ * preview replaced). A file picked in the tree gives it the keyboard
+ * (`TabsState.focusRequest`), so the user can scroll at once. Its header is the Pane's (`PaneStack`), whose file actions
+ * (Copiar, Copiar ruta, open outside) call this View.
  *
  * In a Tab, the File View also reads the file's change against HEAD and offers Archivo/Cambios, sharing `app-file-diff`
  * with the Quick look. In Archivo, a gutter bar marks added or modified lines and a notch marks where lines were deleted.
@@ -145,7 +131,7 @@ const guttersOf = (diff: DiffState, lineCount: number): ReadonlyArray<GutterKind
  */
 @Component({
   selector: 'app-file-view',
-  imports: [FileDiffView, MentionButton],
+  imports: [FileDiffView, FilePicture, MentionButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './file-view.html',
   styleUrl: './file-view.css',
@@ -159,6 +145,7 @@ export class FileView {
   private readonly injector = inject(Injector);
   private readonly highlighter = inject(SYNTAX_HIGHLIGHTER);
   private readonly outliner = inject(SYMBOL_OUTLINER);
+  protected readonly reader = inject(ReaderMode);
   private readonly selections = inject(LineSelections);
   private readonly debounce = inject(DIFF_REFRESH_DEBOUNCE_MS);
   private readonly source = inject(ChangesRefreshSource);
@@ -187,6 +174,49 @@ export class FileView {
   });
   /** Whether this View is inside a Tab (not the Quick look) and can offer Cambios. */
   protected readonly inTab = computed(() => this.tabId() !== undefined);
+
+  /** An SVG has two forms, its text (Fuente) and its picture (Imagen); every other file has one. */
+  protected readonly isSvg = computed(() => this.language().name === 'SVG' && this.file().status === 'text');
+  /** Whether an SVG shows as its picture: the reader's global choice. */
+  protected readonly drawn = computed(() => this.isSvg() && this.reader.mode() === 'rendered');
+  /** The SVG's picture, read when Imagen is first chosen for it; none until then. */
+  protected readonly svgPicture = signal<FileState | undefined>(undefined);
+  /** What the body shows: the file, or the SVG's picture in Imagen. */
+  protected readonly shown = computed((): FileState => (this.drawn() && this.mode() === 'file' ? (this.svgPicture() ?? { status: 'loading' }) : this.file()));
+  /** A picture at its natural size (scrolling) rather than fitted. */
+  protected readonly actual = signal(false);
+  /** The size an SVG drew at, which only drawing it tells. */
+  private readonly drawnSize = signal<PixelSize | undefined>(undefined);
+
+  /** What a state the reader cannot help with says, and whether reading again may help; the way out is always offered. */
+  protected readonly stuck = computed((): { readonly note: string; readonly retry: boolean } => {
+    const state = this.shown();
+    switch (state.status) {
+      case 'binary':
+        return { note: this.i18n.t('reader.binary', { size: formatSize(state.size) }), retry: false };
+      case 'tooLarge':
+        return { note: this.i18n.t('files.tooLarge', { size: formatSize(state.size) }), retry: false };
+      case 'imageTooLarge':
+        return state.limit === 'bytes'
+          ? { note: this.i18n.t('reader.imageOverBytes', { size: formatSize(state.size) }), retry: false }
+          : { note: this.i18n.t('reader.imageOverPixels', { width: state.width, height: state.height }), retry: false };
+      case 'unreadable':
+        return { note: this.i18n.t('files.unreadable'), retry: true };
+      case 'failed':
+        return { note: this.i18n.t('files.fileFailed', { detail: state.detail }), retry: true };
+      default:
+        return { note: '', retry: false };
+    }
+  });
+
+  /** The status bar of a picture: its size in pixels once known, its weight and its kind. */
+  protected readonly pictureStatus = computed(() => {
+    const shown = this.shown();
+    if (shown.status !== 'image') return [];
+    const { picture } = shown;
+    const size = picture.width !== null && picture.height !== null ? { width: picture.width, height: picture.height } : this.drawnSize();
+    return [...(size === undefined ? [] : [`${size.width} × ${size.height}`]), formatSize(picture.size), IMAGE_KIND[picture.type]];
+  });
 
   /** The text of the file, empty while it is not text. */
   private readonly content = computed(() => {
@@ -303,6 +333,11 @@ export class FileView {
       untracked(() => this.scheduleDiffRefresh());
     });
     effect(() => {
+      // Imagen chosen for an SVG whose picture is not read yet, here or in another View.
+      if (!this.drawn() || this.svgPicture() !== undefined) return;
+      untracked(() => void this.readSvgPicture(this.cwd(), this.path()));
+    });
+    effect(() => {
       const request = this.tabs.focusRequest();
       if (request === undefined || request.tab !== this.tabId() || fileOf(request.view) !== this.path()) return;
       untracked(() => {
@@ -342,12 +377,37 @@ export class FileView {
     return this.host.nativeElement.querySelector<HTMLElement>('.scroll');
   }
 
-  protected size(bytes: number): string {
-    return formatSize(bytes);
+  /** Shows every SVG (and Markdown) this way, in every View, from now on. */
+  protected choose(mode: ReaderModeChoice): void {
+    this.reader.set(mode);
+  }
+
+  protected retry(): void {
+    void this.read(this.cwd(), this.path());
+  }
+
+  /** `1` toggles a picture between fitted and actual size. */
+  protected keydown(event: KeyboardEvent): void {
+    if (event.key !== '1' || event.ctrlKey || event.metaKey || event.altKey || this.shown().status !== 'image') return;
+    event.preventDefault();
+    this.actual.update((actual) => !actual);
+  }
+
+  protected pictureDrawn(size: PixelSize): void {
+    this.drawnSize.set(size);
+  }
+
+  private async readSvgPicture(cwd: string, path: string): Promise<void> {
+    this.svgPicture.set({ status: 'loading' });
+    const exit = await this.runtime.run(readPicture(cwd, path, () => ({ status: 'notAnImage' })));
+    if (path !== this.path() || cwd !== this.cwd()) return;
+    this.svgPicture.set(Exit.isSuccess(exit) ? exit.value : { status: 'failed', detail: Cause.pretty(exit.cause) });
   }
 
   private async read(cwd: string, path: string): Promise<void> {
     this.file.set({ status: 'loading' });
+    this.svgPicture.set(undefined);
+    this.drawnSize.set(undefined);
     const exit = await this.runtime.run(readFile(cwd, path));
     // Another file took this View's place while this one was read.
     if (path !== this.path() || cwd !== this.cwd()) return;
@@ -355,9 +415,11 @@ export class FileView {
     this.colours.set([]);
     this.outline.set(undefined);
     this.file.set(file);
-    if (file.status !== 'text') return;
-    void this.colour(cwd, path, file.content);
-    void this.outlineText(cwd, path, file.content);
+    if (file.status === 'text') {
+      void this.colour(cwd, path, file.content);
+      void this.outlineText(cwd, path, file.content);
+    }
+    if (this.isSvg()) this.reader.load();
   }
 
   /** Has Lezer outline a text whose language has symbols and that is not too large; only the path shows meanwhile. */
@@ -496,7 +558,7 @@ export class FileView {
     this.toClipboard(pathWithLines(this.path(), this.selection()));
   }
 
-  /** Opens the file outside Timmy, in the app the system has for it. */
+  /** Opens the file outside Timmy, in the app the system has for it: also the way out of every state the reader cannot help with. */
   openExternal(): void {
     void this.runtime.run(openOutside(this.cwd(), this.path()));
   }

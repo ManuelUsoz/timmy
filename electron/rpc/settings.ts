@@ -10,6 +10,7 @@ export const layerSettingsHandlers = SettingsRpcs.toLayer(
       'Settings.setLanguage': ({ language }) => settings.setLanguage(language),
       'Settings.setProvider': ({ provider, enabled }) => settings.setProvider(provider, enabled),
       'Settings.setChannel': ({ channel, change }) => settings.setChannel(channel, change),
+      'Settings.setReader': ({ reader }) => settings.setReader(reader),
     };
   }),
 );

@@ -9,6 +9,7 @@ import {
   FileList,
   FilesBrowserState,
   FolderListing,
+  ImageContent,
   PathLinkTarget,
   ProjectBrowserState,
 } from './files.model';
@@ -61,6 +62,15 @@ export const FilesRpcs = RpcGroup.make(
   Rpc.make('Files.resolvePathLink', {
     payload: { cwd: Schema.String, candidate: Schema.String, folder: Schema.NullOr(Schema.String) },
     success: Schema.NullOr(PathLinkTarget),
+    error: FilesError,
+  }),
+  /**
+   * One file of `cwd` as an image: its type from its bytes, and the bytes when it is under both caps (`MAX_IMAGE_BYTES`,
+   * `MAX_IMAGE_PIXELS`); over one, which. `file` is relative to `cwd`, with `/`.
+   */
+  Rpc.make('Files.readImage', {
+    payload: { cwd: Schema.String, file: Schema.String },
+    success: ImageContent,
     error: FilesError,
   }),
   /** What the browser remembers for a Project, with the window's width. Defaults when nothing (readable) was saved. */

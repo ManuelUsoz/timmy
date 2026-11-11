@@ -3,7 +3,7 @@ import { Effect } from 'effect';
 import type { DiffHunk, DiffLine } from '../../../shared/files/files.model';
 import { DesktopApi } from '../../core/desktop-api';
 import { I18n } from '../../core/i18n';
-import { formatSize } from './file-view';
+import { formatSize } from './format-size';
 
 /** What reading a file's change against the last commit gave. Only `changes` has lines to show. */
 export type DiffState =

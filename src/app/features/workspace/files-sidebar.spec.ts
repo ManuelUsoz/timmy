@@ -251,13 +251,13 @@ describe('FilesSidebar', () => {
     expect(document.activeElement).toBe(filePane()!.querySelector('app-file-view .scroll'));
   });
 
-  it("says in the File View that a binary file can't be previewed, a big one is too large and a deleted one is gone", async () => {
+  it('says in the File View that a binary file is binary, a big one is too large and a deleted one is gone', async () => {
     const { backend, rowOf, click, ctrlP, withTab, filePane, panes, t } = await setup();
     await withTab();
     await ctrlP();
     const note = () => filePane()?.querySelector('app-file-view .note')?.textContent?.trim();
     await click(rowOf('logo.png'));
-    expect(note()).toBe(t('files.cantPreview'));
+    expect(note()).toBe(t('reader.binary', { size: '0 B' }));
     expect(filePane()?.querySelector('.code')).toBeNull();
     await click(rowOf('big.log'));
     expect(note()).toBe(t('files.tooLarge', { size: '2.5 MB' }));
