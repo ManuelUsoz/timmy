@@ -98,11 +98,13 @@ export type FileDiff = typeof FileDiff.Type;
 /**
  * Where a Path link leads (GLOSSARY: Path link): a file of the Project, relative to it with `/`, and the lines its
  * position names (`:42` and `(42,7)` are line 42, `:42-50` lines 42 to 50; a column is dropped). No position: both null.
+ * `image` is whether main sniffed the file's first bytes and found an image, so the renderer can preview it on hover.
  */
 export const PathLinkTarget = Schema.Struct({
   path: Schema.String,
   start: Schema.NullOr(Schema.Int),
   end: Schema.NullOr(Schema.Int),
+  image: Schema.Boolean,
 }).annotate({ identifier: 'PathLinkTarget' });
 export type PathLinkTarget = typeof PathLinkTarget.Type;
 

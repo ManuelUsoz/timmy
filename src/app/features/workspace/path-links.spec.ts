@@ -7,6 +7,7 @@ import { text } from './files-fakes';
 import { LineSelections } from './line-selection';
 import { panesOf, type TabLayout } from './pane-layout';
 import { PATH_LINK_CACHE_MS, PathLinks, folderFromOsc7, type PathLinkBuffer } from './path-links';
+import { QuickLookState } from './quick-look-state';
 import { layerFakeBackend, makeBackend, project } from './projects-fakes';
 import { ProjectsState } from './projects-state';
 import type { Tab } from './tabs';
@@ -44,14 +45,15 @@ const screen = (cols: number, lines: ReadonlyArray<string>): PathLinkBuffer & { 
   };
 };
 
-const setup = async (links: FakeFiles['disks'][string]['links'] = {}) => {
+const setup = async (links: FakeFiles['disks'][string]['links'] = {}, images: FakeFiles['disks'][string]['images'] = {}) => {
   const backend = makeBackend({
     projects: [timmy],
     files: {
       disks: {
         [timmy.cwd]: {
           dirs: { '': [] },
-          files: { 'src/app/foo.ts': text('x\n'.repeat(60)), 'README.md': text('# timmy\n') },
+          files: { 'src/app/foo.ts': text('x\n'.repeat(60)), 'README.md': text('# timmy\n'), 'img/a.png': text(''), 'img/big.png': text('') },
+          images,
           index: [],
           links,
         },
@@ -67,9 +69,11 @@ const setup = async (links: FakeFiles['disks'][string]['links'] = {}) => {
     ],
   });
   await TestBed.inject(ProjectsState).refresh();
+  TestBed.inject(ProjectsState).select(timmy.projectId);
   const terminals = TestBed.inject(TerminalsState);
   const tabs = TestBed.inject(TabsState);
   const selections = TestBed.inject(LineSelections);
+  const quickLook = TestBed.inject(QuickLookState);
   const first = terminals.create(timmy.projectId);
   terminals.setCurrent(first.id);
   const tab = (): Tab => tabs.tabsOf(timmy.projectId).find((each) => each.id === first.tabId) as Tab;
@@ -78,23 +82,25 @@ const setup = async (links: FakeFiles['disks'][string]['links'] = {}) => {
   const panes = () => panesOf(layout()).map((pane) => `${pane.id === layout().focused ? '*' : ''}${viewKey(pane.expanded)}`);
   const files = () => tabs.filesOf(tab()).map((open) => `${open.path}${open.pinned ? ' (pinned)' : ''}`);
   const asked = () => backend.files.calls.filter((call) => call.startsWith('Files.resolvePathLink:')).map((call) => call.slice('Files.resolvePathLink:'.length));
+  const readImages = () => backend.files.calls.filter((call) => call.startsWith('Files.readImage:')).map((call) => call.slice('Files.readImage:'.length));
   const pathLinks = TestBed.inject(PathLinks);
   let folder: string | undefined;
+  let focused = false;
   /** The link provider of the Terminal `first`, over a screen of these lines. */
   const provider = (cols: number, lines: ReadonlyArray<string>) =>
-    pathLinks.provider(screen(cols, lines), { terminal: first.id, cwd: timmy.cwd, folder: () => folder });
+    pathLinks.provider(screen(cols, lines), { terminal: first.id, cwd: timmy.cwd, folder: () => folder, focus: () => (focused = true) });
   /** What xterm gets when the pointer is over row `y`. */
   const hover = (made: ReturnType<typeof provider>, y: number) =>
     new Promise<ReadonlyArray<ILink>>((resolve) => made.provideLinks(y, (found) => resolve(found ?? [])));
   const setFolder = (value: string | undefined) => {
     folder = value;
   };
-  return { backend, tabs, selections, first, tab, panes, files, asked, provider, hover, setFolder };
+  return { backend, tabs, selections, first, tab, panes, files, asked, readImages, provider, hover, setFolder, quickLook, terminalFocused: () => focused };
 };
 
 const at = (link: ILink) => `${link.range.start.x},${link.range.start.y}-${link.range.end.x},${link.range.end.y} ${link.text}`;
 const click = (modifiers: Partial<Pick<MouseEvent, 'ctrlKey' | 'metaKey'>> = {}) => new MouseEvent('mouseup', modifiers);
-const target = (path: string, start: number | null = null, end = start) => ({ path, start, end });
+const target = (path: string, start: number | null = null, end = start, image = false) => ({ path, start, end, image });
 
 describe('Path links in a Terminal', () => {
   it('finds the paths of the hovered line and keeps those main says are files of the Project', async () => {
@@ -214,6 +220,52 @@ describe('Path links in a Terminal', () => {
     link.activate(click({ ctrlKey: true }), link.text);
     expect(files()).toEqual(['src/app/foo.ts']);
     expect(selections.of(first.tabId, 'src/app/foo.ts')).toEqual({ anchor: 7, start: 7, end: 7 });
+  });
+});
+
+const PICTURE = { kind: 'image' as const, type: 'image/png' as const, bytes: new Uint8Array([1, 2, 3]), size: 3, width: 4, height: 2 };
+
+describe('Path links to an image', () => {
+  const hoverOn = (link: ILink) => link.hover?.(new MouseEvent('mousemove', { clientX: 30, clientY: 40 }), link.text);
+
+  it('previews on hover only an image path, and not a text file', async () => {
+    const { hover, provider, readImages } = await setup(
+      { 'img/a.png:7': target('img/a.png', 7, 7, true), 'README.md': target('README.md') },
+      { 'img/a.png': PICTURE },
+    );
+    const made = provider(80, ['img/a.png:7 README.md']);
+    const [picture, readme] = await hover(made, 1);
+    hoverOn(readme);
+    await wait(10);
+    expect(made.preview()).toBeUndefined();
+    expect(readImages()).toEqual([]);
+    hoverOn(picture);
+    await vi.waitFor(() => expect(made.preview()).toMatchObject({ path: 'img/a.png', x: 30, y: 40, state: { status: 'image' } }));
+    picture.leave?.(new MouseEvent('mouseleave'), picture.text);
+    expect(made.preview()).toBeUndefined();
+  });
+
+  it('says why an over-limit image has no preview, as a File View does', async () => {
+    const { hover, provider } = await setup(
+      { 'img/big.png': target('img/big.png', null, null, true) },
+      { 'img/big.png': { kind: 'tooLarge', limit: 'bytes', size: 9 * 1024 * 1024 } },
+    );
+    const made = provider(80, ['img/big.png']);
+    const [link] = await hover(made, 1);
+    hoverOn(link);
+    await vi.waitFor(() => expect(made.preview()?.state).toEqual({ status: 'imageTooLarge', limit: 'bytes', size: 9 * 1024 * 1024 }));
+  });
+
+  it('opens the Quick look over just that file on Ctrl+click, the line ignored, and gives the Terminal the keyboard back on close', async () => {
+    const { hover, provider, quickLook, files, terminalFocused } = await setup({ 'img/a.png:7': target('img/a.png', 7, 7, true) }, { 'img/a.png': PICTURE });
+    const [link] = await hover(provider(80, ['img/a.png:7']), 1);
+    link.activate(click({ ctrlKey: true }), link.text);
+    expect(quickLook.model()).toMatchObject({ files: ['img/a.png'], at: 0 });
+    expect(files()).toEqual([]);
+    expect(terminalFocused()).toBe(false);
+    quickLook.close();
+    expect(quickLook.model()).toBeUndefined();
+    expect(terminalFocused()).toBe(true);
   });
 });
 

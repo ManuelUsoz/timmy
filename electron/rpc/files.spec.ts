@@ -587,14 +587,14 @@ describe('Files.resolvePathLink', () => {
         answers.push(yield* resolve(root, candidate));
       }
       expect(answers).toEqual([
-        { path: 'src/app/foo.ts', start: null, end: null },
-        { path: 'src/app/foo.ts', start: null, end: null },
-        { path: 'src/app/foo.ts', start: 42, end: 42 },
-        { path: 'src/app/foo.ts', start: 42, end: 42 },
-        { path: 'src/app/foo.ts', start: 42, end: 50 },
-        { path: 'src/app/foo.ts', start: 42, end: 42 },
-        { path: 'src/app/foo.ts', start: 42, end: 42 },
-        { path: 'src/app/foo.ts', start: null, end: null },
+        { path: 'src/app/foo.ts', start: null, end: null, image: false },
+        { path: 'src/app/foo.ts', start: null, end: null, image: false },
+        { path: 'src/app/foo.ts', start: 42, end: 42, image: false },
+        { path: 'src/app/foo.ts', start: 42, end: 42, image: false },
+        { path: 'src/app/foo.ts', start: 42, end: 50, image: false },
+        { path: 'src/app/foo.ts', start: 42, end: 42, image: false },
+        { path: 'src/app/foo.ts', start: 42, end: 42, image: false },
+        { path: 'src/app/foo.ts', start: null, end: null, image: false },
       ]);
     }).pipe(Effect.provide(makeLayer()));
   });
@@ -604,10 +604,10 @@ describe('Files.resolvePathLink', () => {
     write(root, 'src/foo.ts');
     write(root, 'a/real.ts');
     return Effect.gen(function* () {
-      expect(yield* resolve(root, 'a/src/foo.ts')).toEqual({ path: 'src/foo.ts', start: null, end: null });
-      expect(yield* resolve(root, 'b/src/foo.ts:3')).toEqual({ path: 'src/foo.ts', start: 3, end: 3 });
-      expect(yield* resolve(root, 'b/src/foo.ts:10-20')).toEqual({ path: 'src/foo.ts', start: 10, end: 20 });
-      expect(yield* resolve(root, 'a/real.ts')).toEqual({ path: 'a/real.ts', start: null, end: null });
+      expect(yield* resolve(root, 'a/src/foo.ts')).toEqual({ path: 'src/foo.ts', start: null, end: null, image: false });
+      expect(yield* resolve(root, 'b/src/foo.ts:3')).toEqual({ path: 'src/foo.ts', start: 3, end: 3, image: false });
+      expect(yield* resolve(root, 'b/src/foo.ts:10-20')).toEqual({ path: 'src/foo.ts', start: 10, end: 20, image: false });
+      expect(yield* resolve(root, 'a/real.ts')).toEqual({ path: 'a/real.ts', start: null, end: null, image: false });
       expect(yield* resolve(root, 'c/src/foo.ts')).toBeNull();
     }).pipe(Effect.provide(makeLayer()));
   });
@@ -616,7 +616,7 @@ describe('Files.resolvePathLink', () => {
     const root = tempDir();
     write(root, 'src/app/foo.ts');
     return Effect.gen(function* () {
-      expect(yield* resolve(root, 'src\\app\\foo.ts:7')).toEqual({ path: 'src/app/foo.ts', start: 7, end: 7 });
+      expect(yield* resolve(root, 'src\\app\\foo.ts:7')).toEqual({ path: 'src/app/foo.ts', start: 7, end: 7, image: false });
     }).pipe(Effect.provide(makeLayer()));
   });
 
@@ -627,7 +627,7 @@ describe('Files.resolvePathLink', () => {
     roots.push(stranger);
     write(stranger, 'secret.ts');
     return Effect.gen(function* () {
-      expect(yield* resolve(root, `${path.join(root, 'src', 'foo.ts')}:9`)).toEqual({ path: 'src/foo.ts', start: 9, end: 9 });
+      expect(yield* resolve(root, `${path.join(root, 'src', 'foo.ts')}:9`)).toEqual({ path: 'src/foo.ts', start: 9, end: 9, image: false });
       expect(yield* resolve(root, path.join(stranger, 'secret.ts'))).toBeNull();
       expect(yield* resolve(root, `../${path.basename(stranger)}/secret.ts`)).toBeNull();
     }).pipe(Effect.provide(makeLayer()));
@@ -655,10 +655,12 @@ describe('Files.resolvePathLink', () => {
     git(root, 'init');
     write(root, '.gitignore', 'node_modules/\n');
     write(root, 'node_modules/pkg/index.js');
-    write(root, 'logo.png', '\u0000PNG');
+    writeFileSync(path.join(root, 'logo.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]));
+    write(root, 'notes.txt', 'plain text');
     return Effect.gen(function* () {
-      expect(yield* resolve(root, 'node_modules/pkg/index.js:12:5')).toEqual({ path: 'node_modules/pkg/index.js', start: 12, end: 12 });
-      expect(yield* resolve(root, 'logo.png')).toEqual({ path: 'logo.png', start: null, end: null });
+      expect(yield* resolve(root, 'node_modules/pkg/index.js:12:5')).toEqual({ path: 'node_modules/pkg/index.js', start: 12, end: 12, image: false });
+      expect(yield* resolve(root, 'logo.png')).toEqual({ path: 'logo.png', start: null, end: null, image: true });
+      expect(yield* resolve(root, 'notes.txt')).toEqual({ path: 'notes.txt', start: null, end: null, image: false });
     }).pipe(Effect.provide(makeLayer()));
   });
 
@@ -671,8 +673,8 @@ describe('Files.resolvePathLink', () => {
     write(stranger, 'src/main.ts');
     const app = path.join(root, 'packages', 'app');
     return Effect.gen(function* () {
-      expect(yield* resolve(root, 'src/main.ts', app)).toEqual({ path: 'packages/app/src/main.ts', start: null, end: null });
-      expect(yield* resolve(root, 'main.ts', app)).toEqual({ path: 'main.ts', start: null, end: null });
+      expect(yield* resolve(root, 'src/main.ts', app)).toEqual({ path: 'packages/app/src/main.ts', start: null, end: null, image: false });
+      expect(yield* resolve(root, 'main.ts', app)).toEqual({ path: 'main.ts', start: null, end: null, image: false });
       expect(yield* resolve(root, 'src/main.ts')).toBeNull();
       expect(yield* resolve(root, 'src/main.ts', stranger)).toBeNull();
     }).pipe(Effect.provide(makeLayer()));

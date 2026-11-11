@@ -9,8 +9,11 @@ import { EffectRuntime } from '../../core/effect-runtime';
 import { ToastService } from '../../core/toast';
 import { ButtonComponent } from '../../shared/ui/button/button';
 import { StateComponent } from '../../shared/ui/state/state';
+import type { FileState } from './file-read';
+import { FilePicture } from './file-picture';
+import { formatSize } from './file-view';
 import type { TerminalEntry, TerminalId } from './terminal-entries';
-import { PathLinks, folderFromOsc7, type PathLinkHint, type PathLinkProvider } from './path-links';
+import { PathLinks, folderFromOsc7, type PathLinkHint, type PathLinkPreview, type PathLinkProvider } from './path-links';
 import { sampleOutput } from './terminal-sample';
 import { terminalTheme } from './terminal-theme';
 import { terminalStateKey, terminalTone } from './terminal-view';
@@ -29,7 +32,7 @@ const bufferBottom = (instance: Terminal): ReadonlyArray<string> => {
 
 @Component({
   selector: 'app-terminal-screen',
-  imports: [ButtonComponent, StateComponent],
+  imports: [ButtonComponent, FilePicture, StateComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './terminal-screen.html',
   styleUrl: './terminal-screen.css',
@@ -76,6 +79,16 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
   /** The hovered Path link's hint (GLOSSARY: Path link): what Ctrl (Cmd) + click opens, by the pointer. */
   private readonly links = signal<PathLinkProvider | undefined>(undefined);
   protected readonly linkHint = computed((): PathLinkHint | undefined => this.links()?.hint());
+  protected readonly linkPreview = computed((): PathLinkPreview | undefined => this.links()?.preview());
+  /** What the hovered image shows: the picture, or the note of why there is none. */
+  protected readonly previewModel = computed(() => {
+    const preview = this.linkPreview();
+    if (preview === undefined) return undefined;
+    const { state, x, y, path } = preview;
+    if (state.status === 'image') return { kind: 'image' as const, picture: state.picture, path, x, y };
+    if (state.status === 'imageTooLarge') return { kind: 'note' as const, note: this.imageNote(state), x, y };
+    return undefined;
+  });
   protected readonly openKey = /Mac|iPhone|iPad/.test(navigator.userAgent) ? 'Cmd' : 'Ctrl';
   private resizeSubscription: { dispose: () => void } | undefined;
   private readonly streamAbort = new AbortController();
@@ -110,6 +123,12 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
     return document.hasFocus() && host.contains(document.activeElement);
   }
 
+  private imageNote(state: FileState & { readonly status: 'imageTooLarge' }): string {
+    return state.limit === 'bytes'
+      ? this.i18n.t('reader.imageOverBytes', { size: formatSize(state.size) })
+      : this.i18n.t('reader.imageOverPixels', { width: state.width, height: state.height });
+  }
+
   ngAfterViewInit(): void {
     const entry = this.terminal();
     if (typeof window.matchMedia !== 'function') return;
@@ -136,7 +155,12 @@ export class TerminalScreen implements AfterViewInit, OnDestroy {
       this.folder = folderFromOsc7(data);
       return true;
     });
-    const links = this.pathLinks.provider(instance, { terminal: entry.id, cwd: this.cwd(), folder: () => this.folder });
+    const links = this.pathLinks.provider(instance, {
+      terminal: entry.id,
+      cwd: this.cwd(),
+      folder: () => this.folder,
+      focus: () => instance.focus(),
+    });
     this.links.set(links);
     this.linkSubscription = instance.registerLinkProvider(links);
     this.tail = { id: entry.id, read: () => bufferBottom(instance) };

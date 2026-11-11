@@ -216,3 +216,25 @@ button.stop {
   font-family: var(--font-sans);
   opacity: 0.8;
 }
+
+/* The hovered image path's preview: fitted to a small card near the pointer. */
+.link-preview {
+  position: fixed;
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-02);
+  max-width: 260px;
+  max-height: 180px;
+  margin: 18px 0 0 8px;
+  padding: var(--spacing-02);
+  border: 1px solid var(--border-subtle);
+  background: var(--layer-01);
+  box-shadow: var(--shadow-overlay);
+  pointer-events: none;
+}
+
+.link-preview app-file-picture {
+  width: 100%;
+  height: 100%;
+}
