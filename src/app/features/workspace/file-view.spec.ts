@@ -205,8 +205,12 @@ describe('A File View of source', () => {
     });
 
     it('shows Java symbols', async () => {
-      const { breadcrumb } = await setup({ files: { 'Server.java': 'public class Server {\n  void start() {}\n}\n' }, path: 'Server.java' });
-      expect(breadcrumb()).toBe('*Server.java* › *Server*');
+      const { breadcrumb, settle } = await setup({ files: { 'Server.java': 'public class Server {\n  void start() {}\n}\n' }, path: 'Server.java' });
+      // The Java grammar loads lazily: wait for it, as a slow runner is slower than a few settles.
+      await vi.waitFor(async () => {
+        await settle();
+        expect(breadcrumb()).toBe('*Server.java* › *Server*');
+      });
     });
 
     it('shows the path alone for a line outside any declaration', async () => {
