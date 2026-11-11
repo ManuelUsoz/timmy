@@ -313,16 +313,17 @@ export const parseDiff = (output: string): FileDiff => {
     const kind = MARKS[line.slice(0, 1)];
     if (kind !== undefined) hunk.lines.push({ kind, text: line.slice(1).replace(/\r$/, '') });
   }
-  return hunks.length === 0 ? { kind: 'unchanged' } : { kind: 'changes', hunks };
+  return hunks.length === 0 ? { kind: 'unchanged' } : { kind: 'changes', untracked: false, hunks };
 };
 
-/** A file git does not track yet, as a diff: one hunk with every line added. */
+/** A file git does not track yet, as a diff: one hunk with every line added, flagged so the reader skips gutter bars. */
 const allAdded = (content: string): FileDiff => {
-  if (content === '') return { kind: 'changes', hunks: [] };
+  if (content === '') return { kind: 'changes', untracked: true, hunks: [] };
   const lines = content.split('\n');
   if (lines.at(-1) === '') lines.pop();
   return {
     kind: 'changes',
+    untracked: true,
     hunks: [{ oldStart: 0, oldLines: 0, newStart: 1, newLines: lines.length, lines: lines.map((text) => ({ kind: 'added', text: text.replace(/\r$/, '') })) }],
   };
 };

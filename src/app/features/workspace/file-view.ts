@@ -1,22 +1,29 @@
-import { ChangeDetectionStrategy, Component, ElementRef, afterNextRender, computed, effect, inject, input, signal, untracked, Injector } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, InjectionToken, afterNextRender, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { Cause, Effect, Exit } from 'effect';
 import type { ImageType } from '../../../shared/files/files.model';
+import type { ProjectId } from '../../../shared/projects/projects.model';
 import { DesktopApi } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { I18n } from '../../core/i18n';
+import { FileDiffView, readDiff, type DiffState } from './file-diff';
+import { formatSize } from './format-size';
 import { FilePicture } from './file-picture';
 import { FileVersions, sameVersion, type DiskVersion } from './file-versions';
 import { readFile, readPicture, type FileState } from './file-read';
-import { LineSelections, clampLines, clickLine, isOnlyLine, lineRange, pathWithLines, rangeFrom, selectedText, type LineSelection } from './line-selection';
 import { ReaderMode } from './reader-mode';
+import { ChangesRefreshSource } from './changes-refresh';
 import type { TabId } from './tabs';
 import { TabsState } from './tabs-state';
 import { PLAIN_TEXT, languageOf } from './file-language';
+import { LineSelections, clampLines, clickLine, isOnlyLine, lineRange, pathWithLines, rangeFrom, selectedText, type LineSelection } from './line-selection';
 import { MentionButton } from './mention-button';
 import { columnsOf, eolOf, indentOf, lineRuns, linesOf, type ColourRange } from './source-text';
 import { SYMBOL_OUTLINER, type Outline } from './symbol-outline';
 import { MAX_COLOURED_LENGTH, SYNTAX_HIGHLIGHTER } from './syntax-highlighter';
 import { fileOf } from './views';
+
+/** How long a burst of diff refresh triggers must be over before the diff is read again, in milliseconds. */
+export const DIFF_REFRESH_DEBOUNCE_MS = new InjectionToken<number>('DIFF_REFRESH_DEBOUNCE_MS', { providedIn: 'root', factory: () => 300 });
 
 /** The kind of a picture, as the status bar names it. */
 const IMAGE_KIND: Readonly<Record<ImageType, string>> = {
@@ -58,11 +65,50 @@ const lineOf = (event: Event): number | undefined => {
   return Number.isInteger(number) && number > 0 ? number : undefined;
 };
 
-/** `2.5 MB`: the size of a file too large to preview. */
-export const formatSize = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+/** What the gutter shows for a line of a Changed file. */
+export type GutterKind = 'added' | 'modified' | 'deleted';
+
+/**
+ * The gutter marks for each line of the file, derived from the diff's hunks. A wholly untracked file has no marks, since
+ * its `U` already says it. Lines never wrap, so one element per line stays aligned with the highlighted text.
+ */
+const guttersOf = (diff: DiffState, lineCount: number): ReadonlyArray<GutterKind | undefined> => {
+  if (diff.status !== 'changes' || diff.untracked || lineCount === 0) return Array(lineCount).fill(undefined);
+  const marks: Array<GutterKind | undefined> = Array(lineCount).fill(undefined);
+  for (const hunk of diff.hunks) {
+    let now = hunk.newStart;
+    let index = 0;
+    while (index < hunk.lines.length) {
+      const line = hunk.lines[index];
+      if (line === undefined) break;
+      if (line.kind === 'context') {
+        now++;
+        index++;
+        continue;
+      }
+      if (line.kind === 'added') {
+        // A modification is a removed line followed immediately by added lines, with no context between.
+        const modified = index > 0 && hunk.lines[index - 1].kind === 'removed';
+        marks[now - 1] = modified ? 'modified' : 'added';
+        now++;
+        index++;
+        continue;
+      }
+      // A run of removed lines: decide whether it is a deletion (notch) or part of a modification.
+      const removedStart = index;
+      while (index < hunk.lines.length && hunk.lines[index].kind === 'removed') index++;
+      const followedByAdded = index < hunk.lines.length && hunk.lines[index].kind === 'added';
+      if (!followedByAdded && now <= lineCount) {
+        // A pure deletion: one notch at the line where the deleted content would have been.
+        marks[now - 1] = 'deleted';
+      }
+      // If followed by added lines, the added loop above will mark them as modified; no notch here.
+      if (!followedByAdded) {
+        // Keep `now` where it is: removed lines do not exist in the new file.
+      }
+    }
+  }
+  return marks;
 };
 
 /**
@@ -76,12 +122,17 @@ export const formatSize = (bytes: number): string => {
  * (`TabsState.focusRequest`), so the user can scroll at once. Its header is the Pane's (`PaneStack`), whose file actions
  * (Copiar, Copiar ruta, open outside) call this View.
  *
+ * In a Tab, the File View also reads the file's change against HEAD and offers Archivo/Cambios, sharing `app-file-diff`
+ * with the Quick look. In Archivo, a gutter bar marks added or modified lines and a notch marks where lines were deleted.
+ * The diff refreshes on the same triggers as the Files browser markers: a Provider Hook of any Terminal of the Project,
+ * and window focus, debounced and one at a time.
+ *
  * In a Tab, the Line selection (GLOSSARY) is marked from the line numbers and kept in `LineSelections`, not in the lines:
  * the tint and the popover are one layer over the text, placed by line height, so how the lines are drawn can change.
  */
 @Component({
   selector: 'app-file-view',
-  imports: [FilePicture, MentionButton],
+  imports: [FileDiffView, FilePicture, MentionButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './file-view.html',
   styleUrl: './file-view.css',
@@ -98,12 +149,16 @@ export class FileView {
   protected readonly reader = inject(ReaderMode);
   private readonly selections = inject(LineSelections);
   protected readonly versions = inject(FileVersions);
+  private readonly debounce = inject(DIFF_REFRESH_DEBOUNCE_MS);
+  private readonly source = inject(ChangesRefreshSource);
 
   /** The Project's folder, which the path is relative to. */
   readonly cwd = input.required<string>();
   readonly path = input.required<string>();
   /** The Tab it is in, to tell a request for the keyboard meant for it. None outside a Tab (the Quick look). */
   readonly tabId = input<TabId>();
+  /** The Project the file belongs to; without it the diff never refreshes on Hook/focus. */
+  readonly projectId = input<ProjectId>();
 
   protected readonly file = signal<FileState>({ status: 'loading' });
   protected readonly name = computed(() => this.path().split('/').at(-1) ?? this.path());
@@ -138,6 +193,19 @@ export class FileView {
   readonly fileMentionBlock = computed((): string | undefined => (this.freshness() === 'gone' ? this.i18n.t('fileView.goneBar') : undefined));
   /** Why Copiar ruta with a range is off while stale. The path alone, and copying selected text, are never blocked. */
   readonly rangeBlock = computed((): string | undefined => (this.freshness() === 'stale' && this.selection() !== undefined ? this.i18n.t('fileView.reloadFirst') : undefined));
+  /** Archivo (the file) or Cambios (its diff). Only offered in a Tab. */
+  protected readonly mode = signal<'file' | 'changes'>('file');
+  /** The diff of the file, read when it opens and on refresh triggers. */
+  protected readonly diff = signal<DiffState>({ status: 'loading' });
+  /** Cambios is offered only for a Changed file with text: a diff with lines to show. */
+  protected readonly canDiff = computed(() => this.diff().status === 'changes');
+  /** Cambios keeps its place with another label when it is not offered, so the header does not shift. */
+  protected readonly changesLabel = computed(() => {
+    const status = this.diff().status;
+    return this.i18n.t(status === 'changes' || status === 'loading' ? 'quickLook.changes' : 'quickLook.noChanges');
+  });
+  /** Whether this View is inside a Tab (not the Quick look) and can offer Cambios. */
+  protected readonly inTab = computed(() => this.tabId() !== undefined);
 
   /** An SVG has two forms, its text (Fuente) and its picture (Imagen); every other file has one. */
   protected readonly isSvg = computed(() => this.language().name === 'SVG' && this.file().status === 'text');
@@ -146,7 +214,7 @@ export class FileView {
   /** The SVG's picture, read when Imagen is first chosen for it; none until then. */
   protected readonly svgPicture = signal<FileState | undefined>(undefined);
   /** What the body shows: the file, or the SVG's picture in Imagen. */
-  protected readonly shown = computed((): FileState => (this.drawn() ? (this.svgPicture() ?? { status: 'loading' }) : this.file()));
+  protected readonly shown = computed((): FileState => (this.drawn() && this.mode() === 'file' ? (this.svgPicture() ?? { status: 'loading' }) : this.file()));
   /** A picture at its natural size (scrolling) rather than fitted. */
   protected readonly actual = signal(false);
   /** The size an SVG drew at, which only drawing it tells. */
@@ -192,6 +260,8 @@ export class FileView {
   private readonly colours = signal<ReadonlyArray<ColourRange>>([]);
   /** Each line as the runs to draw. */
   protected readonly rows = computed(() => lineRuns(this.lines(), this.colours()));
+  /** The gutter mark for each line, derived from the diff. */
+  protected readonly gutters = computed(() => guttersOf(this.diff(), this.lines().length));
   /** The width the longest line needs, in characters: a line out of view is not laid out, so the text cannot measure it. */
   protected readonly columns = computed(() => columnsOf(this.lines()));
   /** How many digits the last line number has, which is the width of the numbers. */
@@ -269,6 +339,11 @@ export class FileView {
     ];
   });
 
+  /** The wait for a burst of diff refresh triggers to end, and whether a diff read is running or must run again after it. */
+  private diffTimer: ReturnType<typeof setTimeout> | undefined;
+  private diffRunning = false;
+  private diffAgain = false;
+
   constructor() {
     effect(() => {
       const cwd = this.cwd();
@@ -276,6 +351,12 @@ export class FileView {
       untracked(() => {
         this.target.set({ cwd, path });
         void this.read(cwd, path);
+        if (this.inTab()) {
+          this.mode.set('file');
+          this.diff.set({ status: 'loading' });
+          this.clearDiffRefresh();
+          void this.runDiffRefresh(cwd, path, true);
+        }
       });
     });
     // The open File Views of a Project are checked together (`FileVersions`); a Quick look is not one of them.
@@ -285,6 +366,12 @@ export class FileView {
     });
     effect(() => {
       if (this.versions.latest(this.cwd(), this.path()) === null && this.loaded() !== null) untracked(() => this.lost.set(true));
+    });
+    effect(() => {
+      const pulse = this.source.trigger();
+      const projectId = this.projectId();
+      if (projectId === undefined || pulse === undefined || pulse.projectId !== projectId) return;
+      untracked(() => this.scheduleDiffRefresh());
     });
     effect(() => {
       // Imagen chosen for an SVG whose picture is not read yet, here or in another View.
@@ -408,6 +495,52 @@ export class FileView {
     // Another file, or another read of this one, took its place meanwhile.
     if (path !== this.path() || cwd !== this.cwd() || this.content() !== content) return;
     if (Exit.isSuccess(exit)) this.colours.set(exit.value);
+  }
+
+  // ---- Archivo / Cambios -------------------------------------------------------------------------------------------
+
+  /** Switches between Archivo and Cambios. Cambios only when there is a diff to show. */
+  protected show(mode: 'file' | 'changes'): void {
+    if (mode === 'changes' && !this.canDiff()) return;
+    this.mode.set(mode);
+  }
+
+  private clearDiffRefresh(): void {
+    clearTimeout(this.diffTimer);
+    this.diffTimer = undefined;
+  }
+
+  private scheduleDiffRefresh(): void {
+    if (this.projectId() === undefined) return;
+    this.clearDiffRefresh();
+    this.diffTimer = setTimeout(() => {
+      this.diffTimer = undefined;
+      void this.runDiffRefresh(this.cwd(), this.path(), false);
+    }, this.debounce);
+  }
+
+  private async runDiffRefresh(cwd: string, path: string, showLoading: boolean): Promise<void> {
+    if (this.diffRunning) {
+      this.diffAgain = true;
+      return;
+    }
+    this.diffRunning = true;
+    await this.readDiff(cwd, path, showLoading);
+    this.diffRunning = false;
+    if (this.diffAgain) {
+      this.diffAgain = false;
+      this.scheduleDiffRefresh();
+    }
+  }
+
+  private async readDiff(cwd: string, path: string, showLoading: boolean): Promise<void> {
+    if (showLoading) this.diff.set({ status: 'loading' });
+    const exit = await this.runtime.run(readDiff(cwd, path));
+    // Another file took this View's place while this one was read.
+    if (path !== this.path() || cwd !== this.cwd()) return;
+    const diff: DiffState = Exit.isSuccess(exit) ? exit.value : { status: 'failed', detail: Cause.pretty(exit.cause) };
+    this.diff.set(diff);
+    if (diff.status !== 'changes') this.mode.set('file');
   }
 
   // ---- Line selection ----------------------------------------------------------------------------------------------

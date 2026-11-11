@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, input, linkedSignal, output, signal, viewChild } from '@angular/core';
+import type { ProjectId } from '../../../shared/projects/projects.model';
 import type { Provider } from '../../../shared/settings/settings.model';
 import { I18n } from '../../core/i18n';
 import type { MessageKey } from '../../core/i18n-dictionaries';
@@ -97,6 +98,8 @@ export class PaneStack {
   readonly pane = input.required<Pane>();
   /** The Project's folder, where new Terminals open. */
   readonly cwd = input.required<string>();
+  /** The Project the Tab belongs to; File Views use it for diff refresh triggers. */
+  readonly projectId = input<ProjectId>();
   /** The focused Pane: its keys (Alt+1–3, Alt+Shift+…) work, and its expanded Terminal is the one on screen. */
   readonly focused = input(false);
   /** Whether Split right / Split down are offered: the grid knows the Pane's size in px (see `canSplit`). */

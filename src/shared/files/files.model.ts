@@ -96,10 +96,11 @@ export type DiffHunk = typeof DiffHunk.Type;
 /**
  * A file's change against the last commit (Cambios), unified: `changes` with its hunks; `unchanged` for a file git has
  * nothing to say about; `binary` when there are no lines to show; `tooLarge` (bytes of the file now) when it is over
- * `MAX_PREVIEW_BYTES`. An untracked file is all lines added; a deleted one all lines removed.
+ * `MAX_PREVIEW_BYTES`. An untracked file is all lines added and is flagged so the reader skips gutter bars; a deleted one
+ * all lines removed.
  */
 export const FileDiff = Schema.Union([
-  Schema.Struct({ kind: Schema.Literal('changes'), hunks: Schema.Array(DiffHunk) }),
+  Schema.Struct({ kind: Schema.Literal('changes'), untracked: Schema.Boolean, hunks: Schema.Array(DiffHunk) }),
   Schema.Struct({ kind: Schema.Literal('unchanged') }),
   Schema.Struct({ kind: Schema.Literal('binary') }),
   Schema.Struct({ kind: Schema.Literal('tooLarge'), size: Schema.Number }),

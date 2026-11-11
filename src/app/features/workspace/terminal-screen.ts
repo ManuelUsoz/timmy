@@ -11,7 +11,7 @@ import { ButtonComponent } from '../../shared/ui/button/button';
 import { StateComponent } from '../../shared/ui/state/state';
 import type { FileState } from './file-read';
 import { FilePicture } from './file-picture';
-import { formatSize } from './file-view';
+import { formatSize } from './format-size';
 import type { TerminalEntry, TerminalId } from './terminal-entries';
 import { PathLinks, folderFromOsc7, type PathLinkHint, type PathLinkPreview, type PathLinkProvider } from './path-links';
 import { sampleOutput } from './terminal-sample';

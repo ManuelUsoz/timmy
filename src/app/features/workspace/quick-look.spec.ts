@@ -363,9 +363,9 @@ describe('Quick look', () => {
       ...timmyDisk(),
       changes: [change('README.md', 'modified'), change('src/main.ts', 'deleted'), change('src/util.ts', 'untracked'), change('logo.png', 'modified')],
       diffs: {
-        'README.md': hunkOf(' # timmy', ' ', '-read me', '+read me twice'),
-        'src/main.ts': hunkOf('-const a = 1;', '-const b = 2;'),
-        'src/util.ts': hunkOf('+export const twice = 2;'),
+        'README.md': hunkOf([' # timmy', ' ', '-read me', '+read me twice']),
+        'src/main.ts': hunkOf(['-const a = 1;', '-const b = 2;']),
+        'src/util.ts': hunkOf(['+export const twice = 2;']),
         'logo.png': { kind: 'binary' },
       },
     });
@@ -478,7 +478,7 @@ describe('Quick look', () => {
     it('reads the diff again when it opens and on each step of its walk', async () => {
       const { backend, rowOf, space, key, look } = await setup(changedDisk());
       await space(rowOf('README.md'));
-      backend.files.disks[timmy.cwd].diffs!['README.md'] = hunkOf('+now different');
+      backend.files.disks[timmy.cwd].diffs!['README.md'] = hunkOf(['+now different']);
       await key('ArrowUp');
       await key('ArrowDown');
       await key('ArrowRight');
