@@ -7,6 +7,7 @@ import {
   FileContent,
   FileDiff,
   FileList,
+  FileVersionAnswer,
   FilesBrowserState,
   FolderListing,
   ImageContent,
@@ -71,6 +72,16 @@ export const FilesRpcs = RpcGroup.make(
   Rpc.make('Files.readImage', {
     payload: { cwd: Schema.String, file: Schema.String },
     success: ImageContent,
+    error: FilesError,
+  }),
+  /**
+   * The version (modified time and size) of each of `files` of `cwd`, from the disk's metadata alone: no content is read.
+   * Each is relative to `cwd`, with `/`. A path that is not a file now answers null; one main cannot answer (outside the
+   * Project, unreadable metadata) is left out.
+   */
+  Rpc.make('Files.versions', {
+    payload: { cwd: Schema.String, files: Schema.Array(Schema.String) },
+    success: Schema.Array(FileVersionAnswer),
     error: FilesError,
   }),
   /** What the browser remembers for a Project, with the window's width. Defaults when nothing (readable) was saved. */

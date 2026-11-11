@@ -62,6 +62,17 @@ export const FileContent = Schema.Union([
 ]).annotate({ identifier: 'FileContent' });
 export type FileContent = typeof FileContent.Type;
 
+/**
+ * What tells a file changed on disk without reading it: its modified time (ms since the epoch) and size in bytes. Two
+ * versions that differ mean the content may; equal ones are taken as the same content.
+ */
+export const FileVersion = Schema.Struct({ modified: Schema.Number, size: Schema.Number }).annotate({ identifier: 'FileVersion' });
+export type FileVersion = typeof FileVersion.Type;
+
+/** The version of one file asked for; null when it is not a file now (deleted, renamed away, or a folder). */
+export const FileVersionAnswer = Schema.Struct({ file: Schema.String, version: Schema.NullOr(FileVersion) }).annotate({ identifier: 'FileVersionAnswer' });
+export type FileVersionAnswer = typeof FileVersionAnswer.Type;
+
 /** One line of a hunk: kept as it was (`context`), only in the file now (`added`), or only in the last commit (`removed`). */
 export const DiffLine = Schema.Struct({
   kind: Schema.Literals(['context', 'added', 'removed']),

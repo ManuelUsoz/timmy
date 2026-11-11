@@ -43,7 +43,7 @@
             @if (view.dir !== '') {
               <span class="dir" [attr.title]="view.file.path"><bdi>{{ view.dir }}</bdi></span>
             }
-            <span class="name" [class.preview]="!view.file.pinned" [attr.title]="view.file.path">{{ view.name }}</span>
+            <span class="name" [class.preview]="!view.file.pinned" [class.gone]="fileView()?.freshness() === 'gone'" [attr.title]="view.file.path">{{ view.name }}</span>
           </span>
           @if (stacked()) {
             <span class="count">{{ view.index + 1 }}/{{ pane().views.length }}</span>
@@ -63,14 +63,14 @@
             <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 2h4M7 2v4L4.5 9h7L9 6V2M8 9v5" /></svg>
           </button>
           <!-- Mencionar stays in the header however narrow, like the pin. -->
-          <app-mention [tabId]="tab().id" [path]="view.file.path" />
+          <app-mention [tabId]="tab().id" [path]="view.file.path" [blocked]="fileView()?.fileMentionBlock()" />
           <!-- Labelled when there is room, icons in a narrower Pane, and in the menu below in a narrow one. -->
           <span class="file-actions">
             <button type="button" class="tool labelled" [attr.aria-label]="i18n.t('fileView.copy')" [attr.title]="i18n.t('fileView.copy')" [disabled]="fileView()?.hasText() !== true" (click)="fileView()?.copy()">
               <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 5h8v9H5zM3 11V2h8" /></svg>
               <span class="label">{{ i18n.t('fileView.copy') }}</span>
             </button>
-            <button type="button" class="tool labelled" [attr.aria-label]="i18n.t('fileView.copyPath')" [attr.title]="i18n.t('fileView.copyPath')" (click)="fileView()?.copyPath()">
+            <button type="button" class="tool labelled" [attr.aria-label]="i18n.t('fileView.copyPath')" [attr.title]="fileView()?.rangeBlock() ?? i18n.t('fileView.copyPath')" [disabled]="fileView()?.rangeBlock() !== undefined" (click)="fileView()?.copyPath()">
               <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M7 9l2-2M6 7.5L4.5 9a2.1 2.1 0 003 3L9 10.5M10 8.5L11.5 7a2.1 2.1 0 00-3-3L7 5.5" /></svg>
               <span class="label">{{ i18n.t('fileView.copyPath') }}</span>
             </button>
@@ -145,7 +145,7 @@
                   <button type="button" class="mi file-action" role="menuitem" [disabled]="fileView()?.hasText() !== true" (click)="menuOpen.set(false); fileView()?.copy()">
                     <span class="mi-label">{{ i18n.t('fileView.copy') }}</span>
                   </button>
-                  <button type="button" class="mi file-action" role="menuitem" (click)="menuOpen.set(false); fileView()?.copyPath()">
+                  <button type="button" class="mi file-action" role="menuitem" [attr.title]="fileView()?.rangeBlock() ?? null" [disabled]="fileView()?.rangeBlock() !== undefined" (click)="menuOpen.set(false); fileView()?.copyPath()">
                     <span class="mi-label">{{ i18n.t('fileView.copyPath') }}</span>
                   </button>
                   <button type="button" class="mi file-action" role="menuitem" (click)="menuOpen.set(false); fileView()?.openExternal()">
