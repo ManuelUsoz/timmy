@@ -1,11 +1,13 @@
-import { Injectable, InjectionToken, inject, signal, type Signal } from '@angular/core';
-import { Effect, Exit } from 'effect';
+import { Injectable, InjectionToken, inject, signal, type Signal, type WritableSignal } from '@angular/core';
+import { Cause, Effect, Exit } from 'effect';
 import type { ILink, ILinkProvider } from '@xterm/xterm';
 import type { PathLinkTarget } from '../../../shared/files/files.model';
 import { DesktopApi } from '../../core/desktop-api';
 import { EffectRuntime } from '../../core/effect-runtime';
+import { readPicture, type FileState } from './file-read';
 import { LineSelections } from './line-selection';
 import { bringForward } from './pane-layout';
+import { QuickLookState } from './quick-look-state';
 import type { TerminalId } from './terminal-entries';
 import { TabsState } from './tabs-state';
 import { TerminalsState } from './terminals-state';
@@ -72,11 +74,12 @@ export interface PathLinkBuffer {
   };
 }
 
-/** Where the Path links of one Terminal lead: its Project, and the folder its shell said it is in. */
+/** Where the Path links of one Terminal lead: its Project, the folder its shell said it is in, and how to focus it. */
 export interface PathLinkContext {
   readonly terminal: TerminalId;
   readonly cwd: string;
   readonly folder: () => string | undefined;
+  readonly focus: () => void;
 }
 
 /** The hovered link's hint: what it opens (path and line), where the pointer is (client px). */
@@ -86,9 +89,18 @@ export interface PathLinkHint {
   readonly y: number;
 }
 
-/** The link provider of one Terminal, with the hint of the link under the pointer for its screen to show. */
+/** The hovered image's preview: the path, where the pointer is, and the picture or the state that stands for it. */
+export interface PathLinkPreview {
+  readonly path: string;
+  readonly x: number;
+  readonly y: number;
+  readonly state: FileState;
+}
+
+/** The link provider of one Terminal, with the hint and image preview of the link under the pointer for its screen to show. */
 export interface PathLinkProvider extends ILinkProvider {
   readonly hint: Signal<PathLinkHint | undefined>;
+  readonly preview: Signal<PathLinkPreview | undefined>;
 }
 
 /** `src/app/foo.ts:42`, `src/app/foo.ts:42-50`: what a link opens, as the hint says it. */
@@ -106,8 +118,10 @@ export class PathLinks {
   private readonly tabs = inject(TabsState);
   private readonly terminals = inject(TerminalsState);
   private readonly selections = inject(LineSelections);
+  private readonly quickLook = inject(QuickLookState);
   private readonly cacheFor = inject(PATH_LINK_CACHE_MS);
   private readonly answers = new Map<string, { readonly at: number; readonly target: PathLinkTarget | null }>();
+  private readonly imageCache = new Map<string, { readonly at: number; readonly state: FileState }>();
   /** The question being asked: the next waits for it, so main hears one at a time. */
   private queue: Promise<unknown> = Promise.resolve();
 
@@ -131,9 +145,14 @@ export class PathLinks {
   /**
    * Opens a Path link of a Terminal in its Tab (ADR 0013), as a click in the tree does: a preview File View in a Pane to the
    * right of the Terminal's, or the one already open brought forward. Its lines become the Line selection and scroll to
-   * the middle.
+   * the middle. An image opens the Quick look over a one-file list instead, and `focus` returns the keyboard to the
+   * Terminal when the Quick look closes.
    */
-  open(terminal: TerminalId, target: PathLinkTarget): void {
+  open(terminal: TerminalId, target: PathLinkTarget, focus?: () => void): void {
+    if (target.image) {
+      this.quickLook.open([target.path], target.path, focus);
+      return;
+    }
     const entry = this.terminals.find(terminal);
     const tab = entry === undefined ? undefined : this.tabs.tabsOf(entry.projectId).find((each) => each.id === entry.tabId);
     if (tab === undefined) return;
@@ -150,6 +169,9 @@ export class PathLinks {
   /** The link provider to register on a Terminal's xterm. */
   provider(screen: PathLinkBuffer, context: PathLinkContext): PathLinkProvider {
     const hint = signal<PathLinkHint | undefined>(undefined);
+    const preview = signal<PathLinkPreview | undefined>(undefined);
+    /** The image the pointer is over, so a slow read of one it has left shows nothing. */
+    let hovered: string | undefined;
     const linkOf = (candidate: Candidate, target: PathLinkTarget, first: number): ILink => {
       const point = (offset: number) => ({ x: (offset % screen.cols) + 1, y: first + Math.floor(offset / screen.cols) });
       return {
@@ -158,10 +180,19 @@ export class PathLinks {
         decorations: { underline: true, pointerCursor: false },
         // A plain click or a drag selects text; only Ctrl (Cmd) + click opens.
         activate: (event) => {
-          if (event.ctrlKey || event.metaKey) this.open(context.terminal, target);
+          if (event.ctrlKey || event.metaKey) this.open(context.terminal, target, context.focus);
         },
-        hover: (event) => hint.set({ label: labelOf(target), x: event.clientX, y: event.clientY }),
-        leave: () => hint.set(undefined),
+        hover: (event) => {
+          hint.set({ label: labelOf(target), x: event.clientX, y: event.clientY });
+          if (!target.image) return;
+          hovered = target.path;
+          void this.showImagePreview(context.cwd, target.path, event.clientX, event.clientY, preview, () => hovered === target.path);
+        },
+        leave: () => {
+          hint.set(undefined);
+          hovered = undefined;
+          preview.set(undefined);
+        },
       };
     };
     const provideLinks = (y: number, callback: (links: ILink[] | undefined) => void): void => {
@@ -180,7 +211,31 @@ export class PathLinks {
         callback(links.length === 0 ? undefined : links);
       })();
     };
-    return { hint: hint.asReadonly(), provideLinks };
+    return { hint: hint.asReadonly(), preview: preview.asReadonly(), provideLinks };
+  }
+
+  private async showImagePreview(
+    cwd: string,
+    file: string,
+    x: number,
+    y: number,
+    preview: WritableSignal<PathLinkPreview | undefined>,
+    stillOver: () => boolean,
+  ): Promise<void> {
+    const state = await this.readImagePreview(cwd, file);
+    // A stale answer (not an image) or a pointer that left while reading: nothing to show.
+    if (state.status === 'notAnImage' || !stillOver()) return;
+    preview.set({ path: file, x, y, state });
+  }
+
+  private async readImagePreview(cwd: string, file: string): Promise<FileState> {
+    const key = `${cwd} ${file}`;
+    const known = this.imageCache.get(key);
+    if (known !== undefined && Date.now() - known.at < this.cacheFor) return known.state;
+    const exit = await this.runtime.run(readPicture(cwd, file, () => ({ status: 'notAnImage' })));
+    const state: FileState = Exit.isSuccess(exit) ? exit.value : { status: 'failed', detail: Cause.pretty(exit.cause) };
+    this.imageCache.set(key, { at: Date.now(), state });
+    return state;
   }
 }
 

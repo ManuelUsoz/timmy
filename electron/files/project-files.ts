@@ -334,21 +334,31 @@ const locateFile = Effect.fn('ProjectFiles.locate')(function* (cwd: string, file
 });
 
 /**
- * The Project file `written` names, read from `base` (an absolute folder): its path relative to the Project, or nothing.
- * The disk is touched only through `locateFile`, the confinement every read uses.
+ * The Project file `written` names, read from `base` (an absolute folder): its path relative to the Project and its
+ * absolute path, or nothing. The disk is touched only through `locateFile`, the confinement every read uses.
  */
-const fileFrom = (cwd: string, base: string, written: string): Effect.Effect<string | undefined> => {
+const fileFrom = (cwd: string, base: string, written: string): Effect.Effect<{ readonly relative: string; readonly absolute: string } | undefined> => {
   const relative = path.relative(path.resolve(cwd), path.resolve(base, written));
   return locateFile(cwd, relative).pipe(
-    Effect.as(relative.split(path.sep).join('/')),
+    Effect.map((absolute) => ({ relative: relative.split(path.sep).join('/'), absolute })),
     Effect.orElseSucceed(() => undefined),
   );
 };
 
+/** How much of a file tells what kind of image it is. */
+const IMAGE_SNIFF_BYTES = 4096;
+
+/** Whether a file's first bytes are an image, without reading the whole file. A failure to read is "not an image". */
+const isImageFile = (target: string): Effect.Effect<boolean> =>
+  Effect.tryPromise({ try: () => readHead(target, IMAGE_SNIFF_BYTES), catch: () => Effect.succeed(false) }).pipe(
+    Effect.map((head) => imageTypeOf(head) !== undefined),
+    Effect.orElseSucceed(() => false),
+  );
+
 /**
  * What a path printed in a Terminal opens (GLOSSARY: Path link): the Project's folder is tried first, then the Terminal's
  * (`folder`) while it is inside the Project; a diff header's `a/` or `b/` is dropped only when the path as printed does not
- * resolve. Nothing else is tried: no basename or suffix guesses.
+ * resolve. Nothing else is tried: no basename or suffix guesses. `image` is true when the file's bytes are an image.
  */
 const resolveLink = Effect.fn('ProjectFiles.resolvePathLink')(function* (cwd: string, candidate: string, folder: string | null) {
   const parsed = parsePathLink(candidate);
@@ -361,14 +371,14 @@ const resolveLink = Effect.fn('ProjectFiles.resolvePathLink')(function* (cwd: st
   for (const form of forms) {
     for (const base of path.isAbsolute(form) ? [root] : bases) {
       const found = yield* fileFrom(cwd, base, form);
-      if (found !== undefined) return { path: found, start: parsed.start, end: parsed.end } satisfies PathLinkTarget;
+      if (found !== undefined) {
+        const image = yield* isImageFile(found.absolute).pipe(Effect.orElseSucceed(() => false));
+        return { path: found.relative, start: parsed.start, end: parsed.end, image } satisfies PathLinkTarget;
+      }
     }
   }
   return null;
 });
-
-/** How much of a file tells what kind of image it is. */
-const IMAGE_SNIFF_BYTES = 4096;
 
 /**
  * The file as an image. Its first bytes say whether it is one; the byte cap is checked on its size before it is read whole,
