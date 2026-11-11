@@ -87,9 +87,13 @@ test.describe('Path links', () => {
 
     await test.step('hovering the image path shows the picture beside the pointer', async () => {
       const place = await expect.poll(() => placeOf(page, 'img/disc.png:3')).toBeDefined().then(() => placeOf(page, 'img/disc.png:3'));
-      await page.mouse.move(place!.x, place!.y);
       const preview = page.locator('.link-preview');
-      await expect(preview.locator('img')).toBeVisible();
+      // The preview answers the pointer arriving on the path: on a slow runner the first move can come before the link is ready.
+      await expect(async () => {
+        await page.mouse.move(place!.x - 4, place!.y);
+        await page.mouse.move(place!.x, place!.y);
+        await expect(preview.locator('img')).toBeVisible({ timeout: 3000 });
+      }).toPass({ timeout: 15000 });
       await expect.poll(() => preview.locator('img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(160);
       await timmy.shot('path-links-image-hover', { mask: [prompt] });
     });

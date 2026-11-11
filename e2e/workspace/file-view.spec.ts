@@ -113,7 +113,7 @@ test.describe('A File View', () => {
       await expect(filePane.getByRole('menuitem', { name: 'Copy path' })).toBeVisible();
       await timmy.shot('file-view-narrow-header', { mask: behind });
       await filePane.getByRole('menuitem', { name: 'Copy path' }).click();
-      expect(await timmy.app.evaluate(({ clipboard }) => clipboard.readText())).toBe('main.ts');
+      await expect.poll(() => timmy.app.evaluate(({ clipboard }) => clipboard.readText())).toBe('main.ts');
     });
 
     await test.step('with the Files browser closed there is room for the actions, as icons', async () => {

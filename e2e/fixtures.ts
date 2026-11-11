@@ -64,8 +64,13 @@ export class Timmy {
       await this.settle(900);
       if (mode === 'Panel') return;
     }
-    await this.page.getByRole('button', { name: 'Change window mode' }).last().click();
-    await this.page.getByRole('option', { name: mode }).click();
+    const switcher = this.page.getByRole('button', { name: 'Change window mode' }).last();
+    const option = this.page.getByRole('option', { name: mode });
+    // A slow runner can swallow the first click: open the menu again only while it is not open.
+    await expect(async () => {
+      if (!(await option.isVisible())) await switcher.click();
+      await option.click({ timeout: 3000 });
+    }).toPass({ timeout: 20000 });
     await this.settle(900);
   }
 
