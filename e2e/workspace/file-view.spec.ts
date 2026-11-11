@@ -100,8 +100,7 @@ test.describe('A File View', () => {
       await expect.poll(() => timmy.app.evaluate(({ clipboard }) => clipboard.readText())).toBe('main.ts:1-3');
       await popover.getByRole('button', { name: 'Copy', exact: true }).click();
       // The Windows clipboard gives the lines back with CRLF.
-      const copied = (await timmy.app.evaluate(({ clipboard }) => clipboard.readText())).replace(/\r\n/g, '\n');
-      expect(copied).toBe(lines.join('\n'));
+      await expect.poll(async () => (await timmy.app.evaluate(({ clipboard }) => clipboard.readText())).replace(/\r\n/g, '\n')).toBe(lines.join('\n'));
       await text.press('Escape');
       await expect(popover).toHaveCount(0);
     });

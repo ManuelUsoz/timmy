@@ -41,8 +41,7 @@ test.describe('Path links', () => {
     const hint = page.getByRole('tooltip');
 
     await test.step('hovering the path underlines it and tells what Ctrl+click opens', async () => {
-      const place = await placeOf(page, 'src/answer.ts:42:7');
-      expect(place).toBeDefined();
+      const place = await expect.poll(() => placeOf(page, 'src/answer.ts:42:7')).toBeDefined().then(() => placeOf(page, 'src/answer.ts:42:7'));
       await page.mouse.move(place!.x, place!.y);
       await expect(hint).toBeVisible();
       await expect(hint.locator('.link-path')).toHaveText('src/answer.ts:42');
@@ -87,8 +86,7 @@ test.describe('Path links', () => {
     const look = page.getByRole('dialog', { name: /^Quick look of / });
 
     await test.step('hovering the image path shows the picture beside the pointer', async () => {
-      const place = await placeOf(page, 'img/disc.png:3');
-      expect(place).toBeDefined();
+      const place = await expect.poll(() => placeOf(page, 'img/disc.png:3')).toBeDefined().then(() => placeOf(page, 'img/disc.png:3'));
       await page.mouse.move(place!.x, place!.y);
       const preview = page.locator('.link-preview');
       await expect(preview.locator('img')).toBeVisible();
