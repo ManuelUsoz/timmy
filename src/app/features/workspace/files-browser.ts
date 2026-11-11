@@ -8,6 +8,7 @@ import { I18n } from '../../core/i18n';
 import type { TreeNode } from '../../shared/ui/tree-view/tree-view.types';
 import { Changes, changedOnlyTree, flagOf, marks, withChanges } from './changed-files';
 import { ChangesRefreshSource } from './changes-refresh';
+import { CoalescedRefresh, REFRESH_DEBOUNCE_MS } from './coalesced-refresh';
 import { ProjectsState } from './projects-state';
 import { TabsState } from './tabs-state';
 import { TerminalsState } from './terminals-state';
@@ -19,7 +20,7 @@ export const MAX_BROWSER_SHARE = 0.6;
 /** Most matches the filter lists. */
 export const MAX_MATCHES = 200;
 /** How long a burst of refresh triggers must be over before the changed markers are read again, in milliseconds. */
-export const CHANGES_DEBOUNCE_MS = new InjectionToken<number>('CHANGES_DEBOUNCE_MS', { providedIn: 'root', factory: () => 300 });
+export const CHANGES_DEBOUNCE_MS = new InjectionToken<number>('CHANGES_DEBOUNCE_MS', { providedIn: 'root', factory: () => REFRESH_DEBOUNCE_MS });
 
 /** The files git sees, for the filter: loading, not available (no git, or it failed), or the paths. */
 type FileIndex =
@@ -121,10 +122,12 @@ export class FilesBrowser {
   private readonly showChangedOnly = signal(false);
   /** Whether the tree shows only the changed paths and the folders that lead to them. */
   readonly changedOnly = computed(() => this.showChangedOnly() && this.changedCount() > 0);
-  /** The wait for a burst of refresh triggers to end, and whether a status is running or must run again after it. */
-  private changesTimer: ReturnType<typeof setTimeout> | undefined;
-  private changesRunning = false;
-  private changesAgain = false;
+  /** Refreshes the markers: a burst of triggers is one `git status`, one at a time. */
+  private readonly changesRefresh = new CoalescedRefresh(
+    () => this.readChanges(),
+    this.debounce,
+    () => this.open() && this.projects.selected() !== undefined,
+  );
 
   readonly tree = computed((): FilesTree => {
     const root = this.dirs().get('');
@@ -165,7 +168,7 @@ export class FilesBrowser {
       if (pulse === undefined || pulse.projectId !== selected) return;
       untracked(() => this.refreshChanges());
     });
-    inject(DestroyRef).onDestroy(() => clearTimeout(this.changesTimer));
+    inject(DestroyRef).onDestroy(() => this.changesRefresh.cancel());
   }
 
   /** "N con cambios": the tree of only the changed paths, or back to the whole tree. */
@@ -178,33 +181,18 @@ export class FilesBrowser {
    * at a time, and one that comes while it runs makes it run once more after.
    */
   refreshChanges(): void {
-    if (!this.open() || this.projects.selected() === undefined) return;
-    clearTimeout(this.changesTimer);
-    this.changesTimer = setTimeout(() => {
-      this.changesTimer = undefined;
-      void this.readChanges();
-    }, this.debounce);
+    this.changesRefresh.schedule();
   }
 
   private async readChanges(): Promise<void> {
     const project = this.projects.selected();
     if (project === undefined) return;
-    if (this.changesRunning) {
-      this.changesAgain = true;
-      return;
-    }
     const generation = this.generation;
-    this.changesRunning = true;
     const exit = await this.runtime.run(Effect.flatMap(DesktopApi, (desktop) => desktop['Files.changes']({ cwd: project.cwd })));
-    this.changesRunning = false;
     // A failure keeps the last markers, silently: they are a hint, not something to report.
     if (generation === this.generation && Exit.isSuccess(exit)) {
       this.changes.set(new Changes(exit.value.entries));
       if (exit.value.entries.length === 0) this.showChangedOnly.set(false);
-    }
-    if (this.changesAgain) {
-      this.changesAgain = false;
-      this.refreshChanges();
     }
   }
 

@@ -22,13 +22,14 @@ import { LineSelections, clampLines, clickLine, isOnlyLine, lineRange, pathWithL
 import { MentionButton } from './mention-button';
 import { columnsOf, eolOf, indentOf, lineRuns, linesOf, type ColourRange } from './source-text';
 import { SYMBOL_OUTLINER, type Outline } from './symbol-outline';
+import { CoalescedRefresh, REFRESH_DEBOUNCE_MS } from './coalesced-refresh';
 import { MAX_COLOURED_LENGTH, SYNTAX_HIGHLIGHTER } from './syntax-highlighter';
 import type { RenderedMarkdown } from './markdown-render';
 import { HEADING_ID_PREFIX } from './resolve-in-project';
 import { fileOf } from './views';
 
 /** How long a burst of diff refresh triggers must be over before the diff is read again, in milliseconds. */
-export const DIFF_REFRESH_DEBOUNCE_MS = new InjectionToken<number>('DIFF_REFRESH_DEBOUNCE_MS', { providedIn: 'root', factory: () => 300 });
+export const DIFF_REFRESH_DEBOUNCE_MS = new InjectionToken<number>('DIFF_REFRESH_DEBOUNCE_MS', { providedIn: 'root', factory: () => REFRESH_DEBOUNCE_MS });
 
 /** The kind of a picture, as the status bar names it. */
 const IMAGE_KIND: Readonly<Record<ImageType, string>> = {
@@ -43,7 +44,7 @@ const IMAGE_KIND: Readonly<Record<ImageType, string>> = {
 };
 
 /** Above this many characters a Markdown file is not rendered: the toggle is off and says so. About 512 KB. */
-export const MAX_RENDERED_LENGTH = 512 * 1024;
+export const MAX_RENDERED_LENGTH = MAX_COLOURED_LENGTH;
 
 type PixelSize = { readonly width: number; readonly height: number };
 type ReaderModeChoice = ReturnType<ReaderMode['mode']>;
@@ -106,13 +107,11 @@ const guttersOf = (diff: DiffState, lineCount: number): ReadonlyArray<GutterKind
       const removedStart = index;
       while (index < hunk.lines.length && hunk.lines[index].kind === 'removed') index++;
       const followedByAdded = index < hunk.lines.length && hunk.lines[index].kind === 'added';
+      // Followed by added lines, the added branch above marks them as modified: no notch here. `now` stays where it is:
+      // removed lines do not exist in the new file.
       if (!followedByAdded && now <= lineCount) {
         // A pure deletion: one notch at the line where the deleted content would have been.
         marks[now - 1] = 'deleted';
-      }
-      // If followed by added lines, the added loop above will mark them as modified; no notch here.
-      if (!followedByAdded) {
-        // Keep `now` where it is: removed lines do not exist in the new file.
       }
     }
   }
@@ -362,10 +361,12 @@ export class FileView {
     ];
   });
 
-  /** The wait for a burst of diff refresh triggers to end, and whether a diff read is running or must run again after it. */
-  private diffTimer: ReturnType<typeof setTimeout> | undefined;
-  private diffRunning = false;
-  private diffAgain = false;
+  /** Refreshes the diff: a burst of triggers is one read, one at a time. */
+  private readonly diffRefresh = new CoalescedRefresh(
+    () => this.readDiff(this.cwd(), this.path(), false),
+    this.debounce,
+    () => this.projectId() !== undefined,
+  );
 
   constructor() {
     inject(DestroyRef).onDestroy(() => (this.destroyed = true));
@@ -378,8 +379,8 @@ export class FileView {
         if (this.inTab()) {
           this.mode.set('file');
           this.diff.set({ status: 'loading' });
-          this.clearDiffRefresh();
-          void this.runDiffRefresh(cwd, path, true);
+          this.diffRefresh.cancel();
+          void this.diffRefresh.run(() => this.readDiff(cwd, path, true));
         }
       });
     });
@@ -395,7 +396,7 @@ export class FileView {
       const pulse = this.source.trigger();
       const projectId = this.projectId();
       if (projectId === undefined || pulse === undefined || pulse.projectId !== projectId) return;
-      untracked(() => this.scheduleDiffRefresh());
+      untracked(() => this.diffRefresh.schedule());
     });
     effect(() => {
       // Imagen chosen for an SVG whose picture is not read yet, here or in another View.
@@ -545,34 +546,6 @@ export class FileView {
   protected show(mode: 'file' | 'changes'): void {
     if (mode === 'changes' && !this.canDiff()) return;
     this.mode.set(mode);
-  }
-
-  private clearDiffRefresh(): void {
-    clearTimeout(this.diffTimer);
-    this.diffTimer = undefined;
-  }
-
-  private scheduleDiffRefresh(): void {
-    if (this.projectId() === undefined) return;
-    this.clearDiffRefresh();
-    this.diffTimer = setTimeout(() => {
-      this.diffTimer = undefined;
-      void this.runDiffRefresh(this.cwd(), this.path(), false);
-    }, this.debounce);
-  }
-
-  private async runDiffRefresh(cwd: string, path: string, showLoading: boolean): Promise<void> {
-    if (this.diffRunning) {
-      this.diffAgain = true;
-      return;
-    }
-    this.diffRunning = true;
-    await this.readDiff(cwd, path, showLoading);
-    this.diffRunning = false;
-    if (this.diffAgain) {
-      this.diffAgain = false;
-      this.scheduleDiffRefresh();
-    }
   }
 
   private async readDiff(cwd: string, path: string, showLoading: boolean): Promise<void> {
