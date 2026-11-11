@@ -57,6 +57,26 @@ describe('SettingsStore', () => {
     }),
   );
 
+  it.effect('keeps the reader mode (Fuente by default, then the last choice) across restarts', () =>
+    Effect.gen(function* () {
+      const file = path.join(dir, 'settings.json');
+      expect((yield* withFile(file, SettingsStore.use((s) => s.get))).reader).toBe('source');
+      expect((yield* withFile(file, SettingsStore.use((s) => s.setReader('rendered')))).reader).toBe('rendered');
+      expect((yield* withFile(file, SettingsStore.use((s) => s.get))).reader).toBe('rendered');
+      yield* withFile(file, SettingsStore.use((s) => s.setReader('source')));
+      expect((yield* withFile(file, SettingsStore.use((s) => s.get))).reader).toBe('source');
+    }),
+  );
+
+  it.effect('reads Fuente for a file written before the reader mode existed, keeping the rest', () =>
+    Effect.gen(function* () {
+      const file = path.join(dir, 'settings.json');
+      writeFileSync(file, JSON.stringify({ language: 'en', providers: ['Codex'] }));
+      const settings = yield* withFile(file, SettingsStore.use((s) => s.get));
+      expect(settings).toMatchObject({ language: 'en', providers: ['Codex'], reader: 'source' });
+    }),
+  );
+
   it.effect('keeps the language of a file written before Providers existed', () =>
     Effect.gen(function* () {
       const file = path.join(dir, 'settings.json');
@@ -118,6 +138,7 @@ describe('SettingsStore', () => {
         language: 'en',
         providers: ['Codex'],
         channels: { Toast: { enabled: true, types: ['Waiting', 'Done', 'Error'] } },
+        reader: 'source',
       });
     }),
   );

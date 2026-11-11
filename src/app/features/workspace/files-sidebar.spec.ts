@@ -5,9 +5,16 @@ import { NotificationRpcs } from '../../../shared/notification/notification.rpc'
 import { makeDesktopTestLayer } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { I18n } from '../../core/i18n';
-import { file, folder, text, type FakeDisk } from './files-fakes';
-import { FilesBrowser } from './files-browser';
+import { change, file, folder, text, type FakeDisk } from './files-fakes';
+import { CHANGES_DEBOUNCE_MS, FilesBrowser } from './files-browser';
+import { TerminalId } from '../../../shared/terminal/terminal.model';
+import { PaneId, TabId } from '../../../shared/workspace/workspace.model';
+import { singlePane, split } from './pane-layout';
 import { layerFakeBackend, makeBackend, project } from './projects-fakes';
+import { terminalPath } from './tabs';
+import { TabsState } from './tabs-state';
+import { TerminalsState } from './terminals-state';
+import { fileView, terminalView } from './views';
 import { WorkspaceComponent } from './workspace';
 import { WorkspaceLayoutState } from './workspace-layout';
 import { provideWorkspaceRouter } from './workspace.routes';
@@ -38,6 +45,7 @@ const setup = async (disk: FakeDisk = timmyDisk()) => {
     imports: [WorkspaceComponent],
     providers: [
       provideWorkspaceRouter(),
+      { provide: CHANGES_DEBOUNCE_MS, useValue: 0 },
       { provide: EffectRuntime, useValue: { run: (e: Effect.Effect<unknown, unknown, never>) => Effect.runPromiseExit(Effect.provide(e as never, layer)) } },
     ],
   }).compileComponents();
@@ -83,7 +91,17 @@ const setup = async (disk: FakeDisk = timmyDisk()) => {
     input.dispatchEvent(new Event('input', { bubbles: true }));
     await settle();
   };
-  return { backend, fixture, el, settle, t, sidebar, icon, rows, labels, rowOf, filter, ctrlP, keyOn, click, type, browser: TestBed.inject(FilesBrowser) };
+  /** Opens a Tab of timmy with one Terminal, on screen: where a file picked opens as a File View. */
+  const withTab = async () => {
+    const terminal = TestBed.inject(TerminalsState).create(timmy.projectId);
+    await TestBed.inject(Router).navigate(terminalPath(terminal));
+    await settle();
+    return terminal;
+  };
+  const panes = () => Array.from(el.querySelectorAll<HTMLElement>('app-pane-stack'));
+  /** The first Pane showing a File View. */
+  const filePane = () => panes().find((pane) => pane.querySelector('.view-header[data-kind=file]') !== null);
+  return { backend, fixture, el, settle, t, sidebar, icon, rows, labels, rowOf, filter, ctrlP, keyOn, click, type, withTab, panes, filePane, browser: TestBed.inject(FilesBrowser) };
 };
 
 describe('FilesSidebar', () => {
@@ -122,8 +140,32 @@ describe('FilesSidebar', () => {
     expect(head.textContent).not.toContain('timmy');
     const section = sidebar()!.querySelector('.section')!;
     expect(section.querySelector('.section-label')?.textContent?.trim()).toBe('timmy');
-    // The place for the count of changed files, still empty.
-    expect(section.querySelector('.section-count')?.textContent?.trim()).toBe('');
+    // Nothing changed: no count.
+    expect(section.querySelector('.section-count')).toBeNull();
+  });
+
+  it('marks the changed files, counts them in the section row, and toggles the changed-only tree from there', async () => {
+    const { sidebar, ctrlP, click, labels, rowOf, settle, t } = await setup({
+      ...timmyDisk(),
+      changes: [change('README.md', 'modified'), change('src/main.ts', 'deleted')],
+    });
+    await ctrlP();
+    await settle();
+    const count = () => sidebar()!.querySelector<HTMLButtonElement>('.section button.section-count');
+    expect(count()?.textContent?.trim()).toBe(t('files.changedCount', { count: 2 }));
+    expect(count()?.getAttribute('aria-pressed')).toBe('false');
+    const flag = (label: string) => rowOf(label).querySelector('.as-treeitem__flag');
+    expect(flag('README.md')?.textContent?.trim()).toBe('M');
+    expect(flag('README.md')?.getAttribute('aria-label')).toBe(t('files.modified'));
+    expect(flag('README.md')?.getAttribute('data-tone')).toBe('warning');
+    expect(flag('src')?.textContent?.trim()).toBe('1');
+    await click(count());
+    expect(count()?.getAttribute('aria-pressed')).toBe('true');
+    expect(labels()).toEqual(['src', 'main.ts', 'README.md']);
+    expect(rowOf('main.ts').querySelector('.as-treeitem__label--struck')).not.toBeNull();
+    expect(flag('main.ts')?.getAttribute('data-tone')).toBe('error');
+    await click(count());
+    expect(labels()).toEqual(['node_modules', 'src', '.env', 'big.log', 'logo.png', 'README.md']);
   });
 
   it('shows Ctrl P on the filter field, and no tab strip', async () => {
@@ -150,7 +192,7 @@ describe('FilesSidebar', () => {
     disk.dirs['src/app'] = [folder('core')];
     disk.dirs['src/app/core'] = [file('a.ts'), file('b.ts')];
     disk.files['src/app/core/a.ts'] = text('a\n');
-    const { sidebar, labels, rowOf, click, ctrlP } = await setup(disk);
+    const { sidebar, labels, rowOf, click, ctrlP, withTab, filePane } = await setup(disk);
     await ctrlP();
     await click(rowOf('src'));
     expect(labels()).toEqual(['src/app/core', 'a.ts', 'b.ts', 'README.md']);
@@ -158,9 +200,11 @@ describe('FilesSidebar', () => {
     await click(rowOf('src/app/core'));
     expect(labels()).toEqual(['src/app/core', 'README.md']);
     await click(rowOf('src/app/core'));
+    await withTab();
     await click(rowOf('a.ts'));
-    expect(sidebar()?.querySelector('.head .name')?.textContent?.trim()).toBe('a.ts');
-    expect(sidebar()?.querySelector('.head .dir')?.textContent?.trim()).toBe('src/app/core');
+    expect(filePane()?.querySelector('.view-header .name')?.textContent?.trim()).toBe('a.ts');
+    expect(filePane()?.querySelector('.view-header .dir')?.textContent?.trim()).toBe('src/app/core');
+    expect(sidebar()?.querySelector('[role=treeitem]')).not.toBeNull();
   });
 
   it('lists the root: folders first, what git ignores dimmed, and nothing from a folder not opened', async () => {
@@ -179,99 +223,128 @@ describe('FilesSidebar', () => {
     expect(backend.files.calls).toContain('Files.listDir:node_modules');
   });
 
-  it('shows a file in place of the tree, with line numbers and no trailing blank line', async () => {
-    const { sidebar, rowOf, click, ctrlP } = await setup();
+  it('opens a clicked file as a preview File View beside the Terminal, while the sidebar keeps the tree', async () => {
+    const { sidebar, rowOf, click, ctrlP, withTab, filePane, panes, t } = await setup();
+    await withTab();
     await ctrlP();
     await click(rowOf('src'));
     await click(rowOf('main.ts'));
-    expect(sidebar()?.querySelector('[role=treeitem]')).toBeNull();
-    expect(sidebar()?.querySelector('.head .name')?.textContent?.trim()).toBe('main.ts');
-    expect(sidebar()?.querySelector('.head .dir')?.textContent?.trim()).toBe('src');
-    expect(sidebar()?.querySelector('.code .gutter')?.textContent).toBe('1\n2');
-    expect(sidebar()?.querySelector('.code .source')?.textContent).toBe('const a = 1;\nconst b = 2;');
-  });
-
-  it("says a binary file can't be previewed, and a big one is too large, without showing content", async () => {
-    const { sidebar, rowOf, click, ctrlP, t } = await setup();
-    await ctrlP();
-    await click(rowOf('logo.png'));
-    expect(sidebar()?.querySelector('.note')?.textContent?.trim()).toBe(t('files.cantPreview'));
+    expect(panes()).toHaveLength(2);
+    const pane = filePane()!;
+    expect(pane.querySelector('.view-header .name')?.textContent?.trim()).toBe('main.ts');
+    expect(pane.querySelector('.view-header .name')?.classList).toContain('preview');
+    expect(pane.querySelector('.view-header .dir')?.textContent?.trim()).toBe('src');
+    expect(pane.querySelector('.view-header .tag')?.textContent?.trim()).toBe(t('fileView.preview'));
+    expect([...pane.querySelectorAll('.code .line .number')].map((number) => number.textContent)).toEqual(['1', '2']);
+    expect([...pane.querySelectorAll('.code .line .text')].map((line) => line.textContent)).toEqual(['const a = 1;', 'const b = 2;']);
+    expect(sidebar()?.querySelector('[role=treeitem]')).not.toBeNull();
     expect(sidebar()?.querySelector('.code')).toBeNull();
-    await click(sidebar()?.querySelector('.head .back'));
-    await click(rowOf('big.log'));
-    expect(sidebar()?.querySelector('.note')?.textContent?.trim()).toBe(t('files.tooLarge', { size: '2.5 MB' }));
+    expect(rowOf('main.ts').getAttribute('aria-selected')).toBe('true');
   });
 
-  it('says a file is gone when it was deleted after being listed, and still lets the user go back', async () => {
-    const { sidebar, rowOf, click, ctrlP, backend, labels, t } = await setup();
+  it('gives the keyboard to the File View the click opened, so it scrolls at once', async () => {
+    const { rowOf, click, ctrlP, withTab, filePane } = await setup();
+    await withTab();
     await ctrlP();
+    rowOf('README.md').focus();
+    await click(rowOf('README.md'));
+    expect(document.activeElement).toBe(filePane()!.querySelector('app-file-view .scroll'));
+  });
+
+  it('says in the File View that a binary file is binary, a big one is too large and a deleted one is gone', async () => {
+    const { backend, rowOf, click, ctrlP, withTab, filePane, panes, t } = await setup();
+    await withTab();
+    await ctrlP();
+    const note = () => filePane()?.querySelector('app-file-view .note')?.textContent?.trim();
+    await click(rowOf('logo.png'));
+    expect(note()).toBe(t('reader.binary', { size: '0 B' }));
+    expect(filePane()?.querySelector('.code')).toBeNull();
+    await click(rowOf('big.log'));
+    expect(note()).toBe(t('files.tooLarge', { size: '2.5 MB' }));
     delete backend.files.disks[timmy.cwd].files['README.md'];
     await click(rowOf('README.md'));
-    expect(sidebar()?.querySelector('.note')?.textContent?.trim()).toBe(t('files.gone'));
-    await click(sidebar()?.querySelector('.head .back'));
-    expect(labels()).toContain('README.md');
+    expect(note()).toBe(t('files.gone'));
+    // Each click replaced the preview: still one File View.
+    expect(panes()).toHaveLength(2);
   });
 
-  it('goes back to the tree with the back button, the file highlighted', async () => {
-    const { sidebar, rowOf, click, ctrlP } = await setup();
+  it('reads a pinned File View again after a restart, pinned in its Pane, and says one whose file was deleted meanwhile is gone', async () => {
+    const { fixture, el, settle, panes, t } = await setup();
+    const shell = terminalView(TerminalId.make('a'));
+    const layout = split(split(singlePane(shell), PaneId.make('a'), 'right', fileView('README.md')), PaneId.make('file:README.md'), 'right', fileView('docs/old.md'));
+    TestBed.inject(TabsState).restore([{ projectId: timmy.projectId, tabs: [{ tabId: TabId.make('t1'), terminals: [{ terminalId: TerminalId.make('a'), number: 1 }], layout }], lastNumber: 1 }]);
+    await TestBed.inject(Router).navigate(terminalPath(TestBed.inject(TerminalsState).entries()[0]));
+    await settle();
+    fixture.detectChanges();
+    const [, readme, old] = panes();
+    expect(panes()).toHaveLength(3);
+    expect(readme.querySelector('.view-header .name')?.textContent?.trim()).toBe('README.md');
+    expect(readme.querySelector('.view-header .name')?.classList).not.toContain('preview');
+    expect(readme.querySelector('.view-header .tool.pin')?.getAttribute('aria-pressed')).toBe('true');
+    expect([...readme.querySelectorAll('.code .line .text')].map((line) => line.textContent)).toEqual(['# timmy', '', 'read me']);
+    expect(old.querySelector('.view-header .name')?.textContent?.trim()).toBe('old.md');
+    expect(old.querySelector('app-file-view .note')?.textContent?.trim()).toBe(t('files.gone'));
+    expect(old.querySelector('.code')).toBeNull();
+    expect(el.querySelector('app-files-sidebar')).toBeNull();
+  });
+
+  it('pins a File View with a double click on its row, or with the pin button on its header', async () => {
+    const { rowOf, click, ctrlP, withTab, panes, t, settle } = await setup();
+    await withTab();
     await ctrlP();
     await click(rowOf('README.md'));
-    await click(sidebar()?.querySelector('.head .back'));
-    expect(sidebar()?.querySelector('.code')).toBeNull();
+    rowOf('README.md').dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    await settle();
+    const header = (index: number) => panes()[index].querySelector('.view-header')!;
+    expect(header(1).querySelector('.tag')).toBeNull();
+    expect(header(1).querySelector('.pin')?.getAttribute('aria-pressed')).toBe('true');
+    expect(header(1).querySelector('.pin')?.getAttribute('aria-label')).toBe(t('fileView.pinned'));
+    // The next click opens a preview beside the pinned one.
+    await click(rowOf('logo.png'));
+    expect(panes()).toHaveLength(3);
+    expect(header(2).querySelector('.tag')).not.toBeNull();
+    await click(header(2).querySelector<HTMLElement>(`.pin[aria-label="${t('fileView.pin')}"]`));
+    expect(header(2).querySelector('.tag')).toBeNull();
+    expect(header(2).querySelector('.name')?.classList).not.toContain('preview');
+  });
+
+  it('closes a File View from its header, and the Terminal stays', async () => {
+    const { rowOf, click, ctrlP, withTab, filePane, panes, t } = await setup();
+    await withTab();
+    await ctrlP();
+    await click(rowOf('README.md'));
+    await click(filePane()!.querySelector(`.view-header button[aria-label="${t('pane.close')}"]`));
+    expect(filePane()).toBeUndefined();
+    expect(panes()).toHaveLength(1);
+  });
+
+  it('only highlights a file picked with no Tab on screen: a File View needs a Tab', async () => {
+    const { rowOf, click, ctrlP, panes } = await setup();
+    await ctrlP();
+    await click(rowOf('README.md'));
+    expect(panes()).toHaveLength(0);
     expect(rowOf('README.md').getAttribute('aria-selected')).toBe('true');
   });
 
-  it('takes Esc to the tree from a file and closes from the tree, only while the focus is inside', async () => {
-    const { sidebar, rowOf, click, ctrlP, keyOn, el } = await setup();
+  it('closes on Esc, only while the focus is inside', async () => {
+    const { sidebar, ctrlP, keyOn, el } = await setup();
     await ctrlP();
-    await click(rowOf('README.md'));
-    await keyOn(sidebar()!.querySelector('.head .back')!, { key: 'Escape' });
-    expect(sidebar()?.querySelector('[role=treeitem]')).not.toBeNull();
     await keyOn(el.querySelector('app-tab-bar')!, { key: 'Escape' });
     expect(sidebar()).not.toBeNull();
     await keyOn(sidebar()!.querySelector('input.filter')!, { key: 'Escape' });
     expect(sidebar()).toBeNull();
   });
 
-  it('keeps the keyboard inside the sidebar when a file opens and when it closes, so Esc still reaches it', async () => {
-    const { sidebar, rowOf, click, ctrlP, filter, el, keyOn } = await setup();
-    await ctrlP();
-    // The row the user clicked has the focus, and it goes away with the tree.
-    rowOf('README.md').focus();
-    await click(rowOf('README.md'));
-    expect(sidebar()!.contains(document.activeElement)).toBe(true);
-    expect(document.activeElement).toBe(sidebar()!.querySelector('.code'));
-    await keyOn(document.activeElement!, { key: 'Escape' });
-    expect(document.activeElement).toBe(filter());
-    expect(el.querySelector('app-files-sidebar')).not.toBeNull();
-  });
-
-  it('puts the keyboard on the way back when there is no file to read', async () => {
-    const { sidebar, rowOf, click, ctrlP } = await setup();
-    await ctrlP();
-    rowOf('logo.png').focus();
-    await click(rowOf('logo.png'));
-    expect(document.activeElement).toBe(sidebar()!.querySelector('.head .back'));
-  });
-
-  it('goes back to the tree and refocuses the filter with Ctrl+P from a file', async () => {
-    const { sidebar, rowOf, click, ctrlP, filter } = await setup();
-    await ctrlP();
-    await click(rowOf('README.md'));
-    await ctrlP();
-    expect(sidebar()?.querySelector('.code')).toBeNull();
-    expect(document.activeElement).toBe(filter());
-  });
-
-  it('filters by name into a flat list, and Enter opens the first match', async () => {
-    const { sidebar, filter, type, keyOn, labels, ctrlP } = await setup();
+  it('filters by name into a flat list, and Enter opens the first match as a File View', async () => {
+    const { sidebar, filter, type, keyOn, labels, ctrlP, withTab, filePane } = await setup();
+    await withTab();
     await ctrlP();
     await type(filter()!, 'MAIN');
     const items = Array.from(sidebar()!.querySelectorAll<HTMLElement>('.results [role=option]'));
     expect(items.map((item) => [item.querySelector('.name')?.textContent?.trim(), item.querySelector('.dir')?.textContent?.trim()])).toEqual([['main.ts', 'src']]);
     expect(labels()).toEqual([]);
     await keyOn(filter()!, { key: 'Enter' });
-    expect(sidebar()?.querySelector('.head .name')?.textContent?.trim()).toBe('main.ts');
+    expect(filePane()?.querySelector('.view-header .name')?.textContent?.trim()).toBe('main.ts');
   });
 
   it('says when nothing matches', async () => {

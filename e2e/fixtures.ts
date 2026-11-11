@@ -64,8 +64,13 @@ export class Timmy {
       await this.settle(900);
       if (mode === 'Panel') return;
     }
-    await this.page.getByRole('button', { name: 'Change window mode' }).last().click();
-    await this.page.getByRole('option', { name: mode }).click();
+    const switcher = this.page.getByRole('button', { name: 'Change window mode' }).last();
+    const option = this.page.getByRole('option', { name: mode });
+    // A slow runner can swallow the first click: open the menu again only while it is not open.
+    await expect(async () => {
+      if (!(await option.isVisible())) await switcher.click();
+      await option.click({ timeout: 3000 });
+    }).toPass({ timeout: 20000 });
     await this.settle(900);
   }
 
@@ -147,6 +152,15 @@ export class Timmy {
     await this.page.keyboard.press('Enter');
   }
 }
+
+/** Commits everything in `dir` (a spec's project folder), so nothing in it is a Changed file until the spec changes it. */
+export const commitAll = (dir: string): void => {
+  execFileSync('git', ['add', '-A'], { cwd: dir, stdio: 'ignore' });
+  execFileSync('git', ['-c', 'user.name=timmy', '-c', 'user.email=timmy@example.com', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'start'], {
+    cwd: dir,
+    stdio: 'ignore',
+  });
+};
 
 export type Language = 'es' | 'en';
 export type Provider = 'OpenCode' | 'ClaudeCode' | 'Codex';

@@ -1,9 +1,28 @@
 import { execFile } from 'node:child_process';
-import { readdir, readFile, realpath, stat } from 'node:fs/promises';
+import { open, readdir, readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { Context, Effect, Layer } from 'effect';
 import { FilesError } from '../../src/shared/files/files-error.model';
-import { MAX_LISTED_PATHS, MAX_PREVIEW_BYTES, type FileContent, type FileList, type FolderEntry, type FolderListing } from '../../src/shared/files/files.model';
+import {
+  MAX_IMAGE_BYTES,
+  MAX_IMAGE_PIXELS,
+  MAX_LISTED_PATHS,
+  MAX_PREVIEW_BYTES,
+  type ChangedFile,
+  type ChangedFiles,
+  type ChangeKind,
+  type DiffLine,
+  type FileContent,
+  type FileDiff,
+  type FileList,
+  type FileVersionAnswer,
+  type FolderEntry,
+  type FolderListing,
+  type ImageContent,
+  type PathLinkTarget,
+} from '../../src/shared/files/files.model';
+import { imageOf, imageTypeOf } from './image-header';
+import { parsePathLink } from '../../src/shared/files/path-link';
 
 /**
  * What the Files browser reads of a working directory. `list` is the flat index of what git sees (no disk walk);
@@ -15,10 +34,20 @@ export class ProjectFiles extends Context.Service<
     readonly list: (cwd: string) => Effect.Effect<FileList, FilesError>;
     readonly listDir: (cwd: string, dir: string) => Effect.Effect<FolderListing, FilesError>;
     readonly read: (cwd: string, file: string) => Effect.Effect<FileContent, FilesError>;
+    /** The absolute path of an existing file of `cwd`, confined to it as `read` is. */
+    readonly locate: (cwd: string, file: string) => Effect.Effect<string, FilesError>;
+    readonly changes: (cwd: string) => Effect.Effect<ChangedFiles, FilesError>;
+    readonly diff: (cwd: string, file: string) => Effect.Effect<FileDiff, FilesError>;
+    /** The file of `cwd` a path printed in a Terminal names, or null (GLOSSARY: Path link). `folder` is the Terminal's. */
+    readonly resolveLink: (cwd: string, candidate: string, folder: string | null) => Effect.Effect<PathLinkTarget | null>;
+    /** One file of `cwd` as an image, confined as `read` is; its caps are checked before any byte leaves main. */
+    readonly readImage: (cwd: string, file: string) => Effect.Effect<ImageContent, FilesError>;
+    /** The version of each of `files` from the disk's metadata alone, never its content; see `Files.versions`. */
+    readonly versions: (cwd: string, files: ReadonlyArray<string>) => Effect.Effect<ReadonlyArray<FileVersionAnswer>>;
   }
 >()('files/ProjectFiles') {}
 
-const gitFailure = (error: unknown, stderr: string): FilesError => {
+const gitFailure = (error: unknown, stderr: string, command: string): FilesError => {
   const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined;
   if (code === 'ENOENT') {
     return new FilesError({ reason: 'GitUnavailable', detail: 'git is not installed, or it is not on the PATH' });
@@ -26,7 +55,7 @@ const gitFailure = (error: unknown, stderr: string): FilesError => {
   const text = stderr.trim();
   return /not a git repository/i.test(text)
     ? new FilesError({ reason: 'NotAGitRepository', detail: text })
-    : new FilesError({ reason: 'GitFailed', detail: text === '' ? 'git ls-files failed' : text });
+    : new FilesError({ reason: 'GitFailed', detail: text === '' ? `git ${command} failed` : text });
 };
 
 const isDirectory = (target: string): Effect.Effect<boolean> =>
@@ -35,17 +64,87 @@ const isDirectory = (target: string): Effect.Effect<boolean> =>
     Effect.orElseSucceed(() => false),
   );
 
-const runLsFiles = (cwd: string): Effect.Effect<string, FilesError> =>
+/**
+ * Runs git in `cwd` and answers its output. Always without optional locks: a read must never write the user's index, nor
+ * hold a lock another git command of theirs could trip on.
+ */
+const runGit = (cwd: string, args: ReadonlyArray<string>): Effect.Effect<string, FilesError> =>
   Effect.callback<string, FilesError>((resume) => {
-    execFile(
-      'git',
-      ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--deduplicate'],
-      { cwd, windowsHide: true, maxBuffer: 256 * 1024 * 1024 },
-      (error, stdout, stderr) => {
-        resume(error === null ? Effect.succeed(stdout) : Effect.fail(gitFailure(error, stderr)));
-      },
-    );
+    execFile('git', ['--no-optional-locks', ...args], { cwd, windowsHide: true, maxBuffer: 256 * 1024 * 1024 }, (error, stdout, stderr) => {
+      resume(error === null ? Effect.succeed(stdout) : Effect.fail(gitFailure(error, stderr, args[0] ?? '')));
+    });
   });
+
+const splitNul = (output: string): ReadonlyArray<string> => output.split('\0').filter((entry) => entry !== '');
+
+/** What `status --porcelain=v2` puts before the path, per kind of record: ordinary, rename or copy, unmerged. */
+const FIELDS_BEFORE_PATH: Readonly<Record<string, number>> = { '1': 8, '2': 9, u: 10 };
+
+/** The kind of a tracked entry from its staged and unstaged letters. Not on disk is deleted, whatever was staged. */
+const kindOf = (record: string, xy: string): ChangeKind => {
+  if (xy.includes('D')) return 'deleted';
+  if (record === '2') return xy[0] === 'C' ? 'added' : 'renamed';
+  if (xy[0] === 'A') return 'added';
+  return 'modified';
+};
+
+/**
+ * Reads `git status --porcelain=v2 -z` output. Paths in it are relative to the repository root; `prefix` (the Project's
+ * place in the repository, ending in `/`, or '') is cut off, so they are relative to the Project. A rename carries its old
+ * path as one more field, which is skipped: git's own view puts the rename at its new path.
+ */
+export const parseStatus = (output: string, prefix: string): ReadonlyArray<ChangedFile> => {
+  const fields = output.split('\0');
+  const entries: ChangedFile[] = [];
+  for (let at = 0; at < fields.length; at++) {
+    const line = fields[at]!;
+    const record = line.slice(0, 1);
+    let raw: string;
+    let kind: ChangeKind;
+    let submodule = false;
+    if (record === '?') {
+      raw = line.slice(2);
+      kind = 'untracked';
+    } else if (record in FIELDS_BEFORE_PATH) {
+      const parts = line.split(' ');
+      const count = FIELDS_BEFORE_PATH[record]!;
+      raw = parts.slice(count).join(' ');
+      kind = kindOf(record, parts[1] ?? '');
+      submodule = (parts[2] ?? '').startsWith('S');
+      if (record === '2') at++;
+    } else {
+      // Headers, ignored entries and the empty field after the last NUL.
+      continue;
+    }
+    const folder = submodule || raw.endsWith('/');
+    const fromRoot = raw.replace(/\/$/, '');
+    if (!fromRoot.startsWith(prefix) || fromRoot.length <= prefix.length) continue;
+    entries.push({ path: fromRoot.slice(prefix.length), kind, folder });
+  }
+  return entries;
+};
+
+/** The Project's Changed files: one `status` scoped to its folder, in the default untracked mode (never `-uall`). */
+const readChanges = Effect.fn('ProjectFiles.changes')(function* (cwd: string) {
+  if (!(yield* isDirectory(cwd))) return yield* new FilesError({ reason: 'FolderNotFound', detail: `${cwd} is not a folder` });
+  const prefix = (yield* runGit(cwd, ['rev-parse', '--show-prefix'])).trim();
+  const output = yield* runGit(cwd, ['status', '--porcelain=v2', '-z', '--', '.']);
+  return { entries: parseStatus(output, prefix) } satisfies ChangedFiles;
+});
+
+/**
+ * The files the filter searches: what the index tracks, plus what is untracked and not ignored, read from `status` rather
+ * than walking the whole tree for untracked files. Only a wholly untracked folder is walked, and only that folder.
+ */
+const listFiles = Effect.fnUntraced(function* (cwd: string) {
+  const tracked = splitNul(yield* runGit(cwd, ['ls-files', '-z', '--cached', '--deduplicate']));
+  const { entries } = yield* readChanges(cwd);
+  const untracked = entries.filter((entry) => entry.kind === 'untracked');
+  const folders = untracked.filter((entry) => entry.folder).map((entry) => `${entry.path}/`);
+  const inFolders =
+    folders.length === 0 ? [] : splitNul(yield* runGit(cwd, ['ls-files', '-z', '--others', '--exclude-standard', '--', ...folders]));
+  return [...tracked, ...untracked.filter((entry) => !entry.folder).map((entry) => entry.path), ...inFolders];
+});
 
 /**
  * Which of `candidates` git ignores. Folders end in `/` so patterns like `node_modules/` match them. Outside a repository,
@@ -171,11 +270,170 @@ const readFileContent = Effect.fn('ProjectFiles.read')(function* (cwd: string, f
   return toFileContent(bytes);
 });
 
-/** Splits git's NUL-separated output and applies the cap. */
-export const toFileList = (output: string, limit: number): FileList => {
-  const all = output.split('\0').filter((entry) => entry !== '');
-  return { paths: all.slice(0, limit), truncated: all.length > limit };
+/**
+ * The version of one file: its `stat`, never its content. Not a file (gone, a folder) is null; a path that cannot be
+ * confined or whose metadata cannot be read has no answer, so the renderer keeps what it knew.
+ */
+const versionOf = (cwd: string, file: string): Effect.Effect<FileVersionAnswer | undefined> =>
+  confine(cwd, file).pipe(
+    Effect.flatMap((target) => Effect.tryPromise({ try: () => stat(target), catch: (error) => fsFailure(error, 'file', file) })),
+    Effect.map((info): FileVersionAnswer | undefined => ({ file, version: info.isFile() ? { modified: info.mtimeMs, size: info.size } : null })),
+    Effect.catchTag('FilesError', (error) => Effect.succeed<FileVersionAnswer | undefined>(error.reason === 'FileNotFound' ? { file, version: null } : undefined)),
+  );
+
+const readVersions = Effect.fn('ProjectFiles.versions')(function* (cwd: string, files: ReadonlyArray<string>) {
+  const answers = yield* Effect.forEach(files, (file) => versionOf(cwd, file), { concurrency: 16 });
+  return answers.filter((answer) => answer !== undefined);
+});
+
+/** `@@ -oldStart,oldLines +newStart,newLines @@`; a count left out is 1. */
+const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+
+const MARKS: Readonly<Record<string, DiffLine['kind']>> = { ' ': 'context', '+': 'added', '-': 'removed' };
+
+/**
+ * Reads the output of `git diff` for one file into its hunks. A line's text loses its mark and a final `\r` (a Windows
+ * line ending). "\ No newline at end of file" is not a line of the file and is skipped. Nothing to show is `unchanged`;
+ * git's "Binary files ... differ" is `binary`.
+ */
+export const parseDiff = (output: string): FileDiff => {
+  const hunks: Array<{ oldStart: number; oldLines: number; newStart: number; newLines: number; lines: DiffLine[] }> = [];
+  for (const line of output.split('\n')) {
+    const header = HUNK_HEADER.exec(line);
+    if (header !== null) {
+      const count = (value: string | undefined) => (value === undefined ? 1 : Number(value));
+      hunks.push({ oldStart: Number(header[1]), oldLines: count(header[2]), newStart: Number(header[3]), newLines: count(header[4]), lines: [] });
+      continue;
+    }
+    const hunk = hunks.at(-1);
+    if (hunk === undefined) {
+      if (line.startsWith('Binary files ') || line === 'GIT binary patch') return { kind: 'binary' };
+      continue;
+    }
+    const kind = MARKS[line.slice(0, 1)];
+    if (kind !== undefined) hunk.lines.push({ kind, text: line.slice(1).replace(/\r$/, '') });
+  }
+  return hunks.length === 0 ? { kind: 'unchanged' } : { kind: 'changes', untracked: false, hunks };
 };
+
+/** A file git does not track yet, as a diff: one hunk with every line added, flagged so the reader skips gutter bars. */
+const allAdded = (content: string): FileDiff => {
+  if (content === '') return { kind: 'changes', untracked: true, hunks: [] };
+  const lines = content.split('\n');
+  if (lines.at(-1) === '') lines.pop();
+  return {
+    kind: 'changes',
+    untracked: true,
+    hunks: [{ oldStart: 0, oldLines: 0, newStart: 1, newLines: lines.length, lines: lines.map((text) => ({ kind: 'added', text: text.replace(/\r$/, '') })) }],
+  };
+};
+
+/**
+ * The file's change against HEAD. `status` tells first whether git knows the file at all: an untracked one is read from
+ * disk as all lines added (`git diff HEAD` has nothing to say of it), an unchanged one needs no diff. Paths are literal, so
+ * a name with `*` is not a pattern.
+ */
+const readDiff = Effect.fn('ProjectFiles.diff')(function* (cwd: string, file: string) {
+  if (!(yield* isDirectory(cwd))) return yield* new FilesError({ reason: 'FolderNotFound', detail: `${cwd} is not a folder` });
+  const target = yield* confine(cwd, file);
+  const status = splitNul(yield* runGit(cwd, ['--literal-pathspecs', 'status', '--porcelain=v2', '-z', '--', file]));
+  if (status.length === 0) return { kind: 'unchanged' } satisfies FileDiff;
+  const size = yield* fileSize(target, file).pipe(Effect.catchTag('FilesError', () => Effect.succeed(0)));
+  if (size > MAX_PREVIEW_BYTES) return { kind: 'tooLarge', size } satisfies FileDiff;
+  if (status.some((record) => record.startsWith('? '))) {
+    const content = yield* readFileContent(cwd, file);
+    return content.kind === 'text' ? allAdded(content.content) : ({ kind: 'binary' } satisfies FileDiff);
+  }
+  return parseDiff(yield* runGit(cwd, ['--literal-pathspecs', 'diff', 'HEAD', '--no-color', '--no-ext-diff', '--no-textconv', '--', file]));
+});
+
+const locateFile = Effect.fn('ProjectFiles.locate')(function* (cwd: string, file: string) {
+  const target = yield* confine(cwd, file);
+  yield* fileSize(target, file);
+  return target;
+});
+
+/**
+ * The Project file `written` names, read from `base` (an absolute folder): its path relative to the Project and its
+ * absolute path, or nothing. The disk is touched only through `locateFile`, the confinement every read uses.
+ */
+const fileFrom = (cwd: string, base: string, written: string): Effect.Effect<{ readonly relative: string; readonly absolute: string } | undefined> => {
+  const relative = path.relative(path.resolve(cwd), path.resolve(base, written));
+  return locateFile(cwd, relative).pipe(
+    Effect.map((absolute) => ({ relative: relative.split(path.sep).join('/'), absolute })),
+    Effect.orElseSucceed(() => undefined),
+  );
+};
+
+/** How much of a file tells what kind of image it is. */
+const IMAGE_SNIFF_BYTES = 4096;
+
+/** Whether a file's first bytes are an image, without reading the whole file. A failure to read is "not an image". */
+const isImageFile = (target: string): Effect.Effect<boolean> =>
+  Effect.tryPromise({ try: () => readHead(target, IMAGE_SNIFF_BYTES), catch: () => Effect.succeed(false) }).pipe(
+    Effect.map((head) => imageTypeOf(head) !== undefined),
+    Effect.orElseSucceed(() => false),
+  );
+
+/**
+ * What a path printed in a Terminal opens (GLOSSARY: Path link): the Project's folder is tried first, then the Terminal's
+ * (`folder`) while it is inside the Project; a diff header's `a/` or `b/` is dropped only when the path as printed does not
+ * resolve. Nothing else is tried: no basename or suffix guesses. `image` is true when the file's bytes are an image.
+ */
+const resolveLink = Effect.fn('ProjectFiles.resolvePathLink')(function* (cwd: string, candidate: string, folder: string | null) {
+  const parsed = parsePathLink(candidate);
+  if (parsed === undefined) return null;
+  const unix = parsed.path.replace(/\\/g, '/');
+  const forms = (/^[ab]\//.test(unix) ? [unix, unix.slice(2)] : [unix]).map((form) => form.split('/').join(path.sep));
+  const root = path.resolve(cwd);
+  const folderInside = folder !== null && path.isAbsolute(folder) && isInside(yield* realPathOr(root), yield* realPathOr(path.resolve(folder)));
+  const bases = folderInside && path.resolve(folder) !== root ? [root, path.resolve(folder)] : [root];
+  for (const form of forms) {
+    for (const base of path.isAbsolute(form) ? [root] : bases) {
+      const found = yield* fileFrom(cwd, base, form);
+      if (found !== undefined) {
+        const image = yield* isImageFile(found.absolute).pipe(Effect.orElseSucceed(() => false));
+        return { path: found.relative, start: parsed.start, end: parsed.end, image } satisfies PathLinkTarget;
+      }
+    }
+  }
+  return null;
+});
+
+/**
+ * The file as an image. Its first bytes say whether it is one; the byte cap is checked on its size before it is read whole,
+ * and the pixel cap on its header before anything is answered, so an image over either never leaves main.
+ */
+const readImageContent = Effect.fn('ProjectFiles.readImage')(function* (cwd: string, file: string) {
+  const target = yield* confine(cwd, file);
+  const size = yield* fileSize(target, file);
+  const failure = (error: unknown) => fsFailure(error, 'file', file);
+  const head = yield* Effect.tryPromise({ try: () => readHead(target, IMAGE_SNIFF_BYTES), catch: failure });
+  if (imageTypeOf(head) === undefined) return { kind: 'notAnImage', size } satisfies ImageContent;
+  if (size > MAX_IMAGE_BYTES) return { kind: 'tooLarge', limit: 'bytes', size } satisfies ImageContent;
+  const bytes = yield* Effect.tryPromise({ try: () => readFile(target), catch: failure });
+  const image = imageOf(bytes);
+  if (image === undefined) return { kind: 'notAnImage', size: bytes.length } satisfies ImageContent;
+  if (image.width !== null && image.height !== null && image.width * image.height > MAX_IMAGE_PIXELS) {
+    return { kind: 'tooLarge', limit: 'pixels', size: bytes.length, width: image.width, height: image.height } satisfies ImageContent;
+  }
+  return { kind: 'image', ...image, bytes: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.length), size: bytes.length } satisfies ImageContent;
+});
+
+/** The first `length` bytes of a file, or all of a shorter one. */
+const readHead = async (target: string, length: number): Promise<Uint8Array> => {
+  const handle = await open(target, 'r');
+  try {
+    const buffer = new Uint8Array(length);
+    const { bytesRead } = await handle.read(buffer, 0, length, 0);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+};
+
+/** Applies the cap. */
+export const toFileList = (all: ReadonlyArray<string>, limit: number): FileList => ({ paths: all.slice(0, limit), truncated: all.length > limit });
 
 export const layerProjectFiles = (limit: number = MAX_LISTED_PATHS) =>
   Layer.succeed(ProjectFiles, {
@@ -183,8 +441,14 @@ export const layerProjectFiles = (limit: number = MAX_LISTED_PATHS) =>
       if (!(yield* isDirectory(cwd))) {
         return yield* new FilesError({ reason: 'FolderNotFound', detail: `${cwd} is not a folder` });
       }
-      return toFileList(yield* runLsFiles(cwd), limit);
+      return toFileList(yield* listFiles(cwd), limit);
     }),
     listDir: readFolder,
     read: readFileContent,
+    locate: locateFile,
+    changes: readChanges,
+    diff: readDiff,
+    resolveLink,
+    readImage: readImageContent,
+    versions: readVersions,
   });

@@ -149,9 +149,9 @@
           <path d="M4 2h5l3 3v9H4zM9 2v3h3" />
         </svg>
       }
-      <span class="as-treeitem__label">{{ row.node.label }}</span>
+      <span class="as-treeitem__label" [class.as-treeitem__label--struck]="row.node.struck">{{ row.node.label }}</span>
       @if (row.node.flag; as flag) {
-        <span class="as-treeitem__flag" role="img" [attr.aria-label]="flag.label">{{ flag.text }}</span>
+        <span class="as-treeitem__flag" role="img" [attr.data-tone]="flag.tone ?? 'warning'" [attr.aria-label]="flag.label">{{ flag.text }}</span>
       }
     </li>
   }

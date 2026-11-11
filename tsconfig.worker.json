@@ -1,0 +1,9 @@
+/* The web workers of the renderer (`*.worker.ts`), which Angular builds as files of their own. */
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["es2022", "webworker"],
+    "types": []
+  },
+  "include": ["src/**/*.worker.ts"]
+}

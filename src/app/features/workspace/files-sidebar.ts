@@ -1,25 +1,19 @@
-import { ChangeDetectionStrategy, Component, ElementRef, afterNextRender, computed, effect, inject, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { I18n } from '../../core/i18n';
 import { TooltipComponent } from '../../shared/ui/tooltip/tooltip';
 import { TreeViewComponent } from '../../shared/ui/tree-view/tree-view';
 import { FilesBrowser, MIN_BROWSER_WIDTH } from './files-browser';
 import { ProjectsState } from './projects-state';
+import { QuickLookState } from './quick-look-state';
 
 /** How far one arrow key moves the edge. */
 const RESIZE_STEP = 16;
 
-/** `2.5 MB`: the size of a file too large to preview. */
-const formatSize = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-};
-
 /**
  * The Files browser (GLOSSARY: Files browser) docked on the right of the Workspace: the Project's folder as a tree read a
- * folder at a time, a filter above it, and the chosen file read in its place, with Back. Esc goes out of a file, then out of
- * the sidebar. Its left edge resizes it. The state lives in `FilesBrowser`.
+ * folder at a time and a filter above it. A file picked opens as a File View in a Pane (ADR 0013): a click opens a
+ * preview, a double click pins it. Space on a file's row opens the Quick look. Esc closes the sidebar. Its left edge resizes it. The state lives in `FilesBrowser`.
  */
 @Component({
   selector: 'app-files-sidebar',
@@ -40,43 +34,56 @@ export class FilesSidebar {
   private readonly projects = inject(ProjectsState);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly filterField = viewChild<ElementRef<HTMLInputElement>>('filterField');
-  private readonly codeRegion = viewChild<ElementRef<HTMLElement>>('codeRegion');
-  private readonly backButton = viewChild<ElementRef<HTMLElement>>('backButton');
+  private readonly tree = viewChild(TreeViewComponent);
+  private readonly quickLook = inject(QuickLookState);
 
   protected readonly minWidth = MIN_BROWSER_WIDTH;
   protected readonly projectName = computed(() => this.projects.selected()?.name ?? '');
-  protected readonly fileName = computed(() => this.browser.selected()?.split('/').at(-1) ?? '');
-  protected readonly fileDir = computed(() => this.browser.selected()?.split('/').slice(0, -1).join('/') ?? '');
   protected readonly filtering = computed(() => this.browser.filter().trim() !== '');
-
-  /** One number per line of the open text file; a final newline does not start another line. */
-  protected readonly gutter = computed(() => {
-    const file = this.browser.file();
-    if (file.status !== 'text' || file.content === '') return '';
-    const lines = file.content.split('\n');
-    const count = lines.at(-1) === '' ? lines.length - 1 : lines.length;
-    return Array.from({ length: count }, (_, index) => index + 1).join('\n');
-  });
 
   private resizing = false;
 
   constructor() {
-    // The filter takes the keyboard when the sidebar opens, when the tree comes back, and on every Ctrl+P.
+    // The filter takes the keyboard when the sidebar opens and on every Ctrl+P.
     effect(() => {
       this.browser.filterFocus();
       this.filterField()?.nativeElement.focus();
     });
     afterNextRender(() => this.filterField()?.nativeElement.focus());
-    // The row that was clicked goes away with the tree, and the focus with it: a file taking its place takes the keyboard,
-    // or Esc and the arrows would go nowhere. Its text when there is some (it scrolls with the arrows), the way back otherwise.
-    effect(() => {
-      if (this.browser.view() !== 'file') return;
-      (this.codeRegion() ?? this.backButton())?.nativeElement.focus();
-    });
+    // Space is taken on its way down, before the tree (which would pick the row) or a result (which would click itself).
+    const onSpace = (event: KeyboardEvent) => this.look(event);
+    this.host.nativeElement.addEventListener('keydown', onSpace, { capture: true });
+    inject(DestroyRef).onDestroy(() => this.host.nativeElement.removeEventListener('keydown', onSpace, { capture: true }));
   }
 
-  protected size(bytes: number): string {
-    return formatSize(bytes);
+  /**
+   * Space on the row of a file, in the tree or in the filter's results, opens the Quick look on the list that row is in.
+   * In the filter field Space is a character, and on a folder it is the tree's (it opens or closes it).
+   */
+  private look(event: KeyboardEvent): void {
+    if (event.key !== ' ' || event.ctrlKey || event.altKey || event.metaKey || !(event.target instanceof Element)) return;
+    const row = event.target.closest<HTMLElement>('[role=treeitem][data-id], .results [role=option][data-path]');
+    const path = row?.dataset['id'] ?? row?.dataset['path'];
+    const files = this.browser.shownFiles();
+    if (path === undefined || !files.includes(path)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.quickLook.open(files, path, (last) => this.backTo(last));
+  }
+
+  /** The Quick look closed on `path`: its row is the tree's highlight and has the keyboard again. */
+  private backTo(path: string): void {
+    this.browser.highlight(path);
+    const result = Array.from(this.host.nativeElement.querySelectorAll<HTMLElement>('.results [role=option]')).find((option) => option.dataset['path'] === path);
+    if (result !== undefined) result.focus();
+    else this.tree()?.focusRow(path);
+  }
+
+  /** A double click on a file's row pins its File View (the click before it opened the preview). */
+  protected pinRow(event: MouseEvent): void {
+    const row = (event.target as HTMLElement | null)?.closest<HTMLElement>('[role=treeitem][data-id]');
+    const path = row?.dataset['id'];
+    if (path !== undefined) this.browser.pick(path, true);
   }
 
   protected escape(event: Event): void {

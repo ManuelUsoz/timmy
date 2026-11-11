@@ -1,0 +1,138 @@
+:host {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: stretch;
+  height: 32px;
+}
+
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-03);
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: var(--text-body-compact-01);
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--layer-hover);
+  color: var(--text-primary);
+}
+
+button:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
+button[disabled] {
+  color: var(--text-disabled, var(--text-helper));
+  cursor: not-allowed;
+}
+
+button[disabled]:hover {
+  background: transparent;
+}
+
+.icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25;
+}
+
+.mention-go {
+  padding: 0 var(--spacing-03);
+}
+
+.mention-pick {
+  width: 24px;
+}
+
+.label {
+  white-space: nowrap;
+}
+
+/* In the popover, the Mention is its main action: it names the agent it types into. */
+:host(.popover) .mention-go:not([disabled]),
+:host(.popover) .mention-pick:not([disabled]) {
+  background: var(--button-primary);
+  color: var(--text-on-color);
+}
+
+:host(.popover) .mention-go:not([disabled]):hover,
+:host(.popover) .mention-pick:not([disabled]):hover {
+  background: var(--button-primary-hover);
+}
+
+:host(.popover) .mention-go {
+  padding: 0 var(--spacing-04);
+}
+
+:host(.popover) .mention-pick {
+  border-inline-start: 1px solid color-mix(in srgb, var(--text-on-color) 30%, transparent);
+}
+
+/* In a File View header narrower than 720px the Mention keeps only its icon, like the other actions (pane-stack.css). */
+@container file-header (width < 720px) {
+  :host(:not(.popover)) .mention-go {
+    width: 32px;
+    padding: 0;
+  }
+
+  :host(:not(.popover)) .label {
+    display: none;
+  }
+}
+
+.mention-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 240px;
+  padding: var(--spacing-02) 0;
+  background: var(--layer-02);
+  box-shadow: var(--shadow-overlay);
+}
+
+:host(.popover) .mention-menu {
+  right: auto;
+  left: 0;
+}
+
+.mention-row {
+  justify-content: flex-start;
+  gap: 0;
+  height: 32px;
+  padding: 0 var(--spacing-04);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.mention-row.default .row-name {
+  font-weight: 600;
+}
+
+.sep,
+.row-project,
+.row-status {
+  color: var(--text-secondary);
+}
+
+.row-number {
+  color: var(--text-helper);
+  font: 400 12px/16px var(--font-mono);
+}
+
+.mention-row[disabled] .row-status {
+  color: var(--support-warning, var(--text-helper));
+}

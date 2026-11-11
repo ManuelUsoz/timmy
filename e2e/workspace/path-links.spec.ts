@@ -1,0 +1,116 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import type { Page } from '@playwright/test';
+import { png } from '../png';
+import { commitAll, expect, test } from '../fixtures';
+
+/** The middle of where `text` is drawn on the Terminal's screen, in page pixels. */
+const placeOf = (page: Page, text: string) =>
+  page.evaluate((wanted) => {
+    const rows = document.querySelector('.xterm-rows');
+    if (rows === null) return undefined;
+    const walker = document.createTreeWalker(rows, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+      const at = node.textContent?.indexOf(wanted) ?? -1;
+      if (at < 0) continue;
+      const range = document.createRange();
+      range.setStart(node, at);
+      range.setEnd(node, at + wanted.length);
+      const box = range.getBoundingClientRect();
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    }
+    return undefined;
+  }, text);
+
+test.describe('Path links', () => {
+  test.use({ language: 'en' });
+
+  test('a path a Terminal prints is underlined on hover, and Ctrl+click opens it on its line', async ({ timmy }) => {
+    const { page } = timmy;
+    mkdirSync(path.join(timmy.projectDir, 'src'), { recursive: true });
+    const lines = Array.from({ length: 80 }, (_, index) => `export const line${index + 1} = ${index + 1};`);
+    writeFileSync(path.join(timmy.projectDir, 'src', 'answer.ts'), lines.join('\n') + '\n');
+    commitAll(timmy.projectDir);
+
+    await timmy.openProjectTerminal();
+    await timmy.run("cls; Write-Output 'error TS2322 at src/answer.ts:42:7, see the type above'");
+    const terminal = page.locator('app-pane-stack').filter({ has: page.locator('app-terminal-screen') });
+    await expect(terminal.locator('.xterm-rows')).toContainText('src/answer.ts:42:7,');
+    // The prompt shows the run's temporary folder, and the cursor blinks on it: not part of what this spec checks.
+    const prompt = terminal.locator('.xterm-rows > div').filter({ hasText: /^PS / });
+    const hint = page.getByRole('tooltip');
+
+    await test.step('hovering the path underlines it and tells what Ctrl+click opens', async () => {
+      const place = await expect.poll(() => placeOf(page, 'src/answer.ts:42:7')).toBeDefined().then(() => placeOf(page, 'src/answer.ts:42:7'));
+      await page.mouse.move(place!.x, place!.y);
+      await expect(hint).toBeVisible();
+      await expect(hint.locator('.link-path')).toHaveText('src/answer.ts:42');
+      await expect(hint.locator('.link-key')).toHaveText('Ctrl+click to open');
+      await timmy.shot('path-links-hover', { mask: [prompt] });
+    });
+
+    await test.step('a plain click opens nothing', async () => {
+      await page.mouse.down();
+      await page.mouse.up();
+      await expect(page.locator('app-file-view')).toHaveCount(0);
+    });
+
+    await test.step('Ctrl+click opens a preview File View beside the Terminal with line 42 marked', async () => {
+      await page.keyboard.down('Control');
+      await page.mouse.down();
+      await page.mouse.up();
+      await page.keyboard.up('Control');
+      const view = page.locator('app-file-view');
+      await expect(view).toHaveCount(1);
+      await expect(page.locator('.view-header[data-kind=file] .name')).toHaveText(['answer.ts']);
+      await expect(view.locator('.status > span').first()).toHaveText('Ln 42 of 80');
+      await expect(view.locator('.marks .selected')).toBeVisible();
+      await expect(view.locator('.line[data-line="42"]')).toBeInViewport();
+      await expect(view.locator('.line[data-line="1"]')).not.toBeInViewport();
+    });
+  });
+  test('an image path previews on hover and Ctrl+click opens the Quick look, which hands the Terminal its keyboard back', async ({ timmy }) => {
+    const { page } = timmy;
+    mkdirSync(path.join(timmy.projectDir, 'img'), { recursive: true });
+    writeFileSync(
+      path.join(timmy.projectDir, 'img', 'disc.png'),
+      png(160, 120, (x, y) => ((x - 80) ** 2 + (y - 60) ** 2 < 50 ** 2 ? [69, 137, 255, 255] : [0, 0, 0, 0])),
+    );
+    commitAll(timmy.projectDir);
+
+    await timmy.openProjectTerminal();
+    await timmy.run("cls; Write-Output 'saved the chart to img/disc.png:3 for you'");
+    const terminal = page.locator('app-pane-stack').filter({ has: page.locator('app-terminal-screen') });
+    await expect(terminal.locator('.xterm-rows')).toContainText('img/disc.png:3');
+    const prompt = terminal.locator('.xterm-rows > div').filter({ hasText: /^PS / });
+    const look = page.getByRole('dialog', { name: /^Quick look of / });
+
+    await test.step('hovering the image path shows the picture beside the pointer', async () => {
+      const place = await expect.poll(() => placeOf(page, 'img/disc.png:3')).toBeDefined().then(() => placeOf(page, 'img/disc.png:3'));
+      const preview = page.locator('.link-preview');
+      // The preview answers the pointer arriving on the path: on a slow runner the first move can come before the link is ready.
+      await expect(async () => {
+        await page.mouse.move(place!.x - 4, place!.y);
+        await page.mouse.move(place!.x, place!.y);
+        await expect(preview.locator('img')).toBeVisible({ timeout: 3000 });
+      }).toPass({ timeout: 15000 });
+      await expect.poll(() => preview.locator('img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(160);
+      await timmy.shot('path-links-image-hover', { mask: [prompt] });
+    });
+
+    await test.step('Ctrl+click opens the Quick look over that one file, and Esc gives the Terminal the keyboard back', async () => {
+      await page.keyboard.down('Control');
+      await page.mouse.down();
+      await page.mouse.up();
+      await page.keyboard.up('Control');
+      await expect(look).toBeVisible();
+      await expect(look.locator('.name')).toHaveText('disc.png');
+      await expect(look.locator('.counter')).toHaveText(/^1 of 1/);
+      await expect(page.locator('app-pane-stack')).toHaveCount(1);
+      await timmy.shot('path-links-image-quick-look', { mask: [prompt] });
+      await page.keyboard.press('Escape');
+      await expect(look).toHaveCount(0);
+      await expect(terminal.locator('.xterm-helper-textarea')).toBeFocused();
+    });
+  });
+});

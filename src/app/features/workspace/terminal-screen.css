@@ -191,3 +191,50 @@ button.stop {
 .end {
   margin-inline-start: auto;
 }
+
+/* The hovered Path link's hint, by the pointer: what Ctrl (Cmd) + click opens. Styled as the app's tooltips. */
+.link-hint {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 420px;
+  margin: 18px 0 0 8px;
+  padding: var(--spacing-02) var(--spacing-04);
+  background: var(--text-primary);
+  color: var(--background);
+  box-shadow: var(--shadow-overlay);
+  font: 400 12px/16px var(--font-mono);
+  letter-spacing: 0.32px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+.link-key {
+  font-family: var(--font-sans);
+  opacity: 0.8;
+}
+
+/* The hovered image path's preview: fitted to a small card near the pointer. */
+.link-preview {
+  position: fixed;
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-02);
+  max-width: 260px;
+  max-height: 180px;
+  margin: 18px 0 0 8px;
+  padding: var(--spacing-02);
+  border: 1px solid var(--border-subtle);
+  background: var(--layer-01);
+  box-shadow: var(--shadow-overlay);
+  pointer-events: none;
+}
+
+.link-preview app-file-picture {
+  width: 100%;
+  height: 100%;
+}

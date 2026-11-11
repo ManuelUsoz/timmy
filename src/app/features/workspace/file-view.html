@@ -1,0 +1,144 @@
+@let state = shown();
+@if (inTab()) {
+  <div class="mode-bar" role="group" [attr.aria-label]="i18n.t('quickLook.mode')">
+    <button type="button" data-mode="file" [attr.aria-pressed]="mode() === 'file'" (click)="show('file')">{{ i18n.t('quickLook.file') }}</button>
+    <button type="button" data-mode="changes" [attr.aria-pressed]="mode() === 'changes'" [disabled]="!canDiff()" (click)="show('changes')">
+      {{ changesLabel() }}
+    </button>
+  </div>
+}
+@if (state.status === 'text' && tabId() !== undefined) {
+  <nav class="breadcrumb" [attr.aria-label]="i18n.t('fileView.breadcrumb')">
+    @for (crumb of breadcrumb(); track $index) {
+      @if ($index > 0) {
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" /></svg>
+      }
+      <span class="crumb" [class.strong]="crumb.strong">{{ crumb.text }}</span>
+    }
+  </nav>
+}
+@switch (freshness()) {
+  @case ('stale') {
+    <!-- The file changed on disk: the text is never replaced under the reader's eyes; Recargar does it on request. -->
+    <div class="notice stale" role="status">
+      <span class="notice-text">{{ i18n.t('fileView.stale') }}</span>
+      <button type="button" class="notice-action" (click)="reload()">{{ i18n.t('fileView.reload') }}</button>
+    </div>
+  }
+  @case ('gone') {
+    <div class="notice gone" role="status">
+      <span class="notice-text">{{ i18n.t('fileView.goneBar') }}</span>
+    </div>
+  }
+}
+<div
+  class="scroll"
+  [class.dimmed]="freshness() === 'gone'"
+  data-scrolls-x
+  tabindex="0"
+  role="region"
+  [attr.aria-label]="i18n.t('fileView.text', { name: name() })"
+  (scroll)="measure()"
+  (mousemove)="dragLine($event)"
+  (keydown.escape)="clearSelection()"
+  (keydown)="keydown($event)"
+>
+  @switch (state.status) {
+    @case ('text') {
+      @if (mode() === 'changes') {
+        <app-file-diff class="diff-body" [name]="name()" [diff]="diff()" />
+      } @else if (lines().length === 0) {
+        <p class="note">{{ i18n.t('files.emptyFile') }}</p>
+      } @else if (rendered()) {
+        <!-- Renderizado: the page, already sanitised; every click in it is ours (markdownClick). -->
+        <div class="markdown-body" [innerHTML]="page()" (click)="markdownClick($event)" (auxclick)="markdownClick($event)"></div>
+      } @else {
+        <div class="code" [class.selectable]="tabId() !== undefined" [style.--columns]="columns()" [style.--digits]="digits()" [style.--gutter]="inTab() ? '4px' : '0px'" (mousedown)="pressLine($event)">
+          @for (row of rows(); track $index; let lineIndex = $index) {
+            <div class="line" [attr.data-line]="$index + 1">
+              @if (inTab()) {
+                @let gutter = gutters()[lineIndex];
+                <span class="gutter" [attr.data-kind]="gutter" [attr.aria-label]="gutter === undefined ? null : i18n.t(gutter === 'deleted' ? 'fileDiff.removed' : gutter === 'modified' ? 'files.modified' : 'files.added')"></span>
+              }
+              <span class="number" aria-hidden="true">{{ $index + 1 }}</span><span class="text">@for (run of row; track $index) {<span [class]="run.token === '' ? '' : 'tok-' + run.token">{{ run.text }}</span>}</span>
+            </div>
+          }
+          <!-- The Line selection: one layer over the lines, placed by line height, apart from how the lines are drawn. -->
+          @if (marks(); as marked) {
+            <div class="marks">
+              <div class="selected" [style.top.px]="marked.top" [style.height.px]="marked.height"><span class="bar"></span></div>
+              <div
+                class="line-actions"
+                role="toolbar"
+                [class.above]="marked.above"
+                [style.margin-top.px]="marked.popoverTop"
+                [attr.aria-label]="i18n.t('fileView.lineActions', { lines: marked.range })"
+              >
+                <span class="range">{{ marked.range }}</span>
+                @if (tabId(); as tab) {
+                  <app-mention place="popover" [tabId]="tab" [path]="path()" [lines]="selection()" [blocked]="mentionBlock()" />
+                }
+                <button type="button" class="line-action" (click)="copy()">{{ i18n.t('fileView.copy') }}</button>
+                <button type="button" class="line-action" [disabled]="rangeBlock() !== undefined" [attr.title]="rangeBlock() ?? null" (click)="copyPath()">{{ i18n.t('fileView.copyPath') }}</button>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    }
+    @case ('image') {
+      <app-file-picture [picture]="state.picture" [name]="name()" [(actual)]="actual" (natural)="pictureDrawn($event)" />
+    }
+    @case ('notAnImage') {
+      <p class="note">{{ i18n.t('reader.notAnImage') }}</p>
+    }
+    @case ('gone') {
+      <p class="note">{{ i18n.t('files.gone') }}</p>
+    }
+    @case ('loading') {
+      <p class="note">{{ i18n.t('files.loading') }}</p>
+    }
+    @default {
+      <!-- A state the reader cannot help with: what is true, and the way out. -->
+      @let way = stuck();
+      <div class="stuck">
+        <p class="note">{{ way.note }}</p>
+        <div class="state-actions">
+          @if (way.retry) {
+            <button type="button" class="action" (click)="retry()">{{ i18n.t('files.retry') }}</button>
+          }
+          <button type="button" class="action" (click)="openExternal()">{{ i18n.t('reader.openOutside') }}</button>
+        </div>
+      </div>
+    }
+  }
+</div>
+@if (state.status === 'text' || state.status === 'image' || isSvg()) {
+  <div class="status">
+    @if (state.status === 'text') {
+      @if (rendered()) {
+        <span>{{ i18n.t('markdown.rendered') }}</span>
+      } @else {
+      @for (part of status(); track $index) {
+        <span>{{ part }}</span>
+      }
+      }
+    } @else {
+      @for (part of pictureStatus(); track $index) {
+        <span>{{ part }}</span>
+      }
+    }
+    @if (isMarkdown() && tabId() !== undefined) {
+      <div class="modes" role="group" [attr.aria-label]="i18n.t('reader.showAs')" [attr.title]="markdownTooLarge() ? i18n.t('markdown.tooLarge') : null">
+        <button type="button" [attr.aria-pressed]="!drawn()" (click)="choose('source')">{{ i18n.t('reader.source') }}</button>
+        <button type="button" [attr.aria-pressed]="drawn()" [disabled]="markdownTooLarge()" (click)="choose('rendered')">{{ i18n.t('markdown.render') }}</button>
+      </div>
+    }
+    @if (isSvg()) {
+      <div class="modes" role="group" [attr.aria-label]="i18n.t('reader.showAs')">
+        <button type="button" [attr.aria-pressed]="!drawn()" (click)="choose('source')">{{ i18n.t('reader.source') }}</button>
+        <button type="button" [attr.aria-pressed]="drawn()" (click)="choose('rendered')">{{ i18n.t('reader.image') }}</button>
+      </div>
+    }
+  </div>
+}

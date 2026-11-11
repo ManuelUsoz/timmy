@@ -45,6 +45,7 @@ const setup = async (options: SetupOptions = {}) => {
       options.failSave
         ? Effect.die('disk full')
         : Ref.updateAndGet(stored, (s) => ({ ...s, channels: { ...s.channels, [channel]: withChannelChange(s.channels[channel], change) } })),
+    'Settings.setReader': () => Effect.die('unused'),
   });
   const hooks = Ref.makeUnsafe<ReadonlyArray<HookStatus>>(options.hooks ?? []);
   const hooksHandlers = HooksRpcs.toLayer({

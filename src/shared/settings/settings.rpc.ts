@@ -1,6 +1,6 @@
 import { Schema } from 'effect';
 import { Rpc, RpcGroup } from 'effect/rpc';
-import { Channel, ChannelChange, Language, Provider, Settings } from './settings.model';
+import { Channel, ChannelChange, Language, Provider, ReaderMode, Settings } from './settings.model';
 
 /** User settings live in main. Storage failures are defects: no caller can act on them. */
 export const SettingsRpcs = RpcGroup.make(
@@ -24,6 +24,12 @@ export const SettingsRpcs = RpcGroup.make(
    */
   Rpc.make('Settings.setChannel', {
     payload: { channel: Channel, change: ChannelChange },
+    success: Settings,
+  }),
+
+  /** Stores the reader's Renderizado/Fuente choice and answers with the settings as they are afterwards. */
+  Rpc.make('Settings.setReader', {
+    payload: { reader: ReaderMode },
     success: Settings,
   }),
 );

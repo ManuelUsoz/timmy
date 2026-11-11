@@ -10,6 +10,7 @@ import {
   type ChannelChange,
   type Language,
   type Provider,
+  type ReaderMode,
 } from '../../src/shared/settings/settings.model';
 
 /** The user's settings. Storage failures are defects: no caller can act on them. */
@@ -23,6 +24,8 @@ export class SettingsStore extends Context.Service<
     readonly setProvider: (provider: Provider, enabled: boolean) => Effect.Effect<Settings>;
     /** Applies one change to a Channel and answers with the settings as they are afterwards. */
     readonly setChannel: (channel: Channel, change: ChannelChange) => Effect.Effect<Settings>;
+    /** Stores the reader's Renderizado/Fuente choice and answers with the settings as they are afterwards. */
+    readonly setReader: (reader: ReaderMode) => Effect.Effect<Settings>;
   }
 >()('settings/SettingsStore') {}
 
@@ -75,6 +78,9 @@ const makeStore = Effect.fnUntraced(function* (initial: Settings, persist: (sett
         ...current,
         channels: { ...current.channels, [channel]: withChannelChange(current.channels[channel], change) },
       }));
+    }),
+    setReader: Effect.fn('SettingsStore.setReader')(function* (reader: ReaderMode) {
+      return yield* update((current) => ({ ...current, reader }));
     }),
   });
 });

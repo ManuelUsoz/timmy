@@ -1,11 +1,21 @@
 import { TestBed } from '@angular/core/testing';
+import { Effect, Layer, PubSub, Stream } from 'effect';
+import type { HookSignal } from '../../../shared/hooks/hooks.model';
+import type { TerminalHookReport, TerminalId } from '../../../shared/terminal/terminal.model';
+import { TerminalRpcs } from '../../../shared/terminal/terminal.rpc';
 import type { TreeNode } from '../../shared/ui/tree-view/tree-view.types';
+import { makeDesktopTestLayer, terminalUnusedHandlers } from '../../core/desktop-layers';
 import { EffectRuntime } from '../../core/effect-runtime';
 import { I18n } from '../../core/i18n';
-import { FilesBrowser } from './files-browser';
-import { file, folder, text, type FakeDisk, type FakeFiles } from './files-fakes';
-import { fakeRuntime, makeBackend, project } from './projects-fakes';
+import { CHANGES_DEBOUNCE_MS, FilesBrowser } from './files-browser';
+import { change, file, folder, text, type FakeDisk, type FakeFiles } from './files-fakes';
+import { fakeRuntime, layerFakeBackend, makeBackend, project } from './projects-fakes';
+import { PaneId, addToStack, focusPane, panesOf, showView, type TabLayout } from './pane-layout';
 import { ProjectsState } from './projects-state';
+import type { Tab } from './tabs';
+import { TabsState } from './tabs-state';
+import { TerminalsState } from './terminals-state';
+import { fileView, viewKey } from './views';
 import { WorkspaceLayoutState } from './workspace-layout';
 
 const timmy = project('timmy');
@@ -28,6 +38,10 @@ const timmyDisk = (): FakeDisk => ({
   index: ['README.md', 'src/main.ts', 'src/app/a.ts'],
 });
 
+/** How long the browser waits for a burst of refresh triggers to end, in these tests. */
+const DEBOUNCE = 20;
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const setup = async (initial: { readonly files?: Partial<FakeFiles> } = {}) => {
   const backend = makeBackend({
     projects: [timmy, ascua],
@@ -36,7 +50,21 @@ const setup = async (initial: { readonly files?: Partial<FakeFiles> } = {}) => {
       ...initial.files,
     } as FakeFiles,
   });
-  TestBed.configureTestingModule({ providers: [{ provide: EffectRuntime, useValue: fakeRuntime(backend) }] });
+  /** What the Hooks of every Terminal report, as main passes them on. */
+  const hooks = Effect.runSync(PubSub.unbounded<TerminalHookReport>());
+  const layer = makeDesktopTestLayer(
+    Layer.mergeAll(
+      layerFakeBackend(backend),
+      TerminalRpcs.toLayer({ ...terminalUnusedHandlers, 'Terminal.hookReports': () => Stream.fromPubSub(hooks) }),
+    ),
+  );
+  const runtime = { run: (effect: Effect.Effect<unknown, unknown, never>) => Effect.runPromiseExit(Effect.provide(effect as never, layer)) };
+  TestBed.configureTestingModule({
+    providers: [
+      { provide: EffectRuntime, useValue: runtime },
+      { provide: CHANGES_DEBOUNCE_MS, useValue: DEBOUNCE },
+    ],
+  });
   const projects = TestBed.inject(ProjectsState);
   await projects.refresh();
   projects.select(timmy.projectId);
@@ -56,7 +84,21 @@ const setup = async (initial: { readonly files?: Partial<FakeFiles> } = {}) => {
   const outline = (list: readonly TreeNode[] = nodes(), depth = 0): string[] =>
     list.flatMap((node) => [`${'  '.repeat(depth)}${node.label}`, ...outline(node.children ?? [], depth + 1)]);
   const listDirs = () => backend.files.calls.filter((call) => call.startsWith('Files.listDir:'));
-  return { backend, projects, browser, settle, nodes, outline, listDirs };
+  /** The tree as indented labels with each row's mark, and `~` before a struck-through row. */
+  const marked = (list: readonly TreeNode[] = nodes(), depth = 0): string[] =>
+    list.flatMap((node) => [
+      `${'  '.repeat(depth)}${node.struck ? '~' : ''}${node.label}${node.flag ? ` [${node.flag.text}]` : ''}`,
+      ...marked(node.children ?? [], depth + 1),
+    ]);
+  /** A Provider's Hook reports about a Terminal. */
+  const report = (terminalId: TerminalId, signal: HookSignal) => Effect.runSync(PubSub.publish(hooks, { terminalId, signal }));
+  /** Waits out the debounce, then lets the answer arrive. */
+  const settleChanges = async () => {
+    await wait(DEBOUNCE * 3);
+    await settle();
+  };
+  const changesCalls = () => backend.files.calls.filter((call) => call === 'Files.changes').length;
+  return { backend, projects, browser, settle, nodes, outline, listDirs, marked, report, settleChanges, changesCalls };
 };
 
 describe('FilesBrowser tree', () => {
@@ -105,12 +147,12 @@ describe('FilesBrowser tree', () => {
     browser.setFolderOpen('src', true);
     browser.setFolderOpen('src/app', true);
     await settle();
-    expect(backend.files.saved[timmy.projectId]).toEqual({ expanded: ['src', 'src/app'], lastFile: null, view: 'tree' });
+    expect(backend.files.saved[timmy.projectId]).toEqual({ expanded: ['src', 'src/app'], lastFile: null });
   });
 
   it('opens again on the folders it remembered, reading each of them', async () => {
     const { browser, settle, outline, listDirs } = await setup({
-      files: { saved: { [timmy.projectId]: { expanded: ['src', 'src/app'], lastFile: null, view: 'tree' } } },
+      files: { saved: { [timmy.projectId]: { expanded: ['src', 'src/app'], lastFile: null } } },
     });
     browser.toggle();
     await settle();
@@ -120,7 +162,7 @@ describe('FilesBrowser tree', () => {
 
   it('forgets a remembered folder that is gone instead of showing it as broken', async () => {
     const { backend, browser, settle, outline } = await setup({
-      files: { saved: { [timmy.projectId]: { expanded: ['src', 'deleted'], lastFile: null, view: 'tree' } } },
+      files: { saved: { [timmy.projectId]: { expanded: ['src', 'deleted'], lastFile: null } } },
     });
     browser.toggle();
     await settle();
@@ -158,93 +200,141 @@ describe('FilesBrowser tree', () => {
 });
 
 
-describe('FilesBrowser file view', () => {
+describe('FilesBrowser opens a File View', () => {
+  /** The browser open on timmy, with one Tab of one Terminal on screen. */
   const opened = async (initial: Parameters<typeof setup>[0] = {}) => {
     const context = await setup(initial);
+    const tabs = TestBed.inject(TabsState);
+    const terminals = TestBed.inject(TerminalsState);
+    const first = terminals.create(timmy.projectId);
+    terminals.setCurrent(first.id);
     context.browser.toggle();
     await context.settle();
-    return context;
+    const tab = (): Tab => tabs.tabsOf(timmy.projectId).find((each) => each.id === first.tabId) as Tab;
+    const layout = (): TabLayout => tabs.layoutOf(tab()) as TabLayout;
+    /** Each Pane as the keys of its Views, left to right, its expanded View first; the focused Pane starred. */
+    const panes = () =>
+      panesOf(layout()).map((pane) => {
+        const views = [pane.expanded, ...pane.views.filter((view) => viewKey(view) !== viewKey(pane.expanded))];
+        return `${pane.id === layout().focused ? '*' : ''}${views.map(viewKey).join(' ')}`;
+      });
+    const files = () => tabs.filesOf(tab()).map((open) => `${open.path}${open.pinned ? ' (pinned)' : ''}`);
+    return { ...context, tabs, terminals, first, tab, layout, panes, files };
   };
 
-  it('reads a file when it is picked and shows it in place of the tree, remembering it', async () => {
-    const { backend, browser, settle } = await opened();
+  it('opens a click as a preview File View in a Pane to the right of the focused one, which takes the focus', async () => {
+    const { browser, first, panes, files } = await opened();
+    browser.pick('README.md');
+    expect(files()).toEqual(['README.md']);
+    expect(panes()).toEqual([first.id, '*file:README.md']);
+    expect(browser.selected()).toBe('README.md');
+  });
+  it('replaces the preview with the next file clicked, in its place, wherever it was moved', async () => {
+    const { browser, tabs, tab, first, panes, files } = await opened();
+    browser.pick('README.md');
+    // The user moves the preview into the Terminal's Stack.
+    tabs.update(tab(), (layout) => addToStack(layout, PaneId.make(first.id), fileView('README.md')));
+    expect(panes()).toEqual([`*file:README.md ${first.id}`]);
+    tabs.update(tab(), (layout) => showView(layout, PaneId.make(first.id), 0));
     browser.openFile('src/main.ts');
-    expect(browser.view()).toBe('file');
-    expect(browser.file()).toEqual({ status: 'loading', path: 'src/main.ts' });
-    await settle();
-    expect(browser.file()).toEqual({ status: 'text', path: 'src/main.ts', content: 'main\n' });
-    expect(backend.files.calls.filter((call) => call.startsWith('Files.read:'))).toEqual(['Files.read:src/main.ts']);
-    expect(backend.files.saved[timmy.projectId]).toEqual({ expanded: [], lastFile: 'src/main.ts', view: 'file' });
+    expect(files()).toEqual(['src/main.ts']);
+    expect(panes()).toEqual([`*file:src/main.ts ${first.id}`]);
   });
 
-  it('tells a binary file and a file that is too large from text, with no content', async () => {
-    const { browser, settle } = await opened();
-    browser.openFile('logo.png');
-    await settle();
-    expect(browser.file()).toEqual({ status: 'binary', path: 'logo.png' });
-    browser.openFile('big.log');
-    await settle();
-    expect(browser.file()).toEqual({ status: 'tooLarge', path: 'big.log', size: 2_000_000 });
+  it('opens a double click pinned, and the next click as a new preview beside it', async () => {
+    const { browser, first, panes, files } = await opened();
+    browser.pick('README.md', true);
+    expect(files()).toEqual(['README.md (pinned)']);
+    browser.openFile('src/main.ts');
+    expect(files()).toEqual(['README.md (pinned)', 'src/main.ts']);
+    expect(panes()).toEqual([first.id, 'file:README.md', '*file:src/main.ts']);
   });
 
-  it('says a file is gone, and stays on it so the way back is still there', async () => {
-    const { browser, settle } = await opened();
-    browser.openFile('deleted.ts');
-    await settle();
-    expect(browser.file()).toEqual({ status: 'gone', path: 'deleted.ts' });
-    expect(browser.view()).toBe('file');
+  it('pins the preview with a double click on its row, keeping it where it is', async () => {
+    const { browser, first, panes, files } = await opened();
+    browser.pick('README.md');
+    browser.pick('README.md', true);
+    expect(files()).toEqual(['README.md (pinned)']);
+    expect(panes()).toEqual([first.id, '*file:README.md']);
   });
 
-  it('goes back to the tree with the file highlighted and its folders open and read', async () => {
-    const { backend, browser, settle, outline } = await opened();
+  it('keeps a pinned File View when the next file is clicked: the pin button made it stay', async () => {
+    const { browser, tabs, tab, files } = await opened();
+    browser.pick('README.md');
+    tabs.pinFile(tab(), 'README.md');
+    browser.openFile('src/main.ts');
     browser.openFile('src/app/a.ts');
-    await settle();
-    browser.back();
-    await settle();
-    expect(browser.view()).toBe('tree');
-    expect(browser.selected()).toBe('src/app/a.ts');
-    expect(outline()).toEqual(['node_modules', 'src', '  app', '    a.ts', '  main.ts', '.env', 'README.md']);
-    expect(backend.files.saved[timmy.projectId]).toEqual({ expanded: ['src', 'src/app'], lastFile: 'src/app/a.ts', view: 'tree' });
+    expect(files()).toEqual(['README.md (pinned)', 'src/app/a.ts']);
   });
 
-  it('takes Esc to the tree from a file, and closes the sidebar from the tree', async () => {
-    const { browser, settle } = await opened();
+  it('focuses a file already open in the Tab instead of opening it twice', async () => {
+    const { browser, tabs, tab, first, panes, files } = await opened();
+    browser.pick('README.md', true);
+    browser.openFile('src/main.ts');
+    tabs.update(tab(), (layout) => focusPane(layout, PaneId.make(first.id)));
     browser.openFile('README.md');
-    await settle();
-    browser.escape();
-    expect(browser.view()).toBe('tree');
-    expect(browser.open()).toBe(true);
-    browser.escape();
-    expect(browser.open()).toBe(false);
+    expect(files()).toEqual(['README.md (pinned)', 'src/main.ts']);
+    expect(panes()).toEqual([first.id, '*file:README.md', 'file:src/main.ts']);
+    expect(tabs.focusRequest()).toEqual({ tab: first.tabId, view: fileView('README.md') });
   });
 
-  it('resumes the view it was left in when it is closed and opened again', async () => {
-    const { browser, settle } = await opened();
-    browser.openFile('README.md');
-    await settle();
-    browser.toggle();
-    browser.toggle();
-    await settle();
-    expect(browser.view()).toBe('file');
-    expect(browser.file()).toMatchObject({ status: 'text', path: 'README.md' });
+  it('opens like a new Terminal at 6 Panes: in a Stack with room', async () => {
+    const { browser, terminals, panes, first } = await opened();
+    for (let n = 0; n < 4; n++) terminals.create(timmy.projectId, first.tabId);
+    browser.pick('README.md', true);
+    expect(panes()).toHaveLength(6);
+    browser.openFile('src/main.ts');
+    expect(panes()).toHaveLength(6);
+    expect(panes().filter((pane) => pane.startsWith('*'))).toEqual([expect.stringMatching(/^\*file:src\/main\.ts /)]);
   });
 
-  it('reads the file it remembered when it opens in the file view', async () => {
-    const { browser, settle } = await opened({
-      files: { saved: { [timmy.projectId]: { expanded: [], lastFile: 'README.md', view: 'file' } } },
-    });
-    expect(browser.view()).toBe('file');
-    expect(browser.file()).toEqual({ status: 'text', path: 'README.md', content: '# timmy\n' });
+  it('opens a filter match as a File View too, and nothing for a folder or a row that is not an entry', async () => {
+    const { browser, settle, files } = await opened();
+    browser.setFolderOpen('src', true);
+    await settle();
+    browser.pick('src');
+    browser.pick('src/\u0000loading');
+    browser.pick('nope.ts');
+    expect(files()).toEqual([]);
+    browser.filter.set('main');
+    browser.openFile('src/main.ts');
+    expect(files()).toEqual(['src/main.ts']);
   });
 
-  it('falls back to the tree, and forgets the file, when the remembered one is gone', async () => {
-    const { backend, browser, settle } = await opened({
-      files: { saved: { [timmy.projectId]: { expanded: [], lastFile: 'deleted.ts', view: 'file' } } },
-    });
+  it('only highlights the file when no Tab of the Project is on screen: a Tab needs a Terminal', async () => {
+    const { browser, tabs, terminals, first } = await opened();
+    await terminals.close(first.id);
+    browser.pick('README.md');
+    expect(browser.selected()).toBe('README.md');
+    expect(tabs.tabsOf(timmy.projectId)).toEqual([]);
+  });
+
+  it('remembers the file picked as the tree highlight only, never as a reader', async () => {
+    const { backend, browser, settle } = await opened();
+    browser.pick('README.md');
     await settle();
-    expect(browser.view()).toBe('tree');
-    expect(browser.selected()).toBeNull();
-    expect(backend.files.saved[timmy.projectId]).toEqual({ expanded: [], lastFile: null, view: 'tree' });
+    expect(backend.files.saved[timmy.projectId]).toEqual({ expanded: [], lastFile: 'README.md' });
+    expect(backend.files.calls.filter((call) => call.startsWith('Files.read:'))).toEqual([]);
+  });
+
+  it('closes the Tab with its File Views, pinned ones included, when its last Terminal closes', async () => {
+    const { browser, tabs, terminals, first } = await opened();
+    browser.pick('README.md', true);
+    browser.openFile('src/main.ts');
+    await tabs.closeTerminals([first.id]);
+    expect(tabs.tabsOf(timmy.projectId)).toEqual([]);
+    // A Terminal opened again in a Tab of that id (as a restore could) finds no File Views left behind.
+    terminals.create(timmy.projectId, first.tabId);
+    const [again] = tabs.tabsOf(timmy.projectId);
+    expect(tabs.filesOf(again)).toEqual([]);
+  });
+
+  it('closes a File View on its own, and its Pane with it', async () => {
+    const { browser, tabs, tab, first, panes, files } = await opened();
+    browser.pick('README.md', true);
+    tabs.closeFiles(tab(), ['README.md']);
+    expect(files()).toEqual([]);
+    expect(panes()).toEqual([`*${first.id}`]);
   });
 });
 
@@ -293,13 +383,263 @@ describe('FilesBrowser filter', () => {
     expect(browser.matches()).toEqual({ status: 'loading' });
   });
 
-  it('opens a match as a file and clears the filter, so Back returns to the whole tree', async () => {
-    const { browser, settle } = await opened();
-    browser.filter.set('main');
-    browser.openFile('src/main.ts');
+});
+
+/** A Project an agent has worked in: git reports each kind of Changed file. */
+const changedDisk = (): FakeDisk => ({
+  ...timmyDisk(),
+  dirs: {
+    ...timmyDisk().dirs,
+    '': [folder('generated'), folder('node_modules', true), folder('src'), folder('vendor'), file('.env', true), file('notes.md'), file('README.md')],
+    src: [folder('app'), file('main.ts'), file('renamed.ts')],
+    generated: [folder('deep')],
+    'generated/deep': [file('out.ts')],
+    vendor: [folder('lib')],
+    'vendor/lib': [file('lib.ts')],
+  },
+  changes: [
+    change('README.md', 'modified'),
+    change('notes.md', 'untracked'),
+    change('src/main.ts', 'added'),
+    change('src/renamed.ts', 'renamed'),
+    change('src/old.ts', 'deleted'),
+    change('src/app/a.ts', 'modified'),
+    change('generated', 'untracked', true),
+    change('vendor/lib', 'modified', true),
+  ],
+});
+
+describe('FilesBrowser changed markers', () => {
+  const opened = async () => {
+    const context = await setup({ files: { disks: { [timmy.cwd]: changedDisk() } } });
+    // A Tab on screen, so a picked file has a Pane to open in.
+    const tabs = TestBed.inject(TabsState);
+    const terminals = TestBed.inject(TerminalsState);
+    const first = terminals.create(timmy.projectId);
+    terminals.setCurrent(first.id);
+    context.browser.toggle();
+    await context.settleChanges();
+    /** The paths of the File Views open in that Tab. */
+    const openFiles = () => tabs.tabsOf(timmy.projectId).flatMap((tab) => tabs.filesOf(tab).map((open) => open.path));
+    return { ...context, openFiles };
+  };
+
+  it('marks each Changed file with its letter and its name, and a collapsed folder with how many changes it holds', async () => {
+    const { nodes, marked, listDirs } = await opened();
+    expect(marked()).toEqual(['generated [U]', 'node_modules', 'src [4]', 'vendor [1]', '.env', 'notes.md [U]', 'README.md [M]']);
+    // The count of a folder never read comes from git, not from reading it.
+    expect(listDirs()).toEqual(['Files.listDir:']);
+    const readme = nodes().find((node) => node.label === 'README.md');
+    expect(readme?.flag).toMatchObject({ text: 'M', label: 'Modificado' });
+    expect(nodes().find((node) => node.label === 'src')?.flag).toMatchObject({ text: '4', label: '4 con cambios dentro' });
+  });
+
+  it('tells the kinds apart by letter, lists a deleted file struck through in its folder, and drops the count of an open folder', async () => {
+    const { browser, settle, marked, nodes } = await opened();
+    browser.setFolderOpen('src', true);
     await settle();
-    expect(browser.filter()).toBe('');
-    expect(browser.view()).toBe('file');
+    expect(marked()).toEqual([
+      'generated [U]',
+      'node_modules',
+      'src',
+      '  app [1]',
+      '  main.ts [A]',
+      '  ~old.ts [D]',
+      '  renamed.ts [R]',
+      'vendor [1]',
+      '.env',
+      'notes.md [U]',
+      'README.md [M]',
+    ]);
+    const src = nodes().find((node) => node.label === 'src');
+    expect(src?.children?.map((node) => node.flag?.label)).toEqual(['1 con cambios dentro', 'Añadido', 'Eliminado', 'Renombrado']);
+  });
+
+  it('does not open a deleted file: there is nothing to read', async () => {
+    const { browser, settle, openFiles } = await opened();
+    browser.setFolderOpen('src', true);
+    await settle();
+    browser.pick('src/old.ts');
+    browser.pick('src/old.ts', true);
+    await settle();
+    expect(openFiles()).toEqual([]);
+    expect(browser.selected()).toBeNull();
+  });
+
+  it('marks the files of a wholly untracked folder as untracked once it is opened', async () => {
+    const { browser, settle, marked } = await opened();
+    browser.setFolderOpen('generated', true);
+    await settle();
+    expect(marked().slice(0, 2)).toEqual(['generated/deep [U]', '  out.ts [U]']);
+  });
+
+  it('marks a submodule with changes as one modified folder', async () => {
+    const { browser, settle, marked } = await opened();
+    browser.setFolderOpen('vendor', true);
+    await settle();
+    expect(marked()).toContain('vendor/lib [M]');
+  });
+
+  it('lists a deleted file of a folder that is gone altogether, inside that folder', async () => {
+    const disk = changedDisk();
+    const { browser, settle, settleChanges, marked } = await setup({
+      files: { disks: { [timmy.cwd]: { ...disk, changes: [change('old/a.ts', 'deleted'), change('old/b.ts', 'deleted')] } } },
+    });
+    browser.toggle();
+    await settleChanges();
+    expect(marked()).toContain('old [2]');
+    browser.setFolderOpen('old', true);
+    await settle();
+    expect(marked()).toEqual(expect.arrayContaining(['old', '  ~a.ts [D]', '  ~b.ts [D]']));
+  });
+
+  it('counts the changes, and toggles a tree of only the changed paths and their folders, all open, then back', async () => {
+    const { browser, settle, marked } = await opened();
+    expect(browser.changedCount()).toBe(8);
+    browser.toggleChangedOnly();
+    await settle();
+    expect(browser.changedOnly()).toBe(true);
+    expect(marked()).toEqual([
+      'generated [U]',
+      'src',
+      '  app',
+      '    a.ts [M]',
+      '  main.ts [A]',
+      '  ~old.ts [D]',
+      '  renamed.ts [R]',
+      'vendor/lib [M]',
+      'notes.md [U]',
+      'README.md [M]',
+    ]);
+    expect(nodes(browser).find((node) => node.label === 'src')?.expanded).toBe(true);
+    browser.toggleChangedOnly();
+    await settle();
+    expect(marked()).toEqual(['generated [U]', 'node_modules', 'src [4]', 'vendor [1]', '.env', 'notes.md [U]', 'README.md [M]']);
+  });
+
+  it('opens a changed file from the changed-only tree, which needs no folder read', async () => {
+    const { browser, settle, openFiles, listDirs } = await opened();
+    browser.toggleChangedOnly();
+    browser.pick('src/app/a.ts');
+    await settle();
+    expect(openFiles()).toEqual(['src/app/a.ts']);
+    expect(browser.selected()).toBe('src/app/a.ts');
+    expect(listDirs()).toEqual(['Files.listDir:']);
+  });
+
+  it('shows no markers and no count in a folder that is not a repository, and the tree still works', async () => {
+    const { browser, marked } = await setup({ files: { disks: { [timmy.cwd]: { ...timmyDisk(), index: null } } } }).then(async (context) => {
+      context.browser.toggle();
+      await context.settleChanges();
+      return context;
+    });
+    expect(marked()).toEqual(['node_modules', 'src', '.env', 'README.md']);
+    expect(browser.changedCount()).toBe(0);
+  });
+});
+
+/** The nodes of the tree on screen. */
+const nodes = (browser: FilesBrowser): readonly TreeNode[] => {
+  const tree = browser.tree();
+  return tree.status === 'ready' ? tree.nodes : [];
+};
+
+describe('FilesBrowser changed markers refresh', () => {
+  const withTerminals = async () => {
+    const context = await setup({ files: { disks: { [timmy.cwd]: changedDisk(), [ascua.cwd]: { dirs: { '': [file('LICENSE')] }, files: {}, index: ['LICENSE'] } } } });
+    const terminals = TestBed.inject(TerminalsState);
+    const mine = terminals.create(timmy.projectId);
+    const theirs = terminals.create(ascua.projectId);
+    context.browser.toggle();
+    await context.settleChanges();
+    return { ...context, mine: mine.id, theirs: theirs.id };
+  };
+
+  it('reads git status once when the sidebar opens, and again each time it is opened', async () => {
+    const { browser, settleChanges, changesCalls } = await withTerminals();
+    expect(changesCalls()).toBe(1);
+    browser.toggle();
+    browser.toggle();
+    await settleChanges();
+    expect(changesCalls()).toBe(2);
+  });
+
+  it('reads again after a burst of Hook reports from a Terminal of the Project, once, when the burst is over', async () => {
+    const { backend, report, mine, marked, settleChanges, changesCalls } = await withTerminals();
+    backend.files.disks[timmy.cwd]!.changes = [change('README.md', 'modified'), change('notes.md', 'modified')];
+    report(mine, 'Working');
+    report(mine, 'Working');
+    report(mine, 'Working');
+    report(mine, 'Done');
+    await settleChanges();
+    expect(changesCalls()).toBe(2);
+    expect(marked()).toContain('notes.md [M]');
+  });
+
+  it('does not read again for a Terminal of another Project, nor for a report that is not a tool use or a stop', async () => {
+    const { report, mine, theirs, settleChanges, changesCalls } = await withTerminals();
+    report(theirs, 'Working');
+    report(mine, 'Waiting');
+    await settleChanges();
+    expect(changesCalls()).toBe(1);
+  });
+
+  it('reads again when the window gets the focus back', async () => {
+    const { settleChanges, changesCalls } = await withTerminals();
+    window.dispatchEvent(new Event('focus'));
+    await settleChanges();
+    expect(changesCalls()).toBe(2);
+  });
+
+  it('does not read while the sidebar is closed', async () => {
+    const { browser, report, mine, settleChanges, changesCalls } = await withTerminals();
+    browser.toggle();
+    report(mine, 'Done');
+    window.dispatchEvent(new Event('focus'));
+    await settleChanges();
+    expect(changesCalls()).toBe(1);
+  });
+
+  it('runs one status at a time, keeping the last markers while it runs, and runs once more for what came meanwhile', async () => {
+    const { backend, report, mine, marked, settleChanges, changesCalls } = await withTerminals();
+    let release = () => {};
+    backend.files.changesGate = new Promise<void>((resolve) => (release = resolve));
+    backend.files.disks[timmy.cwd]!.changes = [change('notes.md', 'modified')];
+    report(mine, 'Done');
+    await settleChanges();
+    expect(changesCalls()).toBe(2);
+    report(mine, 'Working');
+    report(mine, 'Done');
+    await settleChanges();
+    // The second run waits for the first.
+    expect(changesCalls()).toBe(2);
+    expect(marked()).toContain('README.md [M]');
+    backend.files.changesGate = undefined;
+    release();
+    await settleChanges();
+    await settleChanges();
+    expect(changesCalls()).toBe(3);
+    expect(marked()).toContain('notes.md [M]');
+    expect(marked()).toContain('README.md');
+  });
+
+  it('keeps the last markers, silently, when a later status fails', async () => {
+    const { backend, report, mine, marked, settleChanges, changesCalls } = await withTerminals();
+    backend.files.changesFail = true;
+    report(mine, 'Done');
+    await settleChanges();
+    expect(changesCalls()).toBe(2);
+    expect(marked()).toContain('README.md [M]');
+  });
+
+  it('starts a Project without the markers of the one before', async () => {
+    const { projects, browser, settle, settleChanges, marked } = await withTerminals();
+    projects.select(ascua.projectId);
+    await settle();
+    expect(marked()).toEqual(['LICENSE']);
+    expect(browser.changedCount()).toBe(0);
+    await settleChanges();
+    expect(marked()).toEqual(['LICENSE']);
   });
 });
 
@@ -391,17 +731,6 @@ describe('FilesBrowser Ctrl+P', () => {
     expect(browser.filterFocus()).toBe(2);
   });
 
-  it('goes back to the tree from a file, so the filter is there to focus', async () => {
-    const { browser, settle } = await setup();
-    browser.toggle();
-    await settle();
-    browser.openFile('README.md');
-    await settle();
-    browser.openWithFilter();
-    expect(browser.view()).toBe('tree');
-    expect(browser.filterFocus()).toBe(1);
-  });
-
   it('does nothing without a Project in view', async () => {
     const { browser, projects } = await setup();
     projects.deselect();
@@ -409,24 +738,6 @@ describe('FilesBrowser Ctrl+P', () => {
     expect(browser.open()).toBe(false);
     browser.toggle();
     expect(browser.open()).toBe(false);
-  });
-});
-
-describe('FilesBrowser pick', () => {
-  it('opens a file picked in the tree, and does nothing for a folder or a row that is not an entry', async () => {
-    const { browser, settle } = await setup();
-    browser.toggle();
-    await settle();
-    browser.setFolderOpen('src', true);
-    await settle();
-    browser.pick('src');
-    browser.pick('src/\u0000loading');
-    browser.pick('nope.ts');
-    expect(browser.view()).toBe('tree');
-    browser.pick('src/main.ts');
-    await settle();
-    expect(browser.view()).toBe('file');
-    expect(browser.file()).toMatchObject({ status: 'text', path: 'src/main.ts' });
   });
 });
 
@@ -449,7 +760,7 @@ describe('FilesBrowser compact folders', () => {
     const context = await setup({
       files: {
         disks: { [timmy.cwd]: chainDisk() },
-        ...(saved === undefined ? {} : { saved: { [timmy.projectId]: { expanded: saved, lastFile: null, view: 'tree' as const } } }),
+        ...(saved === undefined ? {} : { saved: { [timmy.projectId]: { expanded: saved, lastFile: null } } }),
       },
     });
     context.browser.toggle();
@@ -557,8 +868,7 @@ describe('FilesBrowser compact folders', () => {
     await settle();
     browser.pick('src/app/core/rpc/handshake.ts');
     await settle();
-    expect(browser.file()).toEqual({ status: 'text', path: 'src/app/core/rpc/handshake.ts', content: 'handshake\n' });
-    browser.back();
+    expect(browser.selected()).toBe('src/app/core/rpc/handshake.ts');
     browser.filter.set('core/rpc/hand');
     expect(browser.matches()).toMatchObject({ status: 'ready', items: [{ path: 'src/app/core/rpc/handshake.ts', name: 'handshake.ts', dir: 'src/app/core/rpc' }] });
   });

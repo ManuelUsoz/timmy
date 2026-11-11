@@ -44,11 +44,21 @@ _Avoid_: workspace (for a Tab).
 A region of a Tab, made by splitting another Pane on any side, or by dropping a View on its edge. It shows one View, or a Stack.
 _Avoid_: panel (Panel is a Window mode), split.
 
+**Path link**
+A path an agent prints in a Terminal that names an existing file of the Project. The renderer finds candidates in a line and asks main only for the one under the pointer; Ctrl (Cmd) + click opens it as a preview File View on the line its position names. Folders, names with spaces, `file://` addresses, outside paths and symlinks leaving the Project are not Path links; git-ignored and binary files are.
+
 **View**
 What a Pane shows: a Terminal, a diff or a pull request. Files are never a View; they are read in the Files browser.
 
 **Files browser**
 A read-only sidebar docked on the right of the Workspace, beside the Panes, which keep running. It shows the selected Project's folder as a tree read one folder at a time (a folder git ignores, such as `node_modules`, is listed dimmed and read only when the user opens it), and the chosen file in the tree's place, with a way back. It is not a Pane and not a modal.
+
+**Line selection**
+One contiguous range of lines in a File View, marked by clicking or dragging the line numbers. It is separate from the browser's text selection, not saved, and used by Copiar, Copiar ruta and Mencionar.
+_Avoid_: text selection (for the browser's selection).
+
+**Stale File View**
+A File View whose file is no longer the version on screen. Main answers a file's version (modified time and size, or gone) without reading content, for every open File View of the Project at once, on the triggers of the Changed markers (Hook `PostToolUse`/`Stop`, window focus) and when a View is focused; no timer, no watcher. A changed file shows a slim bar with Recargar and never replaces the text by itself; a deleted or renamed one (renames are not followed) keeps its last text dimmed under a "ya no existe" bar, with no Recargar. Mencionar of the Line selection and Copiar ruta with a range wait for Recargar; path-only actions and copying text are never blocked. The Quick look has none of this.
 
 **Stack**
 A Pane holding two or three Views, one expanded and the others collapsed to their headers.
@@ -69,6 +79,10 @@ A Done or Error Terminal the user has viewed: its content was on screen (Panel o
 
 **Mascot**
 Timmy's icon, shown large in Pill and Panel. It shows the highest-priority Terminal status across all Projects (Waiting, then Error, Working, Done, Idle) as its color, looks at the cursor wherever it is on screen, and stays subtly alive. When Idle it now and then plays tennis: a racket floats beside it, with no hands, and the body keeps its status color. It rallies against an unseen opponent, its eyes follow the ball, and any other status ends the game at once. It is a Subscriber: it is always on and is not a Channel.
+
+**Mention**
+A typed reference to a file or to its Line selection that Timmy inserts into an agent's prompt in a Terminal, without pressing Enter. It is formatted for the Provider of that Terminal, is one line with no control bytes, and never becomes a Message.
+_Avoid_: attachment.
 
 **Notification**
 A Source entering a status. It carries the Source and its type. A new Subscriber receives the latest Notification of every Source that still exists, so what a Subscriber shows never depends on having been listening at the moment. It is never the result of an action of the user.

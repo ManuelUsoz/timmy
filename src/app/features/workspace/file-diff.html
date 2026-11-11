@@ -1,0 +1,40 @@
+@let state = diff();
+<div class="scroll" data-scrolls-x tabindex="0" role="region" [attr.aria-label]="i18n.t('fileDiff.label', { name: name() })">
+  @switch (state.status) {
+    @case ('changes') {
+      @if (rows().length === 0) {
+        <p class="note">{{ i18n.t('fileDiff.empty') }}</p>
+      } @else {
+        <div class="diff">
+          @for (row of rows(); track $index) {
+            @if (row.kind === 'hunk') {
+              <div class="hunk">{{ row.text }}</div>
+            } @else {
+              <div class="row" [attr.data-kind]="row.kind">
+                <span class="num old">{{ row.old }}</span>
+                <span class="num new">{{ row.now }}</span>
+                <span class="sign" [attr.role]="signLabel(row.kind) === null ? null : 'img'" [attr.aria-label]="signLabel(row.kind)">{{ sign(row.kind) }}</span>
+                <span class="text">{{ row.text }}</span>
+              </div>
+            }
+          }
+        </div>
+      }
+    }
+    @case ('binary') {
+      <p class="note">{{ i18n.t('fileDiff.binary') }}</p>
+    }
+    @case ('tooLarge') {
+      <p class="note">{{ i18n.t('files.tooLarge', { size: size(state.size) }) }}</p>
+    }
+    @case ('unchanged') {
+      <p class="note">{{ i18n.t('quickLook.noChanges') }}</p>
+    }
+    @case ('failed') {
+      <p class="note">{{ i18n.t('fileDiff.failed', { detail: state.detail }) }}</p>
+    }
+    @default {
+      <p class="note">{{ i18n.t('files.loading') }}</p>
+    }
+  }
+</div>

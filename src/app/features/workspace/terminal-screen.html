@@ -32,6 +32,21 @@
 
 <div class="output" role="log" [attr.aria-label]="i18n.t('terminals.output')">
   <div #terminalHost class="xterm-host"></div>
+  @if (linkHint(); as hint) {
+    <div class="link-hint" role="tooltip" [style.left.px]="hint.x" [style.top.px]="hint.y">
+      <span class="link-path">{{ hint.label }}</span>
+      <span class="link-key">{{ i18n.t('terminals.pathLinkOpen', { key: openKey }) }}</span>
+    </div>
+  }
+  @if (previewModel(); as preview) {
+    <div class="link-preview" role="tooltip" [style.left.px]="preview.x" [style.top.px]="preview.y">
+      @if (preview.kind === 'image') {
+        <app-file-picture [picture]="preview.picture" [name]="preview.path" />
+      } @else {
+        <ui-state tone="warning">{{ preview.note }}</ui-state>
+      }
+    </div>
+  }
   @if (!xtermReady()) {
     <pre class="fallback-output">{{ fallbackOutput() }}</pre>
   }
